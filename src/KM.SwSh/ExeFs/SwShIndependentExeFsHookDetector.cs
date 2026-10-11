@@ -23,9 +23,11 @@ internal static class SwShIndependentExeFsHookDetector
             || SwShFashionUnlockMainPatcher.HasInstalledHook(mainBytes)
             || SwShGymUniformRemovalMainPatcher.HasInstalledHook(mainBytes)
             || SwShHyperTrainingMainPatcher.HasInstalledHook(mainBytes)
+            || SwShHyperTrainingItemsPatcher.HasInstalledHook(mainBytes)
             || SwShTrainerWhiteoutMainPatcher.HasInstalledHook(mainBytes)
+            || KM.SwSh.Obedience.SwShObediencePatcher.HasInstalledHook(mainBytes)
             || KM.SwSh.TrainerDynamax.SwShTrainerDynamaxMainPatcher.HasInstalledHook(mainBytes)
-            || ivScreenKind is SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledLegacyV1
+            || ivScreenKind is SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledRawV1 or SwShIvScreenInstallKind.InstalledLegacyV1
             || fpsPatchKind is SwShFpsPatchMainKind.Installed or SwShFpsPatchMainKind.Partial
             || SwShExeFsRoyalCandyMainPatcher.AnalyzeInstallation(mainBytes).Kind
                 != SwShRoyalCandyExeFsSignatureKind.NotInstalled;

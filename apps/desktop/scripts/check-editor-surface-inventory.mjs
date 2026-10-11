@@ -165,6 +165,7 @@ const editorSurfaceInventory = {
   profanityFilter: ['src/App.tsx', 'ProfanityFilterSection', 'action-only'],
   heldItemChance: ['src/features/held-item-chance/HeldItemChanceSection.tsx', 'HeldItemChanceSection', 'raw-local-draft'],
   gameOptions: ['src/features/game-options/GameOptionsSection.tsx', 'GameOptionsSection', 'raw-local-draft'],
+  obedience: ['src/features/obedience/ObedienceSection.tsx', 'ObedienceSection', 'raw-local-draft'],
   marnieBoosts: ['src/features/marnie-boosts/MarnieBoostsSection.tsx', 'MarnieBoostsSection', 'choice-local-draft'],
   raidDens: ['src/features/raid-dens/RaidDensSection.tsx', 'RaidDensSection', 'choice-local-draft'],
   fixAiFlags: ['src/features/fix-ai-flags/FixAiFlagsSection.tsx', 'FixAiFlagsSection', 'choice-local-draft'],
@@ -257,6 +258,7 @@ const allowedPolicies = new Set([
 const editorDraftContractInventory = {
   heldItemChance: 'source-reconciled-exact-submit',
   gameOptions: 'source-reconciled-exact-submit',
+  obedience: 'source-reconciled-exact-submit',
   wildHeldItems: 'keyed-exact-submit',
   zaBehavior: 'keyed-exact-submit',
   trainerDynamaxRoster: 'captured-review',

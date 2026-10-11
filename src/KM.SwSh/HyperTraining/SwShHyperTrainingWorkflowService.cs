@@ -43,7 +43,9 @@ public sealed class SwShHyperTrainingWorkflowService
             : SwShWorkflowAvailability.ReadOnly);
     }
 
-    public SwShHyperTrainingWorkflow Load(OpenedProject project)
+    public SwShHyperTrainingWorkflow Load(OpenedProject project) => SwShHyperTrainingItemWorkflow.Enrich(project, LoadLevel(project));
+
+    private SwShHyperTrainingWorkflow LoadLevel(OpenedProject project)
     {
         ArgumentNullException.ThrowIfNull(project);
 

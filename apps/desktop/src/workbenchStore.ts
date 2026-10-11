@@ -50,6 +50,7 @@ import { type TitanSwapperWorkflow } from './bridge/titanSwapperContracts';
 import { type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
 import { type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
+import { type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { type RaidDensWorkflow } from './bridge/raidDensContracts';
 import { type FixAiFlagsWorkflow } from './bridge/fixAiFlagsContracts';
 import { type TrainerWhiteoutWorkflow } from './bridge/trainerWhiteoutContracts';
@@ -205,6 +206,7 @@ type WorkbenchState = {
   marnieBoostsWorkflow: MarnieBoostsWorkflow | null;
   heldItemChanceWorkflow: HeldItemChanceWorkflow | null;
   gameOptionsWorkflow: GameOptionsWorkflow | null;
+  obedienceWorkflow: ObedienceWorkflow | null;
   raidDensWorkflow: RaidDensWorkflow | null;
   fixAiFlagsWorkflow: FixAiFlagsWorkflow | null;
   trainerWhiteoutWorkflow: TrainerWhiteoutWorkflow | null;
@@ -333,6 +335,7 @@ type WorkbenchState = {
   setTitanSwapperWorkflow: (titanSwapperWorkflow: TitanSwapperWorkflow) => void;
   setHeldItemChanceWorkflow: (heldItemChanceWorkflow: HeldItemChanceWorkflow) => void;
   setGameOptionsWorkflow: (gameOptionsWorkflow: GameOptionsWorkflow) => void;
+  setObedienceWorkflow: (obedienceWorkflow: ObedienceWorkflow) => void;
   setMarnieBoostsWorkflow: (marnieBoostsWorkflow: MarnieBoostsWorkflow) => void;
   setRaidDensWorkflow: (raidDensWorkflow: RaidDensWorkflow) => void;
   setFixAiFlagsWorkflow: (fixAiFlagsWorkflow: FixAiFlagsWorkflow) => void;
@@ -536,6 +539,7 @@ function createLoadedWorkflowResetState(): Partial<WorkbenchState> {
     marnieBoostsWorkflow: null,
     heldItemChanceWorkflow: null,
     gameOptionsWorkflow: null,
+    obedienceWorkflow: null,
     raidDensWorkflow: null,
     fixAiFlagsWorkflow: null,
     trainerWhiteoutWorkflow: null,
@@ -664,6 +668,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   marnieBoostsWorkflow: null,
   heldItemChanceWorkflow: null,
   gameOptionsWorkflow: null,
+  obedienceWorkflow: null,
   raidDensWorkflow: null,
   fixAiFlagsWorkflow: null,
   trainerWhiteoutWorkflow: null,
@@ -1053,6 +1058,9 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   })),
   setGameOptionsWorkflow: (gameOptionsWorkflow) => set((state) => ({
     activeSection: resolveWorkflowLoadSection(state.activeSection, 'gameOptions'), gameOptionsWorkflow
+  })),
+  setObedienceWorkflow: (obedienceWorkflow) => set((state) => ({
+    activeSection: resolveWorkflowLoadSection(state.activeSection, 'obedience'), obedienceWorkflow
   })),
   setMarnieBoostsWorkflow: (marnieBoostsWorkflow) => set((state) => ({
     activeSection: resolveWorkflowLoadSection(state.activeSection, 'marnieBoosts'), marnieBoostsWorkflow

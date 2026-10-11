@@ -37,6 +37,7 @@ export const workbenchSections = [
   'bagHook',
   'cameraHook',
   'catchCap',
+  'obedience',
   'hyperTraining',
   'shinyRate',
   'typeChart',

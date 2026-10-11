@@ -3,6 +3,7 @@
 import {
   Activity,
   ArrowLeftRight,
+  Award,
   BadgeCheck,
   BadgePlus,
   Ban,
@@ -411,6 +412,10 @@ export const workbenchCapabilityRegistry = [
     id: 'catchCap',
     label: 'Catch Cap',
     workflowDashboardLabel: 'Catch Cap Editor'
+  }),
+  workflow({
+    description: 'Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.',
+    games: swordShieldGames, icon: Award, id: 'obedience', label: 'Obedience Level'
   }),
   workflow({
     description:

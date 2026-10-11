@@ -45,12 +45,12 @@ const auditedTsxSourceFiles = auditedSourceFiles.filter((sourceFile) =>
 // failure rather than silently shrinking the audit.
 assert.equal(
   auditedSourceFiles.length,
-  343,
+  345,
   'Update the field-lock source count only after reviewing every added or removed application file.'
 );
 assert.equal(
   auditedTsxSourceFiles.length,
-  129,
+  130,
   'Update the field-lock TSX count only after reviewing every added or removed editor surface.'
 );
 
@@ -173,6 +173,10 @@ const permittedTransientFieldLocks = new Map([
   [
     'src/features/npc-item-gift/NpcItemGiftSection.tsx#NpcItemGiftCard:key={gift.giftId}=>src/features/npc-item-gift/NpcItemGiftSection.tsx#input:id={`npc-item-gift-${gift.giftId}-amount`}[disabled]',
     'A persisted NPC gift transaction owns the quantity until it is applied or discarded. Invalid local quantity text remains repairable before staging.'
+  ],
+  [
+    'src/App.tsx#SearchableOptionInput:id={`hyper-training-item-${index}`}=>src/components/SearchableOptionInput.tsx#input:id={inputId}[disabled]',
+    'Payment choices require a readable item catalog and a supported editable project. Draft errors and staging do not lock the fields.'
   ],
   [
     'src/features/shiny-rate/ShinyRateSection.tsx#input:id="shiny-rate-custom-denominator"[disabled]',

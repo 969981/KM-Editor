@@ -102,6 +102,14 @@ public static class SwShExecutableMergeSupport
             try { _ = SwShGameOptionsPatcher.Read(merged, game); }
             catch (InvalidDataException) { return false; }
         }
+        if (KM.SwSh.Obedience.SwShObediencePatcher.CreateReservations()
+            .Where(region => !region.FeatureId.Contains(game == ProjectGame.Sword ? "-shield-" : "-sword-", StringComparison.Ordinal))
+            .Any(region => !beforeOptions.Text.DecompressedData.AsSpan(region.StartOffset!.Value, region.Length!.Value)
+                .SequenceEqual(afterOptions.Text.DecompressedData.AsSpan(region.StartOffset.Value, region.Length.Value))))
+        {
+            try { _ = KM.SwSh.Obedience.SwShObediencePatcher.Read(merged, game); }
+            catch (InvalidDataException) { return false; }
+        }
         var originalRates = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(original));
         var mergedRates = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(merged));
         if (!originalRates.SequenceEqual(mergedRates) || SwShHeldItemChancePatcher.CreateReservations()
@@ -117,6 +125,13 @@ public static class SwShExecutableMergeSupport
         var shiny = SwShShinyRateMainPatcher.Analyze(merged, game);
         if (shinyBase.Kind is SwShShinyRateMainKind.Default or SwShShinyRateMainKind.FixedRolls or SwShShinyRateMainKind.AlwaysShiny
             && shiny.Kind is not (SwShShinyRateMainKind.Default or SwShShinyRateMainKind.FixedRolls or SwShShinyRateMainKind.AlwaysShiny)) return false;
+        if (SwShExeFsReservedRegionLedger.MainTextRegionsForOwner(SwShHyperTrainingItemsPatcher.Owner, game)
+            .Any(region => !beforeOptions.Text.DecompressedData.AsSpan(region.StartOffset!.Value, region.Length!.Value)
+                .SequenceEqual(afterOptions.Text.DecompressedData.AsSpan(region.StartOffset.Value, region.Length.Value))))
+        {
+            try { _ = SwShHyperTrainingItemsPatcher.ReadMain(merged, game); }
+            catch (InvalidDataException) { return false; }
+        }
         return HyperLevel("exefs/main", original) is null || HyperLevel("exefs/main", merged) is not null;
     }
 }

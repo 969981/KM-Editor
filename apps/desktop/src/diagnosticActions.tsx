@@ -146,6 +146,8 @@ function resolveDestination(diagnostic: ApiDiagnostic): WorkbenchSection | null 
     || diagnostic.code === projectBridgeErrorCodes.trainerDynamaxReviewStale) return 'trainerDynamax';
   if (diagnostic.domain === 'workflow.heldItemChance' || diagnostic.code?.startsWith('KM-SWSH-HELD-ITEM-')) return 'heldItemChance';
   if (diagnostic.domain === 'workflow.gameOptions' || diagnostic.code?.startsWith('KM-SWSH-GAME-OPTIONS-')) return 'gameOptions';
+  if (diagnostic.domain === 'workflow.obedience' || diagnostic.code?.startsWith('KM-SWSH-OBEDIENCE-')) return 'obedience';
+  if (diagnostic.domain === 'workflow.hyperTraining' || diagnostic.code === projectBridgeErrorCodes.hyperTrainingItemsInvalid) return 'hyperTraining';
   if (diagnostic.domain === 'workflow.marnieBoosts' || diagnostic.code?.startsWith('KM-SWSH-MARNIE-')) return 'marnieBoosts';
   if (diagnostic.code === projectBridgeErrorCodes.aiFlagsRepairInvalid) return 'fixAiFlags';
   if (diagnostic.code === projectBridgeErrorCodes.raidDensInvalid || diagnostic.domain === 'workflow.raidDens') {

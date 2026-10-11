@@ -17,6 +17,8 @@ import { type LoadHeldItemChanceRequest, type LoadHeldItemChanceResponse, type S
   loadHeldItemChanceRequestSchema, loadHeldItemChanceResponseSchema, stageHeldItemChanceRequestSchema, stageHeldItemChanceResponseSchema } from './heldItemChanceContracts';
 import { type LoadGameOptionsRequest, type LoadGameOptionsResponse, type StageGameOptionsRequest, type StageGameOptionsResponse,
   loadGameOptionsRequestSchema, loadGameOptionsResponseSchema, stageGameOptionsRequestSchema, stageGameOptionsResponseSchema } from './gameOptionsContracts';
+import { type LoadObedienceRequest, type LoadObedienceResponse, type StageObedienceRequest, type StageObedienceResponse,
+  loadObedienceRequestSchema, loadObedienceResponseSchema, stageObedienceRequestSchema, stageObedienceResponseSchema } from './obedienceContracts';
 import { type LoadRaidDensRequest, type LoadRaidDensResponse, type StageRaidDensRequest, type StageRaidDensResponse,
   loadRaidDensRequestSchema, loadRaidDensResponseSchema, stageRaidDensRequestSchema, stageRaidDensResponseSchema } from './raidDensContracts';
 import { type LoadFixAiFlagsRequest, type LoadFixAiFlagsResponse, type StageFixAiFlagsRequest, type StageFixAiFlagsResponse,
@@ -855,6 +857,7 @@ export type ProjectBridge = {
   loadMarnieBoosts: (request: LoadMarnieBoostsRequest) => Promise<LoadMarnieBoostsResponse>;
   loadHeldItemChance: (request: LoadHeldItemChanceRequest) => Promise<LoadHeldItemChanceResponse>;
   loadGameOptions: (request: LoadGameOptionsRequest) => Promise<LoadGameOptionsResponse>;
+  loadObedience: (request: LoadObedienceRequest) => Promise<LoadObedienceResponse>;
   loadRaidDens: (request: LoadRaidDensRequest) => Promise<LoadRaidDensResponse>;
   loadFixAiFlags: (request: LoadFixAiFlagsRequest) => Promise<LoadFixAiFlagsResponse>;
   stageFixAiFlags: (request: StageFixAiFlagsRequest) => Promise<StageFixAiFlagsResponse>;
@@ -865,6 +868,7 @@ export type ProjectBridge = {
   stageMarnieBoosts: (request: StageMarnieBoostsRequest) => Promise<StageMarnieBoostsResponse>;
   stageHeldItemChance: (request: StageHeldItemChanceRequest) => Promise<StageHeldItemChanceResponse>;
   stageGameOptions: (request: StageGameOptionsRequest) => Promise<StageGameOptionsResponse>;
+  stageObedience: (request: StageObedienceRequest) => Promise<StageObedienceResponse>;
   stageRaidDens: (request: StageRaidDensRequest) => Promise<StageRaidDensResponse>;
   stageTrainerWhiteout: (request: StageTrainerWhiteoutRequest) => Promise<StageTrainerWhiteoutResponse>;
   loadHabitatCoordinates: (
@@ -1703,6 +1707,8 @@ export function createProjectBridge(
       loadHeldItemChanceRequestSchema.parse(request), loadHeldItemChanceResponseSchema),
     loadGameOptions: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadGameOptions,
       loadGameOptionsRequestSchema.parse(request), loadGameOptionsResponseSchema),
+    loadObedience: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadObedience,
+      loadObedienceRequestSchema.parse(request), loadObedienceResponseSchema),
     loadRaidDens: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadRaidDens,
       loadRaidDensRequestSchema.parse(request), loadRaidDensResponseSchema),
     loadFixAiFlags: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadFixAiFlags,
@@ -1723,6 +1729,8 @@ export function createProjectBridge(
       stageHeldItemChanceRequestSchema.parse(request), stageHeldItemChanceResponseSchema),
     stageGameOptions: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageGameOptions,
       stageGameOptionsRequestSchema.parse(request), stageGameOptionsResponseSchema),
+    stageObedience: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageObedience,
+      stageObedienceRequestSchema.parse(request), stageObedienceResponseSchema),
     stageRaidDens: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageRaidDens,
       stageRaidDensRequestSchema.parse(request), stageRaidDensResponseSchema),
     stageTrainerWhiteout: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageTrainerWhiteout,

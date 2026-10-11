@@ -172,6 +172,7 @@ export const kmCommandNameValues = [
   "marnieBoosts.load",
   "heldItemChance.load",
   "gameOptions.load",
+  "obedience.load",
   "raidDens.load",
   "fixAiFlags.load",
   "fixAiFlags.stage",
@@ -179,6 +180,7 @@ export const kmCommandNameValues = [
   "marnieBoosts.stage",
   "heldItemChance.stage",
   "gameOptions.stage",
+  "obedience.stage",
   "raidDens.stage",
   "trainerWhiteout.stage",
   "profanityFilter.apply",
@@ -485,6 +487,7 @@ export const kmCommandNames = {
   loadMarnieBoosts: "marnieBoosts.load",
   loadHeldItemChance: "heldItemChance.load",
   loadGameOptions: "gameOptions.load",
+  loadObedience: "obedience.load",
   loadRaidDens: "raidDens.load",
   loadFixAiFlags: "fixAiFlags.load",
   stageFixAiFlags: "fixAiFlags.stage",
@@ -492,6 +495,7 @@ export const kmCommandNames = {
   stageMarnieBoosts: "marnieBoosts.stage",
   stageHeldItemChance: "heldItemChance.stage",
   stageGameOptions: "gameOptions.stage",
+  stageObedience: "obedience.stage",
   stageRaidDens: "raidDens.stage",
   stageTrainerWhiteout: "trainerWhiteout.stage",
   loadProfanityFilter: "profanityFilter.load",
@@ -5379,7 +5383,14 @@ export const hyperTrainingWorkflowStatsSchema = z.strictObject({
   sourceFileCount: z.number().int().nonnegative(),
 });
 
+export const hyperTrainingItemsSchema = z.strictObject({
+  bottleCapItemId: z.number().int().min(1).max(65535),
+  goldBottleCapItemId: z.number().int().min(1).max(65535),
+});
 export const hyperTrainingWorkflowSchema = z.strictObject({
+  items: hyperTrainingItemsSchema.default({ bottleCapItemId: 795, goldBottleCapItemId: 796 }),
+  runtimeItems: hyperTrainingItemsSchema.default({ bottleCapItemId: 795, goldBottleCapItemId: 796 }),
+  itemOptions: z.array(z.strictObject({ itemId: z.number().int().positive(), name: z.string() })).default([]),
   buildId: z.union([z.literal("unknown"), z.string().regex(/^[A-F0-9]{40}$/)]),
   detectedGame: z.enum(["sword", "shield"]).nullable(),
   diagnostics: z.array(apiDiagnosticSchema),
@@ -5402,6 +5413,8 @@ export const loadHyperTrainingWorkflowResponseSchema = z.strictObject({
 });
 
 export const stageHyperTrainingRequestSchema = z.strictObject({
+  bottleCapItemId: z.number().int().min(1).max(65535).optional(),
+  goldBottleCapItemId: z.number().int().min(1).max(65535).optional(),
   minimumLevel: z.number().int().min(1).max(100),
   paths: projectPathsSchema,
   session: editSessionSchema.nullable(),

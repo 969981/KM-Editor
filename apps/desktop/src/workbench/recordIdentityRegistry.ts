@@ -128,6 +128,7 @@ const registrations = {
   marnieBoosts: fixedSchemaSlot('marnieBoosts', 'Wyndon cheering answer outcomes'),
   heldItemChance: sourceRevisionBound('heldItemChance', 'personal record, species and form plus exact source revision'),
   gameOptions: fixedSchemaSlot('gameOptions', 'Starting values and hidden game option selections'),
+  obedience: fixedSchemaSlot('obedience', 'Obedience level limits by badge count'),
   raidDens: fixedSchemaSlot('raidDens', 'den interaction dispatch'),
   fixAiFlags: intrinsic('fixAiFlags', 'stored trainer ID'),
   trainerWhiteout: intrinsic('trainerWhiteout', 'stored trainer ID'),

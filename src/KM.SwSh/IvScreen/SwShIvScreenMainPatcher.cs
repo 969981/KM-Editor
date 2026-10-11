@@ -6,6 +6,7 @@ using KM.Formats.Executable;
 using KM.SwSh.ExeFs;
 using System.Buffers.Binary;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace KM.SwSh.IvScreen;
@@ -15,6 +16,7 @@ internal enum SwShIvScreenInstallKind
     NotInstalled,
     NotInstalledDependencyConflict,
     InstalledV1,
+    InstalledRawV1,
     InstalledLegacyV1,
     UnsupportedBuild,
     GameMismatch,
@@ -40,6 +42,9 @@ internal static class SwShIvScreenMainPatcher
     public const int SelectedPokemonResolverOffset = 0x01385A70;
     public const int RawIvGetterOffset = 0x00779070;
     public const int HyperTrainingIvWrapperOffset = 0x007790D0;
+    private const int HyperTrainingIvWrapperLength = 0x5C;
+    private static readonly byte[] HyperTrainingIvWrapperHash = Convert.FromHexString(
+        "39337AB2D82FFBC5B6FED1D5819D15772F7AB03CAA0A79EB14CF5CA15F8B1B4B");
     public const int ShieldPrimaryValueSourceOffset = PrimaryValueSourceOffset + ShieldOffsetDelta;
     public const int ShieldXToggleRefreshOffset = XToggleRefreshOffset + ShieldOffsetDelta;
 
@@ -324,7 +329,17 @@ internal static class SwShIvScreenMainPatcher
 
                     return CreateAnalysis(
                         SwShIvScreenInstallKind.InstalledV1,
-                        "IV Screen is installed. Reinstalling refreshes the existing raw-IV summary hooks and marker instead of adding a second hook.",
+                        "IV Screen is installed. Hyper Trained stats show 31, and other stats show their raw IVs. Reinstalling refreshes the existing hooks.",
+                        buildId,
+                        layout);
+                }
+
+                if (IsInstalledV1(text, layout, RawIvGetterOffset))
+                {
+                    var dependencyError = GetDependencyError(text, layout, initialLegacy: false, effectiveIvs: false);
+                    return CreateAnalysis(
+                        dependencyError is null ? SwShIvScreenInstallKind.InstalledRawV1 : SwShIvScreenInstallKind.Conflict,
+                        dependencyError ?? "IV Screen has the earlier raw IV display. Reinstall to include Hyper Training, or uninstall to restore the original Summary screen.",
                         buildId,
                         layout);
                 }
@@ -386,7 +401,7 @@ internal static class SwShIvScreenMainPatcher
 
                 return CreateAnalysis(
                     SwShIvScreenInstallKind.NotInstalled,
-                    "IV Screen is not installed. Installing adds independent Pokemon Summary stats and X-mode raw-IV value hooks.",
+                    "IV Screen is not installed. Installing displays IVs with Hyper Training applied on the Pokemon Summary screen.",
                     buildId,
                     layout);
             }
@@ -503,7 +518,7 @@ internal static class SwShIvScreenMainPatcher
         }
 
         var currentAnalysis = Analyze(currentMainBytes, expectedGame);
-        if (currentAnalysis.Kind is not (SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledLegacyV1))
+        if (currentAnalysis.Kind is not (SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledRawV1 or SwShIvScreenInstallKind.InstalledLegacyV1))
         {
             throw new InvalidDataException(
                 $"IV Screen restore requires an exact current or recognized legacy install: {currentAnalysis.Message}");
@@ -518,9 +533,9 @@ internal static class SwShIvScreenMainPatcher
 
         var currentText = currentNso.Text.DecompressedData.ToArray();
         var baseText = baseNso.Text.DecompressedData;
-        var restoredRegions = currentAnalysis.Kind == SwShIvScreenInstallKind.InstalledV1
-            ? WrittenRegions(layout)
-            : LegacyOwnedRegions(layout);
+        var restoredRegions = currentAnalysis.Kind == SwShIvScreenInstallKind.InstalledLegacyV1
+            ? LegacyOwnedRegions(layout)
+            : WrittenRegions(layout);
         foreach (var region in restoredRegions)
         {
             EnsureTextRange(currentText, region.Offset, region.Length, region.Label);
@@ -576,6 +591,7 @@ internal static class SwShIvScreenMainPatcher
             var analysis = Analyze(mainBytes, expectedGame);
             if (analysis.Kind is not (SwShIvScreenInstallKind.NotInstalled
                 or SwShIvScreenInstallKind.InstalledV1
+                or SwShIvScreenInstallKind.InstalledRawV1
                 or SwShIvScreenInstallKind.InstalledLegacyV1))
             {
                 return analysis.Message;
@@ -597,7 +613,7 @@ internal static class SwShIvScreenMainPatcher
         }
     }
 
-    private static bool IsInstalledV1(ReadOnlySpan<byte> text, PatchLayout layout)
+    private static bool IsInstalledV1(ReadOnlySpan<byte> text, PatchLayout layout, int ivGetterOffset = HyperTrainingIvWrapperOffset)
     {
         return HasExactMarker(text, layout)
             && ReadInstruction(text, layout.LegacySecondaryStatsHookSiteOffset) == VanillaLegacySecondaryStatsHookInstruction
@@ -612,7 +628,7 @@ internal static class SwShIvScreenMainPatcher
             && AreNumericTextPaneRefreshesWritten(text, layout)
             && IsXToggleRefreshWritten(text, layout)
             && UnsafeSummaryWrapperHooksAreVanilla(text, layout)
-            && AreXModeValueWrappersWritten(text, layout)
+            && AreXModeValueWrappersWritten(text, layout, ivGetterOffset)
             && InactivePayloadSlotsAreZero(text, layout);
     }
 
@@ -1072,115 +1088,45 @@ internal static class SwShIvScreenMainPatcher
 
     private static void WriteXModeValueWrappers(byte[] text, PatchLayout layout)
     {
-        WriteXModeValueWrapper(
-            text,
-            layout.HpCurrentTextWrapperSlotOffset,
-            layout.HpCurrentTextRawSlotOffset,
-            SummaryTextHpCurrentGetterOffset,
-            setHpStatIndex: true);
-        WriteXModeValueWrapper(
-            text,
-            layout.HpMaxTextWrapperSlotOffset,
-            layout.HpMaxTextRawSlotOffset,
-            SummaryTextHpMaxGetterOffset,
-            setHpStatIndex: true);
-        WriteXModeValueWrapper(
-            text,
-            layout.SummaryStatWrapperSlotOffset,
-            layout.SummaryStatRawSlotOffset,
-            SummaryTextStatGetterOffset,
-            setHpStatIndex: false);
-        WriteXModeValueWrapper(
-            text,
-            layout.SummaryGraphAlternateWrapperSlotOffset,
-            layout.SummaryGraphAlternateRawSlotOffset,
-            SummaryGraphAlternateStatGetterOffset,
-            setHpStatIndex: false);
+        foreach (var slot in XModeValueWrapperSlots(layout, HyperTrainingIvWrapperOffset))
+        {
+            WriteInstructions(text, slot.Offset, slot.Instructions);
+        }
     }
 
-    private static bool AreXModeValueWrappersWritten(ReadOnlySpan<byte> text, PatchLayout layout)
+    private static bool AreXModeValueWrappersWritten(ReadOnlySpan<byte> text, PatchLayout layout, int ivGetterOffset)
     {
-        return IsXModeValueWrapperWritten(
-                text,
-                layout.HpCurrentTextWrapperSlotOffset,
-                layout.HpCurrentTextRawSlotOffset,
-                SummaryTextHpCurrentGetterOffset,
-                setHpStatIndex: true)
-            && IsXModeValueWrapperWritten(
-                text,
-                layout.HpMaxTextWrapperSlotOffset,
-                layout.HpMaxTextRawSlotOffset,
-                SummaryTextHpMaxGetterOffset,
-                setHpStatIndex: true)
-            && IsXModeValueWrapperWritten(
-                text,
-                layout.SummaryStatWrapperSlotOffset,
-                layout.SummaryStatRawSlotOffset,
-                SummaryTextStatGetterOffset,
-                setHpStatIndex: false)
-            && IsXModeValueWrapperWritten(
-                text,
-                layout.SummaryGraphAlternateWrapperSlotOffset,
-                layout.SummaryGraphAlternateRawSlotOffset,
-                SummaryGraphAlternateStatGetterOffset,
-                setHpStatIndex: false);
+        foreach (var slot in XModeValueWrapperSlots(layout, ivGetterOffset))
+        {
+            if (!InstructionsEqual(text, slot.Offset, slot.Instructions))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
-    private static void WriteXModeValueWrapper(
-        byte[] text,
-        int wrapperOffset,
-        int rawSlotOffset,
-        int vanillaTargetOffset,
-        bool setHpStatIndex)
+    private static IEnumerable<(int Offset, uint[] Instructions)> XModeValueWrapperSlots(PatchLayout layout, int ivGetterOffset)
     {
-        WriteInstructions(
-            text,
-            wrapperOffset,
+        (int Wrapper, int IvSlot, int Vanilla, bool Hp)[] wrappers =
+        [
+            (layout.HpCurrentTextWrapperSlotOffset, layout.HpCurrentTextRawSlotOffset, SummaryTextHpCurrentGetterOffset, true),
+            (layout.HpMaxTextWrapperSlotOffset, layout.HpMaxTextRawSlotOffset, SummaryTextHpMaxGetterOffset, true),
+            (layout.SummaryStatWrapperSlotOffset, layout.SummaryStatRawSlotOffset, SummaryTextStatGetterOffset, false),
+            (layout.SummaryGraphAlternateWrapperSlotOffset, layout.SummaryGraphAlternateRawSlotOffset, SummaryGraphAlternateStatGetterOffset, false),
+        ];
+        foreach (var (wrapper, ivSlot, vanilla, hp) in wrappers)
+        {
+            yield return (wrapper,
             [
                 XModePaneVisibilityInstruction,
-                EncodeCompareBranchZero32(wrapperOffset + sizeof(uint), rawSlotOffset, 8),
-                EncodeBranch(wrapperOffset + (2 * sizeof(uint)), vanillaTargetOffset),
+                EncodeCompareBranchZero32(wrapper + sizeof(uint), ivSlot, 8),
+                EncodeBranch(wrapper + (2 * sizeof(uint)), vanilla),
             ]);
-
-        var rawBranchOffset = setHpStatIndex
-            ? rawSlotOffset + sizeof(uint)
-            : rawSlotOffset;
-        WriteInstructions(
-            text,
-            rawSlotOffset,
-            setHpStatIndex
-                ? [MovW1WzrInstruction, EncodeBranch(rawBranchOffset, RawIvGetterOffset), NopInstruction]
-                : [EncodeBranch(rawBranchOffset, RawIvGetterOffset), NopInstruction, NopInstruction]);
-    }
-
-    private static bool IsXModeValueWrapperWritten(
-        ReadOnlySpan<byte> text,
-        int wrapperOffset,
-        int rawSlotOffset,
-        int vanillaTargetOffset,
-        bool setHpStatIndex)
-    {
-        if (!InstructionsEqual(
-                text,
-                wrapperOffset,
-                [
-                    XModePaneVisibilityInstruction,
-                    EncodeCompareBranchZero32(wrapperOffset + sizeof(uint), rawSlotOffset, 8),
-                    EncodeBranch(wrapperOffset + (2 * sizeof(uint)), vanillaTargetOffset),
-                ]))
-        {
-            return false;
+            yield return (ivSlot, hp
+                ? [MovW1WzrInstruction, EncodeBranch(ivSlot + sizeof(uint), ivGetterOffset), NopInstruction]
+                : [EncodeBranch(ivSlot, ivGetterOffset), NopInstruction, NopInstruction]);
         }
-
-        var rawBranchOffset = setHpStatIndex
-            ? rawSlotOffset + sizeof(uint)
-            : rawSlotOffset;
-        return InstructionsEqual(
-            text,
-            rawSlotOffset,
-            setHpStatIndex
-                ? [MovW1WzrInstruction, EncodeBranch(rawBranchOffset, RawIvGetterOffset), NopInstruction]
-                : [EncodeBranch(rawBranchOffset, RawIvGetterOffset), NopInstruction, NopInstruction]);
     }
 
     private static bool InstructionsEqual(ReadOnlySpan<byte> text, int offset, IReadOnlyList<uint> instructions)
@@ -1485,8 +1431,17 @@ internal static class SwShIvScreenMainPatcher
         }
     }
 
-    private static void EnsureActiveDependencyAnchors(ReadOnlySpan<byte> text, PatchLayout layout)
+    private static void EnsureActiveDependencyAnchors(ReadOnlySpan<byte> text, PatchLayout layout, bool effectiveIvs = true)
     {
+        if (effectiveIvs)
+        {
+            EnsureTextRange(text, HyperTrainingIvWrapperOffset, HyperTrainingIvWrapperLength, "Hyper Training IV getter");
+            if (!SHA256.HashData(text.Slice(HyperTrainingIvWrapperOffset, HyperTrainingIvWrapperLength)).AsSpan()
+                .SequenceEqual(HyperTrainingIvWrapperHash))
+            {
+                throw new InvalidDataException("IV Screen requires the original Hyper Training IV getter.");
+            }
+        }
         EnsureAnchor(text, RawIvGetterOffset, RawIvGetterEntry, "raw IV getter");
         EnsureAnchor(text, CalculatedStatGetterOffset, CalculatedStatGetterEntry, "calculated stat getter");
         EnsureAnchor(text, layout.NormalStatsGraphRendererOffset, NormalStatsGraphRendererEntry, "normal stats graph renderer");
@@ -1514,7 +1469,8 @@ internal static class SwShIvScreenMainPatcher
     private static string? GetDependencyError(
         ReadOnlySpan<byte> text,
         PatchLayout layout,
-        bool initialLegacy)
+        bool initialLegacy,
+        bool effectiveIvs = true)
     {
         try
         {
@@ -1524,7 +1480,7 @@ internal static class SwShIvScreenMainPatcher
             }
             else
             {
-                EnsureActiveDependencyAnchors(text, layout);
+                EnsureActiveDependencyAnchors(text, layout, effectiveIvs);
             }
 
             return null;
