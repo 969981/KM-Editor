@@ -34,3 +34,8 @@
   border-radius: 0.75rem;
   min-width: 0;
 }
+.camera-hook-requirement { display: grid; gap: 0.75rem; min-width: 0; padding: 1rem; text-align: center; border: 1px solid var(--color-border); border-radius: 0.5rem; }
+.camera-hook-requirement p { margin: 0; }
+.camera-hook-requirement code { overflow-wrap: anywhere; word-break: break-word; }
+.camera-hook-requirement__console { display: flex; align-items: center; justify-content: center; gap: 0.6rem; }
+.camera-hook-requirement__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; }

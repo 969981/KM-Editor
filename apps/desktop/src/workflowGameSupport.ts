@@ -109,7 +109,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
     sectionIds: ['bbqRewards', 'supportBoard', 'shops', 'battleCafeRewards', 'tmMachineControls', 'raidRewards', 'raidBonusRewards']
   },
   { id: 'tools', label: 'Tools', sectionIds: ['modelViewer', 'soundStudio', 'fashionCatalog', 'fpsPatch', 'profanityFilter', 'raidDens', 'fixAiFlags', 'randomizer', 'gameDump', 'spreadsheetImport', 'modMerger'] },
-  { id: 'hooks', label: 'Hooks', sectionIds: ['bagHook'] },
+  { id: 'hooks', label: 'Hooks', sectionIds: ['bagHook', 'cameraHook'] },
   {
     id: 'advancedEditors',
     label: 'Advanced Editors',
@@ -147,7 +147,7 @@ export function canAccessWorkflowSectionForHealth(
   canOpenReadOnlyWorkflows: boolean,
   canOpenEditableWorkflows: boolean
 ) {
-  if (section === 'gameplaySettings' || section === 'cameraControl' || section === 'modMerger') {
+  if (section === 'gameplaySettings' || section === 'cameraControl' || section === 'cameraHook' || section === 'modMerger') {
     return true;
   }
 
@@ -400,6 +400,7 @@ export function getLoadedWorkflowStateForSection(
       return state.giftPokemonWorkflow !== null;
     case 'gameplaySettings':
     case 'cameraControl':
+    case 'cameraHook':
     case 'trainerDynamax':
     case 'modelViewer':
     case 'soundStudio':

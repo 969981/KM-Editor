@@ -26,6 +26,7 @@ use tauri_plugin_shell::ShellExt;
 mod windows_app_identity;
 
 mod model_preview;
+mod emulator_folders;
 #[cfg(windows)]
 mod process_gpu_memory;
 mod process_memory;
@@ -3368,6 +3369,13 @@ fn create_directory(path: String) -> Result<(), String> {
 }
 
 #[tauri::command(rename_all = "camelCase")]
+async fn find_emulator_folders(target: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || emulator_folders::find(&target))
+        .await
+        .map_err(|_| "Could not search for emulator data folders.".to_owned())?
+}
+
+#[tauri::command(rename_all = "camelCase")]
 async fn find_support_file_folder(
     app_handle: tauri::AppHandle,
     search_state: tauri::State<'_, SupportSearchState>,
@@ -3818,6 +3826,7 @@ pub fn run() {
             recycle_project_bridge,
             create_directory,
             find_support_file_folder,
+            find_emulator_folders,
             cancel_support_file_search,
             open_path,
             set_close_guard_enabled,

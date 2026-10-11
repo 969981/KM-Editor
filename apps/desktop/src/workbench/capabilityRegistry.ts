@@ -11,6 +11,7 @@ import {
   Cable,
   Candy,
   Camera,
+  Cctv,
   ClipboardCheck,
   ClipboardList,
   Coffee,
@@ -575,6 +576,15 @@ export const workbenchCapabilityRegistry = [
     id: 'cameraControl',
     label: 'Camera Control',
     maturity: 'mixed',
+    showInWorkflowDashboard: false,
+    standalone: true
+  }),
+  workflow({
+    description: 'Install and remove the emulator settings needed by Camera Control.',
+    games: swordShieldGames,
+    icon: Cctv,
+    id: 'cameraHook',
+    label: 'Camera Hook',
     showInWorkflowDashboard: false,
     standalone: true
   }),

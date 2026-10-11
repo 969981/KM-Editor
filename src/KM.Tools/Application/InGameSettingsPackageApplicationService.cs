@@ -145,6 +145,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
     private const long MaximumRetainedReviewBytes = OutputLimits.MaximumWriteBytesPerApply;
 
     private readonly object syncRoot = new();
+    private readonly SharedGameplayMenuApplicationService sharedOutput = new();
     private readonly Dictionary<string, CachedReview> reviews = new(StringComparer.Ordinal);
     private readonly InGameSettingsBundleCatalog catalog;
     private readonly GameplaySettingsBundleAuthority authority;
@@ -183,7 +184,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         reviewPruneTimer = CreateReviewPruneTimer();
     }
 
-    private sealed record PackageScopeContext(OutputScopeContext Destination, OutputScopeContext Source,
+    internal sealed record PackageScopeContext(OutputScopeContext Destination, OutputScopeContext Source,
         string ControlPrefix)
     {
         public string ScopeKey => Source.ScopeKey + ":" + Destination.ScopeKey + ":" + ControlPrefix;
@@ -194,7 +195,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         public bool IsExternal => Source.ScopeKey != Destination.ScopeKey;
     }
 
-    private static PackageScopeContext ResolvePackageScope(OutputScopeDto scope,
+    internal static PackageScopeContext ResolvePackageScope(OutputScopeDto scope,
         InGameSettingsInstallationTargetDto target, string? installationRoot)
     {
         var source = OutputSafetyApplicationService.ResolveScope(scope);
@@ -231,6 +232,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(request);
         ValidateInstallationTarget(request.InstallationTarget);
+        if (request.UseSharedOutput) return await sharedOutput.InspectAsync(request, cancellationToken).ConfigureAwait(false);
         var context = ResolvePackageScope(request.Scope, request.InstallationTarget, request.InstallationRootPath);
         var loaded = await LoadWithCoexistenceAsync(
                 request.Scope,
@@ -252,6 +254,8 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         {
             throw new ArgumentOutOfRangeException(nameof(request.Operation));
         }
+
+        if (request.UseSharedOutput) return await sharedOutput.PreviewAsync(request, cancellationToken).ConfigureAwait(false);
 
         var context = ResolvePackageScope(request.Scope, request.InstallationTarget, request.InstallationRootPath);
         var loaded = await LoadWithCoexistenceAsync(
@@ -397,6 +401,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(request);
         ValidateInstallationTarget(request.InstallationTarget);
+        if (request.UseSharedOutput) return await sharedOutput.ApplyAsync(request, cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(request.ReviewId)
             || request.ReviewId.Length > InGameSettingsPackageContract.MaximumReviewIdLength
             || request.ReviewId.Any(character => !Uri.IsHexDigit(character)))
@@ -1753,7 +1758,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
             GameplayBundleDeploymentPlanner.ToSettingsFamily(entry.GameFamily));
     }
 
-    private static InGameSettingsPackageDescriptorDto ToDto(
+    internal static InGameSettingsPackageDescriptorDto ToDto(
         InGameSettingsBundleCatalogEntry entry)
     {
         var manifest = entry.Manifest;
@@ -1828,7 +1833,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         }
     }
 
-    private static async Task<ReviewedTarget> ReviewTargetAsync(
+    internal static async Task<ReviewedTarget> ReviewTargetAsync(
         string outputRoot,
         RelativeOutputPath path,
         int maximumBytes,
@@ -2132,7 +2137,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         return true;
     }
 
-    private static async Task<ExternalSourceLeaseSet> AcquireExternalSourceLeasesAsync(
+    internal static async Task<ExternalSourceLeaseSet> AcquireExternalSourceLeasesAsync(
         ImmutableArray<InGameSettingsExternalSourceDependency> dependencies,
         CancellationToken cancellationToken)
     {
@@ -2260,6 +2265,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
             retainedReviewBytes = 0;
         }
         reviewPruneTimer.Dispose();
+        sharedOutput.Dispose();
     }
 
     private static void ValidateInstallationTarget(
@@ -2287,7 +2293,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
                 && IsFatal(exception.InnerException);
     }
 
-    private sealed record ReviewedTarget(
+    internal sealed record ReviewedTarget(
         RelativeOutputPath Path,
         bool Exists,
         ImmutableArray<byte> Bytes,
@@ -2324,7 +2330,7 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
         ImmutableArray<InGameSettingsExternalSourceDependency> ExternalSourceDependencies,
         long RetainedBytes);
 
-    private sealed class ExternalSourceLeaseSet : IDisposable
+    internal sealed class ExternalSourceLeaseSet : IDisposable
     {
         internal static ExternalSourceLeaseSet Empty { get; } = new([]);
 

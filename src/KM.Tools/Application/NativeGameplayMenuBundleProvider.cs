@@ -21,7 +21,7 @@ namespace KM.Tools.Application;
 /// Retail executable and menu assets are always read from the user's project;
 /// the only embedded binary is KM's independently authored guest runtime.
 /// </summary>
-public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProvider
+public sealed partial class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProvider
 {
     private const int MaximumMainBytes = 128 * 1024 * 1024;
     private const int MaximumNpdmBytes = 4 * 1024 * 1024;
@@ -61,7 +61,20 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
     public Task<InGameSettingsBundleResolution> ResolveAsync(
         ProjectPaths paths, ProjectGame game,
         InGameSettingsInstallationTargetDto installationTarget, bool installToEmulatorRoot,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        ResolveCoreAsync(paths, game, installationTarget, installToEmulatorRoot, null, cancellationToken, SwShNativeMenuFeatures.Gameplay);
+
+    internal Task<InGameSettingsBundleResolution> ResolveSharedAsync(
+        ProjectPaths paths, ProjectGame game, IReadOnlyDictionary<string, byte[]?> normalizedSources,
+        CancellationToken cancellationToken, SwShNativeMenuFeatures features = SwShNativeMenuFeatures.All) =>
+        ResolveCoreAsync(paths, game, InGameSettingsInstallationTargetDto.Atmosphere, false,
+            normalizedSources, cancellationToken, features);
+
+    private Task<InGameSettingsBundleResolution> ResolveCoreAsync(
+        ProjectPaths paths, ProjectGame game,
+        InGameSettingsInstallationTargetDto installationTarget, bool installToEmulatorRoot,
+        IReadOnlyDictionary<string, byte[]?>? normalizedSources, CancellationToken cancellationToken,
+        SwShNativeMenuFeatures features)
     {
         ArgumentNullException.ThrowIfNull(paths);
         if (!Enum.IsDefined(installationTarget))
@@ -110,7 +123,7 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
                         "main.npdm",
                         MaximumNpdmBytes,
                         token),
-                    2 => BuildRomFsComponents(paths, game, token),
+                    2 => BuildRomFsComponents(paths, game, token, normalizedSources, features),
                     _ => throw new ArgumentOutOfRangeException(nameof(index)),
                 },
                 cancellationToken);
@@ -167,6 +180,9 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
                 .Select(source => new OutputReadDependency(source.Path, source.State))
                 .Concat(preparedRomFs.OutputDependencies)
                 .ToArray();
+            outputMain = Normalize(outputMain);
+            outputNpdm = Normalize(outputNpdm);
+            outputRuntimeSlot = Normalize(outputRuntimeSlot);
             usesComposedMain = outputMain.Exists;
             usesComposedMainNpdm = outputNpdm.Exists;
             requiresOwnedMainSource = outputMain.Exists
@@ -188,6 +204,14 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
             var executableSourceNpdm = outputNpdm.Exists ? outputNpdm.Bytes : npdm;
             var semanticallyVerifiedMainSource = requiresOwnedMainSource
                 && IsSemanticallyVerifiedOutput(main, outputMain.Bytes, game);
+            if (!semanticallyVerifiedMainSource && requiresOwnedMainSource
+                && game is ProjectGame.Sword or ProjectGame.Shield
+                && TryVerifyAdventureComposition(paths, game, main, outputMain.Bytes, cancellationToken) is { } proof)
+            {
+                semanticallyVerifiedMainSource = true;
+                sourceDependencies = [.. sourceDependencies, proof.OutputDependency];
+                externalSourceDependencies = [.. externalSourceDependencies, proof.BaseDependency];
+            }
 
             var entry = NativeGameplayMenuBundleFactory.CreateEntry(
                 game,
@@ -197,7 +221,7 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
                 executableSourceNpdm,
                 runtime,
                 romFs,
-                installationTarget, installToEmulatorRoot);
+                installationTarget, installToEmulatorRoot, features);
             return Task.FromResult(new InGameSettingsBundleResolution(
                 InGameSettingsBundleCatalog.Create([entry]),
                 GameplaySettingsBundleAuthority.AllowOnly([entry.AuthorityKey]),
@@ -210,6 +234,11 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
                 AttemptedSourcePath: null,
                 SemanticallyVerifiedMainSource: semanticallyVerifiedMainSource,
                 ExternalSourceDependencies: externalSourceDependencies));
+
+            ReviewedOutputSource Normalize(ReviewedOutputSource source) =>
+                normalizedSources is not null && normalizedSources.TryGetValue(source.Path.Value, out var bytes)
+                    ? source with { Exists = bytes is not null, Bytes = bytes ?? [] }
+                    : source;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -273,10 +302,12 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
     private static PreparedRomFs BuildRomFsComponents(
         ProjectPaths paths,
         ProjectGame game,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, byte[]?>? normalizedSources = null,
+        SwShNativeMenuFeatures features = SwShNativeMenuFeatures.All)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var current = new NativeGameplayMenuRomFsSources(paths, cancellationToken);
+        var current = new NativeGameplayMenuRomFsSources(paths, cancellationToken, normalizedSources);
         var components = game switch
         {
             ProjectGame.Scarlet or ProjectGame.Violet =>
@@ -286,7 +317,7 @@ public sealed class NativeGameplayMenuBundleProvider : IInGameSettingsBundleProv
                 SwShNativeGameplayMenuRomFsMaterializer.Build(
                     game,
                     paths.BaseRomFsPath,
-                    cancellationToken, current.Resolve),
+                    cancellationToken, current.Resolve, features),
             ProjectGame.ZA =>
                 ZaNativeGameplayMenuRomFsMaterializer.Build(paths, cancellationToken, current.Resolve),
             _ => throw new ArgumentOutOfRangeException(nameof(game)),

@@ -25,9 +25,22 @@
 }
 
 .in-game-settings-package__destination code,
+.in-game-settings-package__found-destinations code,
 .in-game-settings-package__review-destination code,
 .in-game-settings-package__technical code {
   overflow-wrap: anywhere;
+}
+
+.in-game-settings-package__found-destinations {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.in-game-settings-package__found-destinations button {
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
 }
 
 .in-game-settings-package__technical {
@@ -138,6 +151,10 @@
   display: grid;
   gap: 0.65rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.in-game-settings-package__target-options--hook {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .in-game-settings-package__target-option {

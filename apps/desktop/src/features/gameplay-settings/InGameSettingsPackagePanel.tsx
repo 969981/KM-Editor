@@ -1,19 +1,20 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
-import { FolderOpen, Gamepad2, PackageCheck, ShieldCheck } from 'lucide-react';
+import { FolderOpen, Gamepad2, PackageCheck, Search, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   InGameSettingsInstallationTarget,
   InGameSettingsPackageOperation,
   InGameSettingsPackageSnapshot,
-  PreviewInGameSettingsPackageResponse
+  PreviewInGameSettingsPackageResponse,
+  PreviewInGameSettingsPackageRequest
 } from '../../bridge/inGameSettingsPackageContracts';
 import type { OutputSafetyScope } from '../../bridge/outputSafetyContracts';
 import type { ProjectBridge } from '../../bridge/projectBridge';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
-import { desktopServices } from '../../desktopServices';
+import { DesktopServiceError, desktopServices } from '../../desktopServices';
 import { inGameSettingsPackageErrorCodes } from '../../errorCodes';
-import { toProjectBridgeDiagnostics } from '../../uiErrorDiagnostics';
+import { toDesktopErrorDiagnostics, toProjectBridgeDiagnostics } from '../../uiErrorDiagnostics';
 import type { ApiDiagnostic } from '../../bridge/contracts';
 import { useLocalization } from '../../localization';
 import './InGameSettingsPackagePanel.css';
@@ -31,6 +32,10 @@ export type GameplaySettingsDestinations = {
 };
 
 type InGameSettingsPackagePanelProps = GameplaySettingsDestinations & {
+  cameraControl?: boolean;
+  purpose?: 'combined' | 'output' | 'hook';
+  canPrepare?: boolean;
+  requiredCameraHook?: PreviewInGameSettingsPackageRequest['requiredCameraHook'];
   armCriticalWriteGuard: () => Promise<boolean>;
   bridge: InGameSettingsPackageBridge;
   canApply: boolean;
@@ -49,6 +54,10 @@ type InGameSettingsPackagePanelProps = GameplaySettingsDestinations & {
 type PackageBusyState = 'apply' | 'load' | 'preview' | null;
 
 export function InGameSettingsPackagePanel({
+  cameraControl = false,
+  purpose = 'combined',
+  canPrepare = true,
+  requiredCameraHook,
   armCriticalWriteGuard,
   destinations = [],
   onRememberDestination,
@@ -74,15 +83,27 @@ export function InGameSettingsPackagePanel({
   const [failureDiagnostics, setFailureDiagnostics] = useState<ApiDiagnostic[]>([]);
   const cameraConflict = snapshot?.detail?.startsWith('Camera Control requires ') ?? false;
   const sourceLayoutConflict = snapshot?.executableInput.reasonCode === 'source-layout-incompatible';
+  const sharedOutputConflict = snapshot?.executableInput.reasonCode === 'shared-output-conflict'
+    || snapshot?.executableInput.reasonCode === 'shared-output-source-unavailable'
+    || snapshot?.executableInput.reasonCode === 'shared-source-scope-conflict'
+    || snapshot?.executableInput.reasonCode === 'shared-source-unverified';
+  const sharedOutputDetail = snapshot ? t(`gameplaySettings.shared.reason.${snapshot.executableInput.reasonCode}`,
+    { path: snapshot.executableInput.sourceRelativePath ?? '' }) : '';
   useEffect(() => { if (messageKey === null) setFailureDiagnostics([]); }, [messageKey]);
   usePublishCommonEditorDiagnostics(failureDiagnostics.length ? failureDiagnostics : errorMessage
     ? [{ domain: 'workflow.gameplaySettings', field: 'inGamePackage', message: errorMessage, severity: 'error' }]
     : cameraConflict ? [{ code: inGameSettingsPackageErrorCodes.cameraCompositionConflict, domain: 'workflow.cameraControl',
       field: 'inGamePackage', message: t('cameraControl.conflict'), severity: 'error' }]
+    : sharedOutputConflict ? [{ code: inGameSettingsPackageErrorCodes.unavailable, domain: 'workflow.cameraControl',
+      field: 'inGamePackage', message: sharedOutputDetail, severity: 'error' }]
     : sourceLayoutConflict ? [{ code: inGameSettingsPackageErrorCodes.unavailable, domain: 'workflow.gameplaySettings',
       field: 'inGamePackage', message: t('gameplaySettings.inGamePackage.executableInput.reason.sourceLayoutIncompatible'), severity: 'error' }] : []);
   const [installationTarget, setInstallationTarget] =
-    useState<InGameSettingsInstallationTarget>('atmosphere');
+    useState<InGameSettingsInstallationTarget>(purpose === 'hook' ? 'ryujinx' : 'atmosphere');
+  const supportsSharedOutput = scope.paths.selectedGame === 'sword' || scope.paths.selectedGame === 'shield';
+  const [legacyInstallation, setLegacyInstallation] = useState(false);
+  const useSharedOutput = supportsSharedOutput && !legacyInstallation;
+  const settingsOnly = useSharedOutput && installationTarget !== 'atmosphere';
   const requestGenerationRef = useRef(0);
   const requestOperationRef = useRef<object | null>(null);
   const applyGenerationRef = useRef(0);
@@ -95,8 +116,11 @@ export function InGameSettingsPackagePanel({
   const installationRootPath = installationTarget === 'atmosphere' ? undefined
     : destinations.find(destination => destination.target === installationTarget)?.destinationPath;
   const [isPickingDestination, setIsPickingDestination] = useState(false);
+  const [foundDestinations, setFoundDestinations] = useState<string[]>([]);
+  const [destinationSearchMessage, setDestinationSearchMessage] = useState<string | null>(null);
+  const searchedTargetsRef = useRef(new Set<string>());
   const needsDestination = installationTarget !== 'atmosphere' && !installationRootPath;
-  const requestContextKey = `${scopeKey}:${installationTarget}:${installationRootPath ?? ''}`;
+  const requestContextKey = `${scopeKey}:${installationTarget}:${installationRootPath ?? ''}:${useSharedOutput}:${canPrepare}:${cameraControl}:${JSON.stringify(requiredCameraHook)}`;
   const requestContextKeyRef = useRef(requestContextKey);
   requestContextKeyRef.current = requestContextKey;
 
@@ -132,7 +156,9 @@ export function InGameSettingsPackagePanel({
 
   const reportError = useCallback(
     async (error: unknown, operation: 'apply' | 'load' | 'preview') => {
-      setFailureDiagnostics(toProjectBridgeDiagnostics(error, t('gameplaySettings.inGamePackage.error')));
+      setFailureDiagnostics(error instanceof DesktopServiceError
+        ? toDesktopErrorDiagnostics(error, t('gameplaySettings.inGamePackage.error'))
+        : toProjectBridgeDiagnostics(error, t('gameplaySettings.inGamePackage.error')));
       setMessageKey('gameplaySettings.inGamePackage.error');
       try {
         if (!installationRootPath) await onError?.(error, operation, scope);
@@ -158,6 +184,8 @@ export function InGameSettingsPackagePanel({
       setReviewAcknowledged(false);
       setRecoveryRequired(false);
       setMessageKey(null);
+      setFoundDestinations([]);
+      setDestinationSearchMessage(null);
       setBusy(null);
     },
     [busy, installationTarget]
@@ -185,6 +213,9 @@ export function InGameSettingsPackagePanel({
       setMessageKey(null);
       try {
         const response = await bridge.inspectInGameSettingsPackage({
+          requiredCameraHook: purpose === 'output' ? requiredCameraHook : undefined,
+          cameraControl,
+          useSharedOutput,
           installationTarget,
           installationRootPath,
           scope
@@ -223,7 +254,7 @@ export function InGameSettingsPackagePanel({
         }
       }
     },
-    [bridge, installationTarget, installationRootPath, needsDestination, reportError, requestContextKey, scope]
+    [bridge, cameraControl, installationTarget, installationRootPath, needsDestination, purpose, requiredCameraHook, reportError, requestContextKey, scope, useSharedOutput]
   );
   const inspectRef = useRef(inspect);
   inspectRef.current = inspect;
@@ -284,6 +315,7 @@ export function InGameSettingsPackagePanel({
         requestOperationRef.current !== null ||
         applyInFlightGenerationRef.current !== null ||
         !canApply ||
+        (operation !== 'remove' && !canPrepare) ||
         recoveryRequired ||
         !canReviewOperation(snapshot, operation)
       ) {
@@ -300,6 +332,9 @@ export function InGameSettingsPackagePanel({
       setMessageKey(null);
       try {
         const response = await bridge.previewInGameSettingsPackage({
+          requiredCameraHook: purpose === 'output' ? requiredCameraHook : undefined,
+          cameraControl,
+          useSharedOutput,
           expectedRevision: snapshot.revision,
           installationTarget,
           installationRootPath,
@@ -340,13 +375,18 @@ export function InGameSettingsPackagePanel({
       bridge,
       busy,
       canApply,
+      canPrepare,
+      requiredCameraHook,
+      cameraControl,
+      purpose,
       installationTarget,
       installationRootPath,
       recoveryRequired,
       reportError,
       requestContextKey,
       scope,
-      snapshot
+      snapshot,
+      useSharedOutput
     ]
   );
 
@@ -394,6 +434,7 @@ export function InGameSettingsPackagePanel({
       }
 
       const response = await bridge.applyInGameSettingsPackage({
+        useSharedOutput,
         installationTarget,
         installationRootPath,
         reviewId: preview.reviewId,
@@ -424,7 +465,8 @@ export function InGameSettingsPackagePanel({
           return;
         }
         setMessageKey(
-          `gameplaySettings.inGamePackage.${committedOperation}Committed`
+          useSharedOutput ? settingsOnly ? 'gameplaySettings.shared.settingsCommitted' : 'gameplaySettings.shared.outputCommitted'
+            : `gameplaySettings.inGamePackage.${committedOperation}Committed`
         );
         try {
           if (!installationRootPath) await onApplied?.(scope);
@@ -435,7 +477,8 @@ export function InGameSettingsPackagePanel({
             // The committed receipt remains authoritative.
           }
           setMessageKey(
-            `gameplaySettings.inGamePackage.${committedOperation}Committed`
+            useSharedOutput ? settingsOnly ? 'gameplaySettings.shared.settingsCommitted' : 'gameplaySettings.shared.outputCommitted'
+              : `gameplaySettings.inGamePackage.${committedOperation}Committed`
           );
         }
       } else if (response.outcome === 'rolledBack') {
@@ -512,7 +555,9 @@ export function InGameSettingsPackagePanel({
     reportError,
     requestContextKey,
     reviewAcknowledged,
-    scope
+    scope,
+    settingsOnly,
+    useSharedOutput
   ]);
 
   const actionsDisabled = busy !== null || isPickingDestination || !canApply || recoveryRequired;
@@ -538,7 +583,53 @@ export function InGameSettingsPackagePanel({
       if (isMountedRef.current && requestContextKeyRef.current === requestedContext) await reportError(error, 'load');
     } finally { if (isMountedRef.current) setIsPickingDestination(false); }
   }
-  const stateTitleKey = snapshot ? packageStateTitleMessageKey(snapshot) : null;
+  const findDestinations = useCallback(async () => {
+    if (busy || isPickingDestination || installationTarget === 'atmosphere' || !onRememberDestination) return;
+    const requestedTarget = installationTarget;
+    const requestedContext = requestContextKey;
+    setIsPickingDestination(true);
+    setFoundDestinations([]);
+    setDestinationSearchMessage('gameplaySettings.destination.searching');
+    try {
+      const found = await desktopServices.findEmulatorFolders(requestedTarget);
+      if (!isMountedRef.current || requestContextKeyRef.current !== requestedContext) return;
+      setMessageKey(null);
+      setFailureDiagnostics([]);
+      if (found.length === 1) {
+        await onRememberDestination(requestedTarget, found[0]);
+        if (isMountedRef.current) setDestinationSearchMessage(null);
+      } else {
+        setFoundDestinations(found);
+        setDestinationSearchMessage(found.length ? 'gameplaySettings.destination.multiple' : 'gameplaySettings.destination.notFound');
+      }
+    } catch (error) {
+      if (isMountedRef.current && requestContextKeyRef.current === requestedContext) {
+        setDestinationSearchMessage(null);
+        await reportError(error, 'load');
+      }
+    } finally { if (isMountedRef.current) setIsPickingDestination(false); }
+  }, [busy, installationTarget, isPickingDestination, onRememberDestination, reportError, requestContextKey]);
+  useEffect(() => {
+    if (needsDestination && desktopServices.isAvailable && !busy && !isPickingDestination && onRememberDestination
+      && !searchedTargetsRef.current.has(installationTarget)) {
+      searchedTargetsRef.current.add(installationTarget);
+      void findDestinations();
+    }
+  }, [busy, findDestinations, installationTarget, isPickingDestination, needsDestination, onRememberDestination]);
+  async function useFoundDestination(path: string) {
+    if (busy || isPickingDestination || installationTarget === 'atmosphere' || !onRememberDestination) return;
+    const requestedContext = requestContextKey;
+    setIsPickingDestination(true);
+    try {
+      await onRememberDestination(installationTarget, path);
+      if (isMountedRef.current) { setFoundDestinations([]); setDestinationSearchMessage(null); }
+    } catch (error) {
+      if (isMountedRef.current && requestContextKeyRef.current === requestedContext) await reportError(error, 'load');
+    } finally { if (isMountedRef.current) setIsPickingDestination(false); }
+  }
+  const stateTitleKey = snapshot ? useSharedOutput && !settingsOnly && snapshot.state === 'installed'
+    ? 'gameplaySettings.shared.outputInstalled' : useSharedOutput && !settingsOnly && snapshot.state === 'notInstalled'
+      ? 'gameplaySettings.shared.outputNotInstalled' : packageStateTitleMessageKey(snapshot) : null;
   const stateDescriptionKey = snapshot
     ? packageStateDescriptionMessageKey(snapshot)
     : null;
@@ -565,11 +656,11 @@ export function InGameSettingsPackagePanel({
           <div>
             <div className="in-game-settings-package__title-row">
               <h3 id="in-game-settings-package-title">
-                {t('gameplaySettings.inGamePackage.title')}
+                {t(useSharedOutput ? settingsOnly ? 'gameplaySettings.shared.settingsTitle' : 'gameplaySettings.shared.outputTitle' : 'gameplaySettings.inGamePackage.title')}
               </h3>
 
             </div>
-            <p>{t(scope.paths.selectedGame === 'sword' || scope.paths.selectedGame === 'shield'
+            <p>{t(useSharedOutput ? settingsOnly ? 'gameplaySettings.shared.settingsHelp' : 'gameplaySettings.shared.outputHelp' : scope.paths.selectedGame === 'sword' || scope.paths.selectedGame === 'shield'
               ? 'cameraControl.packageControls' : 'gameplaySettings.destination.controls')}</p>
           </div>
         </div>
@@ -585,7 +676,7 @@ export function InGameSettingsPackagePanel({
         </button>
       </header>
 
-      <section
+      {purpose !== 'output' ? <section
         aria-labelledby="in-game-settings-installation-title"
         className="in-game-settings-package__installation"
       >
@@ -598,10 +689,10 @@ export function InGameSettingsPackagePanel({
         <div
           aria-busy={installationTargetSelectionBusy || undefined}
           aria-label={t('gameplaySettings.inGamePackage.installationTitle')}
-          className="in-game-settings-package__target-options"
+          className={`in-game-settings-package__target-options${purpose === 'hook' && !legacyInstallation ? ' in-game-settings-package__target-options--hook' : ''}`}
           role="group"
         >
-          {(['atmosphere', 'ryujinx', 'eden'] as const).map((target) => (
+          {(purpose === 'hook' && !legacyInstallation ? ['ryujinx', 'eden'] as const : ['atmosphere', 'ryujinx', 'eden'] as const).map((target) => (
             <button
               aria-controls="in-game-settings-installation-detail"
               aria-pressed={installationTarget === target}
@@ -611,7 +702,7 @@ export function InGameSettingsPackagePanel({
               onClick={() => selectInstallationTarget(target)}
               type="button"
             >
-              <span>{t(`gameplaySettings.inGamePackage.target.${target}`)}</span>
+              <span>{t(useSharedOutput && target === 'atmosphere' ? 'gameplaySettings.shared.outputRoot' : `gameplaySettings.inGamePackage.target.${target}`)}</span>
 
             </button>
           ))}
@@ -622,17 +713,30 @@ export function InGameSettingsPackagePanel({
           id="in-game-settings-installation-detail"
           role="region"
         >
-          {installationTarget === 'atmosphere' ? <p>{t('gameplaySettings.destination.console')}</p> : <>
+          {installationTarget === 'atmosphere' ? <p>{t(useSharedOutput ? 'gameplaySettings.shared.outputHelp' : 'gameplaySettings.destination.console')}</p> : <>
             <div className="in-game-settings-package__destination">
               <div><strong>{t('gameplaySettings.destination.title')}</strong>
                 <p><code>{installationRootPath ?? t('gameplaySettings.destination.choose')}</code></p></div>
               <button type="button" className="secondary-button" disabled={installationTargetSelectionBusy || !onRememberDestination}
+                onClick={() => void findDestinations()}><Search size={18} aria-hidden="true" />{t('gameplaySettings.destination.find')}</button>
+              <button type="button" className="secondary-button" disabled={installationTargetSelectionBusy || !onRememberDestination}
                 onClick={() => void chooseDestination()}><FolderOpen size={18} aria-hidden="true" />{t('gameplaySettings.destination.browse')}</button>
             </div>
-            <p>{t('gameplaySettings.destination.help')}</p>
+            {destinationSearchMessage ? <p role="status">{t(destinationSearchMessage)}</p> : null}
+            {foundDestinations.length > 1 ? <div className="in-game-settings-package__found-destinations">
+              {foundDestinations.map(path => <button type="button" className="secondary-button" key={path}
+                disabled={installationTargetSelectionBusy} onClick={() => void useFoundDestination(path)}><code>{path}</code></button>)}
+            </div> : null}
+            <p>{t(settingsOnly ? 'gameplaySettings.shared.settingsHelp' : 'gameplaySettings.destination.help')}</p>
           </>}
         </div>
-      </section>
+      </section> : null}
+
+      {supportsSharedOutput && purpose !== 'output' ? <button type="button" className="secondary-button"
+        disabled={installationTargetSelectionBusy || preview !== null}
+        onClick={() => { setLegacyInstallation(value => !value); if (purpose === 'hook' && legacyInstallation) setInstallationTarget('ryujinx'); }}>
+        {t(legacyInstallation ? purpose === 'hook' ? 'cameraHook.return' : 'gameplaySettings.shared.return' : 'gameplaySettings.shared.legacy')}
+      </button> : null}
 
       {snapshot ? (
         <div
@@ -644,12 +748,14 @@ export function InGameSettingsPackagePanel({
             <strong>
               {t(stateTitleKey!)}
             </strong>
-            <p>{t(stateDescriptionKey!)}</p>
+            {!useSharedOutput ? <p>{t(stateDescriptionKey!)}</p> : null}
             {snapshot.detail ? (
               <p>{cameraConflict ? t('cameraControl.conflict') :
                 sourceLayoutConflict
                   ? t('gameplaySettings.inGamePackage.executableInput.reason.sourceLayoutIncompatible')
-                  : snapshot.detail}</p>
+                  : useSharedOutput && snapshot.executableInput.reasonCode !== 'shared-output-ready'
+                    ? sharedOutputDetail
+                    : snapshot.detail}</p>
             ) : null}
           </div>
         </div>
@@ -658,7 +764,7 @@ export function InGameSettingsPackagePanel({
       {snapshot ? <details className="in-game-settings-package__contents">
         <summary>{t('gameplaySettings.destination.details')}</summary>
         <div className="in-game-settings-package__technical">
-          <p><code>{generatedTitleRoot}</code></p><p><code>{settingsJournalPath}</code></p>
+          {!settingsOnly ? <p><code>{useSharedOutput ? 'romfs/ · exefs/' : generatedTitleRoot}</code></p> : null}<p><code>{settingsJournalPath}</code></p>
       <div className="in-game-settings-package__status" aria-live="polite">
         <div>
           <span>{t('gameplaySettings.inGamePackage.statusLabel')}</span>
@@ -703,7 +809,7 @@ export function InGameSettingsPackagePanel({
         ) : null}
       </div>
 
-      {snapshot && showExecutableInputAssessment ? (
+      {snapshot && showExecutableInputAssessment && !useSharedOutput ? (
         <div
           className={`in-game-settings-package__state in-game-settings-package__state--${isExecutableInputCompatible(snapshot) ? 'ready' : 'blocked'}`}
           role="status"
@@ -760,24 +866,24 @@ export function InGameSettingsPackagePanel({
 
       {snapshot && !preview ? (
         <div className="in-game-settings-package__actions">
-          {snapshot.state === 'notInstalled' ? (
+          {snapshot.state === 'notInstalled' && !(supportsSharedOutput && legacyInstallation) ? (
             <button
               className="primary-button"
               disabled={
-                actionsDisabled || !isExecutableInputCompatible(snapshot)
+                actionsDisabled || !canPrepare || !isExecutableInputCompatible(snapshot)
               }
               onClick={() => void reviewOperation('install')}
               type="button"
             >
               {busy === 'preview'
                 ? t('gameplaySettings.inGamePackage.reviewing')
-                : t('gameplaySettings.inGamePackage.reviewInstall')}
+                : t(useSharedOutput && !settingsOnly ? 'gameplaySettings.shared.reviewOutput' : 'gameplaySettings.inGamePackage.reviewInstall')}
             </button>
           ) : null}
-          {snapshot.state === 'upgradeAvailable' ? (
+          {snapshot.state === 'upgradeAvailable' && !(supportsSharedOutput && legacyInstallation) ? (
             <button
               className="primary-button"
-              disabled={actionsDisabled}
+              disabled={actionsDisabled || !canPrepare}
               onClick={() => void reviewOperation('upgrade')}
               type="button"
             >
@@ -822,14 +928,17 @@ export function InGameSettingsPackagePanel({
             </h4>
             <p>
               {t(
-                `gameplaySettings.inGamePackage.review.${reviewPresentationOperation}.description`
+                useSharedOutput ? preview.operation === 'remove'
+                  ? settingsOnly ? 'gameplaySettings.shared.removeSettings' : 'gameplaySettings.shared.removeOutput'
+                  : settingsOnly ? 'gameplaySettings.shared.settingsHelp' : 'gameplaySettings.shared.outputHelp'
+                  : `gameplaySettings.inGamePackage.review.${reviewPresentationOperation}.description`
               )}
             </p>
           </div>
-          <p className="in-game-settings-package__review-destination"><strong>{t('gameplaySettings.destination.title')}</strong><br />
+          <p className="in-game-settings-package__review-destination"><strong>{t(installationRootPath ? 'gameplaySettings.destination.title' : 'gameplaySettings.shared.outputRoot')}</strong><br />
             <code>{installationRootPath ?? scope.paths.outputRootPath}</code></p>
           <details className="in-game-settings-package__contents"><summary>{t('gameplaySettings.destination.reviewDetails', { count: preview.targets.length })}</summary>
-          {preview.composition ? (
+          {preview.composition && !useSharedOutput ? (
             <section className="in-game-settings-package__composition">
               <h5>{t('gameplaySettings.inGamePackage.review.compositionTitle')}</h5>
               <p>
@@ -937,7 +1046,7 @@ export function InGameSettingsPackagePanel({
             />
             <span>
               {t(
-                preview.operation === 'install' &&
+                useSharedOutput ? 'gameplaySettings.shared.confirm' : preview.operation === 'install' &&
                   preview.composition?.strategy === 'compatibleStandalone'
                   ? 'gameplaySettings.inGamePackage.confirm.installCompatible'
                   : `gameplaySettings.inGamePackage.confirm.${reviewPresentationOperation}`
@@ -972,7 +1081,7 @@ export function InGameSettingsPackagePanel({
               {busy === 'apply'
                 ? t('gameplaySettings.inGamePackage.applying')
                 : t(
-                    `gameplaySettings.inGamePackage.apply.${reviewPresentationOperation}`
+                    useSharedOutput && !settingsOnly ? 'gameplaySettings.shared.applyOutput' : `gameplaySettings.inGamePackage.apply.${reviewPresentationOperation}`
                   )}
             </button>
           </div>

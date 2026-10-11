@@ -32,8 +32,8 @@ assert.doesNotMatch(
 );
 assert.match(
   panel,
-  /\(\['atmosphere', 'ryujinx', 'eden'\] as const\)/,
-  'Native-menu installation guidance must cover every documented target boundary.'
+  /purpose === 'hook' && !legacyInstallation \? \['ryujinx', 'eden'\] as const : \['atmosphere', 'ryujinx', 'eden'\] as const/,
+  'Camera Hook must offer emulator installation and retain all legacy removal targets.'
 );
 assert.match(
   panel,
@@ -372,10 +372,10 @@ for (const contract of strictKnownOutputContracts) {
 }
 
 const swordShieldKnownOutput = strictKnownOutputContracts[1].source;
-assert.doesNotMatch(
+assert.match(
   swordShieldKnownOutput,
-  /SwShDynamaxAdventuresMainPatcher/,
-  'Ledgerless Dynamax Adventures output must remain rejected because executable bytes alone cannot prove its paired archive state.'
+  /baseArchiveBytes is null \|\| currentArchiveBytes is null\) return true;[\s\S]*?SwShDynamaxAdventureArchive\.Parse[\s\S]*?SwShDynamaxAdventuresMainPatcher\.Analyze/,
+  'Dynamax Adventures recognition must require a paired archive proof before normalizing executable changes.'
 );
 for (const rejectedCompatibleKind of [
   'SwShGymUniformRemovalInstallKind.InstalledCompatible',

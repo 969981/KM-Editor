@@ -983,7 +983,7 @@ public static class SwShChangePlanSourceGuard
             var projectId = ProjectIdentity.FromPaths(SourcePaths);
             var outputCoordinator = OutputTransactionCoordinator.ForProject(SourcePaths);
             OutputOwnershipInventorySnapshot? ownershipSnapshot = null;
-            if (changedTargets.Any(IsComposedExeFsMainPath))
+            if (changedTargets.Count > 0)
             {
                 try
                 {
@@ -999,8 +999,8 @@ public static class SwShChangePlanSourceGuard
                     InvalidOperationException)
                 {
                     diagnostics.Add(CreateReadDiagnostic(
-                        ComposedExeFsMainPath,
-                        $"Verified exefs/main ownership could not be captured before composition: {SanitizeDiagnosticText(exception.Message, snapshotRootPath)}"));
+                        string.Empty,
+                        $"Verified output ownership could not be captured before composition: {SanitizeDiagnosticText(exception.Message, snapshotRootPath)}"));
                     return result with
                     {
                         WrittenFiles = Array.Empty<ProjectFileReference>(),
@@ -1072,18 +1072,18 @@ public static class SwShChangePlanSourceGuard
                     var isComposedExeFsMain = IsComposedExeFsMainPath(relativePath);
                     OutputOwnershipRecord? existingOwnership = null;
                     IReadOnlyCollection<OwnedTarget> ownershipClaims = [ownership];
-                    if (isComposedExeFsMain
-                        && ownershipByPath is not null
+                    if (ownershipByPath is not null
                         && ownershipByPath.TryGetValue(path.CanonicalKey, out var recordedOwnership)
                         && recordedOwnership.CurrentState == expectedPreimage)
                     {
                         existingOwnership = recordedOwnership;
                         if (!outputCoordinator.OwnershipScopeMatches(existingOwnership, projectId, GameFamily.SwordShield)
+                            || existingOwnership.RuntimeMutableDescriptor is not null
                             || !string.Equals(existingOwnership.OutputMode, OutputMode, StringComparison.Ordinal))
                         {
                             diagnostics.Add(CreateReadDiagnostic(
                                 relativePath,
-                                "Verified exefs/main composition found ownership from a different project or output scope."));
+                                "Verified output composition found ownership from a different project or output scope."));
                             return result with
                             {
                                 WrittenFiles = Array.Empty<ProjectFileReference>(),
@@ -1104,9 +1104,7 @@ public static class SwShChangePlanSourceGuard
                             File.ReadAllBytes(snapshotPath),
                             expectedPreimage,
                             ownershipClaims,
-                            ownershipActor: isComposedExeFsMain
-                                ? ownership.OwnerId
-                                : null));
+                            ownershipActor: ownership.OwnerId));
                     }
                     else if (isComposedExeFsMain && existingOwnership is not null)
                     {

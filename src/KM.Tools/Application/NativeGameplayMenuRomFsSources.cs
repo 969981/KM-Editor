@@ -8,7 +8,8 @@ using KM.Core.Semantics;
 namespace KM.Tools.Application;
 
 /// <summary>Reviews current loose menu sources without claiming or modifying their ownership.</summary>
-internal sealed class NativeGameplayMenuRomFsSources(ProjectPaths paths, CancellationToken cancellationToken)
+internal sealed class NativeGameplayMenuRomFsSources(ProjectPaths paths, CancellationToken cancellationToken,
+    IReadOnlyDictionary<string, byte[]?>? normalizedSources = null)
 {
     private const int MaximumSourceBytes = 64 * 1024 * 1024;
     private readonly List<OutputReadDependency> dependencies = [];
@@ -19,6 +20,8 @@ internal sealed class NativeGameplayMenuRomFsSources(ProjectPaths paths, Cancell
         if (!relativePath.StartsWith("romfs/", StringComparison.Ordinal))
             throw new InvalidDataException("A menu source must be a normalized RomFS path.");
         var standalone = Read(new RelativeOutputPath(relativePath));
+        if (normalizedSources is not null && normalizedSources.TryGetValue(relativePath, out var normalized))
+            return normalized ?? original;
         if (paths.SelectedGame is ProjectGame.Sword or ProjectGame.Shield)
             return standalone.Bytes ?? original;
         var manager = Read(new RelativeOutputPath(relativePath[6..]));

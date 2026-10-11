@@ -50,6 +50,20 @@ public sealed record OutputMutation
 
     public OutputMutationKind Kind { get; }
 
+    internal bool IsOwnershipUpdate { get; private init; }
+
+    /// <summary>Updates one actor's ownership reference while retaining the exact reviewed bytes.</summary>
+    public static OutputMutation RebindOwnership(RelativeOutputPath path, ReadOnlyMemory<byte> content,
+        OutputFileState expectedState, IEnumerable<OwnedTarget> claims, string outputMode, OwnershipOwnerId actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        var mutation = CreateWrite(path, content, expectedState, claims, outputMode, actor,
+            null, null, null, null, allowUnchangedState: true);
+        if (!expectedState.Exists || mutation.PlannedPostimage != expectedState)
+            throw new ArgumentException("An ownership update must retain the exact existing bytes.");
+        return mutation with { IsOwnershipUpdate = true };
+    }
+
     public RelativeOutputPath Path { get; }
 
     public ImmutableArray<byte> Postimage { get; }
@@ -135,7 +149,8 @@ public sealed record OutputMutation
             restoredFileDeleteEligibility,
             runtimeMutableDescriptor: null,
             legacyAdoptionDeleteAuthority: null,
-            verifiedBaseDeleteAuthority: null);
+            verifiedBaseDeleteAuthority: null,
+            allowUnchangedState: true);
     }
 
     public static OutputMutation WriteRuntimeMutableBootstrap(
@@ -292,7 +307,8 @@ public sealed record OutputMutation
         bool? restoredFileDeleteEligibility,
         OutputRuntimeMutableDescriptor? runtimeMutableDescriptor,
         OutputLegacyAdoptionDeleteAuthority? legacyAdoptionDeleteAuthority,
-        OutputVerifiedBaseDeleteAuthority? verifiedBaseDeleteAuthority)
+        OutputVerifiedBaseDeleteAuthority? verifiedBaseDeleteAuthority,
+        bool allowUnchangedState = false)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(expectedPreimage);
@@ -306,7 +322,7 @@ public sealed record OutputMutation
         var immutablePostimage = ImmutableArray.Create(postimage.Span);
         var postimageHash = Convert.ToHexStringLower(SHA256.HashData(postimage.Span));
         var plannedPostimage = OutputFileState.Existing(postimageHash, postimage.Length);
-        if (plannedPostimage == expectedPreimage)
+        if (plannedPostimage == expectedPreimage && !allowUnchangedState)
         {
             throw new ArgumentException("An output write must change the exact target state.", nameof(postimage));
         }

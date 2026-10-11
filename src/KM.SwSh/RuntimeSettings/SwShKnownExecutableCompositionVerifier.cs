@@ -14,6 +14,10 @@ using KM.SwSh.ShinyRate;
 using KM.SwSh.TypeChart;
 using KM.SwSh.HeldItemChance;
 using KM.SwSh.GameOptions;
+using KM.Formats.SwSh;
+using KM.SwSh.DynamaxAdventures;
+using KM.SwSh.TrainerDynamax;
+using KM.SwSh.TrainerWhiteout;
 
 namespace KM.SwSh.RuntimeSettings;
 
@@ -27,7 +31,12 @@ public static class SwShKnownExecutableCompositionVerifier
     public static bool IsCompatibleRegisteredOutput(
         ReadOnlySpan<byte> retailMain,
         ReadOnlySpan<byte> candidateMain,
-        ProjectGame expectedGame)
+        ProjectGame expectedGame) => IsCompatibleRegisteredOutputWithAdventureArchive(
+            retailMain, candidateMain, expectedGame, null, null);
+
+    public static bool IsCompatibleRegisteredOutputWithAdventureArchive(
+        ReadOnlySpan<byte> retailMain, ReadOnlySpan<byte> candidateMain, ProjectGame expectedGame,
+        byte[]? baseAdventureArchive, byte[]? currentAdventureArchive)
     {
         if (retailMain.IsEmpty
             || candidateMain.IsEmpty
@@ -43,7 +52,9 @@ public static class SwShKnownExecutableCompositionVerifier
             var normalized = candidateMain.ToArray();
             var recognizedTransformation = false;
 
-            if (!NormalizeGameOptions(retail, ref normalized, expectedGame, ref recognizedTransformation)
+            if (!NormalizeAdventures(retail, ref normalized, expectedGame, baseAdventureArchive, currentAdventureArchive, ref recognizedTransformation)
+                || !NormalizeTrainers(retail, ref normalized, expectedGame, ref recognizedTransformation)
+                || !NormalizeGameOptions(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeLegacyGameplaySettings(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeIvScreen(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeHyperTraining(retail, ref normalized, expectedGame, ref recognizedTransformation)
@@ -60,10 +71,8 @@ public static class SwShKnownExecutableCompositionVerifier
                 return false;
             }
 
-            // Dynamax Adventures is intentionally not normalized here. Its
-            // exact proof also needs paired archive snapshots, which this
-            // executable-only boundary does not possess. Ledgerless candidates
-            // carrying that output therefore remain fail-closed.
+            // Adventure changes require paired archive proof. Without it, their
+            // remaining bytes cannot pass the final comparison with the base.
             return recognizedTransformation
                 && NsoRegisteredRegionCompositionVerifier.SemanticallyMatches(retail, normalized);
         }
@@ -74,6 +83,48 @@ public static class SwShKnownExecutableCompositionVerifier
         {
             return false;
         }
+    }
+
+    private static bool NormalizeTrainers(byte[] retail, ref byte[] normalized,
+        ProjectGame game, ref bool recognizedTransformation)
+    {
+        var whiteout = SwShTrainerWhiteoutMainPatcher.Inspect(normalized, game);
+        if (whiteout.HasAny)
+        {
+            if (!whiteout.Installed) return false;
+            normalized = SwShTrainerWhiteoutMainPatcher.Apply(retail, normalized, false, game);
+            recognizedTransformation = true;
+        }
+        var dynamax = SwShTrainerDynamaxMainPatcher.Inspect(normalized, game);
+        if (dynamax.Installed)
+        {
+            if (dynamax.Partial) return false;
+            normalized = SwShTrainerDynamaxMainPatcher.ApplySettings(retail, normalized, game, new(false, false));
+            recognizedTransformation = true;
+        }
+        return true;
+    }
+
+    private static bool NormalizeAdventures(byte[] retail, ref byte[] normalized,
+        ProjectGame game, byte[]? baseArchiveBytes, byte[]? currentArchiveBytes, ref bool recognizedTransformation)
+    {
+        if (baseArchiveBytes is null || currentArchiveBytes is null) return true;
+        var baseline = SwShDynamaxAdventureArchive.Parse(baseArchiveBytes);
+        var current = SwShDynamaxAdventureArchive.Parse(currentArchiveBytes);
+        var analysis = SwShDynamaxAdventuresMainPatcher.Analyze(normalized, retail, current, baseline, game);
+        if (analysis.Kind == SwShDynamaxAdventuresMainKind.Vanilla) return true;
+        if (analysis.Kind == SwShDynamaxAdventuresMainKind.Stale && analysis.HasLegacyBossTargetPatch
+            && analysis.SummaryMatchesEffectiveArchive && analysis.CommandValidatorsMatchEffectiveArchive
+            && SwShDynamaxAdventuresBossTargetPatcher.TryReadConditionalTargetSpeciesRemap(normalized, out _))
+        {
+            // Prove both complete historical stubs before removing them in the
+            // verification copy. The user's original executable stays intact.
+            normalized = SwShDynamaxAdventuresMainPatcher.Reconcile(normalized, retail, current, baseline, game);
+        }
+        else if (analysis.Kind != SwShDynamaxAdventuresMainKind.Synchronized) return false;
+        normalized = SwShDynamaxAdventuresMainPatcher.RestoreFromBase(normalized, retail, baseline.Entries.Count);
+        recognizedTransformation = true;
+        return true;
     }
 
     private static bool NormalizeLegacyGameplaySettings(

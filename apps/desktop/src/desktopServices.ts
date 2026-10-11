@@ -38,6 +38,7 @@ export type DesktopServices = {
   createDirectory: (path: string) => Promise<void>;
   exitApp: () => Promise<void>;
   findSupportFileFolder: () => Promise<string | null>;
+  findEmulatorFolders: (target: 'ryujinx' | 'eden') => Promise<string[]>;
   isAvailable: boolean;
   openExternalUrl: (url: string) => Promise<void>;
   openPath: (path: string) => Promise<void>;
@@ -121,6 +122,13 @@ export const desktopServices: DesktopServices = {
     }
   },
   isAvailable: hasTauriRuntime(),
+  findEmulatorFolders: (target) =>
+    invokeDesktopCommand<string[]>(
+      'find_emulator_folders',
+      { target },
+      desktopErrorCodes.emulatorFolderSearchFailed,
+      'Could not search for emulator data folders.'
+    ),
   openExternalUrl: (url) =>
     withDesktopServiceError(
       desktopErrorCodes.externalUrlOpenFailed,

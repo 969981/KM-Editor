@@ -175,9 +175,9 @@ constexpr size_t CurrentExperienceOffset = 0x02D3BC50;
 constexpr size_t MinimumExperienceOffset = 0x00B85FD4;
 
 constexpr char ScarletJournalPath[] =
-    "sd:/config/km-editor/gameplay-settings/0100A3D008C5C000/settings.bin";
+    "kmgs:/config/km-editor/gameplay-settings/0100A3D008C5C000/settings.bin";
 constexpr char VioletJournalPath[] =
-    "sd:/config/km-editor/gameplay-settings/01008F6008C5E000/settings.bin";
+    "kmgs:/config/km-editor/gameplay-settings/01008F6008C5E000/settings.bin";
 
 // This helper owns no retail save keys. It presents three stock-style rows and
 // bridges their menu-domain indexes to KM's SD-backed dual-slot journal.
