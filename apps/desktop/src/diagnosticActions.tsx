@@ -2,7 +2,7 @@
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 import type { ApiDiagnostic } from './bridge/contracts';
-import { cacheDiagnosticCodes, desktopErrorCodes, mergeWorkspaceErrorCodes, projectBridgeErrorCodes } from './errorCodes';
+import { cacheDiagnosticCodes, categoryErrorCodes, desktopErrorCodes, mergeWorkspaceErrorCodes, projectBridgeErrorCodes } from './errorCodes';
 import { workbenchCapabilityRegistry } from './workbench/capabilityRegistry';
 import { createSectionLocation, type WorkbenchLocation } from './workbench/workbenchLocation';
 import type { WorkbenchSection } from './workbench/workbenchSections';
@@ -72,6 +72,7 @@ const projectCodes = new Set<string>([
 ]);
 const settingsCodes = new Set<string>([
   ...Object.values(cacheDiagnosticCodes),
+  ...Object.values(categoryErrorCodes),
   desktopErrorCodes.updateCheckFailed,
   desktopErrorCodes.updateCloseFailed,
   desktopErrorCodes.updateInstallFailed

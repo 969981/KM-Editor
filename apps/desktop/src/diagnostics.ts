@@ -41,6 +41,14 @@ const reviewDiagnosticLocalizationKeys: Readonly<Record<string, string>> = {
 };
 
 const diagnosticLocalizationKeys: Readonly<Record<string, string>> = {
+  'KM-CATEGORIES-LOAD-FAILED': 'categories.error.load',
+  'KM-CATEGORIES-STORED-LAYOUT-INVALID': 'categories.error.invalid',
+  'KM-CATEGORIES-VERSION-UNSUPPORTED': 'categories.error.version',
+  'KM-CATEGORIES-SAVE-FAILED': 'categories.error.save',
+  'KM-CATEGORIES-NAME-INVALID': 'categories.error.name',
+  'KM-CATEGORIES-LOCKED': 'categories.error.locked',
+  'KM-CATEGORIES-TARGET-STALE': 'categories.error.stale',
+
   'KM-DUMP-YAML-SYNTAX': 'dumpImporter.yaml.syntax',
   'KM-DUMP-YAML-DUPLICATE': 'dumpImporter.yaml.duplicate',
   'KM-DUMP-YAML-SOURCE': 'dumpImporter.yaml.source',

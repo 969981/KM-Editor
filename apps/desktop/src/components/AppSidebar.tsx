@@ -1,20 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
-import { Layers, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import type { RefObject } from 'react';
 import kmLogoUrl from '../assets/km-logo.png';
 import type { ProjectGame } from '../bridge/contracts';
 import { useLocalization } from '../localization';
-import { useBetaEditorsEnabled } from '../features/settings/BetaEditorsSettings';
-import {
-  canAccessWorkflowSectionForHealth,
-  isWorkflowNavigationVisibleForGame,
-  workflowNavigationGroups,
-  type WorkflowNavigationGroup
-} from '../workflowGameSupport';
+import { SidebarCategories } from '../features/categories/SidebarCategories';
 import {
   getWorkbenchCapabilitiesByNavigationKind,
-  getWorkbenchCapabilityRegistration,
   getWorkbenchSectionLabelKey
 } from '../workbench/capabilityRegistry';
 import type { WorkbenchSection } from '../workbenchStore';
@@ -29,43 +22,25 @@ export type AppSidebarProps = {
   canShowEditableWorkflowNavigation: boolean;
   canShowGameplaySettingsNavigation: boolean;
   canShowWorkflowNavigation: boolean;
-  expandedWorkflowGroups: ReadonlySet<WorkflowNavigationGroup['id']>;
+  expandedWorkflowGroups: ReadonlySet<string>;
   hasAvailableUpdate: boolean;
   hasCriticalWriteOperation: boolean;
   isEditSessionOperationBusy: boolean;
   isSidebarCompact: boolean;
   onNavigate: (section: WorkbenchSection) => void;
   onToggle: () => void;
-  onToggleWorkflowGroup: (groupId: WorkflowNavigationGroup['id']) => void;
+  onToggleWorkflowGroup: (groupId: string) => void;
   pendingEditCount: number;
   scrollRef: RefObject<HTMLDivElement | null>;
   selectedGame: ProjectGame;
-  suppressedActiveWorkflowGroup: WorkflowNavigationGroup['id'] | null;
+  suppressedActiveWorkflowGroup: string | null;
   toggleRef: RefObject<HTMLButtonElement | null>;
 };
 
-export function AppSidebar({
-  activeSection,
-  appVersion,
-  availableWorkflowSectionIds,
-  canShowEditableWorkflowNavigation,
-  canShowGameplaySettingsNavigation,
-  canShowWorkflowNavigation,
-  expandedWorkflowGroups,
-  hasAvailableUpdate,
-  hasCriticalWriteOperation,
-  isEditSessionOperationBusy,
-  isSidebarCompact,
-  onNavigate,
-  onToggle,
-  onToggleWorkflowGroup,
-  pendingEditCount,
-  scrollRef,
-  selectedGame,
-  suppressedActiveWorkflowGroup,
-  toggleRef
-}: AppSidebarProps) {
-  const showBetaEditors = useBetaEditorsEnabled();
+export function AppSidebar(props: AppSidebarProps) {
+  const { activeSection, appVersion, hasAvailableUpdate, hasCriticalWriteOperation,
+    isEditSessionOperationBusy, isSidebarCompact, onNavigate, onToggle, pendingEditCount,
+    scrollRef, toggleRef } = props;
   const { t, translateLiteral } = useLocalization();
   const toggleLabel = translateLiteral(
     isSidebarCompact ? 'Expand sidebar' : 'Collapse sidebar'
@@ -132,87 +107,7 @@ export function AppSidebar({
             );
           })}
 
-          {workflowNavigationGroups.map((group) => {
-                if (group.id === 'betaEditors' && (!canShowWorkflowNavigation || !showBetaEditors)) return null;
-                const visibleSectionIds = group.sectionIds.filter(
-                  (sectionId) =>
-                    (sectionId === 'modMerger' ? true : sectionId === 'gameplaySettings' || sectionId === 'cameraControl'
-                      ? canShowGameplaySettingsNavigation
-                      : canShowWorkflowNavigation &&
-                        canAccessWorkflowSectionForHealth(
-                          sectionId,
-                          canShowWorkflowNavigation,
-                          canShowEditableWorkflowNavigation
-                        )) &&
-                    isWorkflowNavigationVisibleForGame(
-                      sectionId,
-                      selectedGame,
-                      availableWorkflowSectionIds
-                    )
-                );
-                if (visibleSectionIds.length === 0) {
-                  return null;
-                }
-                const groupLabel = group.labelKey
-                  ? t(group.labelKey)
-                  : translateLiteral(group.label);
-
-                const hasActiveSection = visibleSectionIds.includes(activeSection);
-                const isExpanded =
-                  expandedWorkflowGroups.has(group.id) ||
-                  (hasActiveSection && suppressedActiveWorkflowGroup !== group.id);
-
-                return (
-                  <div
-                    className={`nav-workflow-group${hasActiveSection ? ' nav-workflow-group-active' : ''}`}
-                    key={group.id}
-                  >
-                    <button
-                      aria-expanded={isExpanded}
-                      aria-label={groupLabel}
-                      className="nav-group-button"
-                      onClick={() => onToggleWorkflowGroup(group.id)}
-                      title={isSidebarCompact ? groupLabel : undefined}
-                      type="button"
-                    >
-                      <Layers aria-hidden="true" size={16} />
-                      <span>{groupLabel}</span>
-                    </button>
-                    {isExpanded ? (
-                      <div className="nav-group-items">
-                        {visibleSectionIds.map((sectionId) => {
-                          const section = getWorkbenchCapabilityRegistration(sectionId);
-                          const Icon = section.icon;
-                          const isActive = activeSection === section.id;
-                          const sectionLabel = section.id === 'gameplaySettings' || section.id === 'modelViewer' || section.id === 'soundStudio'
-                            ? t(getWorkbenchSectionLabelKey(section.id))
-                            : translateLiteral(section.label);
-
-                          return (
-                            <button
-                              aria-current={isActive ? 'page' : undefined}
-                              aria-label={sectionLabel}
-                              className="nav-button nav-child-button"
-                              disabled={navigationDisabled}
-                              key={section.id}
-                              onClick={() => onNavigate(section.id)}
-                              title={
-                                isSidebarCompact
-                                  ? sectionLabel
-                                  : undefined
-                              }
-                              type="button"
-                            >
-                              <Icon aria-hidden="true" size={16} />
-                              <span>{sectionLabel}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
+          <SidebarCategories {...props} />
         </div>
 
         <div className="sidebar-utility-nav">
