@@ -4662,7 +4662,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         var result = hyperTrainingEditSessionService.StageMinimumLevel(
             ProjectBridgeMapper.ToCore(request.Payload.Paths),
             request.Payload.MinimumLevel,
-            session, request.Payload.BottleCapItemId, request.Payload.GoldBottleCapItemId);
+            session, request.Payload.BottleCapItemId, request.Payload.GoldBottleCapItemId, request.Payload.PokemonCenterEnabled);
         var response = SwShBridgeMapper.ToDto(result);
 
         return SerializeSuccess(response, request.RequestId);

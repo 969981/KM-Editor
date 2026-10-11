@@ -50,4 +50,6 @@ public sealed record SwShHyperTrainingWorkflow(
     public SwShHyperTrainingItems Items { get; init; } = new(795, 796);
     public SwShHyperTrainingItems RuntimeItems { get; init; } = new(795, 796);
     public IReadOnlyList<SwShHyperTrainingItemOption> ItemOptions { get; init; } = [];
+    public bool PokemonCenterEnabled { get; init; }
+    public string PokemonCenterMessage { get; init; } = "";
 }

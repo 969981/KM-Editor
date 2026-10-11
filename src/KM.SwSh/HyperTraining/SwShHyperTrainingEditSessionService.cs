@@ -59,7 +59,7 @@ public sealed class SwShHyperTrainingEditSessionService
         ProjectPaths paths,
         int minimumLevel,
         EditSession? session,
-        int? bottleCapItemId = null, int? goldBottleCapItemId = null)
+        int? bottleCapItemId = null, int? goldBottleCapItemId = null, bool? pokemonCenterEnabled = null)
     {
         ArgumentNullException.ThrowIfNull(paths);
 
@@ -69,7 +69,8 @@ public sealed class SwShHyperTrainingEditSessionService
         var workflow = hyperTrainingWorkflowService.Load(project);
         var diagnostics = new List<ValidationDiagnostic>();
         var selection = new SwShHyperTrainingSelection(minimumLevel, new(
-            bottleCapItemId ?? workflow.Items.BottleCapItemId, goldBottleCapItemId ?? workflow.Items.GoldBottleCapItemId));
+            bottleCapItemId ?? workflow.Items.BottleCapItemId, goldBottleCapItemId ?? workflow.Items.GoldBottleCapItemId),
+            pokemonCenterEnabled ?? workflow.PokemonCenterEnabled);
         try { SwShHyperTrainingItemWorkflow.ValidateSelection(selection.Items, workflow); }
         catch (InvalidDataException exception)
         {
@@ -251,6 +252,21 @@ public sealed class SwShHyperTrainingEditSessionService
             }
         }
 
+        try
+        {
+            foreach (var output in SwShHyperTrainingCenterWorkflow.Prepare(project, selection))
+            {
+                var source = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, output.Path)!;
+                var target = ResolveOutputPath(paths, output.Path, diagnostics);
+                if (target is not null) writes.Add(new(output.Path, CreatePlanSources(source.Entry, selection, project),
+                    File.Exists(target), selection.PokemonCenterEnabled
+                        ? "Add Pokemon Center Hyper Training using the selected level and payment items."
+                        : "Remove the added Pokemon Center Hyper Training service."));
+            }
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+        { diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error, exception.Message, field: "pokemonCenterEnabled")); }
+
         diagnostics.Add(CreateDiagnostic(
             DiagnosticSeverity.Info,
             string.Create(CultureInfo.InvariantCulture, $"Hyper Training change plan preview contains {writes.Count:N0} target file(s).")));
@@ -375,6 +391,13 @@ public sealed class SwShHyperTrainingEditSessionService
         }
 
         var itemProject = projectWorkspaceService.Open(paths);
+        IReadOnlyList<SwShHyperTrainingCenterWorkflow.Output> centerOutputs;
+        try { centerOutputs = SwShHyperTrainingCenterWorkflow.Prepare(itemProject, selection); }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or OverflowException)
+        {
+            diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error, exception.Message, field: "pokemonCenterEnabled"));
+            return CreateApplyResult(applyId, appliedAt, preparedPlan, writtenFiles, diagnostics);
+        }
         var writeItems = NeedsItemWrites(itemProject, selection.Items);
         ApplyScript(paths, minimumLevel, selection.Items, writtenFiles, diagnostics);
         if (!diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
@@ -388,6 +411,26 @@ public sealed class SwShHyperTrainingEditSessionService
         }
         if (writeItems && !diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
             ApplyItemDialogue(paths, selection.Items, writtenFiles, diagnostics);
+
+        if (!diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+        {
+            try
+            {
+                foreach (var output in centerOutputs)
+                {
+                    var target = ResolveOutputPath(paths, output.Path, diagnostics)
+                        ?? throw new InvalidDataException("Pokemon Center Hyper Training output target could not be resolved.");
+                    if (output.Bytes.AsSpan().SequenceEqual(output.Baseline))
+                    {
+                        if (File.Exists(target)) File.Delete(target);
+                    }
+                    else WriteOutputAtomically(target, output.Bytes, _ => { });
+                    writtenFiles.Add(new(ProjectFileLayer.Generated, output.Path));
+                }
+            }
+            catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException)
+            { diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error, exception.Message, field: "pokemonCenterEnabled")); }
+        }
 
 
         return CreateApplyResult(applyId, appliedAt, preparedPlan, writtenFiles, diagnostics);
@@ -738,7 +781,7 @@ public sealed class SwShHyperTrainingEditSessionService
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{StageSummaryPrefix}{selection.MinimumLevel}.{(selection.Items == SwShHyperTrainingItemsPatcher.Defaults ? "" : $" Payment items {selection.Items.BottleCapItemId}/{selection.Items.GoldBottleCapItemId}.")}");
+            $"{StageSummaryPrefix}{selection.MinimumLevel}.{(selection.Items == SwShHyperTrainingItemsPatcher.Defaults ? "" : $" Payment items {selection.Items.BottleCapItemId}/{selection.Items.GoldBottleCapItemId}.")}{(selection.PokemonCenterEnabled ? " Pokemon Center Hyper Training enabled." : "")}");
     }
 
     private static IReadOnlyList<ProjectFileReference> CreatePendingSources(
@@ -776,6 +819,9 @@ public sealed class SwShHyperTrainingEditSessionService
         }
 
         AddItemSources(project, selection.Items, sources);
+        try { AddCenterSources(project, selection, sources); }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException)
+        { diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error, exception.Message, field: "pokemonCenterEnabled")); }
         sources.Add(CreatePendingPayloadSource(selection));
         return sources
             .Distinct()
@@ -791,6 +837,7 @@ public sealed class SwShHyperTrainingEditSessionService
         var sources = new List<ProjectFileReference>();
         AddBaseAndEffectiveSourceReferences(entry, sources);
         AddItemSources(project, selection.Items, sources);
+        AddCenterSources(project, selection, sources);
         sources.Add(CreatePendingPayloadSource(selection));
         return sources
             .Distinct()
@@ -831,6 +878,16 @@ public sealed class SwShHyperTrainingEditSessionService
         return script is not null && SwShHyperTrainingItemsPatcher.ReadScript(File.ReadAllBytes(script.AbsolutePath)) != items
             || main is not null && SwShHyperTrainingItemsPatcher.ReadMain(File.ReadAllBytes(main.AbsolutePath), project.Paths.SelectedGame) != items
             || SwShHyperTrainingItemDialogue.HasGeneratedDialogue(project);
+    }
+
+    private static void AddCenterSources(OpenedProject project, SwShHyperTrainingSelection selection, ICollection<ProjectFileReference> sources)
+    {
+        if (!selection.PokemonCenterEnabled && !SwShHyperTrainingCenterWorkflow.IsEnabled(project)) return;
+        foreach (var path in SwShHyperTrainingCenterWorkflow.Dependencies(project))
+        {
+            var source = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, path);
+            if (source is not null) AddBaseAndEffectiveSourceReferences(source.Entry, sources);
+        }
     }
 
     private static void AddItemSources(OpenedProject project, SwShHyperTrainingItems items, ICollection<ProjectFileReference> sources)

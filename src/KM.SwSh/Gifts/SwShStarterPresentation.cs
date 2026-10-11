@@ -35,8 +35,8 @@ internal sealed partial class SwShStarterPresentation(OpenedProject project)
         var currentGifts = SwShGiftPokemonArchive.Parse(Read("romfs/bin/script_event_data/add_poke.bin")).Gifts;
         var currentValues = GiftHashes.Select(hash => currentGifts.Single(g => g.Hash1 == hash))
             .Select(g => new SwShStarterIdentity(g.Species, g.Form)).ToArray();
-        var previous = new SwShStarterIdentity[3][];
-        for (var script = 0; script < 3; script++)
+        var previous = new SwShStarterIdentity[SwShStarterPresentationScript.Names.Length][];
+        for (var script = 0; script < previous.Length; script++)
         {
             var path = $"romfs/bin/script/amx/{SwShStarterPresentationScript.Names[script]}.amx";
             var source = Read(path);

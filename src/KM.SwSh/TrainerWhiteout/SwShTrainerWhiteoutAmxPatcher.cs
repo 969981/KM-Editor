@@ -102,7 +102,11 @@ internal static class SwShTrainerWhiteoutAmxPatcher
                 skeleton.InsertAfter(skeleton.Instructions.Last(), Enumerable.Range(0, extraCode).Select(_ => I.CreateLiteral(Op.Nop)).ToArray());
             return SwShAmxDocument.Parse(Build(SwShAmxDocument.Parse(skeleton.Assemble()), fileName));
         });
-        if (!expected.NativeHashes.SequenceEqual(current.NativeHashes) || CodeCells(expected) != CodeCells(current) || !expected.Instructions.Where(instruction => instruction.OriginalCell >= originalCode).Select(Signature).SequenceEqual(current.Instructions.Where(instruction => instruction.OriginalCell >= originalCode).Select(Signature)))
+        // Other editors may append independent code after the Whiteout helper span.
+        var helperEnd = CodeCells(expected);
+        if (!expected.NativeHashes.SequenceEqual(current.NativeHashes) || helperEnd > CodeCells(current)
+            || !expected.Instructions.Where(instruction => instruction.OriginalCell >= originalCode).Select(Signature)
+                .SequenceEqual(current.Instructions.Where(instruction => instruction.OriginalCell >= originalCode && instruction.OriginalCell < helperEnd).Select(Signature)))
             throw new InvalidDataException("Trainer Whiteout helper code contains incompatible changes.");
         var owned = OwnedCells(baseline, fileName);
         var actualByCell = current.Instructions.ToDictionary(instruction => instruction.OriginalCell!.Value);

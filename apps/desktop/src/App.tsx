@@ -11659,7 +11659,7 @@ export function App({
     );
   };
 
-  const handleStageHyperTraining = async (minimumLevel: number, bottleCapItemId?: number, goldBottleCapItemId?: number) => {
+  const handleStageHyperTraining = async (minimumLevel: number, bottleCapItemId?: number, goldBottleCapItemId?: number, pokemonCenterEnabled?: boolean) => {
     setIsHyperTrainingStaging(true);
     setBridgeDiagnostics([]);
 
@@ -11667,7 +11667,7 @@ export function App({
       await runEditSessionMutation(
         async (session) => {
           const response = await bridge.stageHyperTraining({
-            minimumLevel, bottleCapItemId, goldBottleCapItemId,
+            minimumLevel, bottleCapItemId, goldBottleCapItemId, pokemonCenterEnabled,
             paths: createProjectPaths(draftPaths),
             session
           });
@@ -35982,7 +35982,10 @@ function getPendingEditDisplayDetails(
         editorLabel,
         fieldLabel: edit.field === 'minimumLevel' ? (edit.newValue?.includes(',') ? 'Hyper Training' : 'Minimum level') : undefined,
         newValueLabel: formatHyperTrainingPendingValue(edit.newValue, context.hyperTrainingWorkflow),
-        recordLabel: 'Battle Tower NPC'
+        newValueLocalizationKey: edit.newValue?.split(',')[3] === '1' ? 'hyperTraining.centerOn' : 'hyperTraining.centerOff',
+        newValueLocalizationParams: { settings: formatHyperTrainingPendingValue(edit.newValue, context.hyperTrainingWorkflow) ?? '' },
+        summaryLocalizationKey: 'hyperTraining.stageSettings',
+        recordLabel: 'Hyper Training'
       });
     case 'workflow.shinyRate':
       return createPendingEditDisplayDetails(edit, {
@@ -36734,8 +36737,8 @@ function formatHyperTrainingPendingValue(value: string | null | undefined, workf
 
   const parts = value.split(',');
   const minimumLevel = parseHyperTrainingLevelInput(parts[0]!);
-  if (minimumLevel === null || minimumLevel < 1 || minimumLevel > 100 || ![1, 3].includes(parts.length)) return value;
-  const items = parts.slice(1).map(item => {
+  if (minimumLevel === null || minimumLevel < 1 || minimumLevel > 100 || ![1, 3, 4].includes(parts.length)) return value;
+  const items = parts.slice(1, 3).map(item => {
     const option = workflow?.itemOptions.find(option => String(option.itemId) === item);
     return option ? `${option.name} (${item})` : `#${item}`;
   });
@@ -36753,13 +36756,15 @@ function getCanonicalHyperTrainingPendingSelection(editSession: EditSession | nu
   const edit = editSession.pendingEdits[0];
   if (edit?.domain !== 'workflow.hyperTraining' || edit.recordId !== 'hyper-training-minimum-level' || edit.field !== 'minimumLevel') return null;
   const parts = (edit.newValue ?? '').split(',');
-  if (![1, 3].includes(parts.length) || parts.some(part => !/^[1-9][0-9]*$/.test(part))) return null;
+  if (![1, 3, 4].includes(parts.length) || parts.some(part => !/^[1-9][0-9]*$/.test(part))) return null;
   const [minimumLevel, bottleCapItemId = 795, goldBottleCapItemId = 796] = parts.map(Number);
   if (minimumLevel! > 100 || bottleCapItemId > 65535 || goldBottleCapItemId > 65535) return null;
   const custom = bottleCapItemId !== 795 || goldBottleCapItemId !== 796;
-  if ((parts.length === 3) !== custom || edit.summary !== `Stage Hyper Training minimum level Lv.${minimumLevel}.${custom ? ` Payment items ${bottleCapItemId}/${goldBottleCapItemId}.` : ''}`
+  const pokemonCenterEnabled = parts.length === 4 && parts[3] === '1';
+  if ((parts.length === 4 && !pokemonCenterEnabled) || (!pokemonCenterEnabled && (parts.length === 3) !== custom)
+    || edit.summary !== `Stage Hyper Training minimum level Lv.${minimumLevel}.${custom ? ` Payment items ${bottleCapItemId}/${goldBottleCapItemId}.` : ''}${pokemonCenterEnabled ? ' Pokemon Center Hyper Training enabled.' : ''}`
     || !hasCanonicalHyperTrainingPendingSources(edit.sources)) return null;
-  return { minimumLevel: minimumLevel!, bottleCapItemId, goldBottleCapItemId };
+  return { minimumLevel: minimumLevel!, bottleCapItemId, goldBottleCapItemId, pokemonCenterEnabled };
 }
 
 function getCanonicalHyperTrainingPendingMinimumLevel(editSession: EditSession | null) {
@@ -36795,8 +36800,8 @@ function hasCanonicalHyperTrainingPendingSources(
       (source.layer !== 'base' && source.layer !== 'layered') ||
       (![
         hyperTrainingScriptPath, hyperTrainingDialoguePath, hyperTrainingMainPath,
-        'romfs/bin/pml/item/item.dat'
-      ].includes(source.relativePath) && !/^romfs\/bin\/message\/(English|Spanish|French|German|Italian|JPN|JPN_KANJI|Korean|Simp_Chinese|Trad_Chinese)\/(script\/sub_event_007|common\/itemname)\.dat$/.test(source.relativePath))
+        'romfs/bin/pml/item/item.dat', 'romfs/bin/script/amx/battle_man.amx'
+      ].includes(source.relativePath) && !/^romfs\/bin\/message\/(English|Spanish|French|German|Italian|JPN|JPN_KANJI|Korean|Simp_Chinese|Trad_Chinese)\/(script\/sub_event_(007|129)\.(dat|tbl)|common\/itemname\.dat)$/.test(source.relativePath))
     ) {
       return false;
     }
@@ -53382,6 +53387,11 @@ function IvScreenSection({
                   'Open a Pokemon Summary, go to the stats graph page, and press X to show IVs. Hyper Trained stats show 31; other stats show their raw IVs. Press X again to return to normal stats.'
                 )}
               </p>
+              <p>
+                {translateLiteral(
+                  'Hyper Training also displays IVs, with the graph scaled from 0 to 31.'
+                )}
+              </p>
             </ContextHelp>
           </h2>
         </div>
@@ -53593,7 +53603,7 @@ function HyperTrainingSection({
   onApplyChangePlan: () => void;
   onCreateChangePlan: () => void;
   onDirtyChange: (isDirty: boolean) => void;
-  onStageMinimumLevel: (minimumLevel: number, bottleCapItemId?: number, goldBottleCapItemId?: number) => void;
+  onStageMinimumLevel: (minimumLevel: number, bottleCapItemId?: number, goldBottleCapItemId?: number, pokemonCenterEnabled?: boolean) => void;
   panelOutput: WorkflowPanelOutput;
   workflow: HyperTrainingWorkflow | null;
 }) {
@@ -53608,6 +53618,16 @@ function HyperTrainingSection({
   const levelInputSourceRef = useRef(inputBaselineMinimumLevel.toString());
 
   const stagedSelection = getCanonicalHyperTrainingPendingSelection(editSession);
+  const baselineCenter = stagedSelection?.pokemonCenterEnabled ?? workflow?.pokemonCenterEnabled ?? false;
+  const [pokemonCenterEnabled, setPokemonCenterEnabled] = useState(baselineCenter);
+  const centerEditedRef = useRef(false);
+  useEffect(() => {
+    setPokemonCenterEnabled(current => {
+      if (current === baselineCenter) centerEditedRef.current = false;
+      return centerEditedRef.current ? current : baselineCenter;
+    });
+  }, [baselineCenter]);
+  const centerDirty = pokemonCenterEnabled !== baselineCenter;
   const baselineItems = [stagedSelection?.bottleCapItemId ?? workflow?.items.bottleCapItemId ?? 795,
     stagedSelection?.goldBottleCapItemId ?? workflow?.items.goldBottleCapItemId ?? 796].map(String);
   const baselineItemKey = baselineItems.join(',');
@@ -53638,7 +53658,7 @@ function HyperTrainingSection({
   const normalizedMinimumLevel = levelError === null ? parsedMinimumLevel : null;
   const hasStagedChange = stagedMinimumLevel !== null;
   const hasLocalDraft =
-    itemsDirty || itemError !== null || levelError !== null ||
+    centerDirty || itemsDirty || itemError !== null || levelError !== null ||
     (normalizedMinimumLevel !== null &&
       normalizedMinimumLevel !== inputBaselineMinimumLevel);
   const installedCutoffsNeedVanillaRestore =
@@ -53656,7 +53676,7 @@ function HyperTrainingSection({
     isChangePlanApplying,
     isChangePlanCreating,
     isCurrent:
-      stagedMinimumLevel !== null && normalizedMinimumLevel === stagedMinimumLevel && !itemsDirty,
+      stagedMinimumLevel !== null && normalizedMinimumLevel === stagedMinimumLevel && !itemsDirty && !centerDirty,
     isStaging
   });
   const canRestore =
@@ -53665,7 +53685,7 @@ function HyperTrainingSection({
     !isStaging &&
     !isChangePlanCreating &&
     !isChangePlanApplying &&
-    (levelInput !== String(vanillaMinimumLevel) || itemInputs.join(',') !== '795,796'
+    (pokemonCenterEnabled || levelInput !== String(vanillaMinimumLevel) || itemInputs.join(',') !== '795,796'
       || installedCutoffsNeedVanillaRestore || !itemSync || workflow.installStatus === 'installed'
       || workflow.items.bottleCapItemId !== 795 || workflow.items.goldBottleCapItemId !== 796);
   const canReviewPlan =
@@ -53710,7 +53730,7 @@ function HyperTrainingSection({
     <>
       <PublishedLocalEditorValidationDiagnostics
         domain="workflow.hyperTraining"
-        issues={[...(levelError ? [{ field: 'minimumLevel', label: 'Minimum level', message: levelError }] : []), ...(itemError ? [{ field: 'items', label: t('hyperTraining.paymentItems'), message: itemError }] : [])]}
+        issues={[...(levelError ? [{ field: 'minimumLevel', label: 'Minimum level', message: levelError }] : []), ...(itemError ? [{ field: 'items', label: t('hyperTraining.paymentItems'), message: itemError }] : []), ...(workflow?.pokemonCenterMessage ? [{ field: 'pokemonCenterEnabled', label: t('hyperTraining.centerEnabled'), message: workflow.pokemonCenterMessage }] : [])]}
       />
       <section aria-labelledby="hyper-training-heading" className="panel wide-panel advanced-editor-workspace">
         <div className="panel-heading">
@@ -53774,6 +53794,16 @@ function HyperTrainingSection({
           <div className="flagwork-layout">
             <div className="flagwork-stack">
               <div className="hyper-training-control">
+                <label className="checkbox-field" htmlFor="hyper-training-pokemon-center">
+                  <input id="hyper-training-pokemon-center" type="checkbox"
+                    aria-describedby="hyper-training-pokemon-center-help"
+                    checked={pokemonCenterEnabled}
+                    disabled={workflow.summary.availability !== 'available' || workflow.installStatus === 'blocked'}
+                    onChange={event => { centerEditedRef.current = true; setPokemonCenterEnabled(event.target.checked); }} />
+                  <span>{t('hyperTraining.centerEnabled')}</span>
+                </label>
+                <p id="hyper-training-pokemon-center-help">{t('hyperTraining.centerHelp')}</p>
+                {workflow.pokemonCenterMessage ? <p className="input-error">{translateLiteral(workflow.pokemonCenterMessage)}</p> : null}
                 <h3>{t('hyperTraining.paymentItems')}</h3>
                 <p>{t('hyperTraining.itemsHelp')}</p>
                 <div className="hyper-training-payment-items">
@@ -53831,7 +53861,7 @@ function HyperTrainingSection({
                     disabled={!canStage}
                     onClick={() => {
                       if (normalizedMinimumLevel !== null) {
-                        onStageMinimumLevel(normalizedMinimumLevel, itemValues[0], itemValues[1]);
+                        onStageMinimumLevel(normalizedMinimumLevel, itemValues[0], itemValues[1], pokemonCenterEnabled);
                       }
                     }}
                     type="button"
@@ -53849,7 +53879,8 @@ function HyperTrainingSection({
                     onClick={() => {
                       setLevelInput(vanillaMinimumLevel.toString());
                       setItemInputs(['795', '796']);
-                      onStageMinimumLevel(vanillaMinimumLevel, 795, 796);
+                      setPokemonCenterEnabled(false);
+                      onStageMinimumLevel(vanillaMinimumLevel, 795, 796, false);
                     }}
                     type="button"
                   >

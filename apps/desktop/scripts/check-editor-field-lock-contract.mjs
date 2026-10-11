@@ -179,6 +179,10 @@ const permittedTransientFieldLocks = new Map([
     'Payment choices require a readable item catalog and a supported editable project. Draft errors and staging do not lock the fields.'
   ],
   [
+    'src/App.tsx#input:id="hyper-training-pokemon-center"[disabled]',
+    'The optional Center service requires a supported editable project. Local drafting remains available while staging, reviewing, or applying an earlier selection.'
+  ],
+  [
     'src/features/shiny-rate/ShinyRateSection.tsx#input:id="shiny-rate-custom-denominator"[disabled]',
     'The custom denominator is structurally read-only when the exact game build or installed package state cannot support a shiny-rate write.'
   ],

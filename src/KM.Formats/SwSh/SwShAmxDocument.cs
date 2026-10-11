@@ -22,12 +22,13 @@ public sealed record SwShAmxHeader(
     int LibrariesOffset,
     int PublicVariablesOffset,
     int TagsOffset,
-    int NameTableOffset)
+    int NameTableOffset,
+    int OverlaysOffset)
 {
     public const ushort Pawn64Magic = 0xF1E1;
     public const short CompactFlag = 0x0004;
     public const short DebugFlag = 0x0002;
-    public const int ByteLength = 0x38;
+    public const int ByteLength = 0x3C;
 
     public bool IsCompact => (Flags & CompactFlag) != 0;
 
@@ -55,7 +56,8 @@ public sealed record SwShAmxHeader(
             BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x28)),
             BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x2C)),
             BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x30)),
-            BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x34)));
+            BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x34)),
+            BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x38)));
 
         header.Validate(bytes.Length);
         return header;
@@ -92,7 +94,8 @@ public sealed record SwShAmxHeader(
             || NativesOffset > LibrariesOffset
             || LibrariesOffset > PublicVariablesOffset
             || PublicVariablesOffset > TagsOffset
-            || TagsOffset > NameTableOffset
+            || TagsOffset > OverlaysOffset
+            || OverlaysOffset > NameTableOffset
             || NameTableOffset > CodeOffset
             || CodeOffset > Size
             || DataOffset < CodeOffset
@@ -106,7 +109,8 @@ public sealed record SwShAmxHeader(
             || (LibrariesOffset - NativesOffset) % DefinitionSize != 0
             || (PublicVariablesOffset - LibrariesOffset) % DefinitionSize != 0
             || (TagsOffset - PublicVariablesOffset) % DefinitionSize != 0
-            || (NameTableOffset - TagsOffset) % DefinitionSize != 0)
+            || (OverlaysOffset - TagsOffset) % DefinitionSize != 0
+            || (NameTableOffset - OverlaysOffset) % (sizeof(int) * 2) != 0)
         {
             throw new InvalidDataException("Sword/Shield AMX definition table boundaries are not record-aligned.");
         }

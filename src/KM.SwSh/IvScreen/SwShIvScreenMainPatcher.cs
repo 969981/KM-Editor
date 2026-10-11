@@ -32,7 +32,7 @@ internal sealed record SwShIvScreenAnalysis(
     string XToggleRefreshOffsetHex,
     ProjectGame? DetectedGame);
 
-internal static class SwShIvScreenMainPatcher
+internal static partial class SwShIvScreenMainPatcher
 {
     public const int LegacySecondaryStatsHookSiteOffset = 0x0137F634;
     public const int LegacyNormalStatsGraphHookSiteOffset = 0x0138F268;
@@ -488,6 +488,7 @@ internal static class SwShIvScreenMainPatcher
         WriteYellowValuePaneVisibility(text, layout);
         WriteNumericTextPaneRefresh(text, layout);
         WriteXToggleRefresh(text, layout);
+        WriteTrainingPanel(text, layout);
 
         var output = nso.Write(textDecompressedData: text);
         VerifyApplyOutput(mainBytes, output, layout, expectedGame);
@@ -615,7 +616,8 @@ internal static class SwShIvScreenMainPatcher
 
     private static bool IsInstalledV1(ReadOnlySpan<byte> text, PatchLayout layout, int ivGetterOffset = HyperTrainingIvWrapperOffset)
     {
-        return HasExactMarker(text, layout)
+        return TrainingPanelState(text, layout) >= 0
+            && HasExactMarker(text, layout)
             && ReadInstruction(text, layout.LegacySecondaryStatsHookSiteOffset) == VanillaLegacySecondaryStatsHookInstruction
             && ReadInstruction(text, layout.LegacyNormalStatsGraphHookSiteOffset) == VanillaLegacyNormalStatsGraphHookInstruction
             && AllInstructionsVanilla(text, layout.NormalGraphValueCallSites)
@@ -720,6 +722,9 @@ internal static class SwShIvScreenMainPatcher
             layout.SummaryGraphAlternateRawSlotOffset,
         };
 
+        if (TrainingPanelState(text, layout) == 1)
+            activeOffsets.UnionWith(TrainingSlots.Select(layout.ShiftOffset));
+
         foreach (var slotOffset in layout.PayloadSlotOffsets)
         {
             if (!activeOffsets.Contains(slotOffset)
@@ -734,7 +739,8 @@ internal static class SwShIvScreenMainPatcher
 
     private static bool AllVanilla(ReadOnlySpan<byte> text, PatchLayout layout)
     {
-        return ReadInstruction(text, layout.LegacySecondaryStatsHookSiteOffset) == VanillaLegacySecondaryStatsHookInstruction
+        return TrainingPanelState(text, layout) == 0
+            && ReadInstruction(text, layout.LegacySecondaryStatsHookSiteOffset) == VanillaLegacySecondaryStatsHookInstruction
             && ReadInstruction(text, layout.LegacyNormalStatsGraphHookSiteOffset) == VanillaLegacyNormalStatsGraphHookInstruction
             && AllInstructionsVanilla(text, layout.NormalGraphValueCallSites)
             && AllInstructionsVanilla(text, layout.MultiChartStatSourceCallSites)
@@ -931,7 +937,7 @@ internal static class SwShIvScreenMainPatcher
     {
         return ReadInstruction(text, layout.ValuePaneVisibilityLoadOffset) == VanillaValuePaneVisibilityLoadInstruction
             && ReadInstruction(text, layout.ValuePaneVisibilityMaskOffset) == VanillaValuePaneVisibilityInvertInstruction
-            && AllInstructionsVanilla(text, layout.RendererWrapperCallSites)
+            && TrainingRendererCallsAreSupported(text, layout)
             && ReadInstruction(text, layout.XYellowStateRequestBranchOffset) == VanillaXYellowStateRequestInstruction;
     }
 
@@ -1298,6 +1304,10 @@ internal static class SwShIvScreenMainPatcher
 
     private static void EnsureAnchors(ReadOnlySpan<byte> text, PatchLayout layout)
     {
+        if (TrainingPanelState(text, layout) < 0
+            && !(IsLegacyInstall(text, layout)
+                && ReadInstruction(text, layout.ShiftOffset(GraphScaleInstruction)) == 0x52803208))
+            throw new InvalidDataException("IV Screen training panel or graph scale is incompatible.");
         EnsureActiveDependencyAnchors(text, layout);
 
         if (ReadInstruction(text, layout.LegacySecondaryStatsHookSiteOffset) != VanillaLegacySecondaryStatsHookInstruction
@@ -1366,7 +1376,8 @@ internal static class SwShIvScreenMainPatcher
 
         foreach (var site in layout.RendererWrapperCallSites)
         {
-            EnsureVanillaOrOwnedCall(text, site.Offset, site.VanillaInstruction, "summary multi-chart wrapper", layout.RenderWrapperSlotOffset);
+            EnsureVanillaOrOwnedCall(text, site.Offset, site.VanillaInstruction, "summary multi-chart wrapper", layout.RenderWrapperSlotOffset,
+                site.Offset == layout.ShiftOffset(TrainingRefreshCall) ? layout.ValueWrapperSlotOffset : layout.RenderWrapperSlotOffset);
         }
 
         foreach (var site in layout.YellowRawValueAddSites)
@@ -1695,6 +1706,7 @@ internal static class SwShIvScreenMainPatcher
     private static IReadOnlyList<PatchRegion> WrittenRegions(PatchLayout layout)
     {
         var regions = new List<PatchRegion>();
+        regions.Add(new PatchRegion(layout.ShiftOffset(GraphScaleInstruction), 4, "IV graph scale"));
         regions.AddRange(layout.PayloadSlotOffsets.Select(offset =>
             new PatchRegion(offset, SlotLength, $"IV Screen payload slot main.text+0x{offset:X}")));
         regions.AddRange(layout.MarkerFragmentOffsets.Select(offset =>
