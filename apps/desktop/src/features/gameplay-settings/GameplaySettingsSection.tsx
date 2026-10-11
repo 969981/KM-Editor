@@ -135,15 +135,15 @@ export function GameplaySettingsSection({
         </div>
       ) : (
         <>
-        {sharedOutput ? <CameraHookRequirement key={JSON.stringify(stableScope)} scope={stableScope} bridge={bridge}
+        {sharedOutput && !battleItems ? <CameraHookRequirement key={JSON.stringify(stableScope)} scope={stableScope} bridge={bridge}
           domain={battleItems ? 'workflow.battleItems' : cameraControl ? 'workflow.cameraControl' : 'workflow.gameplaySettings'}
           destinations={destinations} onStatus={setHookStatus} onOpenCameraHook={onOpenCameraHook} /> : null}
         <InGameSettingsPackagePanel
           cameraControl={cameraControl}
           battleItems={battleItems}
           purpose={cameraHook ? 'hook' : sharedOutput ? 'output' : 'combined'}
-          canPrepare={!sharedOutput || Boolean(hookReady)}
-          requiredCameraHook={sharedOutput && hookReady ? hookStatus?.requirement : undefined}
+          canPrepare={!sharedOutput || battleItems || Boolean(hookReady)}
+          requiredCameraHook={sharedOutput && !battleItems && hookReady ? hookStatus?.requirement : undefined}
           armCriticalWriteGuard={armCriticalWriteGuard}
           destinations={destinations}
           onRememberDestination={onRememberDestination}

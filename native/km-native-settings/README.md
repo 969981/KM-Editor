@@ -25,13 +25,14 @@ event cameras, and restores the saved preference after those owners and return b
 finish. Naturally adjustable areas retain their native behavior with either choice.
 Camera Control installs only Unlocked Camera; Gameplay Settings separately installs the
 three EXP options. Either feature can be removed while retaining the other. Camera only
-output leaves the game's EXP routines unchanged. The shared journal uses schema two; other profiles keep
-schema one. Upgrades preserve existing settings and initialize the new choice to No.
+output leaves the game's EXP routines unchanged. The shared journal uses schema three; other profiles keep
+schema one. Upgrades preserve existing settings and initialize the camera choice to No.
 
 When the added outdoor camera is active, terrain residency, model visibility, instance
-visibility, and instance density use a finite distance floor based on native Wild Area
+visibility, instance density, and field character visibility use a finite distance floor based on native Wild Area
 settings. No restores native distances. Native LOD selection, frustum culling, and area
-cleanup remain intact. Areas with native free camera controls keep their existing distances.
+cleanup remain intact, as do scripted character hiding and fades. Areas with native free
+camera controls keep their existing distances.
 
 **Hooks > Camera Hook** installs or removes the settings support in a selected emulator's
 SD folder. Camera Control and Gameplay Settings prepare shared RomFS and ExeFS files in
@@ -40,20 +41,30 @@ to their game installation. Emulator output omits duplicate configuration files;
 preparation includes its settings journal for manual placement. Removing prepared output
 preserves other installed features and independent edits.
 
+**Battle Items** is a separate Sword and Shield Beta editor. Installing it alone blocks ordinary
+items selected from the player's battle Bag without requiring a settings file. Balls retain their
+original eligibility, and field use, opposing trainers, and held items retain their normal behavior.
+With a readable shared Camera Hook journal, **Battle Items: Yes / No** appears in Options and uses
+the saved choice: Yes allows items and No blocks them. Without that journal the row is hidden and
+the restriction remains active. Existing saved choices and earlier journal migrations remain unchanged.
+Fresh Battle Items output omits the settings file; adding or removing it from existing shared output
+preserves the installation's settings delivery choice and saved values.
+
 Camera Control remains a Beta feature. Area geometry and complete scene coverage still
 require verification during gameplay.
 
-The runtime is deliberately fail closed. Its registered `DT_INIT` function runs after the loader
+The runtime validates its executable dependencies before activation. Its registered `DT_INIT` function runs after the loader
 prepares module memory and relocations. During this initialization, it resolves
 the required guest filesystem APIs, recognizes one exact supported executable profile, verifies
 every patch preimage, and installs that title's complete immutable hook set in one transaction.
 Executable code is never patched again during that process. If the KM-owned dual-slot settings
-journal is not readable yet, the installed hooks retain retail-equivalent values. Sword and Shield
+journal is not readable yet, EXP and camera hooks retain retail-equivalent values, while installed
+Battle Items retains its standalone restriction. Sword and Shield
 defer all journal access until camera construction or Options callbacks run on initialized game
 threads. Field updates retry unavailable storage at a bounded cadence without a background thread.
 Later menu changes commit and verify the journal,
-then publish one atomic data snapshot. A missing, corrupt, foreign, or mismatched dependency leaves
-retail behavior active and never produces a partial live-code transition.
+then publish one atomic data snapshot. A missing, corrupt, foreign, or mismatched executable dependency
+prevents activation and never produces a partial live-code transition.
 
 Journal access first mounts the SD card under a dedicated runtime mount name. A failed mount
 returns without opening the file and remains eligible for a later retry. Successful mounts are
@@ -66,7 +77,8 @@ failure. The derived `main.npdm` grants only SD access and the exact process-han
 system calls needed by that transaction in both policy views. The journal uses alternating slots,
 generations, title and family binding, CRC32C, flush, and readback verification so an interrupted
 write cannot replace the last valid state. An ambiguous write is re-read from both authenticated
-slots; the runtime publishes the durable winner or falls back to retail for the rest of the process.
+slots; the runtime publishes the durable winner or falls back to the same defaults used without
+settings for the rest of the process.
 
 `build.ps1` compiles a bounded AArch64 ELF. KM's managed build tooling converts that ELF to a
 canonical compressed NSO and verifies every segment on readback. KM combines that independently

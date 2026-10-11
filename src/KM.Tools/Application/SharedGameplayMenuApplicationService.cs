@@ -188,6 +188,9 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             loaded.Targets.Add(receiptFile.Path.CanonicalKey, receiptFile);
             loaded.Receipt = sourceReceipt;
             loaded.Installed = sourceReceipt?.Package;
+            // Battle Items works without settings. Keep the delivery choice of
+            // an existing installation when adding or removing this feature.
+            if (battleItems) loaded.IncludeConsoleSettings = sourceReceipt?.ConsoleSettings ?? false;
             var journal = await Track(loaded, loaded.JournalPath, token).ConfigureAwait(false);
             if (journal.Exists) RequireJournal(loaded, journal);
             var normalized = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
@@ -245,14 +248,14 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                 generated.Add(new(path, previous?.Existed ?? current.Exists, before, component.Value.ToArray()));
             }
             loaded.NextReceipt = new(1, loaded.Available, loaded.Bootstrap, generated.OrderBy(file => file.Path, StringComparer.Ordinal).ToArray(),
-                includeConsoleSettings, features);
+                loaded.IncludeConsoleSettings, features);
             loaded.NextReceiptBytes = loaded.NextReceipt.Write();
             loaded.NextReceiptRule = new(ReceiptRulePrefix + Hash(loaded.NextReceiptBytes), 1, true, true);
             var needsUpdate = sourceReceipt is not null && (generated.Any(file =>
                 !ComponentMatches(file.Path, file.After, loaded.Targets[new RelativeOutputPath(file.Path).CanonicalKey].Bytes.AsSpan()))
-                || privateReceiptHash is null || includeConsoleSettings && !journal.Exists
-                || includeConsoleSettings && journal.Exists && !journal.Bytes.AsSpan().SequenceEqual(loaded.Bootstrap)
-                || sourceReceipt.ConsoleSettings != includeConsoleSettings
+                || privateReceiptHash is null || loaded.IncludeConsoleSettings && !journal.Exists
+                || loaded.IncludeConsoleSettings && journal.Exists && !journal.Bytes.AsSpan().SequenceEqual(loaded.Bootstrap)
+                || sourceReceipt.ConsoleSettings != loaded.IncludeConsoleSettings
                 || sourceReceipt.Package.PackageVersion != loaded.Available.PackageVersion);
             var selectedInstalled = sourceReceipt is not null && priorFeatures.HasFlag(requestedFeature);
             if (!selectedInstalled) loaded.Installed = null;

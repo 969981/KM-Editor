@@ -4,5 +4,5 @@
 
 namespace km {
 bool PrepareSwShCamera(const ModuleRange& main, SwShNativeSettingsEdition edition,
-                       ExecutablePatch (&patches)[8]);
+                       ExecutablePatch (&patches)[9]);
 }

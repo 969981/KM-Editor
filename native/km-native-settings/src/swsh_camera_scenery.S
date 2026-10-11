@@ -33,3 +33,4 @@ DISTANCE km_swsh_camera_terrain_distance, s1, x20, 0xac0
 DISTANCE km_swsh_camera_model_distance, s1, x8, 0x20
 DISTANCE km_swsh_camera_instance_distance, s1, x22, 0x20
 DISTANCE km_swsh_camera_instance_density_distance, s2, x22, 0x20
+DISTANCE km_swsh_camera_actor_distance, s1, x19, 0x370

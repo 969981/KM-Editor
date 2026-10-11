@@ -271,7 +271,7 @@ bool InstallImmutableHooks(const ModuleRange& main,
                            const SwShNativeSettingsProfileView& profile) {
     km::ExecutablePatch options[2]{};
     if (!km::PrepareSwShOptions(main, profile.edition, options)) return false;
-    km::ExecutablePatch camera[8]{};
+    km::ExecutablePatch camera[9]{};
     if (!km::PrepareSwShCamera(main, profile.edition, camera)) return false;
     km::ExecutablePatch battle_items{};
     if (!km::PrepareSwShBattleItems(main, battle_items)) return false;
@@ -325,11 +325,11 @@ bool InstallImmutableHooks(const ModuleRange& main,
         options[0],
         options[1],
         camera[0], camera[1], camera[2], camera[3],
-        camera[4], camera[5], camera[6], camera[7],
+        camera[4], camera[5], camera[6], camera[7], camera[8],
         battle_items,
     };
     if ((km_swsh_installed_features() & 2) == 0) {
-        return km::PatchExecutableTransaction(patches + 9, 11);
+        return km::PatchExecutableTransaction(patches + 9, 12);
     }
     return km::PatchExecutableTransaction(
         patches, sizeof(patches) / sizeof(patches[0]));
@@ -455,8 +455,8 @@ bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
                 __ATOMIC_RELEASE);
         } else {
             // No authenticated durable winner can be established. Keep the
-            // immutable hooks installed, publish the zero retail-fallback
-            // snapshot, and reject all further menu reads and writes until a
+            // immutable hooks installed, publish the zero fallback snapshot,
+            // and reject all further menu reads and writes until a
             // cold launch can authenticate the journal from scratch.
             MemorySet(&g_persisted, 0, sizeof(g_persisted));
             __atomic_store_n(&g_journal_ready, 0, __ATOMIC_RELEASE);
@@ -484,6 +484,10 @@ bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
 extern "C" uint32_t km_swsh_installed_features() {
     const auto features = km_swsh_feature_configuration.features;
     return features >= 1 && features <= 7 ? features : 0;
+}
+
+extern "C" bool km_swsh_settings_ready() {
+    return IsActive() && __atomic_load_n(&g_journal_ready, __ATOMIC_ACQUIRE) != 0;
 }
 
 extern "C" uint64_t km_swsh_read_settings() {
@@ -642,7 +646,8 @@ bool TryInstallSwShNativeSettings(
     // Loader entry installs hooks only. Camera construction and Options run
     // after the game initializes its filesystem allocator and adopt settings
     // on their existing SDK threads, before camera reconciliation or menu use.
-    // Until then, every gameplay hook sees zero and executes retail behavior.
+    // Until then, EXP and camera hooks execute retail behavior. Independently
+    // installed Battle Items uses its default restriction without settings.
     __atomic_store_n(&g_activation_state, ActivationActive, __ATOMIC_RELEASE);
     return true;
 }

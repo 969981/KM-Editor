@@ -34,7 +34,7 @@ public static partial class NativeGameplayMenuBundleFactory
     public const string RuntimeComponentName = "subsdk9";
     private const int MaximumNativeMenuComponentCount = 64;
 
-    private static readonly GameplayBundleVersion PackageVersion = new(2, 5, 9);
+    private static readonly GameplayBundleVersion PackageVersion = new(2, 5, 10);
     private static readonly GameplayBundleVersion FirstNativeMenuPackageVersion = new(2, 5, 0);
     private static readonly GameplaySettingPresence SettingsPresence =
         GameplaySettingPresence.ExperienceShare

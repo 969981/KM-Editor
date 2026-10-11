@@ -32,6 +32,7 @@ constexpr uint32_t TotalCount = 21;
 constexpr uintptr_t RetryFlagOffset = 0x62C;
 constexpr uintptr_t RetrySelectionOffset = 0x630;
 constexpr uintptr_t RetryValuesOffset = 0x638;
+constexpr uintptr_t VisibleFeaturesOffset = 0x6E0;
 constexpr uint32_t RetryDraftTag = 0x4B4D4452;
 constexpr uint64_t Presence = km::PresenceExperienceShare
     | km::PresenceExperienceRate | km::PresenceLevelCap | km::PresenceUnlockedCamera | km::PresenceBattleItems;
@@ -49,7 +50,8 @@ static_assert(sizeof(Descriptor) == 0x38);
 static_assert(DescriptorsOffset + TotalCount * sizeof(Descriptor) <= 0x10F0);
 static_assert(MapOffset + TotalCount * sizeof(uint32_t) < 0x950);
 static_assert(MapOffset + TotalCount * sizeof(uint32_t) <= RetryFlagOffset);
-static_assert(RetryValuesOffset + TotalCount * 8 < 0x950);
+static_assert(RetryValuesOffset + TotalCount * 8 <= VisibleFeaturesOffset);
+static_assert(VisibleFeaturesOffset + sizeof(uint32_t) < 0x950);
 
 struct OptionsWord { uintptr_t offset; uint32_t expected; uint32_t replacement; };
 #include "km_swsh_options_words.inc"
@@ -81,8 +83,12 @@ bool RowInstalled(uint32_t index) {
     const auto features = km_swsh_installed_features();
     return index == 20 ? (features & 4) != 0 : index == 19 ? (features & 1) != 0 : (features & 2) != 0;
 }
-uint32_t AddedCount() {
-    const auto features = km_swsh_installed_features();
+bool RowVisible(uintptr_t view, uint32_t index) {
+    const auto features = Field<uint32_t>(view, VisibleFeaturesOffset);
+    return index == 20 ? (features & 4) != 0 : index == 19 ? (features & 1) != 0 : (features & 2) != 0;
+}
+uint32_t AddedCount(uintptr_t view) {
+    const auto features = Field<uint32_t>(view, VisibleFeaturesOffset);
     return ((features & 1) != 0 ? 1U : 0U) + ((features & 2) != 0 ? 3U : 0U)
         + ((features & 4) != 0 ? 1U : 0U);
 }
@@ -106,12 +112,14 @@ uint32_t PolicyValue(uint32_t index, uint32_t current, bool initialize) {
 }
 bool HasKmRows(uintptr_t view) {
     const auto count = Field<uint32_t>(view, CountOffset);
-    const auto added = AddedCount();
-    if (added == 0 || count < added || count > TotalCount) return false;
+    const auto features = Field<uint32_t>(view, VisibleFeaturesOffset);
+    const auto added = AddedCount(view);
+    if ((features & ~km_swsh_installed_features()) != 0
+        || count < added || count > StockCount + added) return false;
     const auto* map = reinterpret_cast<const uint32_t*>(view + MapOffset);
     auto visual = count - added;
     for (uint32_t index = StockCount; index < TotalCount; ++index)
-        if (RowInstalled(index) && map[visual++] != index) return false;
+        if (RowVisible(view, index) && map[visual++] != index) return false;
     return true;
 }
 void LoadDraft(uintptr_t view) {
@@ -169,12 +177,17 @@ extern "C" void km_swsh_options_ctor(uintptr_t view, uintptr_t parent,
                                       uintptr_t argument, uintptr_t context) {
     km_swsh_options_ctor_original(view, parent, argument, context);
     Field<uint32_t>(view, RetryFlagOffset) = 0;
+    Field<uint32_t>(view, VisibleFeaturesOffset) = 0;
     auto& count = Field<uint32_t>(view, CountOffset);
     if (count > StockCount) return;
     LoadDraft(view);
+    // Keep the row map stable until this view closes, even if storage becomes
+    // available later. Reopening Options can expose the newly usable toggle.
+    Field<uint32_t>(view, VisibleFeaturesOffset) = km_swsh_installed_features()
+        & (km_swsh_settings_ready() ? 7U : 3U);
     auto* map = reinterpret_cast<uint32_t*>(view + MapOffset);
     for (uint32_t index = StockCount; index < TotalCount; ++index)
-        if (RowInstalled(index)) map[count++] = index;
+        if (RowVisible(view, index)) map[count++] = index;
 }
 
 extern "C" void km_swsh_options_activate(uintptr_t owner) {
@@ -290,7 +303,7 @@ extern "C" bool km_swsh_options_apply(uintptr_t owner) {
         return false;
     }
     const auto visible = count;
-    count -= AddedCount();
+    count -= AddedCount(view);
     reinterpret_cast<void (*)(uintptr_t)>(g_main + 0x014DD330 + g_delta)(owner);
     count = visible;
     for (uint32_t index = StockCount; index < TotalCount; ++index) rows[index].original = rows[index].value;
@@ -300,19 +313,23 @@ extern "C" bool km_swsh_options_apply(uintptr_t owner) {
 extern "C" bool km_swsh_options_reset_apply(uintptr_t owner) {
     const auto view = Field<uintptr_t>(owner, 0x78);
     if (!HasKmRows(view)) return false;
+    if (AddedCount(view) == 0) {
+        reinterpret_cast<void (*)(uintptr_t)>(g_main + 0x014DC340 + g_delta)(owner);
+        return true;
+    }
     km::SettingsState vanilla{km::SettingsFamily::SwordShield, 0, 0, Presence,
         km::VanillaSettings, -1, false};
     km::SettingsValues current = km::VanillaSettings;
     km::UnpackSettingsSnapshot(km_swsh_read_settings(), &current);
-    if (!RowInstalled(16)) {
+    km::ApplySwShOptionsPolicy(vanilla.values, true);
+    if (!RowVisible(view, 16)) {
         vanilla.values.experience_share = current.experience_share;
         vanilla.values.experience_rate_basis_points = current.experience_rate_basis_points;
         vanilla.values.level_cap_enabled = current.level_cap_enabled;
         vanilla.values.level_cap = current.level_cap;
     }
-    if (!RowInstalled(19)) vanilla.values.unlocked_camera = current.unlocked_camera;
-    if (!RowInstalled(20)) vanilla.values.battle_items_enabled = current.battle_items_enabled;
-    km::ApplySwShOptionsPolicy(vanilla.values, true);
+    if (!RowVisible(view, 19)) vanilla.values.unlocked_camera = current.unlocked_camera;
+    if (!RowVisible(view, 20)) vanilla.values.battle_items_enabled = current.battle_items_enabled;
     if (!km_swsh_write_settings(km::PackSettingsSnapshot(vanilla))) {
         PreserveFailedDraft(view);
         return false;
