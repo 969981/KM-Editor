@@ -466,11 +466,13 @@ import { MarnieBoostsSection } from './features/marnie-boosts/MarnieBoostsSectio
 import { WildHeldItems, WildHeldItemsActions, effectiveHeldItems, type WildHeldItemUpdate } from './features/held-item-chance/WildHeldItems';
 import { HeldItemChanceSection } from './features/held-item-chance/HeldItemChanceSection';
 import { GameOptionsSection } from './features/game-options/GameOptionsSection';
+import { ObedienceSection } from './features/obedience/ObedienceSection';
 import { RaidDensSection } from './features/raid-dens/RaidDensSection';
 import { FixAiFlagsSection } from './features/fix-ai-flags/FixAiFlagsSection';
 import { TrainerWhiteoutSection } from './features/trainer-whiteout/TrainerWhiteoutSection';
 import { type HeldItemChanceUpdate, type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { encodeGameOptionsSelections, getGameOptionsPendingSelections, type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
+import { encodeObedienceSelections, getObediencePendingSelections, type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { encodeMarnieBoostSelections, getMarnieBoostPendingSelections, type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
 import { type RaidDensWorkflow } from './bridge/raidDensContracts';
 import { type FixAiFlagsWorkflow, type FixAiFlagsSelection } from './bridge/fixAiFlagsContracts';
@@ -3233,6 +3235,7 @@ export function App({
   const marnieBoostsWorkflow = useWorkbenchStore(state => state.marnieBoostsWorkflow);
   const heldItemChanceWorkflow = useWorkbenchStore(state => state.heldItemChanceWorkflow);
   const gameOptionsWorkflow = useWorkbenchStore(state => state.gameOptionsWorkflow);
+  const obedienceWorkflow = useWorkbenchStore(state => state.obedienceWorkflow);
   const raidDensWorkflow = useWorkbenchStore(state => state.raidDensWorkflow);
   const fixAiFlagsWorkflow = useWorkbenchStore(state => state.fixAiFlagsWorkflow);
   const trainerWhiteoutWorkflow = useWorkbenchStore(state => state.trainerWhiteoutWorkflow);
@@ -3244,6 +3247,7 @@ export function App({
   const setMarnieBoostsWorkflow = useWorkbenchStore(state => state.setMarnieBoostsWorkflow);
   const setHeldItemChanceWorkflow = useWorkbenchStore(state => state.setHeldItemChanceWorkflow);
   const setGameOptionsWorkflow = useWorkbenchStore(state => state.setGameOptionsWorkflow);
+  const setObedienceWorkflow = useWorkbenchStore(state => state.setObedienceWorkflow);
   const setRaidDensWorkflow = useWorkbenchStore(state => state.setRaidDensWorkflow);
   const setFixAiFlagsWorkflow = useWorkbenchStore(state => state.setFixAiFlagsWorkflow);
   const setTrainerWhiteoutWorkflow = useWorkbenchStore(state => state.setTrainerWhiteoutWorkflow);
@@ -3255,6 +3259,7 @@ export function App({
   const [isMarnieBoostsLoading, setIsMarnieBoostsLoading] = useState(false);
   const [isHeldItemChanceLoading, setIsHeldItemChanceLoading] = useState(false);
   const [isGameOptionsLoading, setIsGameOptionsLoading] = useState(false);
+  const [isObedienceLoading, setIsObedienceLoading] = useState(false);
   const [isRaidDensLoading, setIsRaidDensLoading] = useState(false);
   const [isFixAiFlagsLoading, setIsFixAiFlagsLoading] = useState(false);
   const [isTrainerWhiteoutLoading, setIsTrainerWhiteoutLoading] = useState(false);
@@ -3266,6 +3271,7 @@ export function App({
   const [isMarnieBoostsStaging, setIsMarnieBoostsStaging] = useState(false);
   const [isHeldItemChanceStaging, setIsHeldItemChanceStaging] = useState(false);
   const [isGameOptionsStaging, setIsGameOptionsStaging] = useState(false);
+  const [isObedienceStaging, setIsObedienceStaging] = useState(false);
   const [isRaidDensStaging, setIsRaidDensStaging] = useState(false);
   const [isFixAiFlagsStaging, setIsFixAiFlagsStaging] = useState(false);
   const [isTrainerWhiteoutStaging, setIsTrainerWhiteoutStaging] = useState(false);
@@ -3277,6 +3283,7 @@ export function App({
   const marnieBoostsGenerationRef = useRef(0);
   const heldItemChanceGenerationRef = useRef(0);
   const gameOptionsGenerationRef = useRef(0);
+  const obedienceGenerationRef = useRef(0);
   const raidDensGenerationRef = useRef(0);
   const fixAiFlagsGenerationRef = useRef(0);
   const trainerWhiteoutGenerationRef = useRef(0);
@@ -4198,6 +4205,7 @@ export function App({
           marnieBoostsWorkflow,
           heldItemChanceWorkflow,
           gameOptionsWorkflow,
+          obedienceWorkflow,
           raidDensWorkflow,
           fixAiFlagsWorkflow,
           trainerWhiteoutWorkflow,
@@ -4252,6 +4260,7 @@ export function App({
       marnieBoostsWorkflow,
       heldItemChanceWorkflow,
       gameOptionsWorkflow,
+      obedienceWorkflow,
       raidDensWorkflow,
       fixAiFlagsWorkflow,
       trainerWhiteoutWorkflow,
@@ -4373,6 +4382,7 @@ export function App({
     marnieBoostsWorkflow,
     heldItemChanceWorkflow,
     gameOptionsWorkflow,
+    obedienceWorkflow,
     raidDensWorkflow,
     fixAiFlagsWorkflow,
     trainerWhiteoutWorkflow,
@@ -4514,6 +4524,8 @@ export function App({
     (dirty: boolean) => registerEditorDraftDirty('heldItemChance', dirty), [registerEditorDraftDirty]);
   const handleGameOptionsDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('gameOptions', dirty), [registerEditorDraftDirty]);
+  const handleObedienceDirtyChange = useCallback(
+    (dirty: boolean) => registerEditorDraftDirty('obedience', dirty), [registerEditorDraftDirty]);
   const handleRaidDensDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('raidDens', dirty), [registerEditorDraftDirty]);
   const handleFixAiFlagsDirtyChange = useCallback(
@@ -10635,6 +10647,49 @@ export function App({
     return accepted;
   };
 
+  const handleOpenObedienceWorkflow = async () => {
+    const generation = obedienceGenerationRef.current;
+    await runRetainedWorkflowLoad('obedience', setIsObedienceLoading,
+      () => bridge.loadObedience({ paths: createProjectPaths(draftPaths) }),
+      response => setObedienceWorkflow(response.workflow),
+      () => generation === obedienceGenerationRef.current);
+  };
+
+  const handleStageObedience = async (selections: number[]) => {
+    const activeSession = getEditSessionForSection('obedience');
+    if (!activeSession) return false;
+    let accepted = false;
+    obedienceGenerationRef.current += 1;
+    setIsObedienceStaging(true);
+    prepareScopedEditorPanelAction('obedience');
+    try {
+      await runEditSessionMutation(async session => {
+        const response = await bridge.stageObedience({ paths: createProjectPaths(draftPaths), session, selections });
+        const edits = response.session.pendingEdits.filter(edit => edit.domain === 'workflow.obedience');
+        const pendingSelections = getObediencePendingSelections(response.session);
+        const acknowledged = edits.length === 0
+          ? encodeObedienceSelections(response.workflow.selections) === encodeObedienceSelections(selections)
+          : pendingSelections !== null && encodeObedienceSelections(pendingSelections) === encodeObedienceSelections(selections);
+        const matches = response.workflow.canEdit && response.workflow.detectedGame === draftPaths.selectedGame &&
+          response.session.sessionId === activeSession.sessionId && acknowledged;
+        const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
+        if (!matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error'))
+          diagnostics.push({ severity: 'error', domain: 'workflow.obedience', code: 'KM-SWSH-OBEDIENCE-SESSION-INVALID', message: t('obedience.failed') });
+        const didSucceed = matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error');
+        return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
+      }, response => {
+        setScopedEditorPanelDiagnostics('obedience', response.diagnostics);
+        if (response.didSucceed) {
+          accepted = true;
+          setObedienceWorkflow(response.workflow);
+          setEditSessionSection('obedience');
+        }
+      }, activeSession);
+    } catch (error) { setScopedEditorPanelDiagnostics('obedience', toBridgeDiagnostics(error)); }
+    finally { setIsObedienceStaging(false); }
+    return accepted;
+  };
+
   const handleOpenRaidDensWorkflow = async () => {
     const generation = raidDensGenerationRef.current;
     await runRetainedWorkflowLoad('raidDens', setIsRaidDensLoading,
@@ -11604,7 +11659,7 @@ export function App({
     );
   };
 
-  const handleStageHyperTraining = async (minimumLevel: number) => {
+  const handleStageHyperTraining = async (minimumLevel: number, bottleCapItemId?: number, goldBottleCapItemId?: number) => {
     setIsHyperTrainingStaging(true);
     setBridgeDiagnostics([]);
 
@@ -11612,7 +11667,7 @@ export function App({
       await runEditSessionMutation(
         async (session) => {
           const response = await bridge.stageHyperTraining({
-            minimumLevel,
+            minimumLevel, bottleCapItemId, goldBottleCapItemId,
             paths: createProjectPaths(draftPaths),
             session
           });
@@ -12727,6 +12782,9 @@ export function App({
         case 'gameOptions':
           if (!currentState.gameOptionsWorkflow) await handleOpenGameOptionsWorkflow();
           break;
+        case 'obedience':
+          if (!currentState.obedienceWorkflow) await handleOpenObedienceWorkflow();
+          break;
         case 'raidDens':
           if (!currentState.raidDensWorkflow) await handleOpenRaidDensWorkflow();
           break;
@@ -13130,6 +13188,9 @@ export function App({
       case 'gameOptions':
         if (!gameOptionsWorkflow && !isGameOptionsLoading) { markLazyLoadStarted(); void handleOpenGameOptionsWorkflow(); }
         break;
+      case 'obedience':
+        if (!obedienceWorkflow && !isObedienceLoading) { markLazyLoadStarted(); void handleOpenObedienceWorkflow(); }
+        break;
       case 'raidDens':
         if (!raidDensWorkflow && !isRaidDensLoading) { markLazyLoadStarted(); void handleOpenRaidDensWorkflow(); }
         break;
@@ -13416,6 +13477,7 @@ export function App({
     marnieBoostsWorkflow,
     heldItemChanceWorkflow,
     gameOptionsWorkflow,
+    obedienceWorkflow,
     raidDensWorkflow,
     fixAiFlagsWorkflow,
     trainerWhiteoutWorkflow,
@@ -13453,6 +13515,7 @@ export function App({
     isMarnieBoostsLoading,
     isHeldItemChanceLoading,
     isGameOptionsLoading,
+    isObedienceLoading,
     isRaidDensLoading,
     isFixAiFlagsLoading,
     isTrainerWhiteoutLoading,
@@ -18748,6 +18811,7 @@ export function App({
       'marnieBoosts',
       'heldItemChance',
       'gameOptions',
+      'obedience',
       'raidDens',
       'fixAiFlags',
       'trainerWhiteout',
@@ -18807,6 +18871,7 @@ export function App({
       marnieBoosts: setIsMarnieBoostsLoading,
       heldItemChance: setIsHeldItemChanceLoading,
       gameOptions: setIsGameOptionsLoading,
+      obedience: setIsObedienceLoading,
       raidDens: setIsRaidDensLoading,
       fixAiFlags: setIsFixAiFlagsLoading,
       trainerWhiteout: setIsTrainerWhiteoutLoading,
@@ -19028,6 +19093,12 @@ export function App({
       reloadTasks.push(async () => {
         const response = await bridge.loadGameOptions({ paths });
         if (canCommitRefresh()) setGameOptionsWorkflow(response.workflow);
+      });
+    }
+    if (obedienceWorkflow && refreshSections.has('obedience')) {
+      reloadTasks.push(async () => {
+        const response = await bridge.loadObedience({ paths });
+        if (canCommitRefresh()) setObedienceWorkflow(response.workflow);
       });
     }
     if (raidDensWorkflow && refreshSections.has('raidDens')) {
@@ -21717,6 +21788,16 @@ export function App({
                 onDirtyStateChange={handleGameOptionsDirtyChange} onRefresh={handleOpenGameOptionsWorkflow}
                 isLoading={isGameOptionsLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('gameOptions')} />
           ) : null}
+          {activeSection === 'obedience' ? (
+            isObedienceLoading && !obedienceWorkflow ? <WorkflowLoadingPanel label={t('obedience.title')} /> :
+              <ObedienceSection workflow={obedienceWorkflow} session={getEditSessionForSection('obedience')}
+                key={getEditSessionForSection('obedience')?.sessionId ?? 'viewing'}
+                isStaging={isObedienceStaging} isEditing={getEditSessionForSection('obedience') !== null}
+                isEditStarting={isEditStarting} onStartEditSession={handleStartEditSession}
+                onCancelEditSession={requestCancelEditSession} onStage={handleStageObedience}
+                onDirtyStateChange={handleObedienceDirtyChange} onRefresh={handleOpenObedienceWorkflow}
+                isLoading={isObedienceLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('obedience')} />
+          ) : null}
           {activeSection === 'raidDens' ? (
             isRaidDensLoading && !raidDensWorkflow ? <WorkflowLoadingPanel label={t('raidDens.title')} /> :
               <RaidDensSection workflow={raidDensWorkflow} session={getEditSessionForSection('raidDens')}
@@ -21924,6 +22005,7 @@ export function App({
                 marnieBoostsWorkflow,
                 heldItemChanceWorkflow,
                 gameOptionsWorkflow,
+                obedienceWorkflow,
                 raidDensWorkflow,
                 fixAiFlagsWorkflow,
                 trainerWhiteoutWorkflow,
@@ -35513,6 +35595,7 @@ function formatPendingEditDomain(domain: string) {
     'workflow.marnieBoosts': 'Marnie Wyndon Boosts',
     'workflow.heldItemChance': 'Held Item Chance',
     'workflow.gameOptions': 'Game Options',
+    'workflow.obedience': 'Obedience Level',
     'workflow.raidDens': 'Raid Dens',
     'workflow.trainerWhiteout': 'Trainer Whiteout',
     'workflow.bbqRewards': 'BBQ Rewards',
@@ -35581,6 +35664,7 @@ function getPendingEditSection(edit: PendingEdit): WorkbenchSection | null {
     'workflow.marnieBoosts': 'marnieBoosts',
     'workflow.heldItemChance': 'heldItemChance',
     'workflow.gameOptions': 'gameOptions',
+    'workflow.obedience': 'obedience',
     'workflow.raidDens': 'raidDens',
     'workflow.trainerWhiteout': 'trainerWhiteout',
     'workflow.bbqRewards': 'bbqRewards',
@@ -35896,8 +35980,8 @@ function getPendingEditDisplayDetails(
     case 'workflow.hyperTraining':
       return createPendingEditDisplayDetails(edit, {
         editorLabel,
-        fieldLabel: edit.field === 'minimumLevel' ? 'Minimum level' : undefined,
-        newValueLabel: formatHyperTrainingPendingValue(edit.newValue),
+        fieldLabel: edit.field === 'minimumLevel' ? (edit.newValue?.includes(',') ? 'Hyper Training' : 'Minimum level') : undefined,
+        newValueLabel: formatHyperTrainingPendingValue(edit.newValue, context.hyperTrainingWorkflow),
         recordLabel: 'Battle Tower NPC'
       });
     case 'workflow.shinyRate':
@@ -35999,6 +36083,11 @@ function getPendingEditDisplayDetails(
       return createPendingEditDisplayDetails(edit, {
         editorLabel, recordLocalizationKey: 'gameOptions.title', fieldLocalizationKey: 'gameOptions.selections',
         newValueLocalizationKey: 'gameOptions.staged'
+      });
+    case 'workflow.obedience':
+      return createPendingEditDisplayDetails(edit, {
+        editorLabel, recordLocalizationKey: 'obedience.title', fieldLocalizationKey: 'obedience.selections',
+        newValueLocalizationKey: 'obedience.staged'
       });
     case 'workflow.raidDens':
       return createPendingEditDisplayDetails(edit, {
@@ -36638,15 +36727,19 @@ function formatCatchCapProjectGame(
   }
 }
 
-function formatHyperTrainingPendingValue(value: string | null | undefined) {
+function formatHyperTrainingPendingValue(value: string | null | undefined, workflow: HyperTrainingWorkflow | null) {
   if (!value) {
     return undefined;
   }
 
-  const minimumLevel = parseHyperTrainingLevelInput(value);
-  return minimumLevel !== null && minimumLevel >= 1 && minimumLevel <= 100
-    ? `Lv. ${minimumLevel}`
-    : value;
+  const parts = value.split(',');
+  const minimumLevel = parseHyperTrainingLevelInput(parts[0]!);
+  if (minimumLevel === null || minimumLevel < 1 || minimumLevel > 100 || ![1, 3].includes(parts.length)) return value;
+  const items = parts.slice(1).map(item => {
+    const option = workflow?.itemOptions.find(option => String(option.itemId) === item);
+    return option ? `${option.name} (${item})` : `#${item}`;
+  });
+  return `Lv. ${minimumLevel}${items.length ? `; ${items.join(' / ')}` : ''}`;
 }
 
 const hyperTrainingScriptPath = 'romfs/bin/script/amx/hyper_training.amx';
@@ -36655,33 +36748,22 @@ const hyperTrainingMainPath = 'exefs/main';
 const hyperTrainingPendingPayloadPattern =
   /^pending\/hyper-training\/minimum-level\/[A-F0-9]{64}$/;
 
-function getCanonicalHyperTrainingPendingMinimumLevel(editSession: EditSession | null) {
-  if (editSession?.pendingEdits.length !== 1) {
-    return null;
-  }
-
+function getCanonicalHyperTrainingPendingSelection(editSession: EditSession | null) {
+  if (editSession?.pendingEdits.length !== 1) return null;
   const edit = editSession.pendingEdits[0];
-  if (
-    edit?.domain !== 'workflow.hyperTraining' ||
-    edit.recordId !== 'hyper-training-minimum-level' ||
-    edit.field !== 'minimumLevel'
-  ) {
-    return null;
-  }
+  if (edit?.domain !== 'workflow.hyperTraining' || edit.recordId !== 'hyper-training-minimum-level' || edit.field !== 'minimumLevel') return null;
+  const parts = (edit.newValue ?? '').split(',');
+  if (![1, 3].includes(parts.length) || parts.some(part => !/^[1-9][0-9]*$/.test(part))) return null;
+  const [minimumLevel, bottleCapItemId = 795, goldBottleCapItemId = 796] = parts.map(Number);
+  if (minimumLevel! > 100 || bottleCapItemId > 65535 || goldBottleCapItemId > 65535) return null;
+  const custom = bottleCapItemId !== 795 || goldBottleCapItemId !== 796;
+  if ((parts.length === 3) !== custom || edit.summary !== `Stage Hyper Training minimum level Lv.${minimumLevel}.${custom ? ` Payment items ${bottleCapItemId}/${goldBottleCapItemId}.` : ''}`
+    || !hasCanonicalHyperTrainingPendingSources(edit.sources)) return null;
+  return { minimumLevel: minimumLevel!, bottleCapItemId, goldBottleCapItemId };
+}
 
-  const minimumLevel = parseHyperTrainingLevelInput(edit.newValue ?? '');
-  if (
-    minimumLevel === null ||
-    minimumLevel < 1 ||
-    minimumLevel > 100 ||
-    edit.newValue !== minimumLevel.toString() ||
-    edit.summary !== `Stage Hyper Training minimum level Lv.${minimumLevel}.` ||
-    !hasCanonicalHyperTrainingPendingSources(edit.sources)
-  ) {
-    return null;
-  }
-
-  return minimumLevel;
+function getCanonicalHyperTrainingPendingMinimumLevel(editSession: EditSession | null) {
+  return getCanonicalHyperTrainingPendingSelection(editSession)?.minimumLevel ?? null;
 }
 
 function hasCanonicalHyperTrainingPendingSources(
@@ -36711,11 +36793,10 @@ function hasCanonicalHyperTrainingPendingSources(
 
     if (
       (source.layer !== 'base' && source.layer !== 'layered') ||
-      ![
-        hyperTrainingScriptPath,
-        hyperTrainingDialoguePath,
-        hyperTrainingMainPath
-      ].includes(source.relativePath)
+      (![
+        hyperTrainingScriptPath, hyperTrainingDialoguePath, hyperTrainingMainPath,
+        'romfs/bin/pml/item/item.dat'
+      ].includes(source.relativePath) && !/^romfs\/bin\/message\/(English|Spanish|French|German|Italian|JPN|JPN_KANJI|Korean|Simp_Chinese|Trad_Chinese)\/(script\/sub_event_007|common\/itemname)\.dat$/.test(source.relativePath))
     ) {
       return false;
     }
@@ -53293,12 +53374,12 @@ function IvScreenSection({
             <ContextHelp label={translateLiteral('IV Screen')}>
               <p>
                 {translateLiteral(
-                  'Independent ExeFS editor for raw IV numbers on the Pokemon Summary stats graph. Install and uninstall touch only exact IV Screen-owned bytes.'
+                  'Show IVs with Hyper Training applied on the Pokemon Summary stats graph. Install and uninstall change only IV Screen owned bytes.'
                 )}
               </p>
               <p>
                 {translateLiteral(
-                  'In game, open a Pokemon Summary, move to the stats graph page, then press X to toggle from normal stats to raw IV numbers. Press X again on that same page to return to the normal stats view.'
+                  'Open a Pokemon Summary, go to the stats graph page, and press X to show IVs. Hyper Trained stats show 31; other stats show their raw IVs. Press X again to return to normal stats.'
                 )}
               </p>
             </ContextHelp>
@@ -53512,7 +53593,7 @@ function HyperTrainingSection({
   onApplyChangePlan: () => void;
   onCreateChangePlan: () => void;
   onDirtyChange: (isDirty: boolean) => void;
-  onStageMinimumLevel: (minimumLevel: number) => void;
+  onStageMinimumLevel: (minimumLevel: number, bottleCapItemId?: number, goldBottleCapItemId?: number) => void;
   panelOutput: WorkflowPanelOutput;
   workflow: HyperTrainingWorkflow | null;
 }) {
@@ -53526,6 +53607,27 @@ function HyperTrainingSection({
   const [levelInput, setLevelInput] = useState(inputBaselineMinimumLevel.toString());
   const levelInputSourceRef = useRef(inputBaselineMinimumLevel.toString());
 
+  const stagedSelection = getCanonicalHyperTrainingPendingSelection(editSession);
+  const baselineItems = [stagedSelection?.bottleCapItemId ?? workflow?.items.bottleCapItemId ?? 795,
+    stagedSelection?.goldBottleCapItemId ?? workflow?.items.goldBottleCapItemId ?? 796].map(String);
+  const baselineItemKey = baselineItems.join(',');
+  const [itemInputs, setItemInputs] = useState(baselineItems);
+  const itemSourceRef = useRef(baselineItemKey);
+  useEffect(() => {
+    const previous = itemSourceRef.current.split(',');
+    const next = baselineItemKey.split(',');
+    setItemInputs(current => current.map((value, index) => value === previous[index] ? next[index]! : value));
+    itemSourceRef.current = baselineItemKey;
+  }, [baselineItemKey]);
+  const itemValues = itemInputs.map(value => /^[1-9][0-9]*$/.test(value) ? Number(value) : NaN);
+  const itemOptions = (workflow?.itemOptions ?? []).map(item => ({ value: item.itemId, label: `${item.name} (${item.itemId})` }));
+  const validItems = itemValues.every((value, index) => Number.isInteger(value) && value <= 65535
+    && (itemOptions.some(option => option.value === value) || (itemOptions.length === 0 && value === [795, 796][index])));
+  const itemsDirty = itemInputs.join(',') !== baselineItemKey;
+  const itemError = validItems ? null : t('hyperTraining.itemsInvalid');
+  const itemSync = !workflow || (workflow.items.bottleCapItemId === workflow.runtimeItems.bottleCapItemId
+    && workflow.items.goldBottleCapItemId === workflow.runtimeItems.goldBottleCapItemId);
+
   const parsedMinimumLevel = parseHyperTrainingLevelInput(levelInput);
   const levelError =
     parsedMinimumLevel === null
@@ -53536,7 +53638,7 @@ function HyperTrainingSection({
   const normalizedMinimumLevel = levelError === null ? parsedMinimumLevel : null;
   const hasStagedChange = stagedMinimumLevel !== null;
   const hasLocalDraft =
-    levelError !== null ||
+    itemsDirty || itemError !== null || levelError !== null ||
     (normalizedMinimumLevel !== null &&
       normalizedMinimumLevel !== inputBaselineMinimumLevel);
   const installedCutoffsNeedVanillaRestore =
@@ -53550,11 +53652,11 @@ function HyperTrainingSection({
     isAllowed:
       workflow?.summary.availability === 'available' &&
       workflow.installStatus !== 'blocked' &&
-      normalizedMinimumLevel !== null,
+      normalizedMinimumLevel !== null && validItems,
     isChangePlanApplying,
     isChangePlanCreating,
     isCurrent:
-      stagedMinimumLevel !== null && normalizedMinimumLevel === stagedMinimumLevel,
+      stagedMinimumLevel !== null && normalizedMinimumLevel === stagedMinimumLevel && !itemsDirty,
     isStaging
   });
   const canRestore =
@@ -53563,9 +53665,9 @@ function HyperTrainingSection({
     !isStaging &&
     !isChangePlanCreating &&
     !isChangePlanApplying &&
-    stagedMinimumLevel !== vanillaMinimumLevel &&
-    (inputBaselineMinimumLevel !== vanillaMinimumLevel ||
-      installedCutoffsNeedVanillaRestore);
+    (levelInput !== String(vanillaMinimumLevel) || itemInputs.join(',') !== '795,796'
+      || installedCutoffsNeedVanillaRestore || !itemSync || workflow.installStatus === 'installed'
+      || workflow.items.bottleCapItemId !== 795 || workflow.items.goldBottleCapItemId !== 796);
   const canReviewPlan =
     hasStagedChange &&
     !hasLocalDraft &&
@@ -53608,11 +53710,7 @@ function HyperTrainingSection({
     <>
       <PublishedLocalEditorValidationDiagnostics
         domain="workflow.hyperTraining"
-        issues={
-          levelError
-            ? [{ field: 'minimumLevel', label: 'Minimum level', message: levelError }]
-            : []
-        }
+        issues={[...(levelError ? [{ field: 'minimumLevel', label: 'Minimum level', message: levelError }] : []), ...(itemError ? [{ field: 'items', label: t('hyperTraining.paymentItems'), message: itemError }] : [])]}
       />
       <section aria-labelledby="hyper-training-heading" className="panel wide-panel advanced-editor-workspace">
         <div className="panel-heading">
@@ -53676,6 +53774,19 @@ function HyperTrainingSection({
           <div className="flagwork-layout">
             <div className="flagwork-stack">
               <div className="hyper-training-control">
+                <h3>{t('hyperTraining.paymentItems')}</h3>
+                <p>{t('hyperTraining.itemsHelp')}</p>
+                <div className="hyper-training-payment-items">
+                  {(['hyperTraining.bottleReplacement', 'hyperTraining.goldReplacement'] as const).map((key, index) => <div className="table-cell-control" key={key}>
+                    <FieldLabel htmlFor={`hyper-training-item-${index}`} label={t(key)} help={t(index === 0 ? 'hyperTraining.singleHelp' : 'hyperTraining.allHelp')} />
+                    <SearchableOptionInput id={`hyper-training-item-${index}`} ariaLabel={t(key)}
+                      ariaInvalid={!validItems} disabled={workflow.summary.availability !== 'available' || workflow.installStatus === 'blocked' || itemOptions.length === 0}
+                      value={itemInputs[index]!} options={itemOptions} localizeOptions={false} required
+                      onChange={value => setItemInputs(current => current.map((item, slot) => slot === index ? value : item))} />
+                  </div>)}
+                </div>
+                {itemError ? <p className="input-error">{itemError}</p> : null}
+                {!itemSync ? <p>{t('hyperTraining.itemsSync')}</p> : null}
                 <div className="hyper-training-level-readout">
                   <div className="editable-field-label-row">
                     <span>{translateLiteral('Minimum level')}</span>
@@ -53720,7 +53831,7 @@ function HyperTrainingSection({
                     disabled={!canStage}
                     onClick={() => {
                       if (normalizedMinimumLevel !== null) {
-                        onStageMinimumLevel(normalizedMinimumLevel);
+                        onStageMinimumLevel(normalizedMinimumLevel, itemValues[0], itemValues[1]);
                       }
                     }}
                     type="button"
@@ -53729,7 +53840,7 @@ function HyperTrainingSection({
                       busyLabel="Staging"
                       icon={<Save aria-hidden="true" size={16} />}
                       isBusy={isStaging}
-                      label="Stage Cutoff"
+                      label={t('hyperTraining.stageSettings')}
                     />
                   </button>
                   <button
@@ -53737,12 +53848,13 @@ function HyperTrainingSection({
                     disabled={!canRestore}
                     onClick={() => {
                       setLevelInput(vanillaMinimumLevel.toString());
-                      onStageMinimumLevel(vanillaMinimumLevel);
+                      setItemInputs(['795', '796']);
+                      onStageMinimumLevel(vanillaMinimumLevel, 795, 796);
                     }}
                     type="button"
                   >
                     <RotateCcw aria-hidden="true" size={16} />
-                    <span>Restore Lv. {vanillaMinimumLevel}</span>
+                    <span>{translateLiteral('Restore to Vanilla')}</span>
                   </button>
                 </div>
                 {levelError ? <p className="input-error">{levelError}</p> : null}
@@ -57458,6 +57570,7 @@ export type PendingEditContext = {
   marnieBoostsWorkflow?: MarnieBoostsWorkflow | null;
   heldItemChanceWorkflow?: HeldItemChanceWorkflow | null;
   gameOptionsWorkflow?: GameOptionsWorkflow | null;
+  obedienceWorkflow?: ObedienceWorkflow | null;
   raidDensWorkflow?: RaidDensWorkflow | null;
   fixAiFlagsWorkflow?: FixAiFlagsWorkflow | null;
   trainerWhiteoutWorkflow?: TrainerWhiteoutWorkflow | null;

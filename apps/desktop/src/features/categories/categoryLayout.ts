@@ -72,6 +72,15 @@ export function resolveEditorCategories(
     groups.push({ id: saved.id, label: definition?.label ?? '', labelKey: definition?.labelKey,
       customName: saved.name, custom: !definition, sectionIds });
   }
+  // Place the new editor beside Catch Cap when upgrading a saved category layout.
+  // An explicit saved placement remains authoritative.
+  if (!assigned.has('obedience') && knownEditors.has('obedience') && !lockedEditors.has('obedience')) {
+    const anchor = groups.find(group => group.sectionIds.includes('catchCap'));
+    if (anchor) {
+      anchor.sectionIds.splice(anchor.sectionIds.indexOf('catchCap') + 1, 0, 'obedience');
+      assigned.add('obedience');
+    }
+  }
   for (const definition of defaults) {
     if (definition.id === 'betaEditors') continue;
     let group = groups.find(candidate => candidate.id === definition.id);

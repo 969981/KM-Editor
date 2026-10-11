@@ -14,6 +14,7 @@ using KM.SwSh.ShinyRate;
 using KM.SwSh.TypeChart;
 using KM.SwSh.HeldItemChance;
 using KM.SwSh.GameOptions;
+using KM.SwSh.Obedience;
 using KM.Formats.SwSh;
 using KM.SwSh.DynamaxAdventures;
 using KM.SwSh.TrainerDynamax;
@@ -54,6 +55,7 @@ public static class SwShKnownExecutableCompositionVerifier
 
             if (!NormalizeAdventures(retail, ref normalized, expectedGame, baseAdventureArchive, currentAdventureArchive, ref recognizedTransformation)
                 || !NormalizeTrainers(retail, ref normalized, expectedGame, ref recognizedTransformation)
+                || !NormalizeObedience(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeGameOptions(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeLegacyGameplaySettings(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeIvScreen(retail, ref normalized, expectedGame, ref recognizedTransformation)
@@ -152,6 +154,7 @@ public static class SwShKnownExecutableCompositionVerifier
     {
         var analysis = SwShIvScreenMainPatcher.Analyze(normalized, expectedGame);
         if (analysis.Kind is SwShIvScreenInstallKind.InstalledV1
+            or SwShIvScreenInstallKind.InstalledRawV1
             or SwShIvScreenInstallKind.InstalledLegacyV1)
         {
             normalized = SwShIvScreenMainPatcher.RestoreFromBase(normalized, retail, expectedGame);
@@ -168,6 +171,11 @@ public static class SwShKnownExecutableCompositionVerifier
         ProjectGame expectedGame,
         ref bool recognizedTransformation)
     {
+        if (SwShHyperTrainingItemsPatcher.ReadMain(normalized, expectedGame) != SwShHyperTrainingItemsPatcher.Defaults)
+        {
+            normalized = SwShHyperTrainingItemsPatcher.ApplyMain(normalized, expectedGame, SwShHyperTrainingItemsPatcher.Defaults);
+            recognizedTransformation = true;
+        }
         var analysis = SwShHyperTrainingMainPatcher.Analyze(normalized, expectedGame);
         if (analysis.Kind == SwShHyperTrainingMainKind.CustomMinimumLevel)
         {
@@ -286,6 +294,16 @@ public static class SwShKnownExecutableCompositionVerifier
         var current = SwShGameOptionsPatcher.Read(normalized, expectedGame);
         if (current.Selections.All(value => value == 0)) return true;
         normalized = SwShGameOptionsPatcher.Apply(retail, normalized, expectedGame, SwShGameOptionsPolicy.Defaults);
+        recognizedTransformation = true;
+        return true;
+    }
+
+    private static bool NormalizeObedience(byte[] retail, ref byte[] normalized,
+        ProjectGame expectedGame, ref bool recognizedTransformation)
+    {
+        var current = SwShObediencePatcher.Read(normalized, expectedGame);
+        if (current.Selections.SequenceEqual(SwShObediencePatcher.Defaults)) return true;
+        normalized = SwShObediencePatcher.Apply(retail, normalized, expectedGame, SwShObediencePatcher.Defaults);
         recognizedTransformation = true;
         return true;
     }

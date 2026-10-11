@@ -45,4 +45,9 @@ public sealed record SwShHyperTrainingWorkflow(
     SwShHyperTrainingLevelRule LevelRule,
     IReadOnlyList<SwShHyperTrainingSourceRecord> Sources,
     SwShHyperTrainingWorkflowStats Stats,
-    IReadOnlyList<ValidationDiagnostic> Diagnostics);
+    IReadOnlyList<ValidationDiagnostic> Diagnostics)
+{
+    public SwShHyperTrainingItems Items { get; init; } = new(795, 796);
+    public SwShHyperTrainingItems RuntimeItems { get; init; } = new(795, 796);
+    public IReadOnlyList<SwShHyperTrainingItemOption> ItemOptions { get; init; } = [];
+}

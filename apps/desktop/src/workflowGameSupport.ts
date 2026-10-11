@@ -44,6 +44,7 @@ import { type TitanSwapperWorkflow } from './bridge/titanSwapperContracts';
 import { type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
 import { type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
+import { type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { type RaidDensWorkflow } from './bridge/raidDensContracts';
 import { type FixAiFlagsWorkflow } from './bridge/fixAiFlagsContracts';
 import { type TrainerWhiteoutWorkflow } from './bridge/trainerWhiteoutContracts';
@@ -118,6 +119,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
       'startingItems',
       'npcItemGift',
       'catchCap',
+      'obedience',
       'ivScreen',
       'hyperTraining',
       'shinyRate',
@@ -190,6 +192,7 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
   'marnieBoosts',
   'heldItemChance',
   'gameOptions',
+  'obedience',
   'raidDens',
   'fixAiFlags',
   'trainerWhiteout',
@@ -223,6 +226,7 @@ export const sharedStagedEditorDomains = new Set([
   'workflow.marnieBoosts',
   'workflow.heldItemChance',
   'workflow.gameOptions',
+  'workflow.obedience',
   'workflow.raidDens',
   'workflow.trainerWhiteout',
   'workflow.moves',
@@ -314,6 +318,7 @@ export type LoadedWorkflowStateBySection = {
   marnieBoostsWorkflow: MarnieBoostsWorkflow | null;
   heldItemChanceWorkflow: HeldItemChanceWorkflow | null;
   gameOptionsWorkflow: GameOptionsWorkflow | null;
+  obedienceWorkflow: ObedienceWorkflow | null;
   raidDensWorkflow: RaidDensWorkflow | null;
   fixAiFlagsWorkflow: FixAiFlagsWorkflow | null;
   trainerWhiteoutWorkflow: TrainerWhiteoutWorkflow | null;
@@ -458,6 +463,8 @@ export function getLoadedWorkflowStateForSection(
       return state.heldItemChanceWorkflow !== null;
     case 'gameOptions':
       return state.gameOptionsWorkflow !== null;
+    case 'obedience':
+      return state.obedienceWorkflow !== null;
     case 'marnieBoosts':
       return state.marnieBoostsWorkflow !== null;
     case 'raidDens':

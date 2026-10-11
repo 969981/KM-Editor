@@ -12,7 +12,9 @@ public sealed record LoadHyperTrainingWorkflowRequest(ProjectPathsDto Paths);
 public sealed record StageHyperTrainingRequest(
     ProjectPathsDto Paths,
     EditSessionDto? Session,
-    int MinimumLevel);
+    int MinimumLevel,
+    int? BottleCapItemId = null,
+    int? GoldBottleCapItemId = null);
 
 public sealed record HyperTrainingProvenanceDto(
     string SourceFile,
@@ -43,6 +45,9 @@ public sealed record HyperTrainingWorkflowStatsDto(
     int SourceFileCount,
     int OutputFileCount);
 
+public sealed record HyperTrainingItemsDto(int BottleCapItemId, int GoldBottleCapItemId);
+public sealed record HyperTrainingItemOptionDto(int ItemId, string Name);
+
 public sealed record HyperTrainingWorkflowDto(
     WorkflowSummaryDto Summary,
     string InstallStatus,
@@ -52,7 +57,12 @@ public sealed record HyperTrainingWorkflowDto(
     HyperTrainingLevelRuleDto LevelRule,
     IReadOnlyList<HyperTrainingSourceRecordDto> Sources,
     HyperTrainingWorkflowStatsDto Stats,
-    IReadOnlyList<ApiDiagnostic> Diagnostics);
+    IReadOnlyList<ApiDiagnostic> Diagnostics)
+{
+    public HyperTrainingItemsDto Items { get; init; } = new(795, 796);
+    public HyperTrainingItemsDto RuntimeItems { get; init; } = new(795, 796);
+    public IReadOnlyList<HyperTrainingItemOptionDto> ItemOptions { get; init; } = [];
+}
 
 public sealed record LoadHyperTrainingWorkflowResponse(HyperTrainingWorkflowDto Workflow);
 

@@ -186,7 +186,7 @@ public sealed class SwShIvScreenWorkflowService
         }
 
         AddEffectiveAnalysisDiagnostic(effectiveAnalysis, entry.RelativePath, diagnostics);
-        var legacyMigrationBlocked = effectiveAnalysis.Kind == SwShIvScreenInstallKind.InstalledLegacyV1
+        var legacyMigrationBlocked = effectiveAnalysis.Kind is SwShIvScreenInstallKind.InstalledLegacyV1 or SwShIvScreenInstallKind.InstalledRawV1
             && effectiveApplyPreflightError is not null;
         if (legacyMigrationBlocked)
         {
@@ -201,6 +201,8 @@ public sealed class SwShIvScreenWorkflowService
         {
             SwShIvScreenInstallKind.InstalledV1 => "installed",
             SwShIvScreenInstallKind.InstalledLegacyV1 when legacyMigrationBlocked => "blocked",
+            SwShIvScreenInstallKind.InstalledRawV1 when legacyMigrationBlocked => "blocked",
+            SwShIvScreenInstallKind.InstalledRawV1 => "installed",
             SwShIvScreenInstallKind.InstalledLegacyV1 => "installed",
             SwShIvScreenInstallKind.NotInstalled => summary.Availability == SwShWorkflowAvailability.Available
                 ? "available"
@@ -220,7 +222,7 @@ public sealed class SwShIvScreenWorkflowService
             sourceFileCount,
             diagnostics,
             canUninstall: summary.Availability == SwShWorkflowAvailability.Available
-                && effectiveAnalysis.Kind is SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledLegacyV1
+                && effectiveAnalysis.Kind is SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledRawV1 or SwShIvScreenInstallKind.InstalledLegacyV1
                 && entry.LayeredFile is not null
                 && ResolveOutputPath(project.Paths, ExeFsMainPath) is { } outputPath
                 && File.Exists(outputPath));
@@ -411,7 +413,7 @@ public sealed class SwShIvScreenWorkflowService
         return new SwShWorkflowSummary(
             SwShWorkflowIds.IvScreen,
             "IV Screen",
-            "Independent ExeFS editor for raw IV numbers on the Pokemon Summary stats graph. Install and uninstall touch only exact IV Screen-owned bytes.",
+            "Show IVs with Hyper Training applied on the Pokemon Summary stats graph. Install and uninstall change only IV Screen owned bytes.",
             availability,
             diagnostics);
     }

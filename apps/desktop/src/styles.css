@@ -18390,3 +18390,6 @@ select.km-select-control:dir(rtl) {
     box-shadow: inset 3px 0 0 var(--theme-secondary), var(--shadow-inset);
   }
 }
+
+.hyper-training-payment-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.hyper-training-payment-items .table-cell-control { min-width: 0; }

@@ -1941,7 +1941,12 @@ public static class SwShBridgeMapper
             new HyperTrainingWorkflowStatsDto(
                 workflow.Stats.SourceFileCount,
                 workflow.Stats.OutputFileCount),
-            workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray());
+            workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray())
+        {
+            Items = new(workflow.Items.BottleCapItemId, workflow.Items.GoldBottleCapItemId),
+            RuntimeItems = new(workflow.RuntimeItems.BottleCapItemId, workflow.RuntimeItems.GoldBottleCapItemId),
+            ItemOptions = workflow.ItemOptions.Select(item => new HyperTrainingItemOptionDto(item.ItemId, item.Name)).ToArray(),
+        };
     }
 
     private static ShinyRateWorkflowDto ToShinyRateWorkflowDto(SwShShinyRateWorkflow workflow)

@@ -247,7 +247,7 @@ public sealed class SwShNpcItemGiftWorkflowService
         }
     }
 
-    private static bool IsSelectableNpcGiftItem(SwShItemRecord item)
+    internal static bool IsSelectableNpcGiftItem(SwShItemRecord item)
     {
         if (item.ItemId <= 0)
         {

@@ -43,9 +43,11 @@ using KM.SwSh.TrainerDynamax;
 using KM.Api.MarnieBoosts;
 using KM.Api.HeldItemChance;
 using KM.Api.GameOptions;
+using KM.Api.Obedience;
 using KM.SwSh.MarnieBoosts;
 using KM.SwSh.HeldItemChance;
 using KM.SwSh.GameOptions;
+using KM.SwSh.Obedience;
 using KM.Api.RaidDens;
 using KM.Api.TrainerWhiteout;
 using KM.SwSh.RaidDens;
@@ -211,6 +213,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
     private readonly SwShMarnieBoostsService marnieBoostsService;
     private readonly SwShHeldItemChanceService heldItemChanceService;
     private readonly SwShGameOptionsService gameOptionsService;
+    private readonly SwShObedienceService obedienceService;
     private readonly SwShRaidDensService raidDensService;
     private readonly SwShTrainerWhiteoutService trainerWhiteoutService;
     private readonly SwShAiFlagsRepairService aiFlagsRepairService;
@@ -341,6 +344,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         marnieBoostsService = new SwShMarnieBoostsService(this.projectWorkspaceService);
         heldItemChanceService = new SwShHeldItemChanceService(this.projectWorkspaceService);
         gameOptionsService = new SwShGameOptionsService(this.projectWorkspaceService);
+        obedienceService = new SwShObedienceService(this.projectWorkspaceService);
         raidDensService = new SwShRaidDensService(this.projectWorkspaceService);
         trainerWhiteoutService = new SwShTrainerWhiteoutService(this.projectWorkspaceService);
         aiFlagsRepairService = new SwShAiFlagsRepairService(this.projectWorkspaceService);
@@ -766,6 +770,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.LoadMarnieBoosts => DispatchLoadMarnieBoosts(requestJson),
                 KmCommandNames.LoadHeldItemChance => DispatchLoadHeldItemChance(requestJson),
                 KmCommandNames.LoadGameOptions => DispatchLoadGameOptions(requestJson),
+                KmCommandNames.LoadObedience => DispatchLoadObedience(requestJson),
                 KmCommandNames.LoadRaidDens => DispatchLoadRaidDens(requestJson),
                 KmCommandNames.LoadFixAiFlags => DispatchLoadFixAiFlags(requestJson),
                 KmCommandNames.StageFixAiFlags => DispatchStageFixAiFlags(requestJson),
@@ -773,6 +778,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.StageMarnieBoosts => DispatchStageMarnieBoosts(requestJson),
                 KmCommandNames.StageHeldItemChance => DispatchStageHeldItemChance(requestJson),
                 KmCommandNames.StageGameOptions => DispatchStageGameOptions(requestJson),
+                KmCommandNames.StageObedience => DispatchStageObedience(requestJson),
                 KmCommandNames.StageRaidDens => DispatchStageRaidDens(requestJson),
                 KmCommandNames.StageTrainerWhiteout => DispatchStageTrainerWhiteout(requestJson),
                 KmCommandNames.LoadProfanityFilter => DispatchLoadProfanityFilter(requestJson),
@@ -4656,7 +4662,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         var result = hyperTrainingEditSessionService.StageMinimumLevel(
             ProjectBridgeMapper.ToCore(request.Payload.Paths),
             request.Payload.MinimumLevel,
-            session);
+            session, request.Payload.BottleCapItemId, request.Payload.GoldBottleCapItemId);
         var response = SwShBridgeMapper.ToDto(result);
 
         return SerializeSuccess(response, request.RequestId);
@@ -5580,6 +5586,26 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         workflow.CanEdit, workflow.DetectedGame is null ? null : ProjectBridgeMapper.ToDto(workflow.DetectedGame.Value),
         workflow.Selections, workflow.SourceLayer, workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray(), workflow.InstalledFeatures);
 
+    private string DispatchLoadObedience(string requestJson)
+    {
+        var request = DeserializeRequest<LoadObedienceRequest>(requestJson);
+        return SerializeSuccess(new LoadObedienceResponse(ToDto(obedienceService.Load(
+            ProjectBridgeMapper.ToCore(request.Payload.Paths)))), request.RequestId);
+    }
+
+    private string DispatchStageObedience(string requestJson)
+    {
+        var request = DeserializeRequest<StageObedienceRequest>(requestJson);
+        var result = obedienceService.Stage(ProjectBridgeMapper.ToCore(request.Payload.Paths), request.Payload.Selections,
+            request.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(request.Payload.Session));
+        return SerializeSuccess(new StageObedienceResponse(ToDto(result.Workflow), EditSessionBridgeMapper.ToDto(result.Session),
+            result.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), request.RequestId);
+    }
+
+    private static ObedienceWorkflowDto ToDto(SwShObedienceWorkflow workflow) => new(
+        workflow.CanEdit, workflow.DetectedGame is null ? null : ProjectBridgeMapper.ToDto(workflow.DetectedGame.Value),
+        workflow.Selections, workflow.SourceLayer, workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray());
+
     private string DispatchLoadMarnieBoosts(string requestJson)
     {
         var request = DeserializeRequest<LoadMarnieBoostsRequest>(requestJson);
@@ -6328,6 +6354,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.MarnieBoosts => marnieBoostsService.Validate(paths, session),
             EditSessionDomain.HeldItemChance => heldItemChanceService.Validate(paths, session),
             EditSessionDomain.GameOptions => gameOptionsService.Validate(paths, session),
+            EditSessionDomain.Obedience => obedienceService.Validate(paths, session),
             EditSessionDomain.RaidDens => raidDensService.Validate(paths, session),
             EditSessionDomain.TrainerWhiteout => trainerWhiteoutService.Validate(paths, session),
             EditSessionDomain.FashionUnlock => fashionUnlockEditSessionService.Validate(paths, session),
@@ -6378,6 +6405,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.MarnieBoosts => marnieBoostsService.CreateChangePlan(paths, session),
             EditSessionDomain.HeldItemChance => heldItemChanceService.CreateChangePlan(paths, session),
             EditSessionDomain.GameOptions => gameOptionsService.CreateChangePlan(paths, session),
+            EditSessionDomain.Obedience => obedienceService.CreateChangePlan(paths, session),
             EditSessionDomain.RaidDens => raidDensService.CreateChangePlan(paths, session),
             EditSessionDomain.TrainerWhiteout => trainerWhiteoutService.CreateChangePlan(paths, session),
             EditSessionDomain.FashionUnlock => fashionUnlockEditSessionService.CreateChangePlan(paths, session),
@@ -6429,6 +6457,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.MarnieBoosts => marnieBoostsService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.HeldItemChance => heldItemChanceService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.GameOptions => gameOptionsService.ApplyChangePlan(paths, session, reviewedPlan),
+            EditSessionDomain.Obedience => obedienceService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.RaidDens => raidDensService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.TrainerWhiteout => trainerWhiteoutService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.FashionUnlock => fashionUnlockEditSessionService.ApplyChangePlan(paths, session, reviewedPlan),
@@ -6732,6 +6761,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             "workflow.marnieBoosts" => EditSessionDomain.MarnieBoosts,
             "workflow.heldItemChance" => EditSessionDomain.HeldItemChance,
             "workflow.gameOptions" => EditSessionDomain.GameOptions,
+            "workflow.obedience" => EditSessionDomain.Obedience,
             "workflow.raidDens" => EditSessionDomain.RaidDens,
             "workflow.trainerWhiteout" => EditSessionDomain.TrainerWhiteout,
             "workflow.fairyGymBoosts" => EditSessionDomain.FairyGymBoosts,
@@ -6764,6 +6794,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.MarnieBoosts or
             EditSessionDomain.HeldItemChance or
             EditSessionDomain.GameOptions or
+            EditSessionDomain.Obedience or
             EditSessionDomain.RaidDens or
             EditSessionDomain.TrainerWhiteout or
             EditSessionDomain.ModelTextures or
@@ -6817,6 +6848,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.MarnieBoosts => "workflow.marnieBoosts",
             EditSessionDomain.HeldItemChance => "workflow.heldItemChance",
             EditSessionDomain.GameOptions => "workflow.gameOptions",
+            EditSessionDomain.Obedience => "workflow.obedience",
             EditSessionDomain.RaidDens => "workflow.raidDens",
             EditSessionDomain.TrainerWhiteout => "workflow.trainerWhiteout",
             EditSessionDomain.FairyGymBoosts => "workflow.fairyGymBoosts",
@@ -6904,6 +6936,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             ["workflow.marnieBoosts"] => EditSessionDomain.MarnieBoosts,
             ["workflow.heldItemChance"] => EditSessionDomain.HeldItemChance,
             ["workflow.gameOptions"] => EditSessionDomain.GameOptions,
+            ["workflow.obedience"] => EditSessionDomain.Obedience,
             ["workflow.raidDens"] => EditSessionDomain.RaidDens,
             ["workflow.trainerWhiteout"] => EditSessionDomain.TrainerWhiteout,
             ["workflow.fairyGymBoosts"] => EditSessionDomain.FairyGymBoosts,
@@ -8398,6 +8431,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.LoadMarnieBoosts or
             KmCommandNames.LoadHeldItemChance or
             KmCommandNames.LoadGameOptions or
+            KmCommandNames.LoadObedience or
             KmCommandNames.LoadRaidDens or
             KmCommandNames.LoadFixAiFlags or
             KmCommandNames.StageFixAiFlags or
@@ -8405,6 +8439,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.StageMarnieBoosts or
             KmCommandNames.StageHeldItemChance or
             KmCommandNames.StageGameOptions or
+            KmCommandNames.StageObedience or
             KmCommandNames.StageRaidDens or
             KmCommandNames.StageTrainerWhiteout or
             KmCommandNames.LoadFairyGymBoostsWorkflow or
@@ -9010,6 +9045,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         MarnieBoosts,
         HeldItemChance,
         GameOptions,
+        Obedience,
         RaidDens,
         TrainerWhiteout,
         FairyGymBoosts,

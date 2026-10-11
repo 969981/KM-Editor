@@ -53,6 +53,7 @@ internal static class SwShExeFsReservedRegionLedger
     public const string OwnerStartingItems = "Starting Items";
     public const string OwnerHeldItemChance = "Held Item Chance";
     public const string OwnerGameOptions = "Game Options";
+    public const string OwnerObedience = "Obedience";
     public const string OwnerTypeChart = "Type Chart";
 
     public const string ExeFsMainPath = SwShExeFsPatchWorkflowService.ExeFsMainPath;
@@ -60,6 +61,8 @@ internal static class SwShExeFsReservedRegionLedger
 
     private static readonly SwShExeFsReservedRegion[] regions =
     [
+        .. KM.SwSh.HyperTraining.SwShHyperTrainingItemsPatcher.Reservations(),
+        .. KM.SwSh.Obedience.SwShObediencePatcher.CreateReservations(),
         .. KM.SwSh.GameOptions.SwShGameOptionsPatcher.CreateReservations(),
         .. KM.SwSh.RuntimeSettings.SwShCameraControlProfile.CreateReservations(),
         KM.SwSh.RuntimeSettings.SwShBattleItemsProfile.Reservation,
@@ -287,7 +290,7 @@ internal static class SwShExeFsReservedRegionLedger
         new(OwnerIvScreen, "iv-screen-marker-1", ExeFsMainPath, "main.text", 0x013975B4, 0x0C, "IV Screen marker/version fragment 1", "do-not-overwrite"),
         new(OwnerIvScreen, "iv-screen-marker-2", ExeFsMainPath, "main.text", 0x01397934, 0x0C, "IV Screen marker/version fragment 2", "do-not-overwrite"),
         new(OwnerPokemonSummaryRuntime, "pokemon-summary-raw-iv-getter", ExeFsMainPath, "main.text", 0x00779070, 0x04, "Raw IV getter used by IV Screen", "do-not-overwrite"),
-        new(OwnerPokemonSummaryRuntime, "pokemon-summary-hyper-training-iv-wrapper", ExeFsMainPath, "main.text", 0x007790D0, 0x04, "Hyper Training-adjusted IV wrapper not used by IV Screen", "do-not-overwrite"),
+        new(OwnerPokemonSummaryRuntime, "pokemon-summary-hyper-training-iv-wrapper", ExeFsMainPath, "main.text", 0x007790D0, 0x5C, "Hyper Training IV getter used by IV Screen", "requires-vanilla"),
         new(OwnerPokemonSummaryRuntime, "pokemon-summary-current-hp-getter", ExeFsMainPath, "main.text", 0x0077AFD0, 0x04, "Current-HP getter required by IV Screen", "requires-vanilla"),
         new(OwnerPokemonSummaryRuntime, "pokemon-summary-max-hp-getter", ExeFsMainPath, "main.text", 0x0077AC70, 0x04, "Maximum-HP getter required by IV Screen", "requires-vanilla"),
         new(OwnerPokemonSummaryRuntime, "pokemon-summary-stat-getter", ExeFsMainPath, "main.text", 0x0077AC30, 0x04, "Summary stat getter required by IV Screen", "requires-vanilla"),
@@ -411,11 +414,13 @@ internal static class SwShExeFsReservedRegionLedger
         var ownerRegions = MainTextRegionsForOwner(owner);
         if ((string.Equals(owner, OwnerFpsPatch, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerHyperTraining, StringComparison.Ordinal)
+                || string.Equals(owner, KM.SwSh.HyperTraining.SwShHyperTrainingItemsPatcher.Owner, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerShinyRate, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerDynamaxAdventures, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerTrainerDynamax, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerHeldItemChance, StringComparison.Ordinal)
-                || string.Equals(owner, OwnerGameOptions, StringComparison.Ordinal))
+                || string.Equals(owner, OwnerGameOptions, StringComparison.Ordinal)
+                || string.Equals(owner, OwnerObedience, StringComparison.Ordinal))
             && game is ProjectGame.Sword or ProjectGame.Shield)
         {
             var inactiveGameToken = game == ProjectGame.Sword ? "-shield-" : "-sword-";
@@ -496,7 +501,9 @@ internal static class SwShExeFsReservedRegionLedger
                         && !string.Equals(region.Owner, OwnerTrainerDynamax, StringComparison.Ordinal)
                         && !string.Equals(region.Owner, OwnerHeldItemChance, StringComparison.Ordinal)
                         && !string.Equals(region.Owner, OwnerNativeGameplayMenu, StringComparison.Ordinal)
-                        && !string.Equals(region.Owner, OwnerGameOptions, StringComparison.Ordinal))
+                        && !string.Equals(region.Owner, OwnerGameOptions, StringComparison.Ordinal)
+                        && !string.Equals(region.Owner, KM.SwSh.HyperTraining.SwShHyperTrainingItemsPatcher.Owner, StringComparison.Ordinal)
+                        && !string.Equals(region.Owner, OwnerObedience, StringComparison.Ordinal))
                     || !region.FeatureId.Contains(inactiveDynamaxGameToken, StringComparison.Ordinal))
                 .ToArray();
         }

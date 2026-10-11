@@ -58,7 +58,8 @@ public sealed class SwShHyperTrainingEditSessionService
     public SwShHyperTrainingEditResult StageMinimumLevel(
         ProjectPaths paths,
         int minimumLevel,
-        EditSession? session)
+        EditSession? session,
+        int? bottleCapItemId = null, int? goldBottleCapItemId = null)
     {
         ArgumentNullException.ThrowIfNull(paths);
 
@@ -67,6 +68,15 @@ public sealed class SwShHyperTrainingEditSessionService
         var project = projectWorkspaceService.Open(paths);
         var workflow = hyperTrainingWorkflowService.Load(project);
         var diagnostics = new List<ValidationDiagnostic>();
+        var selection = new SwShHyperTrainingSelection(minimumLevel, new(
+            bottleCapItemId ?? workflow.Items.BottleCapItemId, goldBottleCapItemId ?? workflow.Items.GoldBottleCapItemId));
+        try { SwShHyperTrainingItemWorkflow.ValidateSelection(selection.Items, workflow); }
+        catch (InvalidDataException exception)
+        {
+            diagnostics.Add(SwShHyperTrainingItemWorkflow.Diagnostic(exception.Message));
+            return new(workflow, currentSession, diagnostics);
+        }
+
 
         if (currentSession.PendingEdits.Any(edit => !string.Equals(edit.Domain, HyperTrainingEditDomain, StringComparison.Ordinal)))
         {
@@ -82,7 +92,7 @@ public sealed class SwShHyperTrainingEditSessionService
             return new SwShHyperTrainingEditResult(workflow, currentSession, diagnostics);
         }
 
-        var sources = CreatePendingSources(project, minimumLevel, diagnostics);
+        var sources = CreatePendingSources(project, selection, diagnostics);
         if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
             return new SwShHyperTrainingEditResult(workflow, currentSession, diagnostics);
@@ -92,7 +102,7 @@ public sealed class SwShHyperTrainingEditSessionService
         {
             PendingEdits = currentSession.PendingEdits
                 .Where(edit => !string.Equals(edit.Domain, HyperTrainingEditDomain, StringComparison.Ordinal))
-                .Append(CreatePendingEdit(minimumLevel, sources))
+                .Append(CreatePendingEdit(selection, sources))
                 .ToArray(),
         };
 
@@ -112,6 +122,11 @@ public sealed class SwShHyperTrainingEditSessionService
         var project = projectWorkspaceService.Open(paths);
         var workflow = hyperTrainingWorkflowService.Load(project);
         var diagnostics = new List<ValidationDiagnostic>();
+
+        if (!CanStage(project, workflow, diagnostics))
+        {
+            return new SwShEditSessionValidation(session, false, diagnostics);
+        }
 
         if (session.PendingEdits.Count != 1)
         {
@@ -138,8 +153,6 @@ public sealed class SwShHyperTrainingEditSessionService
                 ValidateCanonicalEdit(project, edit, diagnostics);
             }
         }
-
-        CanStage(project, workflow, diagnostics);
 
         if (diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error))
         {
@@ -168,7 +181,8 @@ public sealed class SwShHyperTrainingEditSessionService
 
         var project = projectWorkspaceService.Open(paths);
         var pendingEdit = session.PendingEdits.Single();
-        var minimumLevel = ParsePendingMinimumLevel(pendingEdit.NewValue, diagnostics);
+        var selection = ParsePendingSelection(pendingEdit.NewValue, diagnostics);
+        var minimumLevel = selection.MinimumLevel;
         var scriptSource = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, SwShHyperTrainingWorkflowService.ScriptPath);
         var scriptTargetPath = ResolveOutputPath(paths, SwShHyperTrainingWorkflowService.ScriptPath, diagnostics);
         var mainSource = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, SwShHyperTrainingWorkflowService.ExeFsMainPath);
@@ -187,14 +201,14 @@ public sealed class SwShHyperTrainingEditSessionService
         {
             new(
                 SwShHyperTrainingWorkflowService.ScriptPath,
-                CreatePlanSources(scriptSource.Entry, minimumLevel),
+                CreatePlanSources(scriptSource.Entry, selection, project),
                 File.Exists(scriptTargetPath),
-                string.Create(CultureInfo.InvariantCulture, $"Set the Battle Tower Hyper Training script minimum level to Lv.{minimumLevel}.")),
+                string.Create(CultureInfo.InvariantCulture, $"Set Hyper Training to Lv.{minimumLevel}, with payment items {selection.Items.BottleCapItemId} and {selection.Items.GoldBottleCapItemId}.")),
             new(
                 SwShHyperTrainingWorkflowService.ExeFsMainPath,
-                CreatePlanSources(mainSource.Entry, minimumLevel),
+                CreatePlanSources(mainSource.Entry, selection, project),
                 File.Exists(mainTargetPath),
-                string.Create(CultureInfo.InvariantCulture, $"Update the Hyper Training party/box picker cutoff checks to Lv.{minimumLevel} in exefs/main.")),
+                string.Create(CultureInfo.InvariantCulture, $"Update the Hyper Training picker cutoff to Lv.{minimumLevel} and its payment items in exefs/main.")),
         };
 
         var dialogueSource = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, SwShHyperTrainingWorkflowService.EnglishDialoguePath);
@@ -205,9 +219,35 @@ public sealed class SwShHyperTrainingEditSessionService
             {
                 writes.Add(new PlannedFileWrite(
                     SwShHyperTrainingWorkflowService.EnglishDialoguePath,
-                    CreatePlanSources(dialogueSource.Entry, minimumLevel),
+                    CreatePlanSources(dialogueSource.Entry, selection, project),
                     File.Exists(dialogueTargetPath),
                     string.Create(CultureInfo.InvariantCulture, $"Update English Hyper Training NPC dialogue to mention Lv.{minimumLevel}.")));
+            }
+        }
+
+        if (NeedsItemWrites(project, selection.Items))
+        {
+            foreach (var path in SwShHyperTrainingItemDialogue.Targets(project))
+            {
+                var source = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, path);
+                if (source is null) { diagnostics.Add(SwShHyperTrainingItemWorkflow.Diagnostic("Hyper Training payment dialogue is unavailable.")); continue; }
+                try
+                {
+                    var baseline = File.ReadAllBytes(SwShHyperTrainingWorkflowService.ResolveBaseSourcePath(paths, path)!);
+                    var names = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, SwShHyperTrainingItemDialogue.NamesPath(path));
+                    _ = SwShHyperTrainingItemDialogue.Apply(File.ReadAllBytes(source.AbsolutePath), baseline,
+                        names is null ? null : File.ReadAllBytes(names.AbsolutePath), path, selection.Items);
+                }
+                catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException)
+                {
+                    diagnostics.Add(SwShHyperTrainingItemWorkflow.Diagnostic(exception.Message));
+                    continue;
+                }
+                if (writes.Any(write => write.TargetRelativePath == path)) continue;
+                var target = ResolveOutputPath(paths, path, diagnostics);
+                if (target is null) continue;
+                writes.Add(new(path, CreatePlanSources(source.Entry, selection, project),
+                    File.Exists(target), "Update Hyper Training payment item names."));
             }
         }
 
@@ -327,22 +367,28 @@ public sealed class SwShHyperTrainingEditSessionService
             return CreateApplyResult(applyId, appliedAt, preparedPlan, writtenFiles, diagnostics);
         }
 
-        var minimumLevel = ParsePendingMinimumLevel(session.PendingEdits[0].NewValue, diagnostics);
+        var selection = ParsePendingSelection(session.PendingEdits[0].NewValue, diagnostics);
+        var minimumLevel = selection.MinimumLevel;
         if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
             return CreateApplyResult(applyId, appliedAt, preparedPlan, writtenFiles, diagnostics);
         }
 
-        ApplyScript(paths, minimumLevel, writtenFiles, diagnostics);
+        var itemProject = projectWorkspaceService.Open(paths);
+        var writeItems = NeedsItemWrites(itemProject, selection.Items);
+        ApplyScript(paths, minimumLevel, selection.Items, writtenFiles, diagnostics);
         if (!diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
-            ApplyMain(paths, minimumLevel, writtenFiles, diagnostics);
+            ApplyMain(paths, minimumLevel, selection.Items, writtenFiles, diagnostics);
         }
 
         if (!diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
             ApplyDialogue(paths, minimumLevel, preparedPlan, writtenFiles, diagnostics);
         }
+        if (writeItems && !diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            ApplyItemDialogue(paths, selection.Items, writtenFiles, diagnostics);
+
 
         return CreateApplyResult(applyId, appliedAt, preparedPlan, writtenFiles, diagnostics);
     }
@@ -350,6 +396,7 @@ public sealed class SwShHyperTrainingEditSessionService
     private void ApplyMain(
         ProjectPaths paths,
         int minimumLevel,
+        SwShHyperTrainingItems items,
         ICollection<ProjectFileReference> writtenFiles,
         ICollection<ValidationDiagnostic> diagnostics)
     {
@@ -383,17 +430,18 @@ public sealed class SwShHyperTrainingEditSessionService
                     sourceBytes,
                     minimumLevel,
                     paths.SelectedGame);
+            output = SwShHyperTrainingItemsPatcher.ApplyMain(output, paths.SelectedGame, items);
             if (minimumLevel == SwShHyperTrainingAmxPatcher.VanillaMinimumLevel
                 && SwShExeFsMainComparison.IsSemanticallyEquivalentToBase(output, baseBytes))
             {
-                File.Delete(targetPath);
+                if (File.Exists(targetPath)) File.Delete(targetPath);
             }
             else
             {
                 WriteOutputAtomically(
                     targetPath,
                     output,
-                    roundTrip => VerifyMainOutput(roundTrip, minimumLevel, paths.SelectedGame));
+                    roundTrip => { VerifyMainOutput(roundTrip, minimumLevel, paths.SelectedGame); if (SwShHyperTrainingItemsPatcher.ReadMain(roundTrip, paths.SelectedGame) != items) throw new InvalidDataException("Hyper Training payment items did not round trip."); });
             }
 
             writtenFiles.Add(new ProjectFileReference(ProjectFileLayer.Generated, SwShHyperTrainingWorkflowService.ExeFsMainPath));
@@ -414,6 +462,7 @@ public sealed class SwShHyperTrainingEditSessionService
     private void ApplyScript(
         ProjectPaths paths,
         int minimumLevel,
+        SwShHyperTrainingItems items,
         ICollection<ProjectFileReference> writtenFiles,
         ICollection<ValidationDiagnostic> diagnostics)
     {
@@ -444,17 +493,18 @@ public sealed class SwShHyperTrainingEditSessionService
             var output = SwShHyperTrainingAmxPatcher.ApplyMinimumLevel(
                 File.ReadAllBytes(source.AbsolutePath),
                 minimumLevel);
+            output = SwShHyperTrainingItemsPatcher.ApplyScript(output, items);
             if (minimumLevel == SwShHyperTrainingAmxPatcher.VanillaMinimumLevel
                 && output.AsSpan().SequenceEqual(baseBytes))
             {
-                File.Delete(targetPath);
+                if (File.Exists(targetPath)) File.Delete(targetPath);
             }
             else
             {
                 WriteOutputAtomically(
                     targetPath,
                     output,
-                    roundTrip => VerifyScriptOutput(roundTrip, minimumLevel));
+                    roundTrip => { VerifyScriptOutput(roundTrip, minimumLevel); if (SwShHyperTrainingItemsPatcher.ReadScript(roundTrip) != items) throw new InvalidDataException("Hyper Training payment items did not round trip."); });
             }
 
             writtenFiles.Add(new ProjectFileReference(ProjectFileLayer.Generated, SwShHyperTrainingWorkflowService.ScriptPath));
@@ -524,7 +574,7 @@ public sealed class SwShHyperTrainingEditSessionService
                 && baseBytes is not null
                 && output.AsSpan().SequenceEqual(baseBytes))
             {
-                File.Delete(targetPath);
+                if (File.Exists(targetPath)) File.Delete(targetPath);
             }
             else
             {
@@ -605,33 +655,27 @@ public sealed class SwShHyperTrainingEditSessionService
         return false;
     }
 
-    private static int ParsePendingMinimumLevel(string? value, ICollection<ValidationDiagnostic> diagnostics)
+    private static SwShHyperTrainingSelection ParsePendingSelection(string? value, ICollection<ValidationDiagnostic> diagnostics)
     {
-        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var minimumLevel))
+        try { return SwShHyperTrainingSelection.Parse(value); }
+        catch (InvalidDataException exception)
         {
-            diagnostics.Add(CreateDiagnostic(
-                DiagnosticSeverity.Error,
-                "Hyper Training pending edit has no valid minimum-level payload.",
-                field: MinimumLevelField,
-                expected: "Integer level 1-100"));
-            return SwShHyperTrainingAmxPatcher.VanillaMinimumLevel;
+            diagnostics.Add(SwShHyperTrainingItemWorkflow.Diagnostic(exception.Message));
+            return new(100, SwShHyperTrainingItemsPatcher.Defaults);
         }
-
-        ValidateMinimumLevel(minimumLevel, diagnostics);
-        return minimumLevel;
     }
 
     private static PendingEdit CreatePendingEdit(
-        int minimumLevel,
+        SwShHyperTrainingSelection selection,
         IReadOnlyList<ProjectFileReference> sources)
     {
         return new PendingEdit(
             HyperTrainingEditDomain,
-            CreateStageSummary(minimumLevel),
+            CreateStageSummary(selection),
             sources,
             RecordId,
             MinimumLevelField,
-            minimumLevel.ToString(CultureInfo.InvariantCulture));
+            selection.Payload);
     }
 
     private static bool IsCanonicalIdentity(PendingEdit edit)
@@ -646,13 +690,15 @@ public sealed class SwShHyperTrainingEditSessionService
         PendingEdit edit,
         ICollection<ValidationDiagnostic> diagnostics)
     {
-        var minimumLevel = ParsePendingMinimumLevel(edit.NewValue, diagnostics);
+        var selection = ParsePendingSelection(edit.NewValue, diagnostics);
+        try { SwShHyperTrainingItemWorkflow.ValidateSelection(selection.Items, new SwShHyperTrainingWorkflowService().Load(project)); }
+        catch (InvalidDataException exception) { diagnostics.Add(SwShHyperTrainingItemWorkflow.Diagnostic(exception.Message)); }
         if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
             return;
         }
 
-        var canonicalPayload = minimumLevel.ToString(CultureInfo.InvariantCulture);
+        var canonicalPayload = selection.Payload;
         if (!string.Equals(edit.NewValue, canonicalPayload, StringComparison.Ordinal))
         {
             diagnostics.Add(CreateDiagnostic(
@@ -662,7 +708,7 @@ public sealed class SwShHyperTrainingEditSessionService
                 expected: canonicalPayload));
         }
 
-        var expectedSummary = CreateStageSummary(minimumLevel);
+        var expectedSummary = CreateStageSummary(selection);
         if (!string.Equals(edit.Summary, expectedSummary, StringComparison.Ordinal))
         {
             diagnostics.Add(CreateDiagnostic(
@@ -673,7 +719,7 @@ public sealed class SwShHyperTrainingEditSessionService
         }
 
         var sourceDiagnostics = new List<ValidationDiagnostic>();
-        var expectedSources = CreatePendingSources(project, minimumLevel, sourceDiagnostics);
+        var expectedSources = CreatePendingSources(project, selection, sourceDiagnostics);
         foreach (var diagnostic in sourceDiagnostics)
         {
             diagnostics.Add(diagnostic);
@@ -688,16 +734,16 @@ public sealed class SwShHyperTrainingEditSessionService
         }
     }
 
-    private static string CreateStageSummary(int minimumLevel)
+    private static string CreateStageSummary(SwShHyperTrainingSelection selection)
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{StageSummaryPrefix}{minimumLevel}.");
+            $"{StageSummaryPrefix}{selection.MinimumLevel}.{(selection.Items == SwShHyperTrainingItemsPatcher.Defaults ? "" : $" Payment items {selection.Items.BottleCapItemId}/{selection.Items.GoldBottleCapItemId}.")}");
     }
 
     private static IReadOnlyList<ProjectFileReference> CreatePendingSources(
         OpenedProject project,
-        int minimumLevel,
+        SwShHyperTrainingSelection selection,
         ICollection<ValidationDiagnostic> diagnostics)
     {
         var sources = new List<ProjectFileReference>();
@@ -729,7 +775,8 @@ public sealed class SwShHyperTrainingEditSessionService
             AddBaseAndEffectiveSourceReferences(dialogueSource.Entry, sources);
         }
 
-        sources.Add(CreatePendingPayloadSource(minimumLevel));
+        AddItemSources(project, selection.Items, sources);
+        sources.Add(CreatePendingPayloadSource(selection));
         return sources
             .Distinct()
             .OrderBy(source => source.Layer)
@@ -739,11 +786,12 @@ public sealed class SwShHyperTrainingEditSessionService
 
     private static IReadOnlyList<ProjectFileReference> CreatePlanSources(
         ProjectFileGraphEntry entry,
-        int minimumLevel)
+        SwShHyperTrainingSelection selection, OpenedProject project)
     {
         var sources = new List<ProjectFileReference>();
         AddBaseAndEffectiveSourceReferences(entry, sources);
-        sources.Add(CreatePendingPayloadSource(minimumLevel));
+        AddItemSources(project, selection.Items, sources);
+        sources.Add(CreatePendingPayloadSource(selection));
         return sources
             .Distinct()
             .OrderBy(source => source.Layer)
@@ -766,13 +814,62 @@ public sealed class SwShHyperTrainingEditSessionService
         }
     }
 
-    private static ProjectFileReference CreatePendingPayloadSource(int minimumLevel)
+    private static ProjectFileReference CreatePendingPayloadSource(SwShHyperTrainingSelection selection)
     {
-        var payload = minimumLevel.ToString(CultureInfo.InvariantCulture);
+        var payload = selection.Payload;
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
         return new ProjectFileReference(
             ProjectFileLayer.Pending,
             $"pending/hyper-training/minimum-level/{hash}");
+    }
+
+    private static bool NeedsItemWrites(OpenedProject project, SwShHyperTrainingItems items)
+    {
+        if (items != SwShHyperTrainingItemsPatcher.Defaults) return true;
+        var script = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, SwShHyperTrainingWorkflowService.ScriptPath);
+        var main = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, SwShHyperTrainingWorkflowService.ExeFsMainPath);
+        return script is not null && SwShHyperTrainingItemsPatcher.ReadScript(File.ReadAllBytes(script.AbsolutePath)) != items
+            || main is not null && SwShHyperTrainingItemsPatcher.ReadMain(File.ReadAllBytes(main.AbsolutePath), project.Paths.SelectedGame) != items
+            || SwShHyperTrainingItemDialogue.HasGeneratedDialogue(project);
+    }
+
+    private static void AddItemSources(OpenedProject project, SwShHyperTrainingItems items, ICollection<ProjectFileReference> sources)
+    {
+        if (!NeedsItemWrites(project, items)) return;
+        var paths = SwShHyperTrainingItemDialogue.Targets(project).ToArray();
+        foreach (var path in paths.Concat(paths.Select(SwShHyperTrainingItemDialogue.NamesPath)).Append(SwShItemsWorkflowService.ItemDataPath))
+        {
+            var source = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, path);
+            if (source is not null) AddBaseAndEffectiveSourceReferences(source.Entry, sources);
+        }
+    }
+
+    private void ApplyItemDialogue(ProjectPaths paths, SwShHyperTrainingItems items,
+        ICollection<ProjectFileReference> writtenFiles, ICollection<ValidationDiagnostic> diagnostics)
+    {
+        projectWorkspaceService.ClearMemoryCache();
+        var project = projectWorkspaceService.Open(paths);
+        foreach (var path in SwShHyperTrainingItemDialogue.Targets(project))
+        {
+            try
+            {
+                var baseline = File.ReadAllBytes(SwShHyperTrainingWorkflowService.ResolveBaseSourcePath(paths, path)!);
+                var target = SwShHyperTrainingWorkflowService.ResolveOutputPath(paths, path)!;
+                var source = File.Exists(target) ? File.ReadAllBytes(target) : baseline;
+                var names = SwShHyperTrainingWorkflowService.ResolveWorkflowFile(project, SwShHyperTrainingItemDialogue.NamesPath(path));
+                var output = SwShHyperTrainingItemDialogue.Apply(source, baseline,
+                    names is null ? null : File.ReadAllBytes(names.AbsolutePath), path, items);
+                if (output.AsSpan().SequenceEqual(baseline))
+                {
+                    if (File.Exists(target)) File.Delete(target);
+                }
+                else WriteOutputAtomically(target, output, bytes => _ = KM.Formats.SwSh.SwShGameTextFile.Parse(bytes));
+                var reference = new ProjectFileReference(ProjectFileLayer.Generated, path);
+                if (!writtenFiles.Contains(reference)) writtenFiles.Add(reference);
+            }
+            catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException)
+            { diagnostics.Add(SwShHyperTrainingItemWorkflow.Diagnostic(exception.Message)); return; }
+        }
     }
 
     private static string? ResolveOutputPath(

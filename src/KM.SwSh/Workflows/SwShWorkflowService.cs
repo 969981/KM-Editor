@@ -26,6 +26,7 @@ using KM.SwSh.IvScreen;
 using KM.SwSh.MarnieBoosts;
 using KM.SwSh.HeldItemChance;
 using KM.SwSh.GameOptions;
+using KM.SwSh.Obedience;
 using KM.SwSh.ModMerger;
 using KM.SwSh.Moves;
 using KM.SwSh.NpcItemGift;
@@ -75,6 +76,7 @@ public sealed class SwShWorkflowService
     private readonly SwShMarnieBoostsService marnieBoostsService;
     private readonly SwShHeldItemChanceService heldItemChanceService;
     private readonly SwShGameOptionsService gameOptionsService;
+    private readonly SwShObedienceService obedienceService;
     private readonly SwShGymUniformRemovalWorkflowService gymUniformRemovalWorkflowService;
     private readonly SwShFashionUnlockWorkflowService fashionUnlockWorkflowService;
     private readonly SwShIvScreenWorkflowService ivScreenWorkflowService;
@@ -168,6 +170,7 @@ public sealed class SwShWorkflowService
         this.marnieBoostsService = marnieBoostsService ?? new SwShMarnieBoostsService(this.projectWorkspaceService);
         this.heldItemChanceService = new SwShHeldItemChanceService(this.projectWorkspaceService);
         this.gameOptionsService = new SwShGameOptionsService(this.projectWorkspaceService);
+        this.obedienceService = new SwShObedienceService(this.projectWorkspaceService);
         this.gymUniformRemovalWorkflowService = gymUniformRemovalWorkflowService ?? new SwShGymUniformRemovalWorkflowService();
         this.fashionUnlockWorkflowService = fashionUnlockWorkflowService ?? new SwShFashionUnlockWorkflowService();
         this.ivScreenWorkflowService = ivScreenWorkflowService ?? new SwShIvScreenWorkflowService();
@@ -229,6 +232,7 @@ public sealed class SwShWorkflowService
             exeFsPatchWorkflowService.CreateSummary(project),
             bagHookWorkflowService.CreateSummary(project),
             catchCapWorkflowService.CreateSummary(project),
+            obedienceService.CreateSummary(project),
             hyperTrainingWorkflowService.CreateSummary(project),
             shinyRateWorkflowService.CreateSummary(project),
             typeChartWorkflowService.CreateSummary(project),

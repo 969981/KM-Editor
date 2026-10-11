@@ -24,7 +24,7 @@ public sealed class SwShIvScreenEditSessionService
     private const string UninstallField = "uninstall";
     private const string StageInstallSummary = "Stage IV Screen install or refresh.";
     private const string StageUninstallSummary = "Stage IV Screen uninstall.";
-    private const string InstallReason = "Install or refresh IV Screen's reviewed Pokemon Summary raw-IV display graph in exefs/main.";
+    private const string InstallReason = "Install or refresh the Pokemon Summary IV display with Hyper Training applied in exefs/main.";
     private const string UninstallReason = "Uninstall the exact recognized IV Screen graph from exefs/main while preserving unrelated supported ExeFS edits.";
 
     private readonly ProjectWorkspaceService projectWorkspaceService;
@@ -447,7 +447,7 @@ public sealed class SwShIvScreenEditSessionService
             EnsureVerifiedVanillaBase(baseAnalysis);
             var currentBytes = File.ReadAllBytes(targetPath);
             var currentAnalysis = SwShIvScreenMainPatcher.Analyze(currentBytes, paths.SelectedGame);
-            if (currentAnalysis.Kind is not (SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledLegacyV1))
+            if (currentAnalysis.Kind is not (SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledRawV1 or SwShIvScreenInstallKind.InstalledLegacyV1))
             {
                 throw new InvalidDataException("The reviewed effective main no longer contains an exact recognized IV Screen graph.");
             }
@@ -734,6 +734,7 @@ public sealed class SwShIvScreenEditSessionService
     {
         if (analysis.Kind is not (SwShIvScreenInstallKind.NotInstalled
             or SwShIvScreenInstallKind.InstalledV1
+            or SwShIvScreenInstallKind.InstalledRawV1
             or SwShIvScreenInstallKind.InstalledLegacyV1))
         {
             throw new InvalidDataException(
