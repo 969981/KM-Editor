@@ -1946,6 +1946,8 @@ public static class SwShBridgeMapper
             Items = new(workflow.Items.BottleCapItemId, workflow.Items.GoldBottleCapItemId),
             RuntimeItems = new(workflow.RuntimeItems.BottleCapItemId, workflow.RuntimeItems.GoldBottleCapItemId),
             ItemOptions = workflow.ItemOptions.Select(item => new HyperTrainingItemOptionDto(item.ItemId, item.Name)).ToArray(),
+            PokemonCenterEnabled = workflow.PokemonCenterEnabled,
+            PokemonCenterMessage = workflow.PokemonCenterMessage,
         };
     }
 

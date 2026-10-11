@@ -1,5 +1,9 @@
 {
   "keys": {
+    "hyperTraining.centerOff": "{settings}; Pokémon-Center: aus",
+    "hyperTraining.centerOn": "{settings}; Pokémon-Center: an",
+    "hyperTraining.centerHelp": "Fügt beim Mann im karierten Hemd, der in Pokémon-Centern Spitznamen bewertet und beim Erinnern oder Vergessen von Attacken hilft, eine Option für Super-Spezialtraining hinzu. Der Dienst ist bereits vor dem Champ-Titel verfügbar. Das hier festgelegte Mindestlevel bestimmt die Teilnahme, und die beiden ausgewählten Zahlungsitems ersetzen Silberkronkorken und Goldkronkorken. Zum Entfernen dieses zusätzlichen Dienstes das Häkchen entfernen und die Änderung anwenden.",
+    "hyperTraining.centerEnabled": "Super-Spezialtraining in Pokémon-Centern hinzufügen",
     "battleItems.outputTitle": "Kampfitems Ausgabe",
     "gameOptions.nativeSaveHelp": "Bei Kamerasteuerung und Kampfitems gelten die Startwerte für die ersten KM Einstellungen und beim Wiederherstellen der Standardwerte. Gespeicherte sichtbare Auswahlen bleiben erhalten.",
     "battleItems.title": "Kampfitems",
@@ -4975,6 +4979,8 @@
     "hyperTraining.itemsDiagnostic": "Prüfe die gewählten Beutelitems und die Trainingsdateien und überprüfe dann die Einstellungen erneut."
   },
   "literals": {
+    "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Das Super-Spezialtraining verwendet einen älteren Levelpatch, der für die Symbole im Team und in den Boxen weiterhin Lv.100 voraussetzt. Wende diesen Editor erneut an, um die Auswahl zu aktualisieren.",
+    "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "Das Super-Spezialtraining zeigt ebenfalls IVs an, mit einer Diagrammskala von 0 bis 31.",
     "League Staff Isaac": "Liga-Mitarbeiter Isaac",
     "Pokemon Breeder Elena": "Pokémon-Züchterin Elena",
     "Weather NPC": "Wetter-NPC",

@@ -1,5 +1,9 @@
 {
   "keys": {
+    "hyperTraining.centerOff": "{settings}; Pokémon Center: off",
+    "hyperTraining.centerOn": "{settings}; Pokémon Center: on",
+    "hyperTraining.centerHelp": "Adds a Hyper Training option to the NPC in a checkered shirt who rates nicknames and helps Pokémon remember or forget moves in Pokémon Centers. It is available before becoming Champion. The minimum level set here determines eligibility, and the two selected payment items replace Bottle Caps and Gold Bottle Caps. Uncheck and apply to remove this added service.",
+    "hyperTraining.centerEnabled": "Add Hyper Training to Pokémon Centers",
     "battleItems.outputTitle": "Battle Items Output",
     "gameOptions.nativeSaveHelp": "For Camera Control and Battle Items, starting values apply to initial KM settings and Restore Defaults. Saved visible choices are preserved.",
     "battleItems.title": "Battle Items",
@@ -4975,6 +4979,8 @@
     "hyperTraining.itemsDiagnostic": "Check the selected bag items and Hyper Training sources, then review the settings again."
   },
   "literals": {
+    "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.",
+    "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "Hyper Training also displays IVs, with the graph scaled from 0 to 31.",
     "League Staff Isaac": "League Staff Isaac",
     "Pokemon Breeder Elena": "Pokemon Breeder Elena",
     "Weather NPC": "Weather NPC",

@@ -9,9 +9,13 @@ internal sealed record SwShStarterIdentity(int Species, int Form);
 internal static class SwShStarterPresentationScript
 {
     internal static readonly SwShStarterIdentity[] Original = [new(810, 0), new(813, 0), new(816, 0)];
-    internal static readonly string[] Names = ["main_event_0080", "main_event_0082", "main_event_0180"];
+    internal static readonly string[] Names = ["main_event_0080", "main_event_0082", "main_event_0180",
+        "main_event_0100", "main_event_0110", "main_event_0140", "main_event_0190", "main_event_0350", "z_t0101"];
     private sealed record Layout(int NameCell, int[] VoiceCells);
-    private static readonly Layout[] Layouts = [new(1040, [3990, 4062]), new(1153, [4657, 5594, 5691, 6108]), new(928, [4360])];
+    private static readonly Layout[] Layouts = [new(1040, [3990, 4062]), new(1153, [4657, 5594, 5691, 6108]), new(928, [4360]),
+        new(754, []), new(1035, []), new(954, []), new(697, []), new(1136, []), new(630, [])];
+
+    internal static bool HasVoiceCalls(int script) => Layouts[script].VoiceCells.Length > 0;
 
     internal static SwShStarterIdentity[] Read(byte[] bytes, int script)
     {
@@ -22,7 +26,7 @@ internal static class SwShStarterPresentationScript
             var pair = Inspect(document, cell, name);
             if (result is not null && (name ? !result.Select(v => v.Species).SequenceEqual(pair.Values.Select(v => v.Species)) : !result.SequenceEqual(pair.Values)))
                 throw new InvalidDataException("Starter presentation calls have inconsistent mappings. Restore a consistent script before synchronizing gifts.");
-            if (!name) result = pair.Values;
+            result ??= pair.Values;
         }
         return result!;
     }
@@ -31,6 +35,8 @@ internal static class SwShStarterPresentationScript
     {
         if (values.Length != 3 || values.Any(v => v.Species is < 1 or > ushort.MaxValue || v.Form is < 0 or > byte.MaxValue))
             throw new InvalidDataException("Starter presentation requires three valid species and form identities.");
+        // Word registration carries a species name, without a form identity.
+        if (!HasVoiceCalls(script)) values = values.Select(value => value with { Form = 0 }).ToArray();
         var document = SwShAmxDocument.Parse(bytes);
         var previous = Read(bytes, script);
         if (previous.SequenceEqual(values)) return bytes;

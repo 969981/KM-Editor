@@ -5388,6 +5388,8 @@ export const hyperTrainingItemsSchema = z.strictObject({
   goldBottleCapItemId: z.number().int().min(1).max(65535),
 });
 export const hyperTrainingWorkflowSchema = z.strictObject({
+  pokemonCenterEnabled: z.boolean().default(false),
+  pokemonCenterMessage: z.string().default(''),
   items: hyperTrainingItemsSchema.default({ bottleCapItemId: 795, goldBottleCapItemId: 796 }),
   runtimeItems: hyperTrainingItemsSchema.default({ bottleCapItemId: 795, goldBottleCapItemId: 796 }),
   itemOptions: z.array(z.strictObject({ itemId: z.number().int().positive(), name: z.string() })).default([]),
@@ -5413,6 +5415,7 @@ export const loadHyperTrainingWorkflowResponseSchema = z.strictObject({
 });
 
 export const stageHyperTrainingRequestSchema = z.strictObject({
+  pokemonCenterEnabled: z.boolean().optional(),
   bottleCapItemId: z.number().int().min(1).max(65535).optional(),
   goldBottleCapItemId: z.number().int().min(1).max(65535).optional(),
   minimumLevel: z.number().int().min(1).max(100),

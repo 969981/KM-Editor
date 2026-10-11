@@ -25,10 +25,12 @@ internal sealed record SwShHyperTrainingMainAnalysis(
     int MinimumLevel,
     string BuildId,
     string PatchOffsetHex,
-    ProjectGame? DetectedGame);
+    ProjectGame? DetectedGame,
+    bool NeedsPickerUpgrade = false);
 
 internal static class SwShHyperTrainingMainPatcher
 {
+    // These historical EXP screen sites remain recognized only for selective migration and removal.
     public const int SwordPreflightCompareOffset = 0x00F98F18;
     public const int SwordEligibilityCompareOffset = 0x00F9A314;
     public const int SwordEligibilityBranchOffset = 0x00F9A318;
@@ -118,7 +120,7 @@ internal static class SwShHyperTrainingMainPatcher
             }
 
             detectedGame = layout.Game;
-            patchOffset = FormatTextOffset(layout.EligibilityCompareOffset);
+            patchOffset = FormatTextOffset(SwShHyperTrainingPickerPatcher.LevelOffset(layout.Game));
 
             var mismatch = CreateGameMismatchAnalysis(layout, expectedGame, buildId);
             if (mismatch is not null)
@@ -129,13 +131,19 @@ internal static class SwShHyperTrainingMainPatcher
             var text = nso.Text.DecompressedData;
             EnsurePatchRange(text, layout);
             ValidateDependencies(text, layout);
-            var minimumLevel = ReadSharedMinimumLevel(text, layout);
+            var legacyLevel = ReadSharedMinimumLevel(text, layout);
+            var pickerLevel = SwShHyperTrainingPickerPatcher.Read(text, layout.Game);
+            if (legacyLevel != 100 && pickerLevel != 100)
+                throw new InvalidDataException("Hyper Training contains both legacy and current level patches. Restore before applying a new level.");
+            var minimumLevel = pickerLevel != 100 ? pickerLevel : legacyLevel;
             ValidateBranches(text, layout);
 
             var kind = minimumLevel == SwShHyperTrainingAmxPatcher.VanillaMinimumLevel
                 ? SwShHyperTrainingMainKind.NotInstalled
                 : SwShHyperTrainingMainKind.CustomMinimumLevel;
-            var message = kind == SwShHyperTrainingMainKind.NotInstalled
+            var message = legacyLevel != 100
+                ? "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker."
+                : kind == SwShHyperTrainingMainKind.NotInstalled
                 ? "Hyper Training picker is using the vanilla Lv.100 minimum."
                 : string.Create(
                     CultureInfo.InvariantCulture,
@@ -147,7 +155,8 @@ internal static class SwShHyperTrainingMainPatcher
                 minimumLevel,
                 buildId,
                 patchOffset,
-                layout.Game);
+                layout.Game,
+                NeedsPickerUpgrade: legacyLevel != 100);
         }
         catch (InvalidDataException exception)
         {
@@ -183,23 +192,15 @@ internal static class SwShHyperTrainingMainPatcher
         EnsurePatchRange(text, layout);
         ValidateDependencies(text, layout);
 
-        WriteInstruction(text, layout.PreflightCompareOffset, EncodeCompareW0Immediate(minimumLevel));
-        WriteInstruction(text, layout.EligibilityCompareOffset, EncodeCompareW0Immediate(minimumLevel));
-        WriteInstruction(text, layout.GrayOutCompareOffset, EncodeCompareW0Immediate(minimumLevel));
-        WriteInstruction(text, layout.DetailCompareOffset, EncodeCompareW0Immediate(minimumLevel));
-
-        if (minimumLevel == SwShHyperTrainingAmxPatcher.VanillaMinimumLevel)
-        {
-            WriteInstruction(text, layout.EligibilityBranchOffset, VanillaEligibilityBranchNotEqual);
-            WriteInstruction(text, layout.GrayOutBranchOffset, VanillaGrayOutBranchNotEqual);
-            WriteInstruction(text, layout.DetailBranchOffset, VanillaDetailBranchNotEqual);
-        }
-        else
-        {
-            WriteInstruction(text, layout.EligibilityBranchOffset, PatchedEligibilityBranchLowerThan);
-            WriteInstruction(text, layout.GrayOutBranchOffset, PatchedGrayOutBranchLowerThan);
-            WriteInstruction(text, layout.DetailBranchOffset, PatchedDetailBranchLowerThan);
-        }
+        // Earlier output changed EXP presentation checks. Migrate only that exact recognized layout.
+        WriteInstruction(text, layout.PreflightCompareOffset, EncodeCompareW0Immediate(100));
+        WriteInstruction(text, layout.EligibilityCompareOffset, EncodeCompareW0Immediate(100));
+        WriteInstruction(text, layout.GrayOutCompareOffset, EncodeCompareW0Immediate(100));
+        WriteInstruction(text, layout.DetailCompareOffset, EncodeCompareW0Immediate(100));
+        WriteInstruction(text, layout.EligibilityBranchOffset, VanillaEligibilityBranchNotEqual);
+        WriteInstruction(text, layout.GrayOutBranchOffset, VanillaGrayOutBranchNotEqual);
+        WriteInstruction(text, layout.DetailBranchOffset, VanillaDetailBranchNotEqual);
+        SwShHyperTrainingPickerPatcher.Write(text, layout.Game, minimumLevel);
 
         var output = nso.Write(textDecompressedData: text);
         VerifyOutputPreservation(mainBytes, output, layout, "Hyper Training apply");
@@ -295,10 +296,10 @@ internal static class SwShHyperTrainingMainPatcher
     {
         var levels = new[]
         {
-            ReadCompareLevel(text, layout.PreflightCompareOffset, "preflight picker level check"),
-            ReadCompareLevel(text, layout.EligibilityCompareOffset, "eligible-slot picker level check"),
-            ReadCompareLevel(text, layout.GrayOutCompareOffset, "gray-out picker level check"),
-            ReadCompareLevel(text, layout.DetailCompareOffset, "selected Pokemon detail level check"),
+            ReadCompareLevel(text, layout.PreflightCompareOffset, "legacy EXP preflight level check"),
+            ReadCompareLevel(text, layout.EligibilityCompareOffset, "legacy EXP list level check"),
+            ReadCompareLevel(text, layout.GrayOutCompareOffset, "legacy EXP presentation level check"),
+            ReadCompareLevel(text, layout.DetailCompareOffset, "legacy EXP detail level check"),
         };
 
         var minimumLevel = levels[0];
@@ -307,7 +308,7 @@ internal static class SwShHyperTrainingMainPatcher
             throw new InvalidDataException(
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"Hyper Training picker level checks disagree: found Lv.{string.Join(", Lv.", levels)}."));
+                    $"Legacy Hyper Training level patches disagree: found Lv.{string.Join(", Lv.", levels)}."));
         }
 
         ValidateLevel(minimumLevel);
@@ -544,7 +545,7 @@ internal static class SwShHyperTrainingMainPatcher
                 $"Selected {FormatGame(expectedGame.Value)}, but exefs/main build ID is {layout.GameName}. Hyper Training will not patch this file because Sword and Shield use different picker check sites."),
             SwShHyperTrainingAmxPatcher.VanillaMinimumLevel,
             buildId,
-            FormatTextOffset(layout.EligibilityCompareOffset),
+            FormatTextOffset(SwShHyperTrainingPickerPatcher.LevelOffset(layout.Game)),
             layout.Game);
     }
 
@@ -696,6 +697,8 @@ internal static class SwShHyperTrainingMainPatcher
     {
         return
         [
+            .. SwShHyperTrainingPickerPatcher.Regions(layout.Game)
+                .Select(region => new PatchRegion(region.Offset, region.Length, "box and party level filter")),
             new PatchRegion(layout.PreflightCompareOffset, sizeof(uint), "preflight compare"),
             new PatchRegion(layout.EligibilityCompareOffset, 2 * sizeof(uint), "eligibility compare and branch"),
             new PatchRegion(layout.GrayOutCompareOffset, 2 * sizeof(uint), "gray-out compare and branch"),

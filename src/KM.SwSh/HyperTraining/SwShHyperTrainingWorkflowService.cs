@@ -43,7 +43,8 @@ public sealed class SwShHyperTrainingWorkflowService
             : SwShWorkflowAvailability.ReadOnly);
     }
 
-    public SwShHyperTrainingWorkflow Load(OpenedProject project) => SwShHyperTrainingItemWorkflow.Enrich(project, LoadLevel(project));
+    public SwShHyperTrainingWorkflow Load(OpenedProject project) => SwShHyperTrainingCenterWorkflow.Enrich(project,
+        SwShHyperTrainingItemWorkflow.Enrich(project, LoadLevel(project)));
 
     private SwShHyperTrainingWorkflow LoadLevel(OpenedProject project)
     {
@@ -218,14 +219,16 @@ public sealed class SwShHyperTrainingWorkflowService
                     or SwShHyperTrainingMainKind.GameMismatch
                     or SwShHyperTrainingMainKind.Conflict
                 || dialogueAnalysis?.Kind == SwShHyperTrainingDialogueKind.Conflict;
-            var levelsMatch = analysis.MinimumLevel == mainAnalysis.MinimumLevel
+            var levelsMatch = !mainAnalysis.NeedsPickerUpgrade
+                && analysis.MinimumLevel == mainAnalysis.MinimumLevel
                 && (dialogueAnalysis is null
                     || dialogueAnalysis.MinimumLevel == analysis.MinimumLevel);
             if (!hasBlockingAnalysis && !levelsMatch)
             {
                 diagnostics.Add(CreateDiagnostic(
                     DiagnosticSeverity.Warning,
-                    $"Hyper Training is out of sync: {FormatCutoffState(analysis, mainAnalysis, dialogueAnalysis)} Apply this editor again to synchronize every available cutoff.",
+                    mainAnalysis.NeedsPickerUpgrade ? mainAnalysis.Message
+                        : $"Hyper Training is out of sync: {FormatCutoffState(analysis, mainAnalysis, dialogueAnalysis)} Apply this editor again to synchronize every available cutoff.",
                     file: ExeFsMainPath,
                     expected: "Script, picker, and available English dialogue cutoff levels match"));
             }
@@ -238,6 +241,8 @@ public sealed class SwShHyperTrainingWorkflowService
                     : "installed";
             var installMessage = hasBlockingAnalysis
                 ? "Hyper Training cannot edit because one or more required source mappings are unsupported or conflicting."
+                : mainAnalysis.NeedsPickerUpgrade
+                    ? mainAnalysis.Message
                 : !levelsMatch
                     ? $"Hyper Training is out of sync: {FormatCutoffState(analysis, mainAnalysis, dialogueAnalysis)}"
                 : effectiveMinimumLevel == SwShHyperTrainingAmxPatcher.VanillaMinimumLevel
@@ -357,11 +362,12 @@ public sealed class SwShHyperTrainingWorkflowService
             new SwShHyperTrainingLevelRule(
                 effectiveMinimumLevel,
                 analysis.MinimumLevel,
-                mainAnalysis?.MinimumLevel ?? SwShHyperTrainingAmxPatcher.VanillaMinimumLevel,
+                mainAnalysis is { NeedsPickerUpgrade: false } ? mainAnalysis.MinimumLevel : SwShHyperTrainingAmxPatcher.VanillaMinimumLevel,
                 dialogueAnalysis?.Kind == SwShHyperTrainingDialogueKind.Conflict
                     ? null
                     : dialogueAnalysis?.MinimumLevel,
                 mainAnalysis is not null
+                    && !mainAnalysis.NeedsPickerUpgrade
                     && analysis.MinimumLevel == mainAnalysis.MinimumLevel
                     && (dialogueAnalysis is null
                         || (dialogueAnalysis.Kind != SwShHyperTrainingDialogueKind.Conflict
@@ -381,7 +387,7 @@ public sealed class SwShHyperTrainingWorkflowService
                     ? "Runtime picker cutoff is unavailable until exefs/main can be inspected."
                     : string.Create(
                         CultureInfo.InvariantCulture,
-                        $"Picker cutoff lives at {mainAnalysis.PatchOffsetHex} and related Hyper Training list/detail checks.")),
+                        $"Party and box icons use the minimum level at {mainAnalysis.PatchOffsetHex}.")),
             sources,
             new SwShHyperTrainingWorkflowStats(sources.Count(source => source.Status == "available"), outputFileCount),
             diagnostics);

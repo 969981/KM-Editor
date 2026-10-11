@@ -1,5 +1,9 @@
 {
   "keys": {
+    "hyperTraining.centerOff": "{settings}; 宝可梦中心：关闭",
+    "hyperTraining.centerOn": "{settings}; 宝可梦中心：开启",
+    "hyperTraining.centerHelp": "为宝可梦中心里负责评定昵称、回忆招式和忘记招式的格子衬衫 NPC 添加极限特训选项。成为冠军之前即可使用。此处设置的最低等级决定哪些宝可梦可以参加，所选的两种支付道具将分别替代银色王冠和金色王冠。取消勾选并应用即可移除这项新增服务。",
+    "hyperTraining.centerEnabled": "在宝可梦中心添加极限特训",
     "battleItems.outputTitle": "对战道具输出",
     "gameOptions.nativeSaveHelp": "镜头控制和对战道具的初始值用于首次创建KM设置和恢复默认值。已保存且仍可见的选项会保留。",
     "battleItems.title": "对战道具",
@@ -4975,6 +4979,8 @@
     "hyperTraining.itemsDiagnostic": "请检查所选背包道具和极限特训源文件，然后重新审查设置。"
   },
   "literals": {
+    "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "极限特训正在使用旧版等级补丁，队伍和盒子中的图标仍要求 100 级。请重新应用此编辑器以更新选择界面。",
+    "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "极限特训也会显示个体值，图表范围为 0 到 31。",
     "League Staff Isaac": "联盟工作人员 Isaac",
     "Pokemon Breeder Elena": "宝可梦培育家 Elena",
     "Weather NPC": "天气 NPC",

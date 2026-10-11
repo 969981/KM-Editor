@@ -1,5 +1,9 @@
 {
   "keys": {
+    "hyperTraining.centerOff": "{settings}; Centro Pokémon: desactivado",
+    "hyperTraining.centerOn": "{settings}; Centro Pokémon: activado",
+    "hyperTraining.centerHelp": "Añade una opción de Entrenamiento Extremo al personaje de camisa de cuadros que evalúa motes y ayuda a recordar u olvidar movimientos en los Centros Pokémon. Está disponible antes de ser Campeón. El nivel mínimo definido aquí determina qué Pokémon pueden participar, y los dos objetos de pago seleccionados sustituyen a las Chapas Plateadas y Doradas. Desmarca y aplica para retirar este servicio añadido.",
+    "hyperTraining.centerEnabled": "Añadir Entrenamiento Extremo a los Centros Pokémon",
     "battleItems.outputTitle": "Salida de Objetos en combate",
     "gameOptions.nativeSaveHelp": "En Control de cámara y Objetos en combate, los valores iniciales se aplican al crear los ajustes de KM y al restaurar los valores predeterminados. Se conservan las opciones visibles guardadas.",
     "battleItems.title": "Objetos en combate",
@@ -4975,6 +4979,8 @@
     "hyperTraining.itemsDiagnostic": "Comprueba los objetos elegidos y los archivos de Entrenamiento Extremo, y vuelve a revisar los ajustes."
   },
   "literals": {
+    "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "El Entrenamiento Extremo usa un parche de nivel anterior que mantiene el requisito de Nv.100 para los iconos del equipo y de las cajas. Vuelve a aplicar este editor para actualizar el selector.",
+    "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "El Entrenamiento Extremo también muestra los IV, con el gráfico en una escala de 0 a 31.",
     "League Staff Isaac": "Isaac, personal de la Liga",
     "Pokemon Breeder Elena": "Elena, criadora Pokémon",
     "Weather NPC": "Personaje del clima",

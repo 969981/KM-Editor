@@ -1,5 +1,9 @@
 {
   "keys": {
+    "hyperTraining.centerOff": "{settings}; Centre Pokémon : désactivé",
+    "hyperTraining.centerOn": "{settings}; Centre Pokémon : activé",
+    "hyperTraining.centerHelp": "Ajoute une option d’Entraînement Ultime au personnage en chemise à carreaux qui évalue les surnoms et aide les Pokémon à se souvenir de capacités ou à en oublier dans les Centres Pokémon. Le service est accessible avant de devenir Maître. Le niveau minimum défini ici détermine les Pokémon admissibles, et les deux objets de paiement sélectionnés remplacent les Capsules d’Argent et d’Or. Décochez puis appliquez pour retirer ce service ajouté.",
+    "hyperTraining.centerEnabled": "Ajouter l’Entraînement Ultime aux Centres Pokémon",
     "battleItems.outputTitle": "Sortie Objets en combat",
     "gameOptions.nativeSaveHelp": "Pour Contrôle de caméra et Objets en combat, les valeurs initiales s’appliquent aux premiers réglages KM et au rétablissement des valeurs par défaut. Les choix visibles enregistrés sont conservés.",
     "battleItems.title": "Objets en combat",
@@ -4975,6 +4979,8 @@
     "hyperTraining.itemsDiagnostic": "Vérifiez les objets choisis et les fichiers d’Entraînement Ultime, puis examinez à nouveau les réglages."
   },
   "literals": {
+    "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "L’Entraînement Ultime utilise un ancien correctif de niveau qui conserve le seuil de N.100 pour les icônes de l’équipe et des boîtes. Appliquez à nouveau cet éditeur pour mettre à jour le sélecteur.",
+    "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "L’Entraînement Ultime affiche aussi les IV, avec un graphique gradué de 0 à 31.",
     "League Staff Isaac": "Isaac, employé de la Ligue",
     "Pokemon Breeder Elena": "Elena, Éleveuse Pokémon",
     "Weather NPC": "PNJ de la météo",

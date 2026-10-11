@@ -14,7 +14,8 @@ public sealed record StageHyperTrainingRequest(
     EditSessionDto? Session,
     int MinimumLevel,
     int? BottleCapItemId = null,
-    int? GoldBottleCapItemId = null);
+    int? GoldBottleCapItemId = null,
+    bool? PokemonCenterEnabled = null);
 
 public sealed record HyperTrainingProvenanceDto(
     string SourceFile,
@@ -62,6 +63,8 @@ public sealed record HyperTrainingWorkflowDto(
     public HyperTrainingItemsDto Items { get; init; } = new(795, 796);
     public HyperTrainingItemsDto RuntimeItems { get; init; } = new(795, 796);
     public IReadOnlyList<HyperTrainingItemOptionDto> ItemOptions { get; init; } = [];
+    public bool PokemonCenterEnabled { get; init; }
+    public string PokemonCenterMessage { get; init; } = "";
 }
 
 public sealed record LoadHyperTrainingWorkflowResponse(HyperTrainingWorkflowDto Workflow);

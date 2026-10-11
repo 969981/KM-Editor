@@ -15,7 +15,7 @@ internal sealed partial class SwShStarterPresentation
         var gifts = SwShGiftPokemonArchive.Parse(Read(SwShGiftPokemonWorkflowService.GiftPokemonDataPath)).Gifts;
         var current = GiftHashes.Select(hash => gifts.Single(gift => gift.Hash1 == hash))
             .Select(gift => new SwShStarterIdentity(gift.Species, gift.Form)).ToArray();
-        var previous = new SwShStarterIdentity[3][];
+        var previous = new SwShStarterIdentity[SwShStarterPresentationScript.Names.Length][];
         var scripts = SwShStarterPresentationScript.Names.Select(name => $"romfs/bin/script/amx/{name}.amx").ToArray();
         for (var script = 0; script < scripts.Length; script++)
             previous[script] = graph.ContainsKey(scripts[script])
@@ -74,7 +74,8 @@ internal sealed partial class SwShStarterPresentation
                         System.Globalization.CultureInfo.InvariantCulture);
                     var identity = new SwShStarterIdentity(Value("raw.Critter.Species"), Value("raw.Critter.Form"));
                     if (identity == originals[slot]) continue;
-                    if (identity != current[slot] && !previous.Any(mapping => mapping[slot] == identity))
+                    if (identity != current[slot] && !previous.Where((_, script) => SwShStarterPresentationScript.HasVoiceCalls(script))
+                        .Any(mapping => mapping[slot] == identity))
                     {
                         Diagnostics.Add(new(DiagnosticSeverity.Warning,
                             "A separately edited starter placement was preserved. Review its species and form in Placement.", PlacementPath,

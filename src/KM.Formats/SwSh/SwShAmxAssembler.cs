@@ -40,6 +40,19 @@ public sealed class SwShAmxAssembler
 
     public IReadOnlyList<uint> NativeHashes => readOnlyNativeHashes;
 
+    /// <summary>Appends a separate instruction graph, relocating its internal branches.</summary>
+    public IReadOnlyDictionary<SwShAmxInstruction, SwShAmxInstruction> AppendInstructions(
+        IReadOnlyList<SwShAmxInstruction> sourceInstructions)
+    {
+        ArgumentNullException.ThrowIfNull(sourceInstructions);
+        var copies = sourceInstructions.ToDictionary(instruction => instruction,
+            instruction => instruction.CloneWithOriginalCell(null));
+        foreach (var copy in copies.Values)
+        foreach (var pair in copies) copy.Retarget(pair.Key, pair.Value);
+        instructions.AddRange(sourceInstructions.Select(instruction => copies[instruction]));
+        return copies;
+    }
+
     /// <summary>Appends initialized data without changing existing data addresses.</summary>
     /// <returns>The data-relative byte address of the first appended cell.</returns>
     public int AppendDataCells(params long[] values)
@@ -145,6 +158,12 @@ public sealed class SwShAmxAssembler
 
     public byte[] Assemble()
     {
+        if (source.Header.OverlaysOffset != source.Header.NameTableOffset)
+        {
+            throw new InvalidDataException(
+                "Sword/Shield AMX overlay tables are not relocated by the deterministic assembler.");
+        }
+
         if (source.TrailingBytes.Length != 0)
         {
             throw new InvalidDataException(
@@ -191,7 +210,8 @@ public sealed class SwShAmxAssembler
             checked(source.Header.LibrariesOffset + definitionOffsetDelta),
             checked(source.Header.PublicVariablesOffset + definitionOffsetDelta),
             checked(source.Header.TagsOffset + definitionOffsetDelta),
-            checked(source.Header.NameTableOffset + definitionOffsetDelta));
+            checked(source.Header.NameTableOffset + definitionOffsetDelta),
+            checked(source.Header.OverlaysOffset + definitionOffsetDelta));
 
         var bodyCells = new List<ulong>(checked(codeCells.Count + dataCells.Count));
         bodyCells.AddRange(codeCells);
@@ -391,7 +411,8 @@ public sealed class SwShAmxAssembler
         int librariesOffset,
         int publicVariablesOffset,
         int tagsOffset,
-        int nameTableOffset)
+        int nameTableOffset,
+        int overlaysOffset)
     {
         BinaryPrimitives.WriteInt32LittleEndian(prefix.AsSpan(0x00), size);
         BinaryPrimitives.WriteInt32LittleEndian(prefix.AsSpan(0x0C), codeOffset);
@@ -403,6 +424,7 @@ public sealed class SwShAmxAssembler
         BinaryPrimitives.WriteInt32LittleEndian(prefix.AsSpan(0x2C), publicVariablesOffset);
         BinaryPrimitives.WriteInt32LittleEndian(prefix.AsSpan(0x30), tagsOffset);
         BinaryPrimitives.WriteInt32LittleEndian(prefix.AsSpan(0x34), nameTableOffset);
+        BinaryPrimitives.WriteInt32LittleEndian(prefix.AsSpan(0x38), overlaysOffset);
     }
 
     private static ulong EncodeDestination(

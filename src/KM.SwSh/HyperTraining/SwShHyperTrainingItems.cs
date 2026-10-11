@@ -11,20 +11,22 @@ namespace KM.SwSh.HyperTraining;
 
 public sealed record SwShHyperTrainingItems(int BottleCapItemId, int GoldBottleCapItemId);
 public sealed record SwShHyperTrainingItemOption(int ItemId, string Name);
-internal sealed record SwShHyperTrainingSelection(int MinimumLevel, SwShHyperTrainingItems Items)
+internal sealed record SwShHyperTrainingSelection(int MinimumLevel, SwShHyperTrainingItems Items, bool PokemonCenterEnabled = false)
 {
-    internal string Payload => Items == SwShHyperTrainingItemsPatcher.Defaults
+    internal string Payload => PokemonCenterEnabled
+        ? string.Create(CultureInfo.InvariantCulture, $"{MinimumLevel},{Items.BottleCapItemId},{Items.GoldBottleCapItemId},1")
+        : Items == SwShHyperTrainingItemsPatcher.Defaults
         ? MinimumLevel.ToString(CultureInfo.InvariantCulture)
         : string.Create(CultureInfo.InvariantCulture, $"{MinimumLevel},{Items.BottleCapItemId},{Items.GoldBottleCapItemId}");
     internal static SwShHyperTrainingSelection Parse(string? value)
     {
         var parts = value?.Split(',') ?? [];
-        if (parts.Length is not (1 or 3) || parts.Any(part => !int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out _)))
+        if (parts.Length is not (1 or 3 or 4) || parts.Any(part => !int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out _)))
             throw new InvalidDataException("Hyper Training settings are invalid.");
         var level = int.Parse(parts[0], CultureInfo.InvariantCulture);
         var items = parts.Length == 1 ? SwShHyperTrainingItemsPatcher.Defaults
             : new SwShHyperTrainingItems(int.Parse(parts[1], CultureInfo.InvariantCulture), int.Parse(parts[2], CultureInfo.InvariantCulture));
-        var selection = new SwShHyperTrainingSelection(level, items);
+        var selection = new SwShHyperTrainingSelection(level, items, parts.Length == 4 && parts[3] == "1");
         SwShHyperTrainingItemsPatcher.Validate(items);
         if (level is < 1 or > 100 || selection.Payload != value) throw new InvalidDataException("Hyper Training settings are not canonical.");
         return selection;
