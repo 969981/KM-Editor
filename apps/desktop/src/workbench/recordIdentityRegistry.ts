@@ -135,6 +135,7 @@ const registrations = {
   gameDump: operationScoped('gameDump'),
   gameplaySettings: operationScoped('gameplaySettings'),
   cameraControl: operationScoped('cameraControl'),
+  battleItems: operationScoped('battleItems'),
   cameraHook: operationScoped('cameraHook'),
   modelViewer: operationScoped('modelViewer'),
   soundStudio: operationScoped('soundStudio'),

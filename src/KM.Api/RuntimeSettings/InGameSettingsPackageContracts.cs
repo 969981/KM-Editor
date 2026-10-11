@@ -119,7 +119,8 @@ public sealed record InspectInGameSettingsPackageRequest(
     string? InstallationRootPath = null,
     bool UseSharedOutput = false,
     CameraHookRequirementDto? RequiredCameraHook = null,
-    bool CameraControl = false);
+    bool CameraControl = false,
+    bool BattleItems = false);
 
 public sealed record InspectInGameSettingsPackageResponse(
     InGameSettingsPackageSnapshotDto Snapshot);
@@ -137,7 +138,8 @@ public sealed record PreviewInGameSettingsPackageRequest(
     string? InstallationRootPath = null,
     bool UseSharedOutput = false,
     CameraHookRequirementDto? RequiredCameraHook = null,
-    bool CameraControl = false);
+    bool CameraControl = false,
+    bool BattleItems = false);
 
 public sealed record InGameSettingsPackageTargetDto(
     string RelativePath,

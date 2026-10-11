@@ -171,6 +171,7 @@ const cameraHookRequirementSchema = z.strictObject({
 export const inspectInGameSettingsPackageRequestSchema = z.strictObject({
   requiredCameraHook: cameraHookRequirementSchema,
   cameraControl: z.boolean().optional(),
+  battleItems: z.boolean().optional(),
   useSharedOutput: z.boolean().optional(),
   installationTarget: inGameSettingsInstallationTargetSchema,
   installationRootPath: z.string().min(1).max(32767).nullable().optional(),
@@ -184,6 +185,7 @@ export const inspectInGameSettingsPackageResponseSchema = z.strictObject({
 export const previewInGameSettingsPackageRequestSchema = z.strictObject({
   requiredCameraHook: cameraHookRequirementSchema,
   cameraControl: z.boolean().optional(),
+  battleItems: z.boolean().optional(),
   useSharedOutput: z.boolean().optional(),
   expectedRevision: sha256Schema,
   installationTarget: inGameSettingsInstallationTargetSchema,

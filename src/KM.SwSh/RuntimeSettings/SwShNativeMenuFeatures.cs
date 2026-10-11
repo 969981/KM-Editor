@@ -6,5 +6,6 @@ public enum SwShNativeMenuFeatures
 {
     Camera = 1,
     Gameplay = 2,
-    All = Camera | Gameplay,
+    BattleItems = 4,
+    All = Camera | Gameplay | BattleItems,
 }

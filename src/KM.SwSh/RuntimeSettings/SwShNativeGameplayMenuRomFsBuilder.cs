@@ -28,6 +28,8 @@ public static class SwShNativeGameplayMenuRomFsMaterializer
     ];
     private static readonly MessageDefinition[] Messages =
     [
+        new("km_battle_items", "Battle Items", "Objets en combat", "Kampfitems", "Strumenti in lotta", "せんとうの どうぐ", "戦闘中の道具", "배틀 도구", "对战道具", "Objetos en combate", "對戰道具"),
+        new("km_battle_items_help", "Use items from your Bag in battle.\\nPoké Balls keep their normal rules.", "Utiliser les objets du Sac en combat.\\nLes règles des Poké Balls restent normales.", "Items aus dem Beutel im Kampf nutzen.\\nFür Pokébälle gelten die normalen Regeln.", "Usa strumenti dalla Borsa in lotta.\\nLe Poké Ball seguono le regole normali.", "せんとうで バッグの どうぐを つかいます。\\nボールは いつもどおり つかえます。", "戦闘中にバッグの道具を使えます。\\nボールの使用条件は通常通りです。", "배틀에서 가방의 도구를 사용합니다.\\n몬스터볼의 사용 조건은 그대로입니다.", "对战中使用背包里的道具。\\n精灵球仍遵循通常的使用规则。", "Usa objetos de la Bolsa en combate.\\nLas Poké Balls conservan sus reglas.", "對戰中使用背包裡的道具。\\n精靈球仍遵循通常的使用規則。"),
         new("km_unlocked_camera", "Unlocked Camera", "Caméra libre", "Freie Kamera", "Telecamera libera", "じゆうなカメラ", "自由なカメラ", "자유 카메라", "自由镜头", "Cámara desbloqueada", "自由鏡頭"),
         new("km_no", "No", "Non", "Nein", "No", "いいえ", "いいえ", "아니요", "否", "No", "否"),
         new("km_yes", "Yes", "Oui", "Ja", "Sì", "はい", "はい", "예", "是", "Sí", "是"),
@@ -59,10 +61,15 @@ public static class SwShNativeGameplayMenuRomFsMaterializer
             ReadSource($"bin/message/{language}/{MessagePath}.tbl", KeysHash))).ToArray();
         foreach (var message in Messages)
         {
-            var camera = message.Key is "km_unlocked_camera" or "km_unlocked_camera_help" or "km_no" or "km_yes";
-            if (message.Key != "km_save_failed" && (camera
-                ? !features.HasFlag(SwShNativeMenuFeatures.Camera)
-                : !features.HasFlag(SwShNativeMenuFeatures.Gameplay))) continue;
+            var required = message.Key switch
+            {
+                "km_save_failed" => SwShNativeMenuFeatures.All,
+                "km_no" or "km_yes" => SwShNativeMenuFeatures.Camera | SwShNativeMenuFeatures.BattleItems,
+                "km_unlocked_camera" or "km_unlocked_camera_help" => SwShNativeMenuFeatures.Camera,
+                "km_battle_items" or "km_battle_items_help" => SwShNativeMenuFeatures.BattleItems,
+                _ => SwShNativeMenuFeatures.Gameplay,
+            };
+            if ((features & required) == 0) continue;
             cancellationToken.ThrowIfCancellationRequested();
             sources = CoordinatedGameTextAuthoring.Insert(sources, Languages, message.Key,
                 message.TextByLanguage, GameTextNullLineEncoding.LegacyCountOne)

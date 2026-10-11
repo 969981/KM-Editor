@@ -1138,9 +1138,11 @@ public sealed class InGameSettingsPackageApplicationService : IDisposable
                 GameplaySettingPresence.ExperienceShare
                 | GameplaySettingPresence.ExperienceRate
                 | GameplaySettingPresence.LevelCap
-                | (manifest.SettingsSchema == GameplaySettingsJournal.CameraSchema
+                | (manifest.SettingsSchema >= GameplaySettingsJournal.CameraSchema
                     ? GameplaySettingPresence.UnlockedCamera
-                    : GameplaySettingPresence.None));
+                    : GameplaySettingPresence.None)
+                | (manifest.SettingsSchema >= GameplaySettingsJournal.BattleItemsSchema
+                    ? GameplaySettingPresence.BattleItems : GameplaySettingPresence.None));
             var archive = GameplayBundleArchive.Build(
                 manifest,
                 components,

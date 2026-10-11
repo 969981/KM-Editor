@@ -13,11 +13,13 @@ using KM.SwSh.ExeFs;
 using KM.SwSh.HyperTraining;
 using KM.SwSh.Items;
 using KM.SwSh.Workflows;
+using KM.SwSh.RuntimeSettings;
 
 namespace KM.SwSh.GameOptions;
 
 public sealed record SwShGameOptionsWorkflow(bool CanEdit, ProjectGame? DetectedGame,
-    IReadOnlyList<int> Selections, string SourceLayer, IReadOnlyList<ValidationDiagnostic> Diagnostics);
+    IReadOnlyList<int> Selections, string SourceLayer, IReadOnlyList<ValidationDiagnostic> Diagnostics,
+    int InstalledFeatures = 0);
 public sealed record SwShGameOptionsResult(SwShGameOptionsWorkflow Workflow, EditSession Session,
     IReadOnlyList<ValidationDiagnostic> Diagnostics);
 
@@ -43,7 +45,7 @@ public sealed class SwShGameOptionsService(ProjectWorkspaceService? workspace = 
         var diagnostics = new List<ValidationDiagnostic>();
         var state = Read(paths, diagnostics);
         return new(state?.CanEdit == true, paths.SelectedGame, state?.Selections ?? [],
-            state?.Layer.ToString().ToLowerInvariant() ?? "missing", diagnostics);
+            state?.Layer.ToString().ToLowerInvariant() ?? "missing", diagnostics, ReadInstalledFeatures(paths));
     }
 
     public SwShGameOptionsResult Stage(ProjectPaths paths, IReadOnlyList<int>? selections, EditSession? session)
@@ -79,6 +81,7 @@ public sealed class SwShGameOptionsService(ProjectWorkspaceService? workspace = 
         var selections = Decode(session, diagnostics);
         if (state is null || HasErrors(diagnostics)) return new(session.Id, [], diagnostics);
         var sources = new ProjectFileReference[] { new(ProjectFileLayer.Base, MainPath) }
+            .Append(new(ProjectFileLayer.Generated, "exefs/subsdk9"))
             .Concat(state.Layer == ProjectFileLayer.Layered ? [new ProjectFileReference(ProjectFileLayer.Layered, MainPath)] : [])
             .Concat(CreateEdit(selections).Sources).ToArray();
         PlannedFileWrite[] writes = state.Selections.SequenceEqual(selections) ? [] :
@@ -154,6 +157,17 @@ public sealed class SwShGameOptionsService(ProjectWorkspaceService? workspace = 
             "game-options", "selections", payload);
     }
 
+    private static int ReadInstalledFeatures(ProjectPaths paths)
+    {
+        try
+        {
+            var runtime = SwShHyperTrainingWorkflowService.ResolveOutputPath(paths, "exefs/subsdk9");
+            return runtime is not null && File.Exists(runtime)
+                ? (int)SwShNativeMenuFeatureReader.Read(File.ReadAllBytes(runtime)) : 0;
+        }
+        catch (Exception exception) when (IsSourceError(exception)) { return 0; }
+    }
+
     internal static int[] Decode(EditSession session, List<ValidationDiagnostic> diagnostics)
     {
         if (session.PendingEdits.Count != 1) { diagnostics.Add(Error(SessionCode, "Stage game option selections before review.")); return []; }
@@ -161,14 +175,14 @@ public sealed class SwShGameOptionsService(ProjectWorkspaceService? workspace = 
         var selections = (edit.NewValue ?? "").Split(',').Select(value => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var rate) ? rate : -1).ToArray();
         try
         {
-            if (!SwShGameOptionsPolicy.Normalize(selections).SequenceEqual(selections)) throw new InvalidDataException();
+            if (!SwShGameOptionsPolicy.Normalize(selections).Take(selections.Length).SequenceEqual(selections)) throw new InvalidDataException();
         }
         catch (InvalidDataException) { diagnostics.Add(Error(SessionCode, "The staged game option selections are invalid. Stage them again.")); return []; }
         var expected = CreateEdit(selections);
         if (edit.Domain != Domain || edit.RecordId != expected.RecordId || edit.Field != expected.Field
             || edit.NewValue != expected.NewValue || edit.Summary != expected.Summary || !edit.Sources.SequenceEqual(expected.Sources))
             diagnostics.Add(Error(SessionCode, "The staged game option selections are inconsistent. Stage them again."));
-        return selections;
+        return SwShGameOptionsPolicy.Normalize(selections);
     }
 
     private static void RequireEditable(State? state, List<ValidationDiagnostic> diagnostics)

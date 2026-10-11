@@ -65,6 +65,7 @@ export const workbenchSections = [
   'gameDump',
   'gameplaySettings',
   'cameraControl',
+  'battleItems',
   'modelViewer',
   'soundStudio',
   'changes',

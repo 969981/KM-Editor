@@ -20,6 +20,7 @@ public enum GameplaySettingPresence : ulong
     ExperienceRate = 1UL << 1,
     LevelCap = 1UL << 2,
     UnlockedCamera = 1UL << 3,
+    BattleItems = 1UL << 4,
 }
 
 public readonly record struct GameplaySettingsWriterVersion(
@@ -32,7 +33,8 @@ public sealed record GameplaySettingsValues(
     uint ExperienceRateBasisPoints,
     bool LevelCapEnabled,
     byte LevelCap,
-    bool UnlockedCamera = false)
+    bool UnlockedCamera = false,
+    bool BattleItemsEnabled = true)
 {
     public static GameplaySettingsValues Vanilla { get; } = new(
         ExperienceShareEnabled: true,
@@ -104,13 +106,15 @@ public static class GameplaySettingsJournal
     public const int JournalSize = SlotSize * 2;
     public const ushort SupportedSchema = 1;
     public const ushort CameraSchema = 2;
+    public const ushort BattleItemsSchema = 3;
 
     private const ushort HeaderSize = 0x50;
     private const ulong KnownPresenceMask = (ulong)(
         GameplaySettingPresence.ExperienceShare
         | GameplaySettingPresence.ExperienceRate
         | GameplaySettingPresence.LevelCap
-        | GameplaySettingPresence.UnlockedCamera);
+        | GameplaySettingPresence.UnlockedCamera
+        | GameplaySettingPresence.BattleItems);
     private const ulong SerialHalfRange = 1UL << 63;
     private static readonly byte[] Magic = Encoding.ASCII.GetBytes("KMGSET01");
     private static readonly byte[] Owner = Encoding.ASCII.GetBytes("KMEDITOR");
@@ -317,7 +321,8 @@ public static class GameplaySettingsJournal
             retained.HasFlag(GameplaySettingPresence.LevelCap)
                 ? current.LevelCap
                 : GameplaySettingsValues.Vanilla.LevelCap,
-            retained.HasFlag(GameplaySettingPresence.UnlockedCamera) && current.UnlockedCamera);
+            retained.HasFlag(GameplaySettingPresence.UnlockedCamera) && current.UnlockedCamera,
+            !retained.HasFlag(GameplaySettingPresence.BattleItems) || current.BattleItemsEnabled);
         return CreateUpdate(
             journal,
             expectedFamily,
@@ -375,6 +380,8 @@ public static class GameplaySettingsJournal
         packed |= (ulong)SchemaFor(effective) << 44;
         if (effective.HasFlag(GameplaySettingPresence.UnlockedCamera)) packed |= 1UL << 48;
         if (values.UnlockedCamera) packed |= 1UL << 49;
+        if (effective.HasFlag(GameplaySettingPresence.BattleItems)) packed |= 1UL << 50;
+        if (!values.BattleItemsEnabled) packed |= 1UL << 51;
         return packed;
     }
 
@@ -382,20 +389,23 @@ public static class GameplaySettingsJournal
         ulong packed)
     {
         var cameraPresent = (packed & (1UL << 48)) != 0;
-        if ((packed >> 50) != 0
-            || ((packed >> 44) & 0xFUL) != (cameraPresent ? CameraSchema : SupportedSchema))
+        var battleItemsPresent = (packed & (1UL << 50)) != 0;
+        if ((packed >> 52) != 0
+            || ((packed >> 44) & 0xFUL) != (battleItemsPresent ? BattleItemsSchema : cameraPresent ? CameraSchema : SupportedSchema))
         {
             throw new InvalidDataException("The gameplay settings callback snapshot has an unsupported envelope.");
         }
 
         var presence = ValidatePresence((GameplaySettingPresence)((packed >> 41) & 7)
-            | (cameraPresent ? GameplaySettingPresence.UnlockedCamera : GameplaySettingPresence.None));
+            | (cameraPresent ? GameplaySettingPresence.UnlockedCamera : GameplaySettingPresence.None)
+            | (battleItemsPresent ? GameplaySettingPresence.BattleItems : GameplaySettingPresence.None));
         var values = new GameplaySettingsValues(
             ExperienceShareEnabled: (packed & 1) != 0,
             ExperienceRateBasisPoints: (uint)((packed >> 9) & uint.MaxValue),
             LevelCapEnabled: (packed & (1UL << 1)) != 0,
             LevelCap: (byte)((packed >> 2) & 0x7F),
-            UnlockedCamera: (packed & (1UL << 49)) != 0);
+            UnlockedCamera: (packed & (1UL << 49)) != 0,
+            BattleItemsEnabled: (packed & (1UL << 51)) == 0);
         var canonical = CanonicalizeValues(presence, values);
         if (canonical != values)
         {
@@ -580,7 +590,7 @@ public static class GameplaySettingsJournal
                 slot[..recordSize].ToArray());
         }
 
-        if (schema > CameraSchema)
+        if (schema > BattleItemsSchema)
         {
             return new GameplaySettingsSlotInspection(
                 slotIndex,
@@ -591,7 +601,7 @@ public static class GameplaySettingsJournal
                 slot[..recordSize].ToArray());
         }
 
-        if (schema is not SupportedSchema and not CameraSchema
+        if (schema is not SupportedSchema and not CameraSchema and not BattleItemsSchema
             || headerSize != HeaderSize
             || recordSize != RecordSize
             || !TryParseSupportedSchema(slot, schema, expectedFamily, expectedTitleId, out var snapshot))
@@ -630,15 +640,16 @@ public static class GameplaySettingsJournal
         var cap = slot[0x3E];
         var familyFlags = BinaryPrimitives.ReadUInt64LittleEndian(slot[0x40..]);
         var cameraPresent = (rawPresence & (ulong)GameplaySettingPresence.UnlockedCamera) != 0;
+        var battleItemsPresent = (rawPresence & (ulong)GameplaySettingPresence.BattleItems) != 0;
         if (familyFlagsSchema != 0
             || familyFlags != 0
             || (rawPresence & ~KnownPresenceMask) != 0
             || share > 1
             || capEnabled > 1
             || cap is < 1 or > 100
-            || schema != (cameraPresent ? CameraSchema : SupportedSchema)
-            || cameraPresent && expectedFamily != GameplaySettingsFamily.SwordShield
-            || slot[0x3F] > (cameraPresent ? 1 : 0)
+            || schema != SchemaFor((GameplaySettingPresence)rawPresence)
+            || (cameraPresent || battleItemsPresent) && expectedFamily != GameplaySettingsFamily.SwordShield
+            || (slot[0x3F] & ~((cameraPresent ? 1 : 0) | (battleItemsPresent ? 2 : 0))) != 0
             || slot.Slice(0x4C, 4).IndexOfAnyExcept((byte)0) >= 0
             || slot.Slice(0x50, RecordSize - 0x50).IndexOfAnyExcept((byte)0) >= 0)
         {
@@ -646,7 +657,8 @@ public static class GameplaySettingsJournal
         }
 
         var presence = (GameplaySettingPresence)rawPresence;
-        var values = new GameplaySettingsValues(share != 0, rate, capEnabled != 0, cap, slot[0x3F] != 0);
+        var values = new GameplaySettingsValues(share != 0, rate, capEnabled != 0, cap,
+            (slot[0x3F] & 1) != 0, (slot[0x3F] & 2) == 0);
         if (CanonicalizeValues(presence, values) != values)
         {
             return false;
@@ -676,9 +688,9 @@ public static class GameplaySettingsJournal
         ValidateIdentity(family, titleId);
         var normalizedPresence = ValidatePresence(presence);
         var normalizedValues = CanonicalizeValues(normalizedPresence, values);
-        if (normalizedPresence.HasFlag(GameplaySettingPresence.UnlockedCamera)
+        if ((normalizedPresence & (GameplaySettingPresence.UnlockedCamera | GameplaySettingPresence.BattleItems)) != 0
             && family != GameplaySettingsFamily.SwordShield)
-            throw new ArgumentException("Camera control is supported only for Sword and Shield.", nameof(presence));
+            throw new ArgumentException("These settings are supported only for Sword and Shield.", nameof(presence));
         var slot = new byte[SlotSize];
         Magic.CopyTo(slot, 0x00);
         Owner.CopyTo(slot, 0x08);
@@ -696,7 +708,7 @@ public static class GameplaySettingsJournal
         slot[0x3C] = normalizedValues.ExperienceShareEnabled ? (byte)1 : (byte)0;
         slot[0x3D] = normalizedValues.LevelCapEnabled ? (byte)1 : (byte)0;
         slot[0x3E] = normalizedValues.LevelCap;
-        slot[0x3F] = normalizedValues.UnlockedCamera ? (byte)1 : (byte)0;
+        slot[0x3F] = (byte)((normalizedValues.UnlockedCamera ? 1 : 0) | (normalizedValues.BattleItemsEnabled ? 0 : 2));
         var crc = ComputeCrc32C(slot.AsSpan(0, RecordSize));
         BinaryPrimitives.WriteUInt32LittleEndian(slot.AsSpan(0x48), crc);
         return slot;
@@ -726,7 +738,8 @@ public static class GameplaySettingsJournal
     }
 
     public static ushort SchemaFor(GameplaySettingPresence presence) =>
-        presence.HasFlag(GameplaySettingPresence.UnlockedCamera) ? CameraSchema : SupportedSchema;
+        presence.HasFlag(GameplaySettingPresence.BattleItems) ? BattleItemsSchema
+            : presence.HasFlag(GameplaySettingPresence.UnlockedCamera) ? CameraSchema : SupportedSchema;
 
     private static GameplaySettingsValues CanonicalizeValues(
         GameplaySettingPresence presence,
@@ -751,7 +764,8 @@ public static class GameplaySettingsJournal
             presence.HasFlag(GameplaySettingPresence.LevelCap) && values.LevelCapEnabled
                 ? values.LevelCap
                 : GameplaySettingsValues.Vanilla.LevelCap,
-            presence.HasFlag(GameplaySettingPresence.UnlockedCamera) && values.UnlockedCamera);
+            presence.HasFlag(GameplaySettingPresence.UnlockedCamera) && values.UnlockedCamera,
+            !presence.HasFlag(GameplaySettingPresence.BattleItems) || values.BattleItemsEnabled);
     }
 
     private static void ValidateIdentity(GameplaySettingsFamily family, ulong titleId)

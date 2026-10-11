@@ -36,21 +36,22 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
 
     public async Task<InspectInGameSettingsPackageResponse> InspectAsync(InspectInGameSettingsPackageRequest request,
         CancellationToken token) => new((await LoadAsync(request.Scope, request.InstallationTarget,
-            request.InstallationRootPath, token, request.RequiredCameraHook is null, request.CameraControl).ConfigureAwait(false)).Snapshot);
+            request.InstallationRootPath, token, request.RequiredCameraHook is null, request.CameraControl, request.BattleItems).ConfigureAwait(false)).Snapshot);
 
     public async Task<PreviewInGameSettingsPackageResponse> PreviewAsync(PreviewInGameSettingsPackageRequest request,
         CancellationToken token)
     {
         var loaded = await LoadAsync(request.Scope, request.InstallationTarget, request.InstallationRootPath, token,
-            request.RequiredCameraHook is null, request.CameraControl).ConfigureAwait(false);
+            request.RequiredCameraHook is null, request.CameraControl, request.BattleItems).ConfigureAwait(false);
         if (loaded.Snapshot.Revision != request.ExpectedRevision) throw new InGameSettingsPackageStateConflictException();
         var remove = request.Operation == InGameSettingsPackageOperationDto.Remove;
         var removeAll = remove;
-        if (remove && !loaded.Context.IsExternal && loaded.Receipt?.Features is { } installedFeatures) {
-            var remaining = installedFeatures & ~(request.CameraControl ? SwShNativeMenuFeatures.Camera : SwShNativeMenuFeatures.Gameplay);
+        if (remove && !loaded.Context.IsExternal && loaded.Receipt is { } installedReceipt) {
+            var installedFeatures = installedReceipt.Features ?? (SwShNativeMenuFeatures.Camera | SwShNativeMenuFeatures.Gameplay);
+            var remaining = installedFeatures & ~SelectedFeature(request.CameraControl, request.BattleItems);
             if (remaining != 0) {
                 loaded = await LoadAsync(request.Scope, request.InstallationTarget, request.InstallationRootPath, token,
-                    request.RequiredCameraHook is null, request.CameraControl, remaining).ConfigureAwait(false);
+                    request.RequiredCameraHook is null, request.CameraControl, request.BattleItems, remaining).ConfigureAwait(false);
                 removeAll = false;
             }
         }
@@ -83,7 +84,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                 reviews.Remove(reviews.Values.MinBy(review => review.Expires)!.Id);
             reviews.Add(id, new(id, loaded.Context.ScopeKey, request.InstallationTarget, request.Operation, expiry, plan,
                 loaded.ExternalDependencies, remove ? null : loaded.SourceReceiptState, requiredHook,
-                !removeAll && !loaded.Context.IsExternal ? loaded.NextReceiptBytes : null, retained, request.CameraControl));
+                !removeAll && !loaded.Context.IsExternal ? loaded.NextReceiptBytes : null, retained, request.CameraControl, request.BattleItems));
         }
         return new(id, expiry, request.Operation, loaded.Snapshot,
             mutations.Select(mutation => new InGameSettingsPackageTargetDto(mutation.Path.Value,
@@ -134,7 +135,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         if (result.Outcome != OutputApplyOutcome.RecoveryRequired)
         {
             try { snapshot = (await LoadAsync(request.Scope, request.InstallationTarget, request.InstallationRootPath, CancellationToken.None,
-                review.RequiredHook is null, review.CameraControl).ConfigureAwait(false)).Snapshot; }
+                review.RequiredHook is null, review.CameraControl, review.BattleItems).ConfigureAwait(false)).Snapshot; }
             catch (Exception exception) when (exception is IOException or ArgumentException or InvalidOperationException or UnauthorizedAccessException) { }
         }
         return new(result.TransactionId.Value, result.Outcome switch
@@ -146,7 +147,8 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
     }
 
     private async Task<Loaded> LoadAsync(OutputScopeDto scope, InGameSettingsInstallationTargetDto target, string? root, CancellationToken token,
-        bool includeConsoleSettings = true, bool cameraControl = false, SwShNativeMenuFeatures? remainingFeatures = null)
+        bool includeConsoleSettings = true, bool cameraControl = false, bool battleItems = false,
+        SwShNativeMenuFeatures? remainingFeatures = null)
     {
         var context = ResolveContext(scope, target, root);
         var title = ProjectGameMetadata.Get(context.Paths.SelectedGame!.Value).TitleId;
@@ -198,8 +200,10 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                 var runtime = loaded.Targets["EXEFS/SUBSDK9"];
                 if (runtime.Exists) RequireOwned(context.Source, ownership, runtime, mutable: false);
             }
-            var requestedFeature = cameraControl ? SwShNativeMenuFeatures.Camera : SwShNativeMenuFeatures.Gameplay;
-            var features = remainingFeatures ?? ((sourceReceipt?.Features ?? 0) | requestedFeature);
+            var requestedFeature = SelectedFeature(cameraControl, battleItems);
+            var priorFeatures = sourceReceipt is null ? 0 : sourceReceipt.Features
+                ?? (SwShNativeMenuFeatures.Camera | SwShNativeMenuFeatures.Gameplay);
+            var features = remainingFeatures ?? (priorFeatures | requestedFeature);
             var resolution = await provider.ResolveSharedAsync(context.Source.Paths, context.Paths.SelectedGame.Value, normalized, token, features).ConfigureAwait(false);
             loaded.ExternalDependencies = loaded.ExternalDependencies.AddRange(resolution.ExternalSourceDependencies ?? []);
             foreach (var dependency in resolution.SourceDependencies ?? [])
@@ -216,6 +220,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             var bundle = GameplayBundleArchive.Read(entry.ArchiveBytes, GameplaySettingsFamily.SwordShield);
             loaded.Available = ToDto(entry);
             loaded.Bootstrap = journal.Exists ? journal.Bytes.ToArray() : sourceReceipt?.Journal ?? bundle.SettingsJournal.ToArray();
+            loaded.Bootstrap = UpgradeJournal(loaded, loaded.Bootstrap);
             var generated = new List<SharedGameplayMenuFile>();
             foreach (var component in bundle.ImmutableComponents)
             {
@@ -246,10 +251,10 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             var needsUpdate = sourceReceipt is not null && (generated.Any(file =>
                 !ComponentMatches(file.Path, file.After, loaded.Targets[new RelativeOutputPath(file.Path).CanonicalKey].Bytes.AsSpan()))
                 || privateReceiptHash is null || includeConsoleSettings && !journal.Exists
+                || includeConsoleSettings && journal.Exists && !journal.Bytes.AsSpan().SequenceEqual(loaded.Bootstrap)
                 || sourceReceipt.ConsoleSettings != includeConsoleSettings
                 || sourceReceipt.Package.PackageVersion != loaded.Available.PackageVersion);
-            var selectedInstalled = sourceReceipt is not null && (sourceReceipt.Features is null
-                || sourceReceipt.Features.Value.HasFlag(requestedFeature));
+            var selectedInstalled = sourceReceipt is not null && priorFeatures.HasFlag(requestedFeature);
             if (!selectedInstalled) loaded.Installed = null;
             return Finish(loaded, !selectedInstalled ? InGameSettingsPackageStateDto.NotInstalled
                 : needsUpdate ? InGameSettingsPackageStateDto.UpgradeAvailable : InGameSettingsPackageStateDto.Installed);
@@ -294,8 +299,9 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             : await ReadInitialCameraHookValues(loaded, token).ConfigureAwait(false);
         var settings = NativeGameplayMenuBundleFactory.CreateCameraHookSettings(loaded.Context.Paths.SelectedGame!.Value, initialValues);
         loaded.Available = settings.Package;
-        loaded.Bootstrap = settings.Journal;
-        if (receipt.Exists) return Finish(loaded, journal.Exists && loaded.Installed!.PackageVersion == settings.Package.PackageVersion
+        loaded.Bootstrap = journal.Exists ? UpgradeJournal(loaded, journal.Bytes.ToArray()) : settings.Journal;
+        if (receipt.Exists) return Finish(loaded, journal.Exists && journal.Bytes.AsSpan().SequenceEqual(loaded.Bootstrap)
+            && loaded.Installed!.PackageVersion == settings.Package.PackageVersion
             ? InGameSettingsPackageStateDto.Installed : InGameSettingsPackageStateDto.UpgradeAvailable);
         if (journal.Exists) throw new InvalidDataException("An unrecognized settings journal occupies the destination.");
         return Finish(loaded, InGameSettingsPackageStateDto.NotInstalled);
@@ -372,6 +378,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         else if (!journal.Exists)
             mutations.Add(OutputMutation.WriteRuntimeMutableBootstrap(journal.Path, loaded.Bootstrap!, journal.State,
                 [Claim(loaded, journal.Path)], loaded.Context.GameFamily, loaded.TitleId));
+        else AddJournalUpgrade(loaded, journal, mutations);
         return mutations;
     }
 
@@ -405,6 +412,35 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             mutations.Add(OutputMutation.Write(receiptTarget.Path, receipt!, receiptTarget.State, [Claim(loaded, receiptTarget.Path)]));
         if (!journal.Exists) mutations.Add(OutputMutation.WriteRuntimeMutableBootstrap(journal.Path, loaded.Bootstrap!, journal.State,
             [Claim(loaded, journal.Path)], loaded.Context.GameFamily, loaded.TitleId));
+        else AddJournalUpgrade(loaded, journal, mutations);
+    }
+
+    private static SwShNativeMenuFeatures SelectedFeature(bool cameraControl, bool battleItems)
+    {
+        if (cameraControl && battleItems) throw new ArgumentException("Choose one editor for this operation.");
+        return battleItems ? SwShNativeMenuFeatures.BattleItems
+            : cameraControl ? SwShNativeMenuFeatures.Camera : SwShNativeMenuFeatures.Gameplay;
+    }
+
+    private static byte[] UpgradeJournal(Loaded loaded, byte[] bytes)
+    {
+        const GameplaySettingPresence presence = GameplaySettingPresence.ExperienceShare
+            | GameplaySettingPresence.ExperienceRate | GameplaySettingPresence.LevelCap
+            | GameplaySettingPresence.UnlockedCamera | GameplaySettingPresence.BattleItems;
+        var inspection = GameplaySettingsJournal.Inspect(bytes, GameplaySettingsFamily.SwordShield, loaded.TitleId);
+        if (!inspection.WritesAllowed || inspection.ActiveSnapshot is null) throw new InvalidDataException("Invalid gameplay settings journal.");
+        if (inspection.ActiveSnapshot.Presence == presence) return bytes;
+        var version = loaded.Available!.PackageVersion;
+        return GameplaySettingsJournal.CreatePresenceTransition(bytes, GameplaySettingsFamily.SwordShield,
+            loaded.TitleId, new(checked((ushort)version.Major), checked((ushort)version.Minor), checked((ushort)version.Patch)), presence).JournalBytes;
+    }
+
+    private static void AddJournalUpgrade(Loaded loaded, ReviewedTarget journal, List<OutputMutation> mutations)
+    {
+        if (journal.Bytes.AsSpan().SequenceEqual(loaded.Bootstrap)) return;
+        var owned = RequireJournal(loaded, journal);
+        mutations.Add(OutputMutation.WriteRuntimeMutableTransition(journal.Path, journal.Bytes.AsMemory(),
+            loaded.Bootstrap!, journal.State, owned.Claims, loaded.Context.GameFamily, loaded.TitleId));
     }
 
     private static void ValidateSource(Loaded loaded, string path, bool needsOwnership)
@@ -524,7 +560,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         InGameSettingsPackageOperationDto Operation, DateTimeOffset Expires,
         OutputApplyPlan Plan, ImmutableArray<InGameSettingsExternalSourceDependency> ExternalDependencies,
         OutputFileState? SourceReceiptState, CameraHookRequirementDto? RequiredHook, byte[]? ReceiptBytes, long RetainedBytes,
-        bool CameraControl);
+        bool CameraControl, bool BattleItems);
 
     private sealed class Loaded(PackageScopeContext context, OutputOwnershipInventorySnapshot ownership, ulong title)
     {

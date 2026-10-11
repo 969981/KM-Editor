@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
-import { Camera, Cctv, FlaskConical, ShieldAlert } from 'lucide-react';
+import { Camera, Cctv, FlaskConical, Pill, ShieldAlert } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CameraHookRequirement, type CameraHookStatus } from '../camera-control/CameraHookRequirement';
 import type { OutputSafetyScope } from '../../bridge/outputSafetyContracts';
@@ -18,6 +18,7 @@ type GameplaySettingsBridge = Pick<
 
 export type GameplaySettingsSectionProps = GameplaySettingsDestinations & {
   cameraControl?: boolean;
+  battleItems?: boolean;
   cameraHook?: boolean;
   onOpenCameraHook?: () => void;
   armCriticalWriteGuard: () => Promise<boolean>;
@@ -38,6 +39,7 @@ export type GameplaySettingsSectionProps = GameplaySettingsDestinations & {
 
 export function GameplaySettingsSection({
   cameraControl = false,
+  battleItems = false,
   cameraHook = false,
   onOpenCameraHook,
   armCriticalWriteGuard,
@@ -54,7 +56,7 @@ export function GameplaySettingsSection({
   scope
 }: GameplaySettingsSectionProps) {
   const { t } = useLocalization();
-  const HeadingIcon = cameraHook ? Cctv : cameraControl ? Camera : FlaskConical;
+  const HeadingIcon = cameraHook ? Cctv : battleItems ? Pill : cameraControl ? Camera : FlaskConical;
   const [hookStatus, setHookStatus] = useState<CameraHookStatus | null>(null);
   const stableScope = useMemo<OutputSafetyScope | null>(
     () => (hasGameplaySettingsOutputScope(scope) ? copyGameplaySettingsScope(scope) : null),
@@ -84,7 +86,7 @@ export function GameplaySettingsSection({
           <HeadingIcon aria-hidden="true" size={20} />
           <div>
             <div className="gameplay-settings__title-row">
-              <h2 id="gameplay-settings-title">{t(cameraHook ? 'cameraHook.title' : cameraControl ? 'cameraControl.title' : 'gameplaySettings.title')}</h2>
+              <h2 id="gameplay-settings-title">{t(cameraHook ? 'cameraHook.title' : battleItems ? 'battleItems.title' : cameraControl ? 'cameraControl.title' : 'gameplaySettings.title')}</h2>
               {!cameraHook ? <span className="gameplay-settings__beta-badge">{t('gameplaySettings.betaBadge')}</span> : null}
             </div>
 
@@ -102,6 +104,16 @@ export function GameplaySettingsSection({
         </div>
         <p>{t('cameraControl.scenes')}</p>
         <p className="field-note">{t('cameraControl.sharedPackage')}</p>
+      </div> : null}
+
+      {battleItems ? <div className="camera-control__overview">
+        <p>{t('battleItems.instructions')}</p>
+        <div className="camera-control__choices">
+          <div><h3>{t('cameraControl.yes')}</h3><p>{t('battleItems.yesDescription')}</p></div>
+          <div><h3>{t('cameraControl.no')}</h3><p>{t('battleItems.noDescription')}</p></div>
+        </div>
+        <p>{t('battleItems.scope')}</p>
+        <p className="field-note">{t('battleItems.optionsHelp')}</p>
       </div> : null}
 
       {!cameraHook ? <div className="gameplay-settings__beta-notice" role="note">
@@ -124,9 +136,11 @@ export function GameplaySettingsSection({
       ) : (
         <>
         {sharedOutput ? <CameraHookRequirement key={JSON.stringify(stableScope)} scope={stableScope} bridge={bridge}
+          domain={battleItems ? 'workflow.battleItems' : cameraControl ? 'workflow.cameraControl' : 'workflow.gameplaySettings'}
           destinations={destinations} onStatus={setHookStatus} onOpenCameraHook={onOpenCameraHook} /> : null}
         <InGameSettingsPackagePanel
           cameraControl={cameraControl}
+          battleItems={battleItems}
           purpose={cameraHook ? 'hook' : sharedOutput ? 'output' : 'combined'}
           canPrepare={!sharedOutput || Boolean(hookReady)}
           requiredCameraHook={sharedOutput && hookReady ? hookStatus?.requirement : undefined}

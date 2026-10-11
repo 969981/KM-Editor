@@ -40,7 +40,7 @@ public static class GameplayBundleIdentity
     public const uint BundleAbi = 1;
     public const ushort SettingsSchema = 1;
     public static bool SupportsSettingsSchema(ushort schema) =>
-        schema is SettingsSchema or GameplaySettingsJournal.CameraSchema;
+        schema is SettingsSchema or GameplaySettingsJournal.CameraSchema or GameplaySettingsJournal.BattleItemsSchema;
     public const int MaximumComponentCount = 4096;
     public const int MaximumNormalizedPathLength = 1024;
     public const int MaximumSerializationBytes = 4 * 1024 * 1024;

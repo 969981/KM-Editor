@@ -34,7 +34,7 @@ public static partial class NativeGameplayMenuBundleFactory
     public const string RuntimeComponentName = "subsdk9";
     private const int MaximumNativeMenuComponentCount = 64;
 
-    private static readonly GameplayBundleVersion PackageVersion = new(2, 5, 8);
+    private static readonly GameplayBundleVersion PackageVersion = new(2, 5, 9);
     private static readonly GameplayBundleVersion FirstNativeMenuPackageVersion = new(2, 5, 0);
     private static readonly GameplaySettingPresence SettingsPresence =
         GameplaySettingPresence.ExperienceShare
@@ -59,6 +59,9 @@ public static partial class NativeGameplayMenuBundleFactory
             || manifest.SettingsSchema == GameplaySettingsJournal.CameraSchema
                 && (game is not ProjectGame.Sword and not ProjectGame.Shield
                     || CompareVersion(manifest.PackageVersion, new(2, 5, 2)) < 0)
+            || manifest.SettingsSchema == GameplaySettingsJournal.BattleItemsSchema
+                && (game is not ProjectGame.Sword and not ProjectGame.Shield
+                    || CompareVersion(manifest.PackageVersion, new(2, 5, 9)) < 0)
             || !HasBoundedArchiveInventory(manifest))
         {
             return false;
@@ -177,7 +180,7 @@ public static partial class NativeGameplayMenuBundleFactory
         var update = GetUpdateVersion(game);
         var settingsFamily = GameplayBundleDeploymentPlanner.ToSettingsFamily(family);
         var settingsPresence = SettingsPresence | (game is ProjectGame.Sword or ProjectGame.Shield
-            ? GameplaySettingPresence.UnlockedCamera : GameplaySettingPresence.None);
+            ? GameplaySettingPresence.UnlockedCamera | GameplaySettingPresence.BattleItems : GameplaySettingPresence.None);
         var settingsSchema = GameplaySettingsJournal.SchemaFor(settingsPresence);
         var sourceMain = retailMain.ToArray();
         var parsedSource = NsoFile.Parse(sourceMain);

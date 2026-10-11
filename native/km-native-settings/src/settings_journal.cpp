@@ -10,9 +10,10 @@ constexpr size_t JournalSize = SlotSize * 2;
 constexpr uint16_t HeaderSize = 0x50;
 constexpr uint16_t SupportedSchema = 1;
 constexpr uint16_t CameraSchema = 2;
+constexpr uint16_t BattleItemsSchema = 3;
 constexpr uint64_t KnownPresence =
     km::PresenceExperienceShare | km::PresenceExperienceRate | km::PresenceLevelCap
-    | km::PresenceUnlockedCamera;
+    | km::PresenceUnlockedCamera | km::PresenceBattleItems;
 constexpr uint64_t SerialHalfRange = uint64_t{1} << 63;
 constexpr uint8_t Magic[8] = {'K', 'M', 'G', 'S', 'E', 'T', '0', '1'};
 constexpr uint8_t Owner[8] = {'K', 'M', 'E', 'D', 'I', 'T', 'O', 'R'};
@@ -86,6 +87,7 @@ bool IsCanonical(uint64_t presence, const km::SettingsValues& values) {
         return false;
     }
     if ((presence & km::PresenceUnlockedCamera) == 0 && values.unlocked_camera) return false;
+    if ((presence & km::PresenceBattleItems) == 0 && !values.battle_items_enabled) return false;
     if ((presence & km::PresenceExperienceShare) == 0 && !values.experience_share) {
         return false;
     }
@@ -124,7 +126,8 @@ bool ValuesEqual(const km::SettingsValues& left,
         && left.experience_rate_basis_points == right.experience_rate_basis_points
         && left.level_cap_enabled == right.level_cap_enabled
         && left.level_cap == right.level_cap
-        && left.unlocked_camera == right.unlocked_camera;
+        && left.unlocked_camera == right.unlocked_camera
+        && left.battle_items_enabled == right.battle_items_enabled;
 }
 
 SlotView InspectSlot(const uint8_t* slot, km::SettingsFamily family,
@@ -152,23 +155,26 @@ SlotView InspectSlot(const uint8_t* slot, km::SettingsFamily family,
     if (!identity_matches) {
         return SlotView{SlotKind::Foreign, 0, 0, km::VanillaSettings};
     }
-    if (schema > CameraSchema) {
+    if (schema > BattleItemsSchema) {
         return SlotView{SlotKind::Newer, 0, 0, km::VanillaSettings};
     }
     const auto presence = ReadU64(slot + 0x30);
     const bool camera_present = (presence & km::PresenceUnlockedCamera) != 0;
+    const bool battle_items_present = (presence & km::PresenceBattleItems) != 0;
     const km::SettingsValues values{
         slot[0x3C] != 0,
         ReadU32(slot + 0x38),
         slot[0x3D] != 0,
         slot[0x3E],
-        slot[0x3F] != 0,
+        (slot[0x3F] & 1) != 0,
+        (slot[0x3F] & 2) == 0,
     };
-    if (schema != (camera_present ? CameraSchema : SupportedSchema)
-        || (camera_present && family != km::SettingsFamily::SwordShield)
+    if (schema != (battle_items_present ? BattleItemsSchema : camera_present ? CameraSchema : SupportedSchema)
+        || ((camera_present || battle_items_present) && family != km::SettingsFamily::SwordShield)
         || header_size != HeaderSize || record_size != RecordSize
         || ReadU16(slot + 0x2E) != 0 || ReadU64(slot + 0x40) != 0
-        || slot[0x3C] > 1 || slot[0x3D] > 1 || slot[0x3F] > (camera_present ? 1 : 0)
+        || slot[0x3C] > 1 || slot[0x3D] > 1
+        || (slot[0x3F] & ~((camera_present ? 1 : 0) | (battle_items_present ? 2 : 0))) != 0
         || !IsZero(slot + 0x4C, 4) || !IsZero(slot + 0x50, RecordSize - 0x50)
         || !IsCanonical(presence, values)) {
         return SlotView{SlotKind::OwnedCorrupt, 0, 0, km::VanillaSettings};
@@ -257,19 +263,20 @@ void SerializeSlot(uint8_t* slot, const km::SettingsState& current,
     km::MemoryCopy(slot + 8, Owner, sizeof(Owner));
     WriteU16(slot + 0x10, HeaderSize);
     WriteU16(slot + 0x12, RecordSize);
-    WriteU16(slot + 0x14, (current.presence & km::PresenceUnlockedCamera) != 0 ? CameraSchema : SupportedSchema);
+    WriteU16(slot + 0x14, (current.presence & km::PresenceBattleItems) != 0 ? BattleItemsSchema
+        : (current.presence & km::PresenceUnlockedCamera) != 0 ? CameraSchema : SupportedSchema);
     WriteU16(slot + 0x16, static_cast<uint16_t>(current.family));
     WriteU64(slot + 0x18, current.title_id);
     WriteU64(slot + 0x20, current.generation + 1);
     WriteU16(slot + 0x28, 2);
     WriteU16(slot + 0x2A, 5);
-    WriteU16(slot + 0x2C, 2);
+    WriteU16(slot + 0x2C, 9);
     WriteU64(slot + 0x30, current.presence);
     WriteU32(slot + 0x38, values.experience_rate_basis_points);
     slot[0x3C] = values.experience_share ? 1 : 0;
     slot[0x3D] = values.level_cap_enabled ? 1 : 0;
     slot[0x3E] = values.level_cap;
-    slot[0x3F] = values.unlocked_camera ? 1 : 0;
+    slot[0x3F] = (values.unlocked_camera ? 1 : 0) | (values.battle_items_enabled ? 0 : 2);
     WriteU32(slot + 0x48, ComputeCrc32C(slot, RecordSize));
 }
 
@@ -369,29 +376,35 @@ uint64_t PackSettingsSnapshot(const SettingsState& state) {
     packed |= static_cast<uint64_t>(state.values.level_cap) << 2;
     packed |= static_cast<uint64_t>(state.values.experience_rate_basis_points) << 9;
     packed |= (state.presence & 7) << 41;
-    // Keep the existing award hook fields in place; camera uses bits 48 and 49.
+    // Preserve the award fields when adding independent settings.
     const bool camera_present = (state.presence & PresenceUnlockedCamera) != 0;
-    packed |= static_cast<uint64_t>(camera_present ? CameraSchema : SupportedSchema) << 44;
+    const bool battle_items_present = (state.presence & PresenceBattleItems) != 0;
+    packed |= static_cast<uint64_t>(battle_items_present ? BattleItemsSchema : camera_present ? CameraSchema : SupportedSchema) << 44;
     if (camera_present) packed |= uint64_t{1} << 48;
     if (state.values.unlocked_camera) packed |= uint64_t{1} << 49;
+    if (battle_items_present) packed |= uint64_t{1} << 50;
+    if (!state.values.battle_items_enabled) packed |= uint64_t{1} << 51;
     return packed;
 }
 
 bool UnpackSettingsSnapshot(uint64_t packed, SettingsValues* values,
                             uint64_t* presence) {
     const bool camera_present = (packed & (uint64_t{1} << 48)) != 0;
-    if (values == nullptr || packed >> 50 != 0
-        || ((packed >> 44) & 0xF) != (camera_present ? CameraSchema : SupportedSchema)) {
+    const bool battle_items_present = (packed & (uint64_t{1} << 50)) != 0;
+    if (values == nullptr || packed >> 52 != 0
+        || ((packed >> 44) & 0xF) != (battle_items_present ? BattleItemsSchema : camera_present ? CameraSchema : SupportedSchema)) {
         return false;
     }
     const auto unpacked_presence = ((packed >> 41) & 7)
-        | (camera_present ? PresenceUnlockedCamera : uint64_t{0});
+        | (camera_present ? PresenceUnlockedCamera : uint64_t{0})
+        | (battle_items_present ? PresenceBattleItems : uint64_t{0});
     const SettingsValues unpacked{
         (packed & 1) != 0,
         static_cast<uint32_t>((packed >> 9) & UINT32_MAX),
         (packed & (uint64_t{1} << 1)) != 0,
         static_cast<uint8_t>((packed >> 2) & 0x7F),
         (packed & (uint64_t{1} << 49)) != 0,
+        (packed & (uint64_t{1} << 51)) == 0,
     };
     if (!IsCanonical(unpacked_presence, unpacked)) {
         return false;

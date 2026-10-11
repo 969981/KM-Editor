@@ -47,6 +47,7 @@ import {
   Package,
   PackagePlus,
   Palette,
+  Pill,
   Save,
   ScanLine,
   Settings,
@@ -585,6 +586,16 @@ export const workbenchCapabilityRegistry = [
     icon: Cctv,
     id: 'cameraHook',
     label: 'Camera Hook',
+    showInWorkflowDashboard: false,
+    standalone: true
+  }),
+  workflow({
+    description: 'Allow or block items from the player’s Bag during battle.',
+    games: swordShieldGames,
+    icon: Pill,
+    id: 'battleItems',
+    label: 'Battle Items',
+    maturity: 'mixed',
     showInWorkflowDashboard: false,
     standalone: true
   }),

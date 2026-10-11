@@ -28,13 +28,13 @@ constexpr uintptr_t DescriptorsOffset = 0xC50;
 constexpr uintptr_t CountOffset = 0x5D4;
 constexpr uintptr_t MapOffset = 0x5D8;
 constexpr uint32_t StockCount = 16;
-constexpr uint32_t TotalCount = 20;
-constexpr uintptr_t RetryFlagOffset = 0x628;
-constexpr uintptr_t RetrySelectionOffset = 0x62C;
-constexpr uintptr_t RetryValuesOffset = 0x630;
+constexpr uint32_t TotalCount = 21;
+constexpr uintptr_t RetryFlagOffset = 0x62C;
+constexpr uintptr_t RetrySelectionOffset = 0x630;
+constexpr uintptr_t RetryValuesOffset = 0x638;
 constexpr uint32_t RetryDraftTag = 0x4B4D4452;
 constexpr uint64_t Presence = km::PresenceExperienceShare
-    | km::PresenceExperienceRate | km::PresenceLevelCap | km::PresenceUnlockedCamera;
+    | km::PresenceExperienceRate | km::PresenceLevelCap | km::PresenceUnlockedCamera | km::PresenceBattleItems;
 
 struct Descriptor {
     uint32_t kind;
@@ -46,7 +46,7 @@ struct Descriptor {
     uint32_t original;
 };
 static_assert(sizeof(Descriptor) == 0x38);
-static_assert(DescriptorsOffset + TotalCount * sizeof(Descriptor) <= 0x10B0);
+static_assert(DescriptorsOffset + TotalCount * sizeof(Descriptor) <= 0x10F0);
 static_assert(MapOffset + TotalCount * sizeof(uint32_t) < 0x950);
 static_assert(MapOffset + TotalCount * sizeof(uint32_t) <= RetryFlagOffset);
 static_assert(RetryValuesOffset + TotalCount * 8 < 0x950);
@@ -79,11 +79,30 @@ Descriptor* Rows(uintptr_t view) {
 }
 bool RowInstalled(uint32_t index) {
     const auto features = km_swsh_installed_features();
-    return index == 19 ? (features & 1) != 0 : (features & 2) != 0;
+    return index == 20 ? (features & 4) != 0 : index == 19 ? (features & 1) != 0 : (features & 2) != 0;
 }
 uint32_t AddedCount() {
     const auto features = km_swsh_installed_features();
-    return ((features & 1) != 0 ? 1U : 0U) + ((features & 2) != 0 ? 3U : 0U);
+    return ((features & 1) != 0 ? 1U : 0U) + ((features & 2) != 0 ? 3U : 0U)
+        + ((features & 4) != 0 ? 1U : 0U);
+}
+uint32_t ChoiceState(uint32_t index, uint32_t choice) {
+    if (g_main == 0 || index < 19 || index > 20 || choice > 1) return 0;
+    const auto states = Field<uint32_t>(g_main, 0x20736A8 + 48);
+    if ((states & 0xFFF000C0U) != 0xB1000000U) return 0;
+    return (states >> (8 + (index - 19) * 6 + choice * 3)) & 7;
+}
+uint32_t PolicyValue(uint32_t index, uint32_t current, bool initialize) {
+    if (!RowInstalled(index)) return current;
+    const uint32_t retail = index == 20 ? 1 : 0;
+    const auto first = ChoiceState(index, 0);
+    const auto second = ChoiceState(index, 1);
+    if (first > 6 || second > 6 || (first & 3) == 3 || (second & 3) == 3) return current;
+    if (!initialize && (ChoiceState(index, current) & 4) == 0) return current;
+    if (first == 1) return 0;
+    if (second == 1) return 1;
+    if (ChoiceState(index, retail) == 0) return retail;
+    return first == 0 ? 0 : second == 0 ? 1 : current;
 }
 bool HasKmRows(uintptr_t view) {
     const auto count = Field<uint32_t>(view, CountOffset);
@@ -112,6 +131,13 @@ void LoadDraft(uintptr_t view) {
     rows[19] = {0, 19, Hash("km_unlocked_camera"),
         {Hash("km_no"), Hash("km_yes"), Hash("")}, Hash("km_unlocked_camera_help"),
         unlocked, unlocked};
+    const uint32_t battle_items = values.battle_items_enabled ? 1U : 0U;
+    rows[20] = {0, 20, Hash("km_battle_items"),
+        {Hash("km_no"), Hash("km_yes"), Hash("")}, Hash("km_battle_items_help"),
+        battle_items, battle_items};
+    for (uint32_t index = 19; index <= 20; ++index)
+        for (uint32_t choice = 0; choice < 2; ++choice)
+            if ((ChoiceState(index, choice) & 4) != 0) rows[index].choices[choice] = Hash("");
 }
 void Refresh(uintptr_t view) {
     reinterpret_cast<void (*)(uintptr_t)>(g_main + 0x014D9C90 + g_delta)(view);
@@ -181,10 +207,11 @@ extern "C" void km_swsh_options_input(uintptr_t* callback, const int32_t* direct
     if (index < StockCount) { km_swsh_options_input_original(callback, direction); return; }
     if (index >= TotalCount || !HasKmRows(view)) return;
     auto& row = Rows(view)[index];
-    const int32_t maximum = index == 16 || index == 19 ? 1 : index == 17 ? 50 : 100;
+    const int32_t maximum = index == 16 || index >= 19 ? 1 : index == 17 ? 50 : 100;
     auto value = static_cast<int32_t>(row.value) + (*direction == 0 ? 1 : -1);
     if (value < 0) value = 0;
     if (value > maximum) value = maximum;
+    if ((ChoiceState(index, static_cast<uint32_t>(value)) & 4) != 0) return;
     if (static_cast<uint32_t>(value) == row.value) return;
     reinterpret_cast<void (*)(uintptr_t, uint32_t, uint32_t)>(
         g_main + 0x014D9A40 + g_delta)(view, static_cast<uint32_t>(value), index);
@@ -245,14 +272,15 @@ extern "C" bool km_swsh_options_apply(uintptr_t owner) {
     auto& count = Field<uint32_t>(view, CountOffset);
     if (!HasKmRows(view)) return false;
     auto* rows = Rows(view);
-    if (rows[16].value > 1 || rows[17].value > 50 || rows[18].value > 100 || rows[19].value > 1) return false;
+    if (rows[16].value > 1 || rows[17].value > 50 || rows[18].value > 100
+        || rows[19].value > 1 || rows[20].value > 1) return false;
     km::SettingsState requested{km::SettingsFamily::SwordShield, 0, 0, Presence,
         {rows[16].value != 0, rows[17].value * 1000, rows[18].value != 0,
          static_cast<uint8_t>(rows[18].value == 0 ? 100 : rows[18].value),
-         rows[19].value != 0}, -1, false};
+         rows[19].value != 0, rows[20].value != 0}, -1, false};
     const bool changed = rows[16].value != rows[16].original
         || rows[17].value != rows[17].original || rows[18].value != rows[18].original
-        || rows[19].value != rows[19].original;
+        || rows[19].value != rows[19].original || rows[20].value != rows[20].original;
     if (changed && !km_swsh_write_settings(km::PackSettingsSnapshot(requested))) {
         PreserveFailedDraft(view);
         // Follow the stock confirmation's return to editing transition. The
@@ -283,6 +311,8 @@ extern "C" bool km_swsh_options_reset_apply(uintptr_t owner) {
         vanilla.values.level_cap = current.level_cap;
     }
     if (!RowInstalled(19)) vanilla.values.unlocked_camera = current.unlocked_camera;
+    if (!RowInstalled(20)) vanilla.values.battle_items_enabled = current.battle_items_enabled;
+    km::ApplySwShOptionsPolicy(vanilla.values, true);
     if (!km_swsh_write_settings(km::PackSettingsSnapshot(vanilla))) {
         PreserveFailedDraft(view);
         return false;
@@ -297,6 +327,11 @@ extern "C" bool km_swsh_options_reset_apply(uintptr_t owner) {
 }
 
 namespace km {
+void ApplySwShOptionsPolicy(SettingsValues& values, bool initialize) {
+    values.unlocked_camera = PolicyValue(19, values.unlocked_camera ? 1 : 0, initialize) != 0;
+    values.battle_items_enabled = PolicyValue(20, values.battle_items_enabled ? 1 : 0, initialize) != 0;
+}
+
 bool PrepareSwShOptions(const ModuleRange& main, SwShNativeSettingsEdition edition,
                         ExecutablePatch (&patches)[2]) {
     g_main = main.base;

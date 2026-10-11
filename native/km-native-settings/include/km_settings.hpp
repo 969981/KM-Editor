@@ -16,6 +16,7 @@ enum SettingsPresence : uint64_t {
     PresenceExperienceRate = uint64_t{1} << 1,
     PresenceLevelCap = uint64_t{1} << 2,
     PresenceUnlockedCamera = uint64_t{1} << 3,
+    PresenceBattleItems = uint64_t{1} << 4,
 };
 
 struct SettingsValues {
@@ -24,6 +25,7 @@ struct SettingsValues {
     bool level_cap_enabled;
     uint8_t level_cap;
     bool unlocked_camera = false;
+    bool battle_items_enabled = true;
 };
 
 struct SettingsState {
