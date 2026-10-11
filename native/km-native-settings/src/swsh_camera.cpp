@@ -16,6 +16,7 @@ void km_swsh_camera_terrain_distance();
 void km_swsh_camera_model_distance();
 void km_swsh_camera_instance_distance();
 void km_swsh_camera_instance_density_distance();
+void km_swsh_camera_actor_distance();
 }
 
 namespace {
@@ -31,7 +32,7 @@ bool g_default_extended;
 bool g_forced;
 bool g_ready;
 uint32_t g_branches[4][4];
-uint32_t g_scenery_branches[4];
+uint32_t g_scenery_branches[5];
 
 uintptr_t Singleton(size_t relocation) {
     const auto slot = Field<uintptr_t>(g_main, relocation);
@@ -240,7 +241,7 @@ extern "C" void km_swsh_camera_queue(uintptr_t scheduler, uintptr_t task) {
 
 namespace km {
 bool PrepareSwShCamera(const ModuleRange& main, SwShNativeSettingsEdition edition,
-                       ExecutablePatch (&patches)[8]) {
+                       ExecutablePatch (&patches)[9]) {
     static constexpr uintptr_t offsets[] = {0xCF8F00, 0xCFA230, 0xF19670, 0xF195A0};
     static constexpr uint32_t expected[][4] = {
         {0xD10203FF, 0xA9064FF4, 0xA9077BFD, 0x9101C3FD},
@@ -267,18 +268,20 @@ bool PrepareSwShCamera(const ModuleRange& main, SwShNativeSettingsEdition editio
         patches[i] = {main.base + offset, expected[i], g_branches[i], 16};
     }
     // These loads feed terrain residency, model visibility, instance visibility,
-    // and instance density respectively. The native frustum, LOD selection,
-    // resource lifecycle and per-area ownership continue unchanged. LR is dead
-    // at all four sites and restored by each native function's saved frame.
-    static constexpr uintptr_t scenery_offsets[] = {0xCCE090, 0xCCFC5C, 0xCCED38, 0xCCEE00};
-    static constexpr uint32_t scenery_expected[] = {0xBD4AC281, 0xBD402101, 0xBD4022C1, 0xBD4022C2};
+    // instance density, and field actor visibility respectively. Native frustum,
+    // LOD selection, scripted visibility, resource lifecycle, and per-area
+    // ownership continue unchanged. LR is dead at all five sites and restored
+    // by each native function's saved frame.
+    static constexpr uintptr_t scenery_offsets[] = {0xCCE090, 0xCCFC5C, 0xCCED38, 0xCCEE00, 0xCB72D4};
+    static constexpr uint32_t scenery_expected[] = {0xBD4AC281, 0xBD402101, 0xBD4022C1, 0xBD4022C2, 0xBD437261};
     const uintptr_t scenery_targets[] = {
         reinterpret_cast<uintptr_t>(km_swsh_camera_terrain_distance),
         reinterpret_cast<uintptr_t>(km_swsh_camera_model_distance),
         reinterpret_cast<uintptr_t>(km_swsh_camera_instance_distance),
         reinterpret_cast<uintptr_t>(km_swsh_camera_instance_density_distance),
+        reinterpret_cast<uintptr_t>(km_swsh_camera_actor_distance),
     };
-    for (size_t i = 0; i < 4; ++i) {
+    for (size_t i = 0; i < 5; ++i) {
         const auto offset = scenery_offsets[i] + g_delta;
         const auto address = main.base + offset;
         const auto displacement = static_cast<intptr_t>(scenery_targets[i]) - static_cast<intptr_t>(address);

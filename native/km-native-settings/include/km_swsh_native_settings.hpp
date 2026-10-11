@@ -2,6 +2,7 @@
 #pragma once
 
 extern "C" unsigned int km_swsh_installed_features();
+extern "C" bool km_swsh_settings_ready();
 
 #include "km_settings.hpp"
 

@@ -4,7 +4,7 @@
 extern "C" {
 uintptr_t km_swsh_battle_items_continue;
 uint32_t km_swsh_battle_items_original(uintptr_t);
-uint64_t km_swsh_read_settings();
+extern volatile uint64_t km_swsh_effective_snapshot;
 }
 
 namespace {
@@ -23,7 +23,12 @@ extern "C" uint32_t km_swsh_battle_items_use(uintptr_t selection) {
     const auto mode = Field<uint32_t>(context, 0);
     if (mode != 1 && mode != 2) return allowed;
     km::SettingsValues values = km::VanillaSettings;
-    if (!km::UnpackSettingsSnapshot(km_swsh_read_settings(), &values) || values.battle_items_enabled) return allowed;
+    km::InitializeSwShSettings();
+    const auto snapshot = __atomic_load_n(&km_swsh_effective_snapshot, __ATOMIC_ACQUIRE);
+    // Standalone Battle Items blocks ordinary items. Authenticated shared
+    // settings optionally let the player allow them again through Options.
+    if (km::UnpackSettingsSnapshot(snapshot, &values)
+        && values.battle_items_enabled) return allowed;
     const auto item = reinterpret_cast<uint32_t (*)(uintptr_t)>(g_main + 0x7C8330)(Field<uintptr_t>(selection, 0xA0));
     if ((reinterpret_cast<uint32_t (*)(uint32_t)>(g_main + 0x7EC410)(item) & 1) != 0) return allowed;
     // Battle Bag has no Give action. Rejecting Use selects the native unavailable
