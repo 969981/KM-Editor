@@ -23,9 +23,11 @@ type Props = GameplaySettingsDestinations & {
   bridge: Pick<ProjectBridge, 'inspectInGameSettingsPackage'>;
   onStatus: (status: CameraHookStatus) => void;
   onOpenCameraHook?: () => void;
+  domain?: string;
 };
 
-export function CameraHookRequirement({ scope, bridge, destinations, onStatus, onOpenCameraHook }: Props) {
+export function CameraHookRequirement({ scope, bridge, destinations, onStatus, onOpenCameraHook,
+  domain = 'workflow.cameraControl' }: Props) {
   const { t } = useLocalization();
   const [consoleOutput, setConsoleOutput] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -60,7 +62,7 @@ export function CameraHookRequirement({ scope, bridge, destinations, onStatus, o
     return () => { active = false; };
   }, [bridge, scopeKey, destinationKey, revision, consoleOutput, onStatus, t]);
   usePublishCommonEditorDiagnostics(consoleOutput ? [] : diagnostics.length ? diagnostics : phase === 'missing'
-    ? [{ code: inGameSettingsPackageErrorCodes.unavailable, domain: 'workflow.cameraControl', field: 'inGamePackage',
+    ? [{ code: inGameSettingsPackageErrorCodes.unavailable, domain, field: 'inGamePackage',
       message: t('cameraHook.required'), severity: 'error' }] : []);
   return <div className="camera-hook-requirement">
     <label className="camera-hook-requirement__console">

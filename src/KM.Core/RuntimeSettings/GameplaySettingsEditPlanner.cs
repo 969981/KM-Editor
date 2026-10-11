@@ -105,7 +105,8 @@ public static class GameplaySettingsEditPlanner
             request.ExperienceRateBasisPoints ?? before.Values.ExperienceRateBasisPoints,
             capEnabled,
             request.LevelCap ?? before.Values.LevelCap,
-            before.Values.UnlockedCamera);
+            before.Values.UnlockedCamera,
+            before.Values.BattleItemsEnabled);
         var update = GameplaySettingsJournal.CreateUpdate(
             reviewedBytes,
             family,

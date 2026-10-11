@@ -9,7 +9,7 @@ public static partial class NativeGameplayMenuBundleFactory
 {
     private static byte[] ConfigureSwShFeatures(byte[] runtime, SwShNativeMenuFeatures features)
     {
-        if (features is not (SwShNativeMenuFeatures.Camera or SwShNativeMenuFeatures.Gameplay or SwShNativeMenuFeatures.All))
+        if ((uint)features is < 1 or > 7)
             throw new ArgumentOutOfRangeException(nameof(features));
         var nso = NsoFile.Parse(runtime);
         var data = nso.Data.DecompressedData.ToArray();

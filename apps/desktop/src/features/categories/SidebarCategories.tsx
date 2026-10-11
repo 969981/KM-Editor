@@ -25,7 +25,7 @@ export function SidebarCategories(props: AppSidebarProps) {
   const navigationDisabled = isEditSessionOperationBusy || hasCriticalWriteOperation;
   const visibleGroups = groups.filter(group => group.id !== 'betaEditors' || (canShowWorkflowNavigation && showBeta))
     .map(group => ({ ...group, sectionIds: group.sectionIds.filter(sectionId =>
-      (sectionId === 'modMerger' ? true : sectionId === 'gameplaySettings' || sectionId === 'cameraControl' || sectionId === 'cameraHook'
+      (sectionId === 'modMerger' ? true : sectionId === 'gameplaySettings' || sectionId === 'cameraControl' || sectionId === 'battleItems' || sectionId === 'cameraHook'
         ? canShowGameplaySettingsNavigation
         : canShowWorkflowNavigation && canAccessWorkflowSectionForHealth(sectionId,
           canShowWorkflowNavigation, canShowEditableWorkflowNavigation))

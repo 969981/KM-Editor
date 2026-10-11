@@ -35,6 +35,7 @@ const commonWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
   soundStudio: 'Sound-Studio',
   gameplaySettings: 'Gameplay-Settings',
   cameraControl: 'Gameplay-Settings',
+  battleItems: 'Gameplay-Settings',
   moves: 'Moves-Editor',
   npcItemGift: 'NPC-Item-Gift',
   placement: 'Placement-Editor',

@@ -5578,7 +5578,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
 
     private static GameOptionsWorkflowDto ToDto(SwShGameOptionsWorkflow workflow) => new(
         workflow.CanEdit, workflow.DetectedGame is null ? null : ProjectBridgeMapper.ToDto(workflow.DetectedGame.Value),
-        workflow.Selections, workflow.SourceLayer, workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray());
+        workflow.Selections, workflow.SourceLayer, workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray(), workflow.InstalledFeatures);
 
     private string DispatchLoadMarnieBoosts(string requestJson)
     {

@@ -138,7 +138,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
     id: 'betaEditors',
     label: 'Beta Editors',
     labelKey: 'workbench.navigation.betaEditors',
-    sectionIds: ['gameplaySettings', 'cameraControl', 'trainerWhiteout', 'trainerDynamax', 'titanSwapper']
+    sectionIds: ['gameplaySettings', 'cameraControl', 'battleItems', 'trainerWhiteout', 'trainerDynamax', 'titanSwapper']
   }
 ];
 
@@ -147,7 +147,7 @@ export function canAccessWorkflowSectionForHealth(
   canOpenReadOnlyWorkflows: boolean,
   canOpenEditableWorkflows: boolean
 ) {
-  if (section === 'gameplaySettings' || section === 'cameraControl' || section === 'cameraHook' || section === 'modMerger') {
+  if (section === 'gameplaySettings' || section === 'cameraControl' || section === 'battleItems' || section === 'cameraHook' || section === 'modMerger') {
     return true;
   }
 
@@ -400,6 +400,7 @@ export function getLoadedWorkflowStateForSection(
       return state.giftPokemonWorkflow !== null;
     case 'gameplaySettings':
     case 'cameraControl':
+    case 'battleItems':
     case 'cameraHook':
     case 'trainerDynamax':
     case 'modelViewer':

@@ -41,7 +41,7 @@ internal sealed record SharedGameplayMenuReceipt(
         }
         var receipt = JsonSerializer.Deserialize<SharedGameplayMenuReceipt>(decoded.ToArray());
         if (receipt is null || receipt.Schema != 1 || receipt.Package?.TitleId != titleId
-            || receipt.Features is not (null or SwShNativeMenuFeatures.Camera or SwShNativeMenuFeatures.Gameplay or SwShNativeMenuFeatures.All)
+            || receipt.Features is { } features && (uint)features is < 1 or > 7
             || receipt.Journal is null || receipt.Files is null || receipt.Files.Length != 23
             || receipt.Files.Any(file => file is null || !IsComponentPath(file.Path) || file.After is null
                 || file.After.Length > 128 * 1024 * 1024 || file.Before?.Length > 128 * 1024 * 1024)

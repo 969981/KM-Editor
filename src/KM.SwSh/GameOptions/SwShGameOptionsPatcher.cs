@@ -52,6 +52,7 @@ internal static partial class SwShGameOptionsPatcher
             if (installed)
             {
                 var states = BinaryPrimitives.ReadUInt32LittleEndian(descriptor[48..]);
+                if (row == 0) states = SwShGameOptionsPolicy.ReadExtensionStates(states, selections);
                 var metadata = BinaryPrimitives.ReadUInt32LittleEndian(descriptor[52..]);
                 for (var choice = 0; choice < SwShGameOptionsPolicy.ChoiceCounts[row]; choice++)
                     selections[offset + choice] = (int)(states >> (choice * 2) & 3) | (int)(metadata >> choice & 1) * 4;
@@ -103,6 +104,7 @@ internal static partial class SwShGameOptionsPatcher
                 if (row < 13 && (choices[choice] & 4) != 0)
                     BinaryPrimitives.WriteUInt64LittleEndian(descriptor[(16 + choice * 8)..], EmptyLabel);
             }
+            if (row == 0) states |= SwShGameOptionsPolicy.ExtensionStates(normalized);
             BinaryPrimitives.WriteUInt32LittleEndian(descriptor[48..], states);
             BinaryPrimitives.WriteUInt32LittleEndian(descriptor[52..], SwShGameOptionsPolicy.Metadata(row, choices));
             offset += choices.Length;

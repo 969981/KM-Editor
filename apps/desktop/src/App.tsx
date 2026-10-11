@@ -547,6 +547,7 @@ import {
   gameplaySettingsScopeKey
 } from './features/gameplay-settings/GameplaySettingsSection';
 import { CameraControlSection } from './features/camera-control/CameraControlSection';
+import { BattleItemsSection } from './features/battle-items/BattleItemsSection';
 import { CameraHookSection } from './features/camera-control/CameraHookSection';
 import { OutputSafetyPanel } from './features/output-safety/OutputSafetyPanel';
 import { ProjectRelocationPanel } from './features/output-safety/ProjectRelocationPanel';
@@ -4493,6 +4494,10 @@ export function App({
   );
   const handleCameraControlDirtyChange = useCallback(
     (isDirty: boolean) => registerEditorDraftDirty('cameraControl', isDirty),
+    [registerEditorDraftDirty]
+  );
+  const handleBattleItemsDirtyChange = useCallback(
+    (isDirty: boolean) => registerEditorDraftDirty('battleItems', isDirty),
     [registerEditorDraftDirty]
   );
   const handleCameraHookDirtyChange = useCallback(
@@ -21796,6 +21801,23 @@ export function App({
               onApplied={handleGameplaySettingsApplied}
               onApplyBusyChange={handleGameplaySettingsApplyingChange}
               onDirtyChange={handleCameraControlDirtyChange}
+              onError={handleGameplaySettingsError}
+              onOpenProjectSetup={() => void handleNavigateSection('health')}
+              onRecoveryRequired={handleGameplaySettingsRecoveryRequired}
+              scope={outputSafetyScope}
+            />
+          ) : null}
+          {activeSection === 'battleItems' ? (
+            <BattleItemsSection
+              onOpenCameraHook={() => void handleNavigateSection('cameraHook')}
+              destinations={applicationWorkspaceSnapshot.document?.gameplaySettingsDestinations}
+              onRememberDestination={handleRememberGameplaySettingsDestination}
+              armCriticalWriteGuard={armGameplaySettingsCriticalWriteGuard}
+              bridge={bridge}
+              canApply={outputSafety.canApply}
+              onApplied={handleGameplaySettingsApplied}
+              onApplyBusyChange={handleGameplaySettingsApplyingChange}
+              onDirtyChange={handleBattleItemsDirtyChange}
               onError={handleGameplaySettingsError}
               onOpenProjectSetup={() => void handleNavigateSection('health')}
               onRecoveryRequired={handleGameplaySettingsRecoveryRequired}

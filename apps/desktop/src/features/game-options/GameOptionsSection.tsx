@@ -77,6 +77,8 @@ export function GameOptionsSection({ workflow, session, isEditing, isEditStartin
       <div className="game-options-grid">
         {gameOptionsCatalog.map(option => {
           const start = offset; offset += option.choices.length;
+          if (option.id === 'unlockedCamera' && ((workflow?.installedFeatures ?? 0) & 1) === 0
+            || option.id === 'battleItems' && ((workflow?.installedFeatures ?? 0) & 4) === 0) return null;
           const values = desired.slice(start, offset);
           const starting = values.indexOf(1) >= 0 ? values.indexOf(1)
             : values[option.retail] === 0 ? option.retail : values.indexOf(0);
@@ -121,6 +123,7 @@ export function GameOptionsSection({ workflow, session, isEditing, isEditStartin
         })}
       </div>
       <p>{t('gameOptions.saveHelp')}</p>
+      {((workflow?.installedFeatures ?? 0) & 5) !== 0 ? <p>{t('gameOptions.nativeSaveHelp')}</p> : null}
       <p>{t('gameOptions.packageHelp')}</p>
     </section>
     <WorkflowPanelOutputSections output={panelOutput} workflowDiagnostics={workflow?.diagnostics ?? []} />

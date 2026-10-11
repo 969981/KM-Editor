@@ -78,6 +78,7 @@ export const workbenchSectionLocalization = {
   gameDump: { label: 'workbench.section.game-dump.label', description: 'workbench.section.game-dump.description' },
   gameplaySettings: { label: 'workbench.section.gameplay-settings.label', description: 'workbench.section.gameplay-settings.description' },
   cameraControl: { label: 'workbench.section.camera-control.label', description: 'workbench.section.camera-control.description' },
+  battleItems: { label: 'workbench.section.battle-items.label', description: 'workbench.section.battle-items.description' },
   cameraHook: { label: 'workbench.section.camera-hook.label', description: 'workbench.section.camera-hook.description' },
   modelViewer: { label: 'workbench.section.model-viewer.label', description: 'workbench.section.model-viewer.description' },
   soundStudio: { label: 'workbench.section.sound-studio.label', description: 'workbench.section.sound-studio.description' },

@@ -3,6 +3,7 @@
 #include "km_swsh_native_settings.hpp"
 #include "km_swsh_options.hpp"
 #include "km_swsh_camera.hpp"
+#include "km_swsh_battle_items.hpp"
 
 extern "C" {
 struct SwShFeatureConfiguration { char marker[16]; uint32_t features; };
@@ -26,7 +27,7 @@ constexpr uint64_t SwordTitleId = 0x0100ABF008968000ULL;
 constexpr uint64_t ShieldTitleId = 0x01008DB008C2C000ULL;
 constexpr uint64_t RequiredPresence =
     km::PresenceExperienceShare | km::PresenceExperienceRate
-    | km::PresenceLevelCap | km::PresenceUnlockedCamera;
+    | km::PresenceLevelCap | km::PresenceUnlockedCamera | km::PresenceBattleItems;
 constexpr uintptr_t ExpectedRoOffset = 0x01901000;
 constexpr uintptr_t ExpectedDataOffset = 0x024DB000;
 constexpr uintptr_t ExperienceAdditiveTransitionOffset = 0x007E4EA0;
@@ -272,6 +273,8 @@ bool InstallImmutableHooks(const ModuleRange& main,
     if (!km::PrepareSwShOptions(main, profile.edition, options)) return false;
     km::ExecutablePatch camera[8]{};
     if (!km::PrepareSwShCamera(main, profile.edition, camera)) return false;
+    km::ExecutablePatch battle_items{};
+    if (!km::PrepareSwShBattleItems(main, battle_items)) return false;
     const auto share_bridge = MakeLiteralBridge(
         ShareBridgeOffset, ShareTargetSlotOffset);
     const auto rate_bridge = MakeLiteralBridge(
@@ -323,10 +326,10 @@ bool InstallImmutableHooks(const ModuleRange& main,
         options[1],
         camera[0], camera[1], camera[2], camera[3],
         camera[4], camera[5], camera[6], camera[7],
+        battle_items,
     };
     if ((km_swsh_installed_features() & 2) == 0) {
-        // Camera output never redirects the game's EXP award routines.
-        return km::PatchExecutableTransaction(patches + 9, 10);
+        return km::PatchExecutableTransaction(patches + 9, 11);
     }
     return km::PatchExecutableTransaction(
         patches, sizeof(patches) / sizeof(patches[0]));
@@ -360,6 +363,7 @@ bool TryLoadAndPublishJournal() {
         && IsRepresentable(loaded);
     if (loaded_ok) {
         g_persisted = loaded;
+        km::ApplySwShOptionsPolicy(loaded.values, loaded.generation == 1);
         __atomic_store_n(
             &km_swsh_effective_snapshot,
             km::PackSettingsSnapshot(loaded),
@@ -405,13 +409,17 @@ bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
         return false;
     }
 
+    km::ApplySwShOptionsPolicy(requested);
     const auto& current = g_persisted.values;
     if (current.experience_share == requested.experience_share
         && current.experience_rate_basis_points
             == requested.experience_rate_basis_points
         && current.level_cap_enabled == requested.level_cap_enabled
         && current.level_cap == requested.level_cap
-        && current.unlocked_camera == requested.unlocked_camera) {
+        && current.unlocked_camera == requested.unlocked_camera
+        && current.battle_items_enabled == requested.battle_items_enabled
+        && km::PackSettingsSnapshot(g_persisted)
+            == __atomic_load_n(&km_swsh_effective_snapshot, __ATOMIC_ACQUIRE)) {
         ReleaseSettingsLock();
         return true;
     }
@@ -439,6 +447,7 @@ bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
                 &reconciled)
             && IsRepresentable(reconciled)) {
             g_persisted = reconciled;
+            km::ApplySwShOptionsPolicy(reconciled.values, reconciled.generation == 1);
             __atomic_store_n(&g_journal_ready, 1, __ATOMIC_RELEASE);
             __atomic_store_n(
                 &km_swsh_effective_snapshot,
@@ -461,6 +470,7 @@ bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
     }
 
     g_persisted = committed;
+    km::ApplySwShOptionsPolicy(committed.values);
     __atomic_store_n(
         &km_swsh_effective_snapshot,
         km::PackSettingsSnapshot(committed),
@@ -473,7 +483,7 @@ bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
 
 extern "C" uint32_t km_swsh_installed_features() {
     const auto features = km_swsh_feature_configuration.features;
-    return features >= 1 && features <= 3 ? features : 0;
+    return features >= 1 && features <= 7 ? features : 0;
 }
 
 extern "C" uint64_t km_swsh_read_settings() {
@@ -491,7 +501,7 @@ extern "C" uint64_t km_swsh_read_settings() {
     // hooks. The menu must not interpret it as Share Off and a 0% rate while
     // storage is temporarily unavailable, so expose a canonical packed retail
     // view without making that view writable or claiming journal readiness.
-    const SettingsState retail_view{
+    SettingsState retail_view{
         SettingsFamily::SwordShield,
         g_profile == nullptr ? 0 : g_profile->title_id,
         0,
@@ -500,6 +510,7 @@ extern "C" uint64_t km_swsh_read_settings() {
         -1,
         false,
     };
+    km::ApplySwShOptionsPolicy(retail_view.values, true);
     return km::PackSettingsSnapshot(retail_view);
 }
 

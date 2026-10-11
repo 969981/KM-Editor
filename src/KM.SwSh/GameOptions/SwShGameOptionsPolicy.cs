@@ -4,18 +4,19 @@ namespace KM.SwSh.GameOptions;
 /// <summary>Choice state: 0 = Default, 1 = On, 2 = Off; bit 2 hides the choice.</summary>
 public static class SwShGameOptionsPolicy
 {
-    public static readonly int[] ChoiceCounts = [3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 11, 11, 11];
-    public static readonly int[] RetailValues = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 8, 8, 8];
+    public static readonly int[] ChoiceCounts = [3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 11, 11, 11, 2, 2];
+    public static readonly int[] RetailValues = [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 8, 8, 8, 0, 1];
     internal static readonly int[] Shifts = [0, 4, 2, 3, 21, 26, 22, 28, 29, 23, 24, 27, 25, 9, 13, 17];
     internal static int Width(int row) => row is 1 or >= 13 ? 4 : row == 0 ? 2 : 1;
     internal static bool Inverted(int row) => row is 7 or 8;
-    public static int[] Defaults => new int[60];
+    public static int[] Defaults => new int[64];
 
     public static int[] Normalize(IReadOnlyList<int>? selections)
     {
-        if (selections is not { Count: 60 } || selections.Any(value => value is < 0 or > 6 || (value & 3) == 3))
+        if (selections is not { Count: 60 or 64 } || selections.Any(value => value is < 0 or > 6 || (value & 3) == 3))
             throw new InvalidDataException("Each game option selection requires Default, On or Off and a Hide flag.");
-        var result = selections.ToArray();
+        var result = Defaults;
+        for (var i = 0; i < selections.Count; i++) result[i] = selections[i];
         var offset = 0;
         for (var row = 0; row < ChoiceCounts.Length; row++)
         {
@@ -37,6 +38,24 @@ public static class SwShGameOptionsPolicy
             offset += choices.Length;
         }
         return result;
+    }
+
+    internal static uint ExtensionStates(ReadOnlySpan<int> selections)
+    {
+        uint result = 0;
+        for (var i = 0; i < 4; i++) result |= (uint)selections[60 + i] << (8 + i * 3);
+        return result == 0 ? 0 : result | 0xB1000000;
+    }
+
+    internal static uint ReadExtensionStates(uint states, Span<int> selections)
+    {
+        if ((states & ~0x3FU) == 0) return states;
+        if ((states & 0xFFF000C0U) != 0xB1000000U)
+            throw new InvalidDataException("Game Options extension metadata is inconsistent.");
+        for (var i = 0; i < 4; i++) selections[60 + i] = (int)(states >> (8 + i * 3) & 7);
+        if (ExtensionStates(selections) != (states & ~0x3FU))
+            throw new InvalidDataException("Game Options extension metadata is not canonical.");
+        return states & 0x3F;
     }
 
     internal static uint Metadata(int row, ReadOnlySpan<int> choices)

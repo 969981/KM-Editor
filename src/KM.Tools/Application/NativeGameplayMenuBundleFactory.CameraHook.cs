@@ -15,7 +15,8 @@ public static partial class NativeGameplayMenuBundleFactory
         var title = ProjectGameMetadata.Get(game).TitleId;
         var journal = GameplaySettingsJournal.CreateBootstrap(GameplaySettingsFamily.SwordShield, title,
             new(checked((ushort)PackageVersion.Major), checked((ushort)PackageVersion.Minor), checked((ushort)PackageVersion.Patch)),
-            SettingsPresence | GameplaySettingPresence.UnlockedCamera, initialValues ?? GameplaySettingsValues.Vanilla);
+            SettingsPresence | GameplaySettingPresence.UnlockedCamera | GameplaySettingPresence.BattleItems,
+            initialValues ?? GameplaySettingsValues.Vanilla);
         var identity = Hash(journal);
         return (new(title.ToString("X16"), "1.3.2", GetExpectedBuild(game),
             new(PackageVersion.Major, PackageVersion.Minor, PackageVersion.Patch), identity[..32], identity.ToLowerInvariant(), 2), journal);

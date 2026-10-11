@@ -62,6 +62,7 @@ internal static class SwShExeFsReservedRegionLedger
     [
         .. KM.SwSh.GameOptions.SwShGameOptionsPatcher.CreateReservations(),
         .. KM.SwSh.RuntimeSettings.SwShCameraControlProfile.CreateReservations(),
+        KM.SwSh.RuntimeSettings.SwShBattleItemsProfile.Reservation,
         .. KM.SwSh.HeldItemChance.SwShHeldItemChancePatcher.CreateReservations(),
         new(OwnerHeldItemChance, "held-item-chance-rates", ExeFsMainPath, "main.ro", 0x0075FB5C, 6, "Normal and boosted held item percentages", "payload-only"),
         new(OwnerHeldItemChance, "held-item-chance-sword-picker", ExeFsMainPath, "main.text", 0x00D317F0, 0x114, "Sword held item picker", "requires-vanilla"),

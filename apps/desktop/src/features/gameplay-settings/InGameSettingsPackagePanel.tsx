@@ -33,6 +33,7 @@ export type GameplaySettingsDestinations = {
 
 type InGameSettingsPackagePanelProps = GameplaySettingsDestinations & {
   cameraControl?: boolean;
+  battleItems?: boolean;
   purpose?: 'combined' | 'output' | 'hook';
   canPrepare?: boolean;
   requiredCameraHook?: PreviewInGameSettingsPackageRequest['requiredCameraHook'];
@@ -55,6 +56,7 @@ type PackageBusyState = 'apply' | 'load' | 'preview' | null;
 
 export function InGameSettingsPackagePanel({
   cameraControl = false,
+  battleItems = false,
   purpose = 'combined',
   canPrepare = true,
   requiredCameraHook,
@@ -94,7 +96,8 @@ export function InGameSettingsPackagePanel({
     ? [{ domain: 'workflow.gameplaySettings', field: 'inGamePackage', message: errorMessage, severity: 'error' }]
     : cameraConflict ? [{ code: inGameSettingsPackageErrorCodes.cameraCompositionConflict, domain: 'workflow.cameraControl',
       field: 'inGamePackage', message: t('cameraControl.conflict'), severity: 'error' }]
-    : sharedOutputConflict ? [{ code: inGameSettingsPackageErrorCodes.unavailable, domain: 'workflow.cameraControl',
+    : sharedOutputConflict ? [{ code: inGameSettingsPackageErrorCodes.unavailable,
+      domain: battleItems ? 'workflow.battleItems' : cameraControl ? 'workflow.cameraControl' : 'workflow.gameplaySettings',
       field: 'inGamePackage', message: sharedOutputDetail, severity: 'error' }]
     : sourceLayoutConflict ? [{ code: inGameSettingsPackageErrorCodes.unavailable, domain: 'workflow.gameplaySettings',
       field: 'inGamePackage', message: t('gameplaySettings.inGamePackage.executableInput.reason.sourceLayoutIncompatible'), severity: 'error' }] : []);
@@ -120,7 +123,7 @@ export function InGameSettingsPackagePanel({
   const [destinationSearchMessage, setDestinationSearchMessage] = useState<string | null>(null);
   const searchedTargetsRef = useRef(new Set<string>());
   const needsDestination = installationTarget !== 'atmosphere' && !installationRootPath;
-  const requestContextKey = `${scopeKey}:${installationTarget}:${installationRootPath ?? ''}:${useSharedOutput}:${canPrepare}:${cameraControl}:${JSON.stringify(requiredCameraHook)}`;
+  const requestContextKey = `${scopeKey}:${installationTarget}:${installationRootPath ?? ''}:${useSharedOutput}:${canPrepare}:${cameraControl}:${battleItems}:${JSON.stringify(requiredCameraHook)}`;
   const requestContextKeyRef = useRef(requestContextKey);
   requestContextKeyRef.current = requestContextKey;
 
@@ -215,6 +218,7 @@ export function InGameSettingsPackagePanel({
         const response = await bridge.inspectInGameSettingsPackage({
           requiredCameraHook: purpose === 'output' ? requiredCameraHook : undefined,
           cameraControl,
+          battleItems,
           useSharedOutput,
           installationTarget,
           installationRootPath,
@@ -254,7 +258,7 @@ export function InGameSettingsPackagePanel({
         }
       }
     },
-    [bridge, cameraControl, installationTarget, installationRootPath, needsDestination, purpose, requiredCameraHook, reportError, requestContextKey, scope, useSharedOutput]
+    [bridge, cameraControl, battleItems, installationTarget, installationRootPath, needsDestination, purpose, requiredCameraHook, reportError, requestContextKey, scope, useSharedOutput]
   );
   const inspectRef = useRef(inspect);
   inspectRef.current = inspect;
@@ -334,6 +338,7 @@ export function InGameSettingsPackagePanel({
         const response = await bridge.previewInGameSettingsPackage({
           requiredCameraHook: purpose === 'output' ? requiredCameraHook : undefined,
           cameraControl,
+          battleItems,
           useSharedOutput,
           expectedRevision: snapshot.revision,
           installationTarget,
@@ -378,6 +383,7 @@ export function InGameSettingsPackagePanel({
       canPrepare,
       requiredCameraHook,
       cameraControl,
+      battleItems,
       purpose,
       installationTarget,
       installationRootPath,
@@ -656,7 +662,8 @@ export function InGameSettingsPackagePanel({
           <div>
             <div className="in-game-settings-package__title-row">
               <h3 id="in-game-settings-package-title">
-                {t(useSharedOutput ? settingsOnly ? 'gameplaySettings.shared.settingsTitle' : 'gameplaySettings.shared.outputTitle' : 'gameplaySettings.inGamePackage.title')}
+                {t(useSharedOutput ? settingsOnly ? 'gameplaySettings.shared.settingsTitle'
+                  : battleItems ? 'battleItems.outputTitle' : 'gameplaySettings.shared.outputTitle' : 'gameplaySettings.inGamePackage.title')}
               </h3>
 
             </div>

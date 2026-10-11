@@ -19,14 +19,16 @@ export const gameOptionsCatalog = [
   { id: 'skipMovies', choices: ['on', 'off'], retail: 1 },
   { id: 'music', choices: Array.from({ length: 11 }, (_, value) => String(value)), retail: 8 },
   { id: 'soundEffects', choices: Array.from({ length: 11 }, (_, value) => String(value)), retail: 8 },
-  { id: 'cries', choices: Array.from({ length: 11 }, (_, value) => String(value)), retail: 8 }
+  { id: 'cries', choices: Array.from({ length: 11 }, (_, value) => String(value)), retail: 8 },
+  { id: 'unlockedCamera', choices: ['no', 'yes'], retail: 0 },
+  { id: 'battleItems', choices: ['no', 'yes'], retail: 1 }
 ] as const;
-export const defaultGameOptionsSelections = Array<number>(60).fill(0);
+export const defaultGameOptionsSelections = Array<number>(64).fill(0);
 export const encodeGameOptionsSelections = (values: readonly number[]) => values.join(',');
 
 export function normalizeGameOptionsSelections(values: readonly number[]): number[] | null {
-  if (values.length !== 60 || values.some(value => !Number.isInteger(value) || value < 0 || value > 6 || (value & 3) === 3)) return null;
-  const result = [...values];
+  if (![60, 64].includes(values.length) || values.some(value => !Number.isInteger(value) || value < 0 || value > 6 || (value & 3) === 3)) return null;
+  const result = [...values, ...Array<number>(64 - values.length).fill(0)];
   let offset = 0;
   for (const option of gameOptionsCatalog) {
     const choices = result.slice(offset, offset + option.choices.length);
@@ -42,11 +44,12 @@ export function normalizeGameOptionsSelections(values: readonly number[]): numbe
   return result;
 }
 
-export const gameOptionsSelectionsSchema = z.array(z.number().int().min(0).max(6)).length(60)
+export const gameOptionsSelectionsSchema = z.array(z.number().int().min(0).max(6)).length(64)
   .refine(values => normalizeGameOptionsSelections(values) !== null);
 export const gameOptionsWorkflowSchema = z.strictObject({
   canEdit: z.boolean(), detectedGame: projectGameSchema.nullable(), selections: z.array(z.number().int()),
-  sourceLayer: z.enum(['base', 'layered', 'missing']), diagnostics: z.array(apiDiagnosticSchema)
+  sourceLayer: z.enum(['base', 'layered', 'missing']), diagnostics: z.array(apiDiagnosticSchema),
+  installedFeatures: z.number().int().min(0).max(7)
 }).refine(workflow => (workflow.selections.length === 0 && !workflow.canEdit || gameOptionsSelectionsSchema.safeParse(workflow.selections).success
     && encodeGameOptionsSelections(normalizeGameOptionsSelections(workflow.selections)!) === encodeGameOptionsSelections(workflow.selections))
   && (!workflow.canEdit || (workflow.detectedGame === 'sword' || workflow.detectedGame === 'shield') && workflow.sourceLayer !== 'missing'));
@@ -68,7 +71,7 @@ export function getGameOptionsPendingSelections(session: EditSession | null): nu
   const edit = edits[0];
   const parsed = edit.newValue?.split(',').map(value => /^[0-6]$/.test(value) ? Number(value) : NaN) ?? [];
   const values = normalizeGameOptionsSelections(parsed);
-  if (!values || edit.newValue !== encodeGameOptionsSelections(values) || edit.recordId !== 'game-options' || edit.field !== 'selections'
+  if (!values || edit.newValue !== encodeGameOptionsSelections(values.slice(0, parsed.length)) || edit.recordId !== 'game-options' || edit.field !== 'selections'
     || edit.summary !== 'Stage global game option selections.' || edit.sources.length !== 1 || edit.sources[0].layer !== 'pending'
     || edit.sources[0].relativePath !== `pending/game-options/selections/${calculatePendingPayloadSha256(edit.newValue)}`) return null;
   return values;
