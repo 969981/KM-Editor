@@ -364,3 +364,13 @@ export const mergeWorkspaceErrorCodes = {
   supportRequired: "KM-MERGE-SUPPORT-REQUIRED",
   vanillaRequired: "KM-MERGE-VANILLA-REQUIRED",
 } as const;
+
+export const categoryErrorCodes = {
+  load: "KM-CATEGORIES-LOAD-FAILED",
+  invalid: "KM-CATEGORIES-STORED-LAYOUT-INVALID",
+  version: "KM-CATEGORIES-VERSION-UNSUPPORTED",
+  save: "KM-CATEGORIES-SAVE-FAILED",
+  name: "KM-CATEGORIES-NAME-INVALID",
+  locked: "KM-CATEGORIES-LOCKED",
+  stale: "KM-CATEGORIES-TARGET-STALE",
+} as const satisfies Record<string, KmErrorCode>;

@@ -353,7 +353,7 @@ import {
   resolveMoveRuntimeVariant,
   resolveMoveTimingEditableField
 } from './movesEditor';
-import { canAccessWorkflowSectionForHealth, getGameScopedWorkflowSummaries, getLoadedWorkflowStateForSection, isPokemonLegendsZAAdvancedEditorSection, isPokemonLegendsZAGame, isScarletVioletAdvancedEditorSection, isScarletVioletGame, isSharedStagedEditorSection, isTrinityCacheGame, isWorkflowNavigationVisibleForGame, isWorkflowSection, isWorkflowSupportedForGame, pokemonLegendsZAAdvancedEditorDomains, resolveWorkflowDataSection, scarletVioletAdvancedEditorDomains, sharedStagedEditorDomains, standaloneWorkflowSectionIds, type WorkflowNavigationGroup, workflowNavigationGroups } from './workflowGameSupport';
+import { canAccessWorkflowSectionForHealth, getGameScopedWorkflowSummaries, getLoadedWorkflowStateForSection, isPokemonLegendsZAAdvancedEditorSection, isPokemonLegendsZAGame, isScarletVioletAdvancedEditorSection, isScarletVioletGame, isSharedStagedEditorSection, isTrinityCacheGame, isWorkflowNavigationVisibleForGame, isWorkflowSection, isWorkflowSupportedForGame, pokemonLegendsZAAdvancedEditorDomains, resolveWorkflowDataSection, scarletVioletAdvancedEditorDomains, sharedStagedEditorDomains, standaloneWorkflowSectionIds, workflowNavigationGroups } from './workflowGameSupport';
 import {
   WorkflowLoadGeneration,
   getEditSessionOwnerSections,
@@ -425,6 +425,9 @@ import {
 import {
   TooltipIconVisibilityProvider
 } from './components/TooltipIconVisibility';
+import { CategorySettings } from './features/categories/CategorySettings';
+import { useEditorCategories } from './features/categories/categoryPreferences';
+import { isCustomCategoryId } from './features/categories/categoryLayout';
 import { AppSidebar } from './components/AppSidebar';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { LoadingProgress } from './components/LoadingProgress';
@@ -1161,7 +1164,7 @@ function keepSidebarItemVerticallyVisible(
 
 function readExpandedWorkflowGroups(game: ProjectGame | null) {
   if (!game || typeof window === 'undefined') {
-    return new Set<WorkflowNavigationGroup['id']>();
+    return new Set<string>();
   }
 
   try {
@@ -1169,30 +1172,30 @@ function readExpandedWorkflowGroups(game: ProjectGame | null) {
       `${expandedWorkflowGroupsStorageKey}.${game}`
     );
     if (!storedValue) {
-      return new Set<WorkflowNavigationGroup['id']>();
+      return new Set<string>();
     }
 
     const parsedValue = JSON.parse(storedValue) as unknown;
     if (!Array.isArray(parsedValue)) {
-      return new Set<WorkflowNavigationGroup['id']>();
+      return new Set<string>();
     }
 
-    const knownGroupIds = new Set(workflowNavigationGroups.map((group) => group.id));
+    const knownGroupIds = new Set<string>(workflowNavigationGroups.map((group) => group.id));
     return new Set(
       parsedValue.filter(
-        (groupId): groupId is WorkflowNavigationGroup['id'] =>
+        (groupId): groupId is string =>
           typeof groupId === 'string' &&
-          knownGroupIds.has(groupId as WorkflowNavigationGroup['id'])
+          (knownGroupIds.has(groupId) || isCustomCategoryId(groupId))
       )
     );
   } catch {
-    return new Set<WorkflowNavigationGroup['id']>();
+    return new Set<string>();
   }
 }
 
 function writeExpandedWorkflowGroups(
   game: ProjectGame | null,
-  groups: ReadonlySet<WorkflowNavigationGroup['id']>
+  groups: ReadonlySet<string>
 ) {
   if (!game || typeof window === 'undefined') {
     return;
@@ -3998,15 +4001,16 @@ export function App({
     readAnalysisLoadingMode
   );
   const [isSidebarOverlayOpen, setIsSidebarOverlayOpen] = useState(false);
+  const { groups: personalizedWorkflowGroups } = useEditorCategories();
   const [suppressedActiveWorkflowGroup, setSuppressedActiveWorkflowGroup] = useState<
-    WorkflowNavigationGroup['id'] | null
+    string | null
   >(null);
   const isSidebarConstrained = useMediaQuery(constrainedSidebarMediaQuery);
   const isSidebarCompact = isSidebarConstrained
     ? !isSidebarOverlayOpen
     : isSidebarCompactPreference;
   const [expandedWorkflowGroups, setExpandedWorkflowGroups] = useState<
-    Set<WorkflowNavigationGroup['id']>
+    Set<string>
   >(() => readExpandedWorkflowGroups(selectedGame));
   const handleChangeEditorLayout = useCallback((nextLayout: EditorLayoutPreference) => {
     setEditorLayout(nextLayout);
@@ -8107,8 +8111,8 @@ export function App({
   ]);
 
   const handleToggleWorkflowGroup = useCallback(
-    (groupId: WorkflowNavigationGroup['id']) => {
-      const isActiveGroup = workflowNavigationGroups
+    (groupId: string) => {
+      const isActiveGroup = personalizedWorkflowGroups
         .find((group) => group.id === groupId)
         ?.sectionIds.includes(activeSection);
 
@@ -8145,6 +8149,7 @@ export function App({
       });
     },
     [
+      personalizedWorkflowGroups,
       activeSection,
       expandedWorkflowGroups,
       selectedGame,
@@ -57807,6 +57812,7 @@ function SettingsSection({
           })}
         </div>
       </section>
+          <CategorySettings />
           {themeSettings}
           {personalizationSettings}
         </div>
