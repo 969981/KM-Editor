@@ -20,6 +20,7 @@ constexpr uint8_t Owner[8] = {'K', 'M', 'E', 'D', 'I', 'T', 'O', 'R'};
 alignas(16) uint8_t g_journal_buffer[JournalSize];
 alignas(16) uint8_t g_verify_buffer[JournalSize];
 volatile uint32_t g_journal_lock;
+bool g_settings_sd_mounted;
 
 uint16_t ReadU16(const uint8_t* bytes) {
     return static_cast<uint16_t>(bytes[0])
@@ -218,10 +219,14 @@ bool ResolveJournal(const uint8_t* journal, km::SettingsFamily family,
 
 bool OpenJournal(const km::GuestFilesystemApi& fs, const char* path, int32_t mode,
                  km::FileHandle* output) {
-    if (fs.open_file(output, path, mode) == km::ResultSuccess) {
-        return true;
+    // The guest SDK can abort on an unmounted path instead of returning an
+    // error. JournalLock serializes mount creation with all journal access.
+    if (!g_settings_sd_mounted) {
+        if (fs.mount_sd("kmgs") != km::ResultSuccess) {
+            return false;
+        }
+        g_settings_sd_mounted = true;
     }
-    fs.mount_sd("sd");
     return fs.open_file(output, path, mode) == km::ResultSuccess;
 }
 

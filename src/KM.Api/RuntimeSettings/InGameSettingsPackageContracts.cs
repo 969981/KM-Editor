@@ -76,6 +76,8 @@ public enum InGameSettingsExecutableCompositionStrategyDto
     StockPackage,
     RetailEquivalentStandalone,
     CompatibleStandalone,
+    SharedOutput,
+    SettingsOnly,
 }
 
 public sealed record InGameSettingsPackageVersionDto(
@@ -114,10 +116,17 @@ public sealed record InspectInGameSettingsPackageRequest(
     OutputScopeDto Scope,
     InGameSettingsInstallationTargetDto InstallationTarget =
         InGameSettingsInstallationTargetDto.Atmosphere,
-    string? InstallationRootPath = null);
+    string? InstallationRootPath = null,
+    bool UseSharedOutput = false,
+    CameraHookRequirementDto? RequiredCameraHook = null,
+    bool CameraControl = false);
 
 public sealed record InspectInGameSettingsPackageResponse(
     InGameSettingsPackageSnapshotDto Snapshot);
+
+public sealed record CameraHookRequirementDto(
+    InGameSettingsInstallationTargetDto InstallationTarget,
+    string InstallationRootPath);
 
 public sealed record PreviewInGameSettingsPackageRequest(
     OutputScopeDto Scope,
@@ -125,7 +134,10 @@ public sealed record PreviewInGameSettingsPackageRequest(
     InGameSettingsPackageOperationDto Operation,
     InGameSettingsInstallationTargetDto InstallationTarget =
         InGameSettingsInstallationTargetDto.Atmosphere,
-    string? InstallationRootPath = null);
+    string? InstallationRootPath = null,
+    bool UseSharedOutput = false,
+    CameraHookRequirementDto? RequiredCameraHook = null,
+    bool CameraControl = false);
 
 public sealed record InGameSettingsPackageTargetDto(
     string RelativePath,
@@ -162,7 +174,8 @@ public sealed record ApplyInGameSettingsPackageRequest(
     string ReviewId,
     InGameSettingsInstallationTargetDto InstallationTarget =
         InGameSettingsInstallationTargetDto.Atmosphere,
-    string? InstallationRootPath = null);
+    string? InstallationRootPath = null,
+    bool UseSharedOutput = false);
 
 public enum InGameSettingsPackageApplyOutcomeDto
 {

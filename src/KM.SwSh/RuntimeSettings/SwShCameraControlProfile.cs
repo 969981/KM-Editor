@@ -10,10 +10,11 @@ internal static class SwShCameraControlProfile
 {
     private static readonly (int Offset, int Length)[] dependencies =
     [
-        (0x00CF8F00, 0x210), (0x00CFA230, 0x70),
+        (0x00CF8F00, 0x210), (0x00CF9400, 0x100), (0x00CFA230, 0x70),
         (0x00CFD500, 0x1680), (0x00D3B5F0, 0x2A80),
         (0x00D8F2E0, 0xF00), (0x00F194A0, 0x490),
         (0x00D93390, 0x568),
+        (0x00CCDFF0, 0x170), (0x00CCEC50, 0x4B4), (0x00CCFBA0, 0x178),
     ];
 
     public static void ValidateComposition(byte[] baseBytes, byte[] currentBytes, ProjectGame game)
@@ -39,7 +40,7 @@ internal static class SwShCameraControlProfile
             // Report this operation's specific ownership conflict below.
         }
         throw new InvalidDataException(
-            "Camera Control requires the original camera and field task code, or the compatible KM 60FPS Patch. Another executable edit overlaps its runtime dependencies.");
+            "Camera Control requires the original camera, field task, and scenery code, or the compatible KM 60FPS Patch. Another executable edit overlaps its runtime dependencies.");
     }
 
     public static IEnumerable<SwShExeFsReservedRegion> CreateReservations()
@@ -53,5 +54,14 @@ internal static class SwShCameraControlProfile
             yield return new(SwShExeFsReservedRegionLedger.OwnerNativeGameplayMenu,
                 $"camera-control-{name}-{label}", SwShExeFsReservedRegionLedger.ExeFsMainPath,
                 "main.text", offset + delta, 16, "Camera Control runtime hook", "do-not-overwrite");
+        foreach (var (name, delta) in new[] { ("sword", 0), ("shield", 0x30) })
+        foreach (var (label, offset) in new[]
+        {
+            ("terrain-distance", 0x00CCE090), ("model-distance", 0x00CCFC5C),
+            ("instance-distance", 0x00CCED38), ("instance-density-distance", 0x00CCEE00),
+        })
+            yield return new(SwShExeFsReservedRegionLedger.OwnerNativeGameplayMenu,
+                $"camera-control-{name}-{label}", SwShExeFsReservedRegionLedger.ExeFsMainPath,
+                "main.text", offset + delta, 4, "Camera Control scenery distance hook", "do-not-overwrite");
     }
 }

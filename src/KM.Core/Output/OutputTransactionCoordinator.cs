@@ -15,7 +15,7 @@ namespace KM.Core.Output;
 /// Serializes reviewed output mutations with durable journals and same-volume file publication.
 /// Callers retain ownership of game-specific preparation and postimage meaning.
 /// </summary>
-public sealed class OutputTransactionCoordinator
+public sealed partial class OutputTransactionCoordinator
 {
     private readonly OutputPathSafety paths;
     private readonly OutputMetadataStore metadata;
@@ -1612,7 +1612,10 @@ public sealed class OutputTransactionCoordinator
                     throw new OutputPreimageConflictException(path);
                 }
 
-                if (current == checkpoint.State)
+                if (current == checkpoint.State && owned is not null
+                    && OwnershipClaimsMatchExactly(owned.Claims, checkpoint.OwnershipClaims)
+                    && owned.FileDeleteEligible == checkpoint.FileDeleteEligible
+                    && owned.OutputMode == checkpoint.OutputMode)
                 {
                     continue;
                 }
@@ -1857,6 +1860,9 @@ public sealed class OutputTransactionCoordinator
             }
 
             var legacyAdoptionAuthorized = false;
+            if (mutation.IsOwnershipUpdate && (!hasOwnedRecord || owned!.RuntimeMutableDescriptor is not null
+                || OwnershipClaimsMatchExactly(owned.Claims, mutation.OwnershipClaims)))
+                throw new OutputOwnershipConflictException(mutation.Path);
             if (mutation.LegacyAdoptionDeleteAuthority is { } legacyAdoption)
             {
                 legacyAdoption.ValidateBinding(
@@ -2006,7 +2012,8 @@ public sealed class OutputTransactionCoordinator
                 mutation.RestoredFileDeleteEligibility,
                 mutation.Kind == OutputMutationKind.Write ? $"{index:D6}.stage.bin" : null,
                 mutation.ExpectedPreimage.Exists ? $"{index:D6}.backup.bin" : null,
-                mutation.LegacyAdoptionDeleteAuthority))
+                mutation.LegacyAdoptionDeleteAuthority,
+                mutation.IsOwnershipUpdate ? mutation.OwnershipActor : null))
             .ToImmutableArray();
         var journal = new OutputTransactionJournal(
             OutputTransactionJournal.CurrentSchemaVersion,
@@ -3663,7 +3670,7 @@ public sealed class OutputTransactionCoordinator
                 : null;
             if (!pathsSeen.Add(entry.Path.CanonicalKey)
                 || !Enum.IsDefined(entry.Kind)
-                || entry.Preimage == entry.Postimage
+                || entry.Preimage == entry.Postimage && entry.OwnershipUpdateActor is null && !entry.RestoredFileDeleteEligibility.HasValue
                 || entry.Kind == OutputMutationKind.Write && !entry.Postimage.Exists
                 || entry.Kind == OutputMutationKind.Delete && entry.Postimage.Exists
                 || entry.Kind == OutputMutationKind.Delete && !entry.Preimage.Exists
@@ -3686,6 +3693,14 @@ public sealed class OutputTransactionCoordinator
             {
                 throw new ArgumentException("The output transaction journal contains an invalid entry.", nameof(journal));
             }
+
+            if (entry.OwnershipUpdateActor is { } updateActor
+                && (entry.Kind != OutputMutationKind.Write || !entry.Preimage.Exists || entry.Preimage != entry.Postimage
+                    || entry.RuntimeMutableDescriptor is not null || entry.RestoredFileDeleteEligibility.HasValue
+                    || entry.LegacyAdoptionDeleteAuthority is not null
+                    || !entry.OwnershipClaims.Any(claim => claim.OwnerId == updateActor)
+                    || !journal.Origins.Any(origin => origin.Kind == OutputApplyOriginKind.Workflow && origin.Id == updateActor.Value)))
+                throw new ArgumentException("The output transaction journal contains an invalid ownership update.", nameof(journal));
 
             if (entry.RuntimeMutableDescriptor is { } runtimeMutable)
             {
@@ -4664,6 +4679,11 @@ public sealed class OutputTransactionCoordinator
             }
 
             yield return entry.OwnershipOutputMode;
+            if (entry.OwnershipUpdateActor is { } updateActor)
+            {
+                yield return "ownership-update";
+                yield return updateActor.Value;
+            }
             yield return entry.RuntimeMutableDescriptor is null ? "ordinary" : "runtime-mutable";
             yield return entry.RuntimeMutableDescriptor is null
                 ? null

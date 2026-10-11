@@ -31,7 +31,7 @@ public static class SwShNativeGameplayMenuRomFsMaterializer
         new("km_unlocked_camera", "Unlocked Camera", "Caméra libre", "Freie Kamera", "Telecamera libera", "じゆうなカメラ", "自由なカメラ", "자유 카메라", "自由镜头", "Cámara desbloqueada", "自由鏡頭"),
         new("km_no", "No", "Non", "Nein", "No", "いいえ", "いいえ", "아니요", "否", "No", "否"),
         new("km_yes", "Yes", "Oui", "Ja", "Sì", "はい", "はい", "예", "是", "Sí", "是"),
-        new("km_unlocked_camera_help", "Rotate the camera while exploring. Scenes keep their camera control.", "Tournez la caméra en explorant. Les scènes gardent le contrôle.", "Kamera beim Erkunden drehen. Szenen behalten ihre Kamerasteuerung.", "Ruota la telecamera durante l’esplorazione. Le scene ne mantengono il controllo.", "たんさくちゅうに カメラを まわせます。イベントでは おまかせ。", "探索中にカメラを回せます。イベント中は自動で切り替わります。", "탐험 중 카메라를 회전합니다. 이벤트 중에는 자동으로 전환됩니다.", "探索时可旋转镜头。剧情场景保留镜头控制权。", "Gira la cámara al explorar. Las escenas mantienen su control.", "探索時可旋轉鏡頭。劇情場景保留鏡頭控制權。"),
+        new("km_unlocked_camera_help", "Rotate outdoors with the right stick.\\nIndoors and scenes use the normal camera.", "Dehors, tournez avec le stick droit.\\nCaméra normale en intérieur et en scène.", "Draußen mit dem rechten Stick drehen.\\nDrinnen und in Szenen: normale Kamera.", "All'aperto, ruota con lo stick destro.\\nAl chiuso e nelle scene: camera normale.", "そとで みぎスティックで カメラを まわせます。\\nたてものや イベントでは いつもの カメラです。", "屋外で右スティックでカメラを回せます。\\n屋内とイベント中は通常のカメラに戻ります。", "야외에서 오른쪽 스틱으로 시점을 회전합니다.\\n실내와 이벤트에서는 원래 카메라를 씁니다.", "在户外使用右摇杆旋转镜头。\\n室内和剧情场景使用原本的镜头。", "Fuera, gira con la palanca derecha.\\nDentro y en escenas: cámara normal.", "在戶外使用右搖桿旋轉鏡頭。\\n室內和劇情場景使用原本的鏡頭。"),
         new("km_exp_share", "Experience Share", "Multi Exp.", "EP Teiler", "Condividi ESP", "けいけんちきょうゆう", "経験値共有", "경험치 공유", "经验分享", "Repartir EXP", "經驗分享"),
         new("km_exp_rate", "Experience Rate", "Taux d’EXP", "EP Rate", "Tasso ESP", "けいけんちりつ", "経験値率", "경험치 비율", "经验倍率", "Tasa de EXP", "經驗倍率"),
         new("km_level_cap", "EXP Level Cap", "Limite de niveau EXP", "EP Levelgrenze", "Limite livello ESP", "けいけんちレベルじょうげん", "経験値レベル上限", "경험치 레벨 제한", "经验等级上限", "Límite de nivel EXP", "經驗等級上限"),
@@ -45,7 +45,8 @@ public static class SwShNativeGameplayMenuRomFsMaterializer
 
     public static IReadOnlyDictionary<string, byte[]> Build(
         ProjectGame game, string baseRomFsRoot, CancellationToken cancellationToken = default,
-        Func<string, byte[], byte[]>? resolveCurrent = null)
+        Func<string, byte[], byte[]>? resolveCurrent = null,
+        SwShNativeMenuFeatures features = SwShNativeMenuFeatures.All)
     {
         if (game is not ProjectGame.Sword and not ProjectGame.Shield)
             throw new InvalidOperationException("The Options gameplay page requires Sword or Shield.");
@@ -58,6 +59,10 @@ public static class SwShNativeGameplayMenuRomFsMaterializer
             ReadSource($"bin/message/{language}/{MessagePath}.tbl", KeysHash))).ToArray();
         foreach (var message in Messages)
         {
+            var camera = message.Key is "km_unlocked_camera" or "km_unlocked_camera_help" or "km_no" or "km_yes";
+            if (message.Key != "km_save_failed" && (camera
+                ? !features.HasFlag(SwShNativeMenuFeatures.Camera)
+                : !features.HasFlag(SwShNativeMenuFeatures.Gameplay))) continue;
             cancellationToken.ThrowIfCancellationRequested();
             sources = CoordinatedGameTextAuthoring.Insert(sources, Languages, message.Key,
                 message.TextByLanguage, GameTextNullLineEncoding.LegacyCountOne)

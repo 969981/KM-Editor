@@ -225,7 +225,7 @@ char g_level_cap_value_names[100][ValueMessageKeyCapacity]{};
 MessageKey g_level_cap_value_keys[100]{};
 
 constexpr char JournalPath[] =
-    "sd:/config/km-editor/gameplay-settings/0100F43008C44000/settings.bin";
+    "kmgs:/config/km-editor/gameplay-settings/0100F43008C44000/settings.bin";
 
 enum ActivationState : uint32_t {
     ActivationIdle = 0,

@@ -29,7 +29,6 @@ constexpr uintptr_t CountOffset = 0x5D4;
 constexpr uintptr_t MapOffset = 0x5D8;
 constexpr uint32_t StockCount = 16;
 constexpr uint32_t TotalCount = 20;
-constexpr uint32_t AddedCount = TotalCount - StockCount;
 constexpr uintptr_t RetryFlagOffset = 0x628;
 constexpr uintptr_t RetrySelectionOffset = 0x62C;
 constexpr uintptr_t RetryValuesOffset = 0x630;
@@ -78,12 +77,22 @@ template <typename T> T& Field(uintptr_t owner, uintptr_t offset) {
 Descriptor* Rows(uintptr_t view) {
     return reinterpret_cast<Descriptor*>(view + DescriptorsOffset);
 }
+bool RowInstalled(uint32_t index) {
+    const auto features = km_swsh_installed_features();
+    return index == 19 ? (features & 1) != 0 : (features & 2) != 0;
+}
+uint32_t AddedCount() {
+    const auto features = km_swsh_installed_features();
+    return ((features & 1) != 0 ? 1U : 0U) + ((features & 2) != 0 ? 3U : 0U);
+}
 bool HasKmRows(uintptr_t view) {
     const auto count = Field<uint32_t>(view, CountOffset);
-    if (count < AddedCount || count > TotalCount) return false;
+    const auto added = AddedCount();
+    if (added == 0 || count < added || count > TotalCount) return false;
     const auto* map = reinterpret_cast<const uint32_t*>(view + MapOffset);
-    for (uint32_t index = 0; index < AddedCount; ++index)
-        if (map[count - AddedCount + index] != StockCount + index) return false;
+    auto visual = count - added;
+    for (uint32_t index = StockCount; index < TotalCount; ++index)
+        if (RowInstalled(index) && map[visual++] != index) return false;
     return true;
 }
 void LoadDraft(uintptr_t view) {
@@ -138,7 +147,8 @@ extern "C" void km_swsh_options_ctor(uintptr_t view, uintptr_t parent,
     if (count > StockCount) return;
     LoadDraft(view);
     auto* map = reinterpret_cast<uint32_t*>(view + MapOffset);
-    for (uint32_t index = StockCount; index < TotalCount; ++index) map[count++] = index;
+    for (uint32_t index = StockCount; index < TotalCount; ++index)
+        if (RowInstalled(index)) map[count++] = index;
 }
 
 extern "C" void km_swsh_options_activate(uintptr_t owner) {
@@ -195,8 +205,7 @@ extern "C" void km_swsh_options_render(uintptr_t view, int32_t visual, uint32_t 
     if (index == 17 || index == 18) {
         g_render_descriptor = &row;
         g_render_value = value;
-        const auto manager = Field<uintptr_t>(view, 0x2B0);
-        g_render_bank = manager == 0 ? 0 : Field<uintptr_t>(manager, 0x2E8);
+        g_render_bank = Field<uintptr_t>(view, 0x960);
         __atomic_store_n(&g_render_thread, km::km_get_thread_local_region(), __ATOMIC_RELEASE);
         // Only the stock slider animation receives a value in its 0..10 range.
         row.value = index == 17 ? value / 5 : (value + 9) / 10;
@@ -223,7 +232,7 @@ extern "C" void km_swsh_options_number(uintptr_t buffer, uint32_t value,
         const auto key = Hash("km_off");
         // Resolve through the same live Options message bank as stock labels.
         reinterpret_cast<void (*)(uintptr_t, const uint64_t*, uintptr_t)>(
-            g_main + 0x0067EB10)(buffer, &key, g_render_bank);
+            g_main + 0x0067EB10)(g_render_bank, &key, buffer);
         return;
     }
     const bool rate = g_render_descriptor->id == 17;
@@ -253,7 +262,7 @@ extern "C" bool km_swsh_options_apply(uintptr_t owner) {
         return false;
     }
     const auto visible = count;
-    count -= AddedCount;
+    count -= AddedCount();
     reinterpret_cast<void (*)(uintptr_t)>(g_main + 0x014DD330 + g_delta)(owner);
     count = visible;
     for (uint32_t index = StockCount; index < TotalCount; ++index) rows[index].original = rows[index].value;
@@ -263,8 +272,17 @@ extern "C" bool km_swsh_options_apply(uintptr_t owner) {
 extern "C" bool km_swsh_options_reset_apply(uintptr_t owner) {
     const auto view = Field<uintptr_t>(owner, 0x78);
     if (!HasKmRows(view)) return false;
-    const km::SettingsState vanilla{km::SettingsFamily::SwordShield, 0, 0, Presence,
+    km::SettingsState vanilla{km::SettingsFamily::SwordShield, 0, 0, Presence,
         km::VanillaSettings, -1, false};
+    km::SettingsValues current = km::VanillaSettings;
+    km::UnpackSettingsSnapshot(km_swsh_read_settings(), &current);
+    if (!RowInstalled(16)) {
+        vanilla.values.experience_share = current.experience_share;
+        vanilla.values.experience_rate_basis_points = current.experience_rate_basis_points;
+        vanilla.values.level_cap_enabled = current.level_cap_enabled;
+        vanilla.values.level_cap = current.level_cap;
+    }
+    if (!RowInstalled(19)) vanilla.values.unlocked_camera = current.unlocked_camera;
     if (!km_swsh_write_settings(km::PackSettingsSnapshot(vanilla))) {
         PreserveFailedDraft(view);
         return false;

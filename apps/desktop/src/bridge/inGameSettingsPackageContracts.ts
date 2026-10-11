@@ -88,7 +88,9 @@ export const inGameSettingsPackageReadDependencyRoleSchema = z.enum([
 export const inGameSettingsExecutableCompositionStrategySchema = z.enum([
   'stockPackage',
   'retailEquivalentStandalone',
-  'compatibleStandalone'
+  'compatibleStandalone',
+  'sharedOutput',
+  'settingsOnly'
 ]);
 
 export const inGameSettingsPackageVersionSchema = z.strictObject({
@@ -161,7 +163,15 @@ export const inGameSettingsPackageSnapshotSchema = z.strictObject({
   state: inGameSettingsPackageStateSchema
 });
 
+const cameraHookRequirementSchema = z.strictObject({
+  installationTarget: z.enum(['ryujinx', 'eden']),
+  installationRootPath: z.string().min(1).max(32767)
+}).nullable().optional();
+
 export const inspectInGameSettingsPackageRequestSchema = z.strictObject({
+  requiredCameraHook: cameraHookRequirementSchema,
+  cameraControl: z.boolean().optional(),
+  useSharedOutput: z.boolean().optional(),
   installationTarget: inGameSettingsInstallationTargetSchema,
   installationRootPath: z.string().min(1).max(32767).nullable().optional(),
   scope: outputSafetyScopeSchema
@@ -172,6 +182,9 @@ export const inspectInGameSettingsPackageResponseSchema = z.strictObject({
 });
 
 export const previewInGameSettingsPackageRequestSchema = z.strictObject({
+  requiredCameraHook: cameraHookRequirementSchema,
+  cameraControl: z.boolean().optional(),
+  useSharedOutput: z.boolean().optional(),
   expectedRevision: sha256Schema,
   installationTarget: inGameSettingsInstallationTargetSchema,
   installationRootPath: z.string().min(1).max(32767).nullable().optional(),
@@ -255,6 +268,7 @@ export const previewInGameSettingsPackageResponseSchema = z.strictObject({
 });
 
 export const applyInGameSettingsPackageRequestSchema = z.strictObject({
+  useSharedOutput: z.boolean().optional(),
   installationTarget: inGameSettingsInstallationTargetSchema,
   installationRootPath: z.string().min(1).max(32767).nullable().optional(),
   reviewId: reviewIdSchema,

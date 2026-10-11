@@ -28,13 +28,13 @@ internal sealed class NativeGameplayMenuSourceLayoutException : IOException
 /// retail ExeFS and RomFS inputs. No executable or game asset is editor-shipped;
 /// every title-owned output is transformed from the selected project's source.
 /// </summary>
-public static class NativeGameplayMenuBundleFactory
+public static partial class NativeGameplayMenuBundleFactory
 {
     public const string DeliveryId = "native-gameplay-menu-v1";
     public const string RuntimeComponentName = "subsdk9";
     private const int MaximumNativeMenuComponentCount = 64;
 
-    private static readonly GameplayBundleVersion PackageVersion = new(2, 5, 2);
+    private static readonly GameplayBundleVersion PackageVersion = new(2, 5, 8);
     private static readonly GameplayBundleVersion FirstNativeMenuPackageVersion = new(2, 5, 0);
     private static readonly GameplaySettingPresence SettingsPresence =
         GameplaySettingPresence.ExperienceShare
@@ -137,7 +137,8 @@ public static class NativeGameplayMenuBundleFactory
         IReadOnlyDictionary<string, byte[]> transformedRomFsComponents,
         InGameSettingsInstallationTargetDto installationTarget =
             InGameSettingsInstallationTargetDto.Atmosphere,
-        bool installToEmulatorRoot = false)
+        bool installToEmulatorRoot = false,
+        SwShNativeMenuFeatures features = SwShNativeMenuFeatures.All)
     {
         return CreateEntry(
             game,
@@ -147,7 +148,7 @@ public static class NativeGameplayMenuBundleFactory
             retailMainNpdm,
             runtimeNso,
             transformedRomFsComponents,
-            installationTarget, installToEmulatorRoot);
+            installationTarget, installToEmulatorRoot, features);
     }
 
     /// <summary>
@@ -166,7 +167,8 @@ public static class NativeGameplayMenuBundleFactory
         IReadOnlyDictionary<string, byte[]> transformedRomFsComponents,
         InGameSettingsInstallationTargetDto installationTarget =
             InGameSettingsInstallationTargetDto.Atmosphere,
-        bool installToEmulatorRoot = false)
+        bool installToEmulatorRoot = false,
+        SwShNativeMenuFeatures features = SwShNativeMenuFeatures.All)
     {
         ArgumentNullException.ThrowIfNull(transformedRomFsComponents);
         ValidateInstallationTarget(installationTarget);
@@ -207,6 +209,8 @@ public static class NativeGameplayMenuBundleFactory
 
         var guestModule = runtimeNso.ToArray();
         ValidateGuestModule(guestModule);
+        if (game is ProjectGame.Sword or ProjectGame.Shield)
+            guestModule = ConfigureSwShFeatures(guestModule, features);
         var derivedMain = game switch
         {
             ProjectGame.Scarlet => SvGameplaySettingsMainPatcher
@@ -585,7 +589,14 @@ public static class NativeGameplayMenuBundleFactory
 
     private static void EnsureExpectedBuild(ProjectGame game, string buildId)
     {
-        var expected = game switch
+        if (!string.Equals(buildId, GetExpectedBuild(game), StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The selected base executable is not the exact supported game build.");
+        }
+    }
+
+    private static string GetExpectedBuild(ProjectGame game) => game switch
         {
             ProjectGame.Sword =>
                 "A3B75BCD3311385AEED67FBEEB79CBB7BF02F471000000000000000000000000",
@@ -599,12 +610,6 @@ public static class NativeGameplayMenuBundleFactory
                 "B1F12FD919EAE86AB8A978317677E64BCE443D1F000000000000000000000000",
             _ => throw new ArgumentOutOfRangeException(nameof(game)),
         };
-        if (!string.Equals(buildId, expected, StringComparison.Ordinal))
-        {
-            throw new InvalidDataException(
-                "The selected base executable is not the exact supported game build.");
-        }
-    }
 
     private static void EnsureExpectedNpdmTitle(
         ProjectGame game,

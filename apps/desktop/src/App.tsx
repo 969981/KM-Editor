@@ -544,6 +544,7 @@ import {
   gameplaySettingsScopeKey
 } from './features/gameplay-settings/GameplaySettingsSection';
 import { CameraControlSection } from './features/camera-control/CameraControlSection';
+import { CameraHookSection } from './features/camera-control/CameraHookSection';
 import { OutputSafetyPanel } from './features/output-safety/OutputSafetyPanel';
 import { ProjectRelocationPanel } from './features/output-safety/ProjectRelocationPanel';
 import {
@@ -4488,6 +4489,10 @@ export function App({
   );
   const handleCameraControlDirtyChange = useCallback(
     (isDirty: boolean) => registerEditorDraftDirty('cameraControl', isDirty),
+    [registerEditorDraftDirty]
+  );
+  const handleCameraHookDirtyChange = useCallback(
+    (isDirty: boolean) => registerEditorDraftDirty('cameraHook', isDirty),
     [registerEditorDraftDirty]
   );
   const handleFashionCatalogDirtyChange = useCallback(
@@ -21777,6 +21782,7 @@ export function App({
           <MergeWorkspace bridge={bridge} paths={gameDumpPaths} active={activeSection === 'modMerger'} armWriteGuard={armModMergerWriteGuard} onExportingChange={handleModMergerApplyingChange} />
           {activeSection === 'cameraControl' ? (
             <CameraControlSection
+              onOpenCameraHook={() => void handleNavigateSection('cameraHook')}
               destinations={applicationWorkspaceSnapshot.document?.gameplaySettingsDestinations}
               onRememberDestination={handleRememberGameplaySettingsDestination}
               armCriticalWriteGuard={armGameplaySettingsCriticalWriteGuard}
@@ -21791,8 +21797,25 @@ export function App({
               scope={outputSafetyScope}
             />
           ) : null}
+          {activeSection === 'cameraHook' ? (
+            <CameraHookSection
+              destinations={applicationWorkspaceSnapshot.document?.gameplaySettingsDestinations}
+              onRememberDestination={handleRememberGameplaySettingsDestination}
+              armCriticalWriteGuard={armGameplaySettingsCriticalWriteGuard}
+              bridge={bridge}
+              canApply={outputSafety.canApply}
+              onApplied={handleGameplaySettingsApplied}
+              onApplyBusyChange={handleGameplaySettingsApplyingChange}
+              onDirtyChange={handleCameraHookDirtyChange}
+              onError={handleGameplaySettingsError}
+              onOpenProjectSetup={() => void handleNavigateSection('health')}
+              onRecoveryRequired={handleGameplaySettingsRecoveryRequired}
+              scope={outputSafetyScope}
+            />
+          ) : null}
           {activeSection === 'gameplaySettings' ? (
             <GameplaySettingsSection
+              onOpenCameraHook={() => void handleNavigateSection('cameraHook')}
               destinations={applicationWorkspaceSnapshot.document?.gameplaySettingsDestinations}
               onRememberDestination={handleRememberGameplaySettingsDestination}
               armCriticalWriteGuard={armGameplaySettingsCriticalWriteGuard}

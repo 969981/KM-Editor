@@ -17,7 +17,8 @@ internal sealed record OutputJournalEntry(
     bool? RestoredFileDeleteEligibility,
     string? StageFileName,
     string? BackupFileName,
-    OutputLegacyAdoptionDeleteAuthority? LegacyAdoptionDeleteAuthority = null);
+    OutputLegacyAdoptionDeleteAuthority? LegacyAdoptionDeleteAuthority = null,
+    OwnershipOwnerId? OwnershipUpdateActor = null);
 
 internal sealed record OutputTransactionJournal(
     int SchemaVersion,

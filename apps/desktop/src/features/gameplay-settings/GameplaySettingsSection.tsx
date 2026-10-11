@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
-import { Camera, FlaskConical, ShieldAlert } from 'lucide-react';
-import { useMemo } from 'react';
+import { Camera, Cctv, FlaskConical, ShieldAlert } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CameraHookRequirement, type CameraHookStatus } from '../camera-control/CameraHookRequirement';
 import type { OutputSafetyScope } from '../../bridge/outputSafetyContracts';
 import type { ProjectBridge } from '../../bridge/projectBridge';
 import { useLocalization } from '../../localization';
@@ -17,6 +18,8 @@ type GameplaySettingsBridge = Pick<
 
 export type GameplaySettingsSectionProps = GameplaySettingsDestinations & {
   cameraControl?: boolean;
+  cameraHook?: boolean;
+  onOpenCameraHook?: () => void;
   armCriticalWriteGuard: () => Promise<boolean>;
   bridge: GameplaySettingsBridge;
   canApply?: boolean;
@@ -35,6 +38,8 @@ export type GameplaySettingsSectionProps = GameplaySettingsDestinations & {
 
 export function GameplaySettingsSection({
   cameraControl = false,
+  cameraHook = false,
+  onOpenCameraHook,
   armCriticalWriteGuard,
   destinations,
   onRememberDestination,
@@ -49,7 +54,8 @@ export function GameplaySettingsSection({
   scope
 }: GameplaySettingsSectionProps) {
   const { t } = useLocalization();
-  const HeadingIcon = cameraControl ? Camera : FlaskConical;
+  const HeadingIcon = cameraHook ? Cctv : cameraControl ? Camera : FlaskConical;
+  const [hookStatus, setHookStatus] = useState<CameraHookStatus | null>(null);
   const stableScope = useMemo<OutputSafetyScope | null>(
     () => (hasGameplaySettingsOutputScope(scope) ? copyGameplaySettingsScope(scope) : null),
     [
@@ -65,6 +71,9 @@ export function GameplaySettingsSection({
     ]
   );
 
+  const sharedOutput = !cameraHook && (stableScope?.paths.selectedGame === 'sword' || stableScope?.paths.selectedGame === 'shield');
+  const hookReady = hookStatus?.scopeKey === JSON.stringify(stableScope) && hookStatus.ready;
+
   return (
     <section
       aria-labelledby="gameplay-settings-title"
@@ -75,13 +84,15 @@ export function GameplaySettingsSection({
           <HeadingIcon aria-hidden="true" size={20} />
           <div>
             <div className="gameplay-settings__title-row">
-              <h2 id="gameplay-settings-title">{t(cameraControl ? 'cameraControl.title' : 'gameplaySettings.title')}</h2>
-              <span className="gameplay-settings__beta-badge">{t('gameplaySettings.betaBadge')}</span>
+              <h2 id="gameplay-settings-title">{t(cameraHook ? 'cameraHook.title' : cameraControl ? 'cameraControl.title' : 'gameplaySettings.title')}</h2>
+              {!cameraHook ? <span className="gameplay-settings__beta-badge">{t('gameplaySettings.betaBadge')}</span> : null}
             </div>
 
           </div>
         </div>
       </header>
+
+      {cameraHook ? <p>{t('cameraHook.instructions')}</p> : null}
 
       {cameraControl ? <div className="camera-control__overview">
         <p>{t('cameraControl.instructions')}</p>
@@ -93,12 +104,12 @@ export function GameplaySettingsSection({
         <p className="field-note">{t('cameraControl.sharedPackage')}</p>
       </div> : null}
 
-      <div className="gameplay-settings__beta-notice" role="note">
+      {!cameraHook ? <div className="gameplay-settings__beta-notice" role="note">
         <ShieldAlert aria-hidden="true" size={20} />
         <div>
           <p>{t('gameplaySettings.destination.beta')}</p>
         </div>
-      </div>
+      </div> : null}
 
       {!stableScope ? (
         <div className="gameplay-settings__setup" role="status">
@@ -111,7 +122,14 @@ export function GameplaySettingsSection({
           </button>
         </div>
       ) : (
+        <>
+        {sharedOutput ? <CameraHookRequirement key={JSON.stringify(stableScope)} scope={stableScope} bridge={bridge}
+          destinations={destinations} onStatus={setHookStatus} onOpenCameraHook={onOpenCameraHook} /> : null}
         <InGameSettingsPackagePanel
+          cameraControl={cameraControl}
+          purpose={cameraHook ? 'hook' : sharedOutput ? 'output' : 'combined'}
+          canPrepare={!sharedOutput || Boolean(hookReady)}
+          requiredCameraHook={sharedOutput && hookReady ? hookStatus?.requirement : undefined}
           armCriticalWriteGuard={armCriticalWriteGuard}
           destinations={destinations}
           onRememberDestination={onRememberDestination}
@@ -124,6 +142,7 @@ export function GameplaySettingsSection({
           onRecoveryRequired={onRecoveryRequired}
           scope={stableScope}
         />
+        </>
       )}
     </section>
   );

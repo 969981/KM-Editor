@@ -8,7 +8,7 @@ The runtime supports only these exact game updates:
 
 | Game | Update | Game-owned menu location |
 | --- | --- | --- |
-| Pokemon Sword and Shield | 1.3.2 | Four rows at the bottom of X > Options |
+| Pokemon Sword and Shield | 1.3.2 | Installed feature rows at the bottom of X > Options |
 | Pokemon Scarlet and Violet | 4.0.0 | Three rows in the existing Options screen |
 | Pokemon Legends Z-A | 2.0.2 | Three rows in the existing Game Settings page |
 
@@ -18,13 +18,28 @@ editor's verified gameplay scopes and do not claim control over unlisted EXP sou
 
 Sword and Shield also expose **Unlocked Camera: Yes / No**, available through
 **Beta Editors > Camera Control** in KM. No is the default. Yes selects the existing
-orbit camera during exploration, including areas that normally use a fixed camera.
+orbit camera outdoors, including towns and routes that normally use a fixed camera.
+Buildings and unknown areas retain their native camera without clearing the saved choice.
 The runtime retains each area's native camera choice, yields to foreground tasks and
 event cameras, and restores the saved preference after those owners and return blends
 finish. Naturally adjustable areas retain their native behavior with either choice.
-Camera Control shares the Gameplay Settings package and its install, upgrade, and removal
-workflow. The journal uses schema two when camera control is present; other profiles keep
+Camera Control installs only Unlocked Camera; Gameplay Settings separately installs the
+three EXP options. Either feature can be removed while retaining the other. Camera only
+output leaves the game's EXP routines unchanged. The shared journal uses schema two; other profiles keep
 schema one. Upgrades preserve existing settings and initialize the new choice to No.
+
+When the added outdoor camera is active, terrain residency, model visibility, instance
+visibility, and instance density use a finite distance floor based on native Wild Area
+settings. No restores native distances. Native LOD selection, frustum culling, and area
+cleanup remain intact. Areas with native free camera controls keep their existing distances.
+
+**Hooks > Camera Hook** installs or removes the settings support in a selected emulator's
+SD folder. Camera Control and Gameplay Settings prepare shared RomFS and ExeFS files in
+Output Root, preserving compatible edits from other editors. Users copy those game files
+to their game installation. Emulator output omits duplicate configuration files; console
+preparation includes its settings journal for manual placement. Removing prepared output
+preserves other installed features and independent edits.
+
 Camera Control remains a Beta feature. Area geometry and complete scene coverage still
 require verification during gameplay.
 
@@ -33,10 +48,16 @@ prepares module memory and relocations. During this initialization, it resolves
 the required guest filesystem APIs, recognizes one exact supported executable profile, verifies
 every patch preimage, and installs that title's complete immutable hook set in one transaction.
 Executable code is never patched again during that process. If the KM-owned dual-slot settings
-journal is not readable yet, the installed hooks retain retail-equivalent values while a sleeping
-worker retries journal loading without a timeout. Later menu changes commit and verify the journal,
+journal is not readable yet, the installed hooks retain retail-equivalent values. Sword and Shield
+defer all journal access until camera construction or Options callbacks run on initialized game
+threads. Field updates retry unavailable storage at a bounded cadence without a background thread.
+Later menu changes commit and verify the journal,
 then publish one atomic data snapshot. A missing, corrupt, foreign, or mismatched dependency leaves
 retail behavior active and never produces a partial live-code transition.
+
+Journal access first mounts the SD card under a dedicated runtime mount name. A failed mount
+returns without opening the file and remains eligible for a later retry. Successful mounts are
+reused for reads and commits. The journal's physical location on the SD card remains unchanged.
 
 The startup patch transaction validates all owned bytes, maps free ASLR pages outside the reserved
 IPC and heap regions, flushes

@@ -300,6 +300,7 @@ export const desktopErrorCodes = {
   closeRequestListenerFailed: "KM-DESKTOP-CLOSE-REQUEST-LISTENER-FAILED",
   closeGuardUpdateFailed: "KM-DESKTOP-CLOSE-GUARD-UPDATE-FAILED",
   directoryCreateFailed: "KM-DESKTOP-DIRECTORY-CREATE-FAILED",
+  emulatorFolderSearchFailed: "KM-DESKTOP-EMULATOR-FOLDER-SEARCH-FAILED",
   externalUrlOpenFailed: "KM-DESKTOP-EXTERNAL-URL-OPEN-FAILED",
   filePickerFailed: "KM-DESKTOP-FILE-PICKER-FAILED",
   folderPickerFailed: "KM-DESKTOP-FOLDER-PICKER-FAILED",

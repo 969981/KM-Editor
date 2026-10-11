@@ -5,6 +5,9 @@
 #include "km_swsh_camera.hpp"
 
 extern "C" {
+struct SwShFeatureConfiguration { char marker[16]; uint32_t features; };
+__attribute__((used, visibility("hidden"))) volatile SwShFeatureConfiguration km_swsh_feature_configuration =
+    {{'K','M','S','W','S','H','F','E','A','T','U','R','E','0','1','!'}, 3};
 __attribute__((visibility("hidden"))) uintptr_t km_swsh_level_cap_continue;
 __attribute__((visibility("hidden"))) volatile uint64_t km_swsh_effective_snapshot;
 }
@@ -47,8 +50,7 @@ constexpr uint32_t RateRetailInstruction = 0xB94003E8;
 constexpr uint32_t LevelCapRetailInstruction = 0xF81D0FF5;
 constexpr uint32_t NopInstruction = 0xD503201F;
 constexpr uint32_t BranchRegisterX17 = 0xD61F0220;
-constexpr size_t JournalWorkerStackLength = 0x4000;
-constexpr int64_t JournalRetryNanoseconds = 1'000'000'000LL;
+constexpr uint32_t JournalRetryCallbacks = 120;
 
 constexpr uint8_t ExperienceAdditiveTransitionPreimage[] = {
     0xF8, 0x5F, 0xBC, 0xA9, 0xF6, 0x57, 0x01, 0xA9,
@@ -78,7 +80,7 @@ constexpr SwShNativeSettingsProfileView SwordProfile{
     "1.3.2",
     "A3B75BCD3311385AEED67FBEEB79CBB7BF02F471000000000000000000000000",
     0x01901000,
-    "sd:/config/km-editor/gameplay-settings/0100ABF008968000/settings.bin",
+    "kmgs:/config/km-editor/gameplay-settings/0100ABF008968000/settings.bin",
 };
 constexpr SwShNativeSettingsProfileView ShieldProfile{
     SwShNativeSettingsEdition::Shield,
@@ -86,7 +88,7 @@ constexpr SwShNativeSettingsProfileView ShieldProfile{
     "1.3.2",
     "A16802625E7826BF83B6F9708E475B912A9AB7DF000000000000000000000000",
     0x01901000,
-    "sd:/config/km-editor/gameplay-settings/01008DB008C2C000/settings.bin",
+    "kmgs:/config/km-editor/gameplay-settings/01008DB008C2C000/settings.bin",
 };
 
 const SwShNativeSettingsProfileView* ProfileForEdition(
@@ -124,8 +126,7 @@ SettingsState g_persisted{};
 volatile uint32_t g_activation_state;
 volatile uint32_t g_settings_lock;
 volatile uint32_t g_journal_ready;
-volatile uint32_t g_journal_worker_state;
-alignas(km::PageSize) uint8_t g_journal_worker_stack[JournalWorkerStackLength]{};
+volatile uint32_t g_journal_retry_callbacks;
 
 extern "C" uint32_t km_swsh_share_callback();
 extern "C" void km_swsh_rate_bridge();
@@ -269,7 +270,7 @@ bool InstallImmutableHooks(const ModuleRange& main,
                            const SwShNativeSettingsProfileView& profile) {
     km::ExecutablePatch options[2]{};
     if (!km::PrepareSwShOptions(main, profile.edition, options)) return false;
-    km::ExecutablePatch camera[4]{};
+    km::ExecutablePatch camera[8]{};
     if (!km::PrepareSwShCamera(main, profile.edition, camera)) return false;
     const auto share_bridge = MakeLiteralBridge(
         ShareBridgeOffset, ShareTargetSlotOffset);
@@ -321,7 +322,12 @@ bool InstallImmutableHooks(const ModuleRange& main,
         options[0],
         options[1],
         camera[0], camera[1], camera[2], camera[3],
+        camera[4], camera[5], camera[6], camera[7],
     };
+    if ((km_swsh_installed_features() & 2) == 0) {
+        // Camera output never redirects the game's EXP award routines.
+        return km::PatchExecutableTransaction(patches + 9, 10);
+    }
     return km::PatchExecutableTransaction(
         patches, sizeof(patches) / sizeof(patches[0]));
 }
@@ -331,7 +337,7 @@ bool TryLoadAndPublishJournal() {
         return false;
     }
 
-    // Take the title-local lock before reading. Otherwise a retry worker can
+    // Take the title-local lock before reading. Otherwise a retry callback can
     // authenticate an older slot, race a newer menu commit, and publish the
     // stale state after that commit has already become durable.
     AcquireSettingsLock();
@@ -364,60 +370,16 @@ bool TryLoadAndPublishJournal() {
     return loaded_ok;
 }
 
-void JournalRetryWorker(void*) {
-    for (;;) {
-        if (TryLoadAndPublishJournal()) {
-            __atomic_store_n(&g_journal_worker_state, 2, __ATOMIC_RELEASE);
-            km::km_svc_exit_thread();
-        }
-        // This retry is data-only. The complete executable hook transaction
-        // already committed synchronously during subsdk startup.
-        km::km_svc_sleep_thread(JournalRetryNanoseconds);
-    }
-}
-
-void StartJournalRetryWorker() {
-    uint32_t expected = 0;
-    if (!__atomic_compare_exchange_n(
-            &g_journal_worker_state, &expected, 1, false,
-            __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-        return;
-    }
-
-    km::Handle thread = km::InvalidHandle;
-    if (km::km_svc_create_thread(
-            &thread,
-            JournalRetryWorker,
-            nullptr,
-            g_journal_worker_stack + JournalWorkerStackLength,
-            0x2C,
-            2) != km::ResultSuccess) {
-        __atomic_store_n(&g_journal_worker_state, 0, __ATOMIC_RELEASE);
-        return;
-    }
-    if (km::km_svc_start_thread(thread) != km::ResultSuccess) {
-        km::km_svc_close_handle(thread);
-        __atomic_store_n(&g_journal_worker_state, 0, __ATOMIC_RELEASE);
-        return;
-    }
-    km::km_svc_close_handle(thread);
-}
-
 void EnsureJournalReadiness() {
     if (!IsActive()
         || __atomic_load_n(&g_journal_ready, __ATOMIC_ACQUIRE) != 0) {
         return;
     }
 
-    // Thread creation can fail transiently during the loader-serialized entry.
-    // A later Options callback gets one synchronous data-only
-    // adoption attempt, even while the worker is between attempts, so a menu
-    // selection cannot be discarded merely because the worker is sleeping.
-    // Rearm the background retry if the journal is still unavailable.
-    // Executable hooks are never revisited here.
-    if (!TryLoadAndPublishJournal()) {
-        StartJournalRetryWorker();
-    }
+    // Only initialized game callbacks may enter the filesystem. Loader entry
+    // precedes the game's allocator registration, and a raw kernel worker has
+    // no SDK thread initialization. Neither is a valid place for journal I/O.
+    TryLoadAndPublishJournal();
 }
 
 bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
@@ -509,6 +471,11 @@ bool CommitAndPublishSnapshot(uint64_t packed_snapshot) {
 
 } // namespace
 
+extern "C" uint32_t km_swsh_installed_features() {
+    const auto features = km_swsh_feature_configuration.features;
+    return features >= 1 && features <= 3 ? features : 0;
+}
+
 extern "C" uint64_t km_swsh_read_settings() {
     if (!IsActive()) {
         return 0;
@@ -596,6 +563,20 @@ extern "C" uint32_t km_swsh_apply_level_cap(
 
 namespace km {
 
+void PollSwShSettings() {
+    if (!IsActive() || __atomic_load_n(&g_journal_ready, __ATOMIC_ACQUIRE) != 0) return;
+    // Retry unavailable storage on the existing field thread at a bounded
+    // cadence. Options and successful camera construction try immediately.
+    if (__atomic_fetch_add(&g_journal_retry_callbacks, 1, __ATOMIC_RELAXED)
+            % JournalRetryCallbacks == 0) {
+        EnsureJournalReadiness();
+    }
+}
+
+void InitializeSwShSettings() {
+    EnsureJournalReadiness();
+}
+
 const SwShNativeSettingsProfileView* GetSwShNativeSettingsProfile(
     SwShNativeSettingsEdition edition) {
     return ProfileForEdition(edition);
@@ -647,13 +628,11 @@ bool TryInstallSwShNativeSettings(
         return false;
     }
 
-    // Hook publication is complete and immutable before any journal I/O.
-    // Until a verified journal is adopted, every gameplay hook sees zero and
-    // executes the exact retail behavior.
+    // Loader entry installs hooks only. Camera construction and Options run
+    // after the game initializes its filesystem allocator and adopt settings
+    // on their existing SDK threads, before camera reconciliation or menu use.
+    // Until then, every gameplay hook sees zero and executes retail behavior.
     __atomic_store_n(&g_activation_state, ActivationActive, __ATOMIC_RELEASE);
-    if (!TryLoadAndPublishJournal()) {
-        StartJournalRetryWorker();
-    }
     return true;
 }
 
