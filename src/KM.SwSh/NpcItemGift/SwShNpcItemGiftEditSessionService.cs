@@ -81,10 +81,7 @@ public sealed class SwShNpcItemGiftEditSessionService
         }
 
         var payload = EncodeSelections(normalizedSelections);
-        var sourceReferences = npcItemGiftWorkflowService
-            .GetPlanSources(project, changedFileGroups.Select(group => group.RelativePath))
-            .Append(CreatePendingPayloadSource(payload))
-            .ToArray();
+        var sourceReferences = CreateSelectionSources(project, normalizedSelections, payload);
         var updatedSession = currentSession with
         {
             PendingEdits = currentSession.PendingEdits
@@ -230,6 +227,7 @@ public sealed class SwShNpcItemGiftEditSessionService
             return new ChangePlan(session.Id, Array.Empty<PlannedFileWrite>(), diagnostics);
         }
 
+        var sourceReferences = CreateSelectionSources(project, selections, canonicalPayload);
         var writes = new List<PlannedFileWrite>();
         foreach (var fileGroup in fileGroups.OrderBy(group => group.RelativePath, StringComparer.Ordinal))
         {
@@ -247,13 +245,7 @@ public sealed class SwShNpcItemGiftEditSessionService
 
             writes.Add(new PlannedFileWrite(
                 fileGroup.RelativePath,
-                npcItemGiftWorkflowService
-                    .GetPlanSources(project, [fileGroup.RelativePath])
-                    .Append(CreatePendingPayloadSource(canonicalPayload))
-                    .Distinct()
-                    .OrderBy(reference => reference.Layer)
-                    .ThenBy(reference => reference.RelativePath, StringComparer.Ordinal)
-                    .ToArray(),
+                sourceReferences,
                 File.Exists(targetPath),
                 "Update reviewed NPC item gift operands in the AMX script while preserving unrelated cells."));
         }
@@ -1001,6 +993,24 @@ public sealed class SwShNpcItemGiftEditSessionService
 
         var currentItems = current.Items.ToDictionary(item => item.SlotId, StringComparer.Ordinal);
         return selection.Items.Any(item => currentItems[item.SlotId].ItemId != item.ItemId);
+    }
+
+    private IReadOnlyList<ProjectFileReference> CreateSelectionSources(
+        OpenedProject project,
+        IReadOnlyList<SwShNpcItemGiftSelection> selections,
+        string canonicalPayload)
+    {
+        var game = project.Paths.SelectedGame!.Value;
+        // Apply compares every staged gift, including unchanged gifts in other scripts.
+        // Keep those sources in the verified snapshot without making them write targets.
+        var relativePaths = selections.Select(selection =>
+            SwShNpcItemGiftWorkflowService.FindGift(selection.GiftId, game)!.RelativePath);
+        return npcItemGiftWorkflowService.GetPlanSources(project, relativePaths)
+            .Append(CreatePendingPayloadSource(canonicalPayload))
+            .Distinct()
+            .OrderBy(reference => reference.Layer)
+            .ThenBy(reference => reference.RelativePath, StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static PendingEdit CreatePendingEdit(
