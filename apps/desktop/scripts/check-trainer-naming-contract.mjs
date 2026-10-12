@@ -60,7 +60,7 @@ assert.match(
 const retention = read('../src/workflowRetention.ts');
 assert.match(
   retention,
-  /text: \['placement', 'trainers', 'trainerPools', 'behavior', 'fixAiFlags'\]/,
+  /text: \['placement', 'trainers', 'trainerPools', 'behavior', 'fixAiFlags', 'shakingTrees'\]/,
   'Text writes must refresh retained Trainers and Trainer Pools naming.'
 );
 assert.match(

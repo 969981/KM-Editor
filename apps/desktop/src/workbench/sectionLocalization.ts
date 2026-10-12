@@ -68,6 +68,7 @@ export const workbenchSectionLocalization = {
   fpsPatch: { label: 'workbench.section.fps-patch.label', description: 'workbench.section.fps-patch.description' },
   profanityFilter: { label: 'workbench.section.profanity-filter.label', description: 'workbench.section.profanity-filter.description' },
   marnieBoosts: { label: 'workbench.section.marnie-boosts.label', description: 'workbench.section.marnie-boosts.description' },
+  shakingTrees: { label: 'workbench.section.shaking-trees.label', description: 'workbench.section.shaking-trees.description' },
   heldItemChance: { label: 'workbench.section.held-item-chance.label', description: 'workbench.section.held-item-chance.description' },
   gameOptions: { label: 'workbench.section.game-options.label', description: 'workbench.section.game-options.description' },
   obedience: { label: 'workbench.section.obedience.label', description: 'workbench.section.obedience.description' },

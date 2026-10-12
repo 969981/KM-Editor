@@ -238,6 +238,7 @@ public sealed class SwShWorkflowService
             typeChartWorkflowService.CreateSummary(project),
             fairyGymBoostsWorkflowService.CreateSummary(project),
             marnieBoostsService.CreateSummary(project),
+            KM.SwSh.ShakingTrees.SwShShakingTreesService.CreateSummary(project),
             heldItemChanceService.CreateSummary(project),
             gameOptionsService.CreateSummary(project),
             fashionUnlockWorkflowService.CreateSummary(project),

@@ -196,8 +196,12 @@ public sealed record SwShTradePokemonArchive(IReadOnlyList<SwShTradePokemonRecor
     }
 
     public byte[] WriteEdits(IEnumerable<SwShTradePokemonEdit> edits)
+        => WriteEdits(edits, new Dictionary<int, ulong>());
+
+    public byte[] WriteEdits(IEnumerable<SwShTradePokemonEdit> edits, IReadOnlyDictionary<int, ulong> nicknameHashes)
     {
         ArgumentNullException.ThrowIfNull(edits);
+        ArgumentNullException.ThrowIfNull(nicknameHashes);
 
         var materializedEdits = edits.ToArray();
 
@@ -212,6 +216,11 @@ public sealed record SwShTradePokemonArchive(IReadOnlyList<SwShTradePokemonRecor
         foreach (var edit in materializedEdits)
         {
             ApplyEdit(trades, edit);
+        }
+        foreach (var (index, hash) in nicknameHashes)
+        {
+            if ((uint)index >= (uint)trades.Length) throw new InvalidDataException("Trade nickname targets an unavailable record.");
+            trades[index] = trades[index] with { Hash1 = hash };
         }
 
         ValidateTouchedIvLayouts(trades, materializedEdits);
@@ -533,6 +542,12 @@ public sealed record SwShTradePokemonArchive(IReadOnlyList<SwShTradePokemonRecor
             PatchInt32(output, tableOffset, 6, original.HeldItem, updated.HeldItem);
             PatchByte(output, tableOffset, 7, original.Level, updated.Level);
             PatchInt32(output, tableOffset, 8, original.Species, updated.Species);
+            if (original.Hash1 != updated.Hash1)
+            {
+                var at = ReadTableFieldOffset(output, tableOffset, 9, sizeof(ulong));
+                if (at == 0) throw new InvalidDataException("Trade nickname reference was not materialized.");
+                BinaryPrimitives.WriteUInt64LittleEndian(output.AsSpan(tableOffset + at, sizeof(ulong)), updated.Hash1);
+            }
             PatchInt32(output, tableOffset, 10, original.TrainerId, updated.TrainerId);
             PatchByte(output, tableOffset, 11, original.MemoryCode, updated.MemoryCode);
             PatchUInt16(output, tableOffset, 12, original.MemoryTextVariable, updated.MemoryTextVariable);
@@ -575,6 +590,7 @@ public sealed record SwShTradePokemonArchive(IReadOnlyList<SwShTradePokemonRecor
         AddIfChanged(6, original.HeldItem, updated.HeldItem);
         AddIfChanged(7, original.Level, updated.Level);
         AddIfChanged(8, original.Species, updated.Species);
+        AddIfChanged(9, original.Hash1, updated.Hash1);
         AddIfChanged(10, original.TrainerId, updated.TrainerId);
         AddIfChanged(11, original.MemoryCode, updated.MemoryCode);
         AddIfChanged(12, original.MemoryTextVariable, updated.MemoryTextVariable);

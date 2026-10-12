@@ -48,6 +48,7 @@ import { type BlueberryWorkflow } from './bridge/blueberryContracts';
 import { type StarmobilesWorkflow } from './bridge/starmobilesContracts';
 import { type TitanSwapperWorkflow } from './bridge/titanSwapperContracts';
 import { type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
+import { type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
 import { type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
 import { type ObedienceWorkflow } from './bridge/obedienceContracts';
@@ -204,6 +205,7 @@ type WorkbenchState = {
   starmobilesWorkflow: StarmobilesWorkflow | null;
   titanSwapperWorkflow: TitanSwapperWorkflow | null;
   marnieBoostsWorkflow: MarnieBoostsWorkflow | null;
+  shakingTreesWorkflow: ShakingTreesWorkflow | null;
   heldItemChanceWorkflow: HeldItemChanceWorkflow | null;
   gameOptionsWorkflow: GameOptionsWorkflow | null;
   obedienceWorkflow: ObedienceWorkflow | null;
@@ -333,6 +335,7 @@ type WorkbenchState = {
   setSnacksworthWorkflow: (snacksworthWorkflow: BlueberryWorkflow) => void;
   setStarmobilesWorkflow: (starmobilesWorkflow: StarmobilesWorkflow) => void;
   setTitanSwapperWorkflow: (titanSwapperWorkflow: TitanSwapperWorkflow) => void;
+  setShakingTreesWorkflow: (shakingTreesWorkflow: ShakingTreesWorkflow) => void;
   setHeldItemChanceWorkflow: (heldItemChanceWorkflow: HeldItemChanceWorkflow) => void;
   setGameOptionsWorkflow: (gameOptionsWorkflow: GameOptionsWorkflow) => void;
   setObedienceWorkflow: (obedienceWorkflow: ObedienceWorkflow) => void;
@@ -537,6 +540,7 @@ function createLoadedWorkflowResetState(): Partial<WorkbenchState> {
     starmobilesWorkflow: null,
     titanSwapperWorkflow: null,
     marnieBoostsWorkflow: null,
+    shakingTreesWorkflow: null,
     heldItemChanceWorkflow: null,
     gameOptionsWorkflow: null,
     obedienceWorkflow: null,
@@ -666,6 +670,7 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   starmobilesWorkflow: null,
   titanSwapperWorkflow: null,
   marnieBoostsWorkflow: null,
+  shakingTreesWorkflow: null,
   heldItemChanceWorkflow: null,
   gameOptionsWorkflow: null,
   obedienceWorkflow: null,
@@ -1052,6 +1057,9 @@ export const useWorkbenchStore = create<WorkbenchState>((set) => ({
   })),
   setTitanSwapperWorkflow: (titanSwapperWorkflow) => set((state) => ({
     activeSection: resolveWorkflowLoadSection(state.activeSection, 'titanSwapper'), titanSwapperWorkflow
+  })),
+  setShakingTreesWorkflow: (shakingTreesWorkflow) => set((state) => ({
+    activeSection: resolveWorkflowLoadSection(state.activeSection, 'shakingTrees'), shakingTreesWorkflow
   })),
   setHeldItemChanceWorkflow: (heldItemChanceWorkflow) => set((state) => ({
     activeSection: resolveWorkflowLoadSection(state.activeSection, 'heldItemChance'), heldItemChanceWorkflow

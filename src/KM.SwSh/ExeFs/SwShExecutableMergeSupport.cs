@@ -110,6 +110,14 @@ public static class SwShExecutableMergeSupport
             try { _ = KM.SwSh.Obedience.SwShObediencePatcher.Read(merged, game); }
             catch (InvalidDataException) { return false; }
         }
+        if (KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Reservations()
+            .Where(region => !region.FeatureId.Contains(game == ProjectGame.Sword ? "-shield-" : "-sword-", StringComparison.Ordinal))
+            .Any(region => !beforeOptions.Text.DecompressedData.AsSpan(region.StartOffset!.Value, region.Length!.Value)
+                .SequenceEqual(afterOptions.Text.DecompressedData.AsSpan(region.StartOffset.Value, region.Length.Value))))
+        {
+            try { _ = KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Read(merged, game); }
+            catch (InvalidDataException) { return false; }
+        }
         var originalRates = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(original));
         var mergedRates = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(merged));
         if (!originalRates.SequenceEqual(mergedRates) || SwShHeldItemChancePatcher.CreateReservations()

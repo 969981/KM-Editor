@@ -13,6 +13,8 @@ import { type LoadTitanSwapperRequest, type LoadTitanSwapperResponse, type Stage
   loadTitanSwapperRequestSchema, loadTitanSwapperResponseSchema, stageTitanSwapperRequestSchema, stageTitanSwapperResponseSchema } from './titanSwapperContracts';
 import { type LoadMarnieBoostsRequest, type LoadMarnieBoostsResponse, type StageMarnieBoostsRequest, type StageMarnieBoostsResponse,
   loadMarnieBoostsRequestSchema, loadMarnieBoostsResponseSchema, stageMarnieBoostsRequestSchema, stageMarnieBoostsResponseSchema } from './marnieBoostsContracts';
+import { type LoadShakingTreesRequest, type LoadShakingTreesResponse, type StageShakingTreesRequest, type StageShakingTreesResponse,
+  loadShakingTreesRequestSchema, loadShakingTreesResponseSchema, stageShakingTreesRequestSchema, stageShakingTreesResponseSchema } from './shakingTreesContracts';
 import { type LoadHeldItemChanceRequest, type LoadHeldItemChanceResponse, type StageHeldItemChanceRequest, type StageHeldItemChanceResponse,
   loadHeldItemChanceRequestSchema, loadHeldItemChanceResponseSchema, stageHeldItemChanceRequestSchema, stageHeldItemChanceResponseSchema } from './heldItemChanceContracts';
 import { type LoadGameOptionsRequest, type LoadGameOptionsResponse, type StageGameOptionsRequest, type StageGameOptionsResponse,
@@ -855,6 +857,7 @@ export type ProjectBridge = {
   loadStarmobiles: (request: LoadStarmobilesRequest) => Promise<LoadStarmobilesResponse>;
   loadTitanSwapper: (request: LoadTitanSwapperRequest) => Promise<LoadTitanSwapperResponse>;
   loadMarnieBoosts: (request: LoadMarnieBoostsRequest) => Promise<LoadMarnieBoostsResponse>;
+  loadShakingTrees: (request: LoadShakingTreesRequest) => Promise<LoadShakingTreesResponse>;
   loadHeldItemChance: (request: LoadHeldItemChanceRequest) => Promise<LoadHeldItemChanceResponse>;
   loadGameOptions: (request: LoadGameOptionsRequest) => Promise<LoadGameOptionsResponse>;
   loadObedience: (request: LoadObedienceRequest) => Promise<LoadObedienceResponse>;
@@ -866,6 +869,7 @@ export type ProjectBridge = {
   stageStarmobiles: (request: StageStarmobilesRequest) => Promise<StageStarmobilesResponse>;
   stageTitanSwapper: (request: StageTitanSwapperRequest) => Promise<StageTitanSwapperResponse>;
   stageMarnieBoosts: (request: StageMarnieBoostsRequest) => Promise<StageMarnieBoostsResponse>;
+  stageShakingTrees: (request: StageShakingTreesRequest) => Promise<StageShakingTreesResponse>;
   stageHeldItemChance: (request: StageHeldItemChanceRequest) => Promise<StageHeldItemChanceResponse>;
   stageGameOptions: (request: StageGameOptionsRequest) => Promise<StageGameOptionsResponse>;
   stageObedience: (request: StageObedienceRequest) => Promise<StageObedienceResponse>;
@@ -1703,6 +1707,8 @@ export function createProjectBridge(
       loadTitanSwapperRequestSchema.parse(request), loadTitanSwapperResponseSchema),
     loadMarnieBoosts: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadMarnieBoosts,
       loadMarnieBoostsRequestSchema.parse(request), loadMarnieBoostsResponseSchema),
+    loadShakingTrees: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadShakingTrees,
+      loadShakingTreesRequestSchema.parse(request), loadShakingTreesResponseSchema),
     loadHeldItemChance: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadHeldItemChance,
       loadHeldItemChanceRequestSchema.parse(request), loadHeldItemChanceResponseSchema),
     loadGameOptions: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadGameOptions,
@@ -1725,6 +1731,8 @@ export function createProjectBridge(
       stageTitanSwapperRequestSchema.parse(request), stageTitanSwapperResponseSchema),
     stageMarnieBoosts: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageMarnieBoosts,
       stageMarnieBoostsRequestSchema.parse(request), stageMarnieBoostsResponseSchema),
+    stageShakingTrees: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageShakingTrees,
+      stageShakingTreesRequestSchema.parse(request), stageShakingTreesResponseSchema),
     stageHeldItemChance: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageHeldItemChance,
       stageHeldItemChanceRequestSchema.parse(request), stageHeldItemChanceResponseSchema),
     stageGameOptions: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageGameOptions,

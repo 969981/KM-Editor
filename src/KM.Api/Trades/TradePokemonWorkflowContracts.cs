@@ -87,6 +87,7 @@ public sealed record TradePokemonRecordDto(
     TradePokemonProvenanceDto Provenance)
 {
     public string EditorFamily { get; init; } = "swsh";
+    public string? Nickname { get; init; }
     public string? EventLabel { get; init; }
     public IReadOnlyList<TradePokemonMoveRecordDto> Moves { get; init; } =
         Array.Empty<TradePokemonMoveRecordDto>();

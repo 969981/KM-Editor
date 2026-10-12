@@ -45,6 +45,7 @@ export const workflowStoreKeyBySection = {
   starmobiles: 'starmobilesWorkflow',
   titanSwapper: 'titanSwapperWorkflow',
   marnieBoosts: 'marnieBoostsWorkflow',
+  shakingTrees: 'shakingTreesWorkflow',
   heldItemChance: 'heldItemChanceWorkflow',
   gameOptions: 'gameOptionsWorkflow',
   obedience: 'obedienceWorkflow',
@@ -74,11 +75,14 @@ export const storedRetainedWorkflowSections = Object.keys(
 const refreshDependentsBySection: Partial<
   Record<RetainedWorkflowSection, readonly RetainedWorkflowSection[]>
 > = {
-  encounters: ['pokemon', 'heldItemChance'],
+  encounters: ['pokemon', 'heldItemChance', 'shakingTrees'],
+  shakingTrees: ['placement', 'encounters'],
+  placement: ['shakingTrees'],
+  pokemon: ['shakingTrees'],
   heldItemChance: ['encounters'],
   royalCandy: ['placement'],
   staticEncounters: ['placement'],
-  text: ['placement', 'trainers', 'trainerPools', 'behavior', 'fixAiFlags'],
+  text: ['placement', 'trainers', 'trainerPools', 'behavior', 'fixAiFlags', 'shakingTrees'],
   trainers: ['trainerPools', 'fixAiFlags'],
   fixAiFlags: ['trainers']
 };
@@ -138,6 +142,7 @@ const pendingEditSectionByDomain: Readonly<Record<string, RetainedWorkflowSectio
   'workflow.starmobiles': 'starmobiles',
   'workflow.titan-swapper': 'titanSwapper',
   'workflow.marnieBoosts': 'marnieBoosts',
+  'workflow.shakingTrees': 'shakingTrees',
   'workflow.heldItemChance': 'heldItemChance',
   'workflow.gameOptions': 'gameOptions',
   'workflow.obedience': 'obedience',

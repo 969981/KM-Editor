@@ -203,6 +203,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "habitatCoordinates.coordinate.stage",
     "habitatCoordinates.load",
     "heldItemChance.load",
+    "shakingTrees.load",
+    "shakingTrees.stage",
     "heldItemChance.stage",
     "hyperTraining.load",
     "hyperTraining.stage",
@@ -2843,6 +2845,7 @@ fn is_project_bridge_workflow_load_command(command: &str) -> bool {
             | "profanityFilter.load"
             | "trainerDynamax.load"
             | "heldItemChance.load"
+            | "shakingTrees.load"
             | "gameOptions.load"
             | "marnieBoosts.load"
             | "raidDens.load"
@@ -2999,6 +3002,7 @@ fn is_replay_safe_edit_session_command(command: &str) -> bool {
             | "starmobiles.fields.stage"
             | "titan-swapper.fields.stage"
             | "heldItemChance.stage"
+            | "shakingTrees.stage"
             | "gameOptions.stage"
             | "marnieBoosts.stage"
             | "raidDens.stage"

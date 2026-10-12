@@ -1278,6 +1278,7 @@ public static class SwShBridgeMapper
                 ProjectBridgeMapper.ToDto(trade.Provenance.SourceLayer),
                 ProjectBridgeMapper.ToDto(trade.Provenance.FileState)))
         {
+            Nickname = trade.Nickname,
             AbilityOptions = trade.AbilityOptions.Select(ToDto).ToArray(),
             GenderOptions = trade.GenderOptions.Select(ToDto).ToArray(),
         };

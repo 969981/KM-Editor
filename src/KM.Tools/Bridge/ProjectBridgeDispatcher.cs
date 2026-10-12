@@ -41,6 +41,8 @@ using KM.Api.ProfanityFilter;
 using KM.Api.TrainerDynamax;
 using KM.SwSh.TrainerDynamax;
 using KM.Api.MarnieBoosts;
+using KM.Api.ShakingTrees;
+using KM.SwSh.ShakingTrees;
 using KM.Api.HeldItemChance;
 using KM.Api.GameOptions;
 using KM.Api.Obedience;
@@ -211,6 +213,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
     private readonly SwShModMergerWorkflowService modMergerWorkflowService;
     private readonly SwShFpsPatchService fpsPatchService;
     private readonly SwShMarnieBoostsService marnieBoostsService;
+    private readonly SwShShakingTreesService shakingTreesService;
     private readonly SwShHeldItemChanceService heldItemChanceService;
     private readonly SwShGameOptionsService gameOptionsService;
     private readonly SwShObedienceService obedienceService;
@@ -342,6 +345,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         this.modMergerWorkflowService = modMergerWorkflowService ?? new SwShModMergerWorkflowService(this.projectWorkspaceService);
         this.fpsPatchService = fpsPatchService ?? new SwShFpsPatchService(this.projectWorkspaceService);
         marnieBoostsService = new SwShMarnieBoostsService(this.projectWorkspaceService);
+        shakingTreesService = new SwShShakingTreesService(this.projectWorkspaceService);
         heldItemChanceService = new SwShHeldItemChanceService(this.projectWorkspaceService);
         gameOptionsService = new SwShGameOptionsService(this.projectWorkspaceService);
         obedienceService = new SwShObedienceService(this.projectWorkspaceService);
@@ -768,6 +772,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.ApplyFpsPatch => DispatchApplyFpsPatch(requestJson),
                 KmCommandNames.RestoreFpsPatch => DispatchRestoreFpsPatch(requestJson),
                 KmCommandNames.LoadMarnieBoosts => DispatchLoadMarnieBoosts(requestJson),
+                KmCommandNames.LoadShakingTrees => DispatchLoadShakingTrees(requestJson),
                 KmCommandNames.LoadHeldItemChance => DispatchLoadHeldItemChance(requestJson),
                 KmCommandNames.LoadGameOptions => DispatchLoadGameOptions(requestJson),
                 KmCommandNames.LoadObedience => DispatchLoadObedience(requestJson),
@@ -776,6 +781,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.StageFixAiFlags => DispatchStageFixAiFlags(requestJson),
                 KmCommandNames.LoadTrainerWhiteout => DispatchLoadTrainerWhiteout(requestJson),
                 KmCommandNames.StageMarnieBoosts => DispatchStageMarnieBoosts(requestJson),
+                KmCommandNames.StageShakingTrees => DispatchStageShakingTrees(requestJson),
                 KmCommandNames.StageHeldItemChance => DispatchStageHeldItemChance(requestJson),
                 KmCommandNames.StageGameOptions => DispatchStageGameOptions(requestJson),
                 KmCommandNames.StageObedience => DispatchStageObedience(requestJson),
@@ -5539,6 +5545,34 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         return SerializeSuccess(response, request.RequestId);
     }
 
+    private string DispatchLoadShakingTrees(string requestJson)
+    {
+        var request = DeserializeRequest<LoadShakingTreesRequest>(requestJson);
+        return SerializeSuccess(new LoadShakingTreesResponse(ToDto(shakingTreesService.Load(
+            ProjectBridgeMapper.ToCore(request.Payload.Paths)))), request.RequestId);
+    }
+
+    private string DispatchStageShakingTrees(string requestJson)
+    {
+        var request = DeserializeRequest<StageShakingTreesRequest>(requestJson);
+        var result = shakingTreesService.Stage(ProjectBridgeMapper.ToCore(request.Payload.Paths),
+            request.Payload.Updates?.Select(row => row is null ? null! : new SwShTreeUpdate(row.RecordId, row.Field, row.Value)).ToArray(),
+            request.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(request.Payload.Session));
+        return SerializeSuccess(new StageShakingTreesResponse(ToDto(result.Workflow), EditSessionBridgeMapper.ToDto(result.Session),
+            result.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), request.RequestId);
+    }
+
+    private static ShakingTreesWorkflowDto ToDto(SwShShakingTreesWorkflow workflow) => new(workflow.CanEdit,
+        workflow.Trees.Select(row => new TreeRecordDto(row.Id, row.Label, row.AreaId, row.Area,
+            row.Drops.Select(drop => new TreeDropDto(drop.ItemId, drop.Percent)).ToArray())).ToArray(),
+        workflow.Areas.Select(row => new TreeAreaDto(row.Id, row.Name, row.LevelMin, row.LevelMax,
+            row.Slots.Select(slot => new TreeSlotDto(slot.Species, slot.Form, slot.Percent)).ToArray())).ToArray(),
+        workflow.Settings is not { } settings ? null : new TreeSettingsDto(settings.InitialRiskMin, settings.InitialRiskMax,
+            settings.RiskStepMin, settings.RiskStepMax, settings.LoseAllRolls, settings.DropMin, settings.DropMax),
+        workflow.Items.Select(row => new TreeOptionDto(row.Value, row.Label)).ToArray(),
+        workflow.Pokemon.Select(row => new TreePokemonOptionDto(row.Species, row.Form, row.Label)).ToArray(),
+        workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray());
+
     private string DispatchLoadHeldItemChance(string requestJson)
     {
         var request = DeserializeRequest<LoadHeldItemChanceRequest>(requestJson);
@@ -6352,6 +6386,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.TypeChart => typeChartEditSessionService.Validate(paths, session),
             EditSessionDomain.FairyGymBoosts => fairyGymBoostsEditSessionService.Validate(paths, session),
             EditSessionDomain.MarnieBoosts => marnieBoostsService.Validate(paths, session),
+            EditSessionDomain.ShakingTrees => shakingTreesService.Validate(paths, session),
             EditSessionDomain.HeldItemChance => heldItemChanceService.Validate(paths, session),
             EditSessionDomain.GameOptions => gameOptionsService.Validate(paths, session),
             EditSessionDomain.Obedience => obedienceService.Validate(paths, session),
@@ -6403,6 +6438,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.TypeChart => typeChartEditSessionService.CreateChangePlan(paths, session),
             EditSessionDomain.FairyGymBoosts => fairyGymBoostsEditSessionService.CreateChangePlan(paths, session),
             EditSessionDomain.MarnieBoosts => marnieBoostsService.CreateChangePlan(paths, session),
+            EditSessionDomain.ShakingTrees => shakingTreesService.CreateChangePlan(paths, session),
             EditSessionDomain.HeldItemChance => heldItemChanceService.CreateChangePlan(paths, session),
             EditSessionDomain.GameOptions => gameOptionsService.CreateChangePlan(paths, session),
             EditSessionDomain.Obedience => obedienceService.CreateChangePlan(paths, session),
@@ -6455,6 +6491,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.TypeChart => typeChartEditSessionService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.FairyGymBoosts => fairyGymBoostsEditSessionService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.MarnieBoosts => marnieBoostsService.ApplyChangePlan(paths, session, reviewedPlan),
+            EditSessionDomain.ShakingTrees => shakingTreesService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.HeldItemChance => heldItemChanceService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.GameOptions => gameOptionsService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.Obedience => obedienceService.ApplyChangePlan(paths, session, reviewedPlan),
@@ -6497,7 +6534,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         var diagnostics = new List<ValidationDiagnostic>();
         foreach (var domain in domains)
         {
-            var validation = ValidateSingleSwShDomain(paths, SliceSession(session, domain), domain);
+            var validation = ValidateSingleSwShDomain(paths, domain == EditSessionDomain.ShakingTrees ? session : SliceSession(session, domain), domain);
             diagnostics.AddRange(validation.Diagnostics);
         }
 
@@ -6522,7 +6559,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         var writes = new List<PlannedFileWrite>();
         foreach (var domain in domains)
         {
-            var domainPlan = CreateSingleSwShChangePlan(paths, SliceSession(session, domain), domain);
+            var domainPlan = CreateSingleSwShChangePlan(paths, domain == EditSessionDomain.ShakingTrees ? session : SliceSession(session, domain), domain);
             diagnostics.AddRange(domainPlan.Diagnostics);
             writes.AddRange(domainPlan.Writes);
         }
@@ -6588,7 +6625,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
                 {
                     var domain = domains[index];
                     NormalSwShApplyMutationHook?.Invoke(index, GetEditSessionDomainName(domain));
-                    var domainSession = SliceSession(session, domain);
+                    var domainSession = domain == EditSessionDomain.ShakingTrees ? session : SliceSession(session, domain);
                     var domainPlan = CreateSingleSwShChangePlan(paths, domainSession, domain);
                     var result = ApplySingleSwShChangePlan(paths, domainSession, domainPlan, domain).Complete(domainPlan);
                     diagnostics.AddRange(result.Diagnostics);
@@ -6729,6 +6766,8 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         {
             // Validate assignments against the move availability produced by this batch.
             EditSessionDomain.RentalPokemon => remainingDomains.Contains(EditSessionDomain.Moves),
+            EditSessionDomain.ShakingTrees => remainingDomains.Any(candidate => candidate is
+                EditSessionDomain.Pokemon or EditSessionDomain.Placement or EditSessionDomain.Encounters or EditSessionDomain.Text),
             EditSessionDomain.Items => remainingDomains.Any(candidate => candidate is
                 EditSessionDomain.Shops or
                 EditSessionDomain.RaidRewards or
@@ -6759,6 +6798,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             "workflow.shinyRate" => EditSessionDomain.ShinyRate,
             "workflow.typeChart" => EditSessionDomain.TypeChart,
             "workflow.marnieBoosts" => EditSessionDomain.MarnieBoosts,
+            "workflow.shakingTrees" => EditSessionDomain.ShakingTrees,
             "workflow.heldItemChance" => EditSessionDomain.HeldItemChance,
             "workflow.gameOptions" => EditSessionDomain.GameOptions,
             "workflow.obedience" => EditSessionDomain.Obedience,
@@ -6792,6 +6832,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         return domain is
             EditSessionDomain.BattleCafeRewards or
             EditSessionDomain.MarnieBoosts or
+            EditSessionDomain.ShakingTrees or
             EditSessionDomain.HeldItemChance or
             EditSessionDomain.GameOptions or
             EditSessionDomain.Obedience or
@@ -6846,6 +6887,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.ShinyRate => "workflow.shinyRate",
             EditSessionDomain.TypeChart => "workflow.typeChart",
             EditSessionDomain.MarnieBoosts => "workflow.marnieBoosts",
+            EditSessionDomain.ShakingTrees => "workflow.shakingTrees",
             EditSessionDomain.HeldItemChance => "workflow.heldItemChance",
             EditSessionDomain.GameOptions => "workflow.gameOptions",
             EditSessionDomain.Obedience => "workflow.obedience",
@@ -6934,6 +6976,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             ["workflow.shinyRate"] => EditSessionDomain.ShinyRate,
             ["workflow.typeChart"] => EditSessionDomain.TypeChart,
             ["workflow.marnieBoosts"] => EditSessionDomain.MarnieBoosts,
+            ["workflow.shakingTrees"] => EditSessionDomain.ShakingTrees,
             ["workflow.heldItemChance"] => EditSessionDomain.HeldItemChance,
             ["workflow.gameOptions"] => EditSessionDomain.GameOptions,
             ["workflow.obedience"] => EditSessionDomain.Obedience,
@@ -8429,6 +8472,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.LoadShinyRateWorkflow or
             KmCommandNames.StageShinyRate or
             KmCommandNames.LoadMarnieBoosts or
+            KmCommandNames.LoadShakingTrees or
             KmCommandNames.LoadHeldItemChance or
             KmCommandNames.LoadGameOptions or
             KmCommandNames.LoadObedience or
@@ -8437,6 +8481,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.StageFixAiFlags or
             KmCommandNames.LoadTrainerWhiteout or
             KmCommandNames.StageMarnieBoosts or
+            KmCommandNames.StageShakingTrees or
             KmCommandNames.StageHeldItemChance or
             KmCommandNames.StageGameOptions or
             KmCommandNames.StageObedience or
@@ -9043,6 +9088,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
         ShinyRate,
         TypeChart,
         MarnieBoosts,
+        ShakingTrees,
         HeldItemChance,
         GameOptions,
         Obedience,

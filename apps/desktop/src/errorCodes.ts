@@ -16,6 +16,12 @@ export const kmErrorCodeSchema = z
   );
 
 export const projectBridgeErrorCodes = {
+  staticPresentationSourceInvalid: "KM-SWSH-STATIC-PRESENTATION-SOURCE-INVALID",
+  staticPresentationTextPreserved: "KM-SWSH-STATIC-PRESENTATION-TEXT-PRESERVED",
+  tradePresentationSourceInvalid: "KM-SWSH-TRADE-PRESENTATION-SOURCE-INVALID",
+  tradePresentationTextPreserved: "KM-SWSH-TRADE-PRESENTATION-TEXT-PRESERVED",
+  tradeNicknameInvalid: "KM-SWSH-TRADE-NICKNAME-INVALID",
+
   giftPresentationPlacementPreserved: "KM-SWSH-GIFT-PRESENTATION-PLACEMENT-PRESERVED",
   giftPresentationSourceInvalid: "KM-SWSH-GIFT-PRESENTATION-SOURCE-INVALID",
   giftPresentationTextPreserved: "KM-SWSH-GIFT-PRESENTATION-TEXT-PRESERVED",
@@ -88,6 +94,12 @@ export const projectBridgeErrorCodes = {
   marnieBoostsSessionInvalid: "KM-SWSH-MARNIE-SESSION-INVALID",
   marnieBoostsPlanStale: "KM-SWSH-MARNIE-PLAN-STALE",
   marnieBoostsApplyFailed: "KM-SWSH-MARNIE-APPLY-FAILED",
+  shakingTreesSourceInvalid: "KM-SWSH-TREES-SOURCE-INVALID",
+  shakingTreesValuesInvalid: "KM-SWSH-TREES-VALUES-INVALID",
+  shakingTreesConflict: "KM-SWSH-TREES-CONFLICT",
+  shakingTreesSessionInvalid: "KM-SWSH-TREES-SESSION-INVALID",
+  shakingTreesPlanStale: "KM-SWSH-TREES-PLAN-STALE",
+  shakingTreesApplyFailed: "KM-SWSH-TREES-APPLY-FAILED",
   raidDensInvalid: "KM-SWSH-RAID-DENS-INVALID",
   aiFlagsRepairInvalid: "KM-SWSH-AI-FLAGS-REPAIR-INVALID",
   trainerWhiteoutInvalid: "KM-SWSH-TRAINER-WHITEOUT-INVALID",

@@ -4,6 +4,12 @@ namespace KM.Api.Bridge;
 
 public static class BridgeErrorCodes
 {
+    public const string StaticPresentationSourceInvalid = "KM-SWSH-STATIC-PRESENTATION-SOURCE-INVALID";
+    public const string StaticPresentationTextPreserved = "KM-SWSH-STATIC-PRESENTATION-TEXT-PRESERVED";
+    public const string TradePresentationSourceInvalid = "KM-SWSH-TRADE-PRESENTATION-SOURCE-INVALID";
+    public const string TradePresentationTextPreserved = "KM-SWSH-TRADE-PRESENTATION-TEXT-PRESERVED";
+    public const string TradeNicknameInvalid = "KM-SWSH-TRADE-NICKNAME-INVALID";
+
     public const string GiftPresentationPlacementPreserved = "KM-SWSH-GIFT-PRESENTATION-PLACEMENT-PRESERVED";
     public const string GiftPresentationSourceInvalid = "KM-SWSH-GIFT-PRESENTATION-SOURCE-INVALID";
     public const string GiftPresentationTextPreserved = "KM-SWSH-GIFT-PRESENTATION-TEXT-PRESERVED";
@@ -50,6 +56,12 @@ public static class BridgeErrorCodes
     public const string OutputStateRevisionChanged = "KM-OUTPUT-STATE-REVISION-CHANGED";
     public const string OutputMetadataUnavailable = "KM-OUTPUT-METADATA-UNAVAILABLE";
 
+    public const string ShakingTreesSourceInvalid = "KM-SWSH-TREES-SOURCE-INVALID";
+    public const string ShakingTreesValuesInvalid = "KM-SWSH-TREES-VALUES-INVALID";
+    public const string ShakingTreesConflict = "KM-SWSH-TREES-CONFLICT";
+    public const string ShakingTreesSessionInvalid = "KM-SWSH-TREES-SESSION-INVALID";
+    public const string ShakingTreesPlanStale = "KM-SWSH-TREES-PLAN-STALE";
+    public const string ShakingTreesApplyFailed = "KM-SWSH-TREES-APPLY-FAILED";
     public const string RaidDensInvalid = "KM-SWSH-RAID-DENS-INVALID";
     public const string AiFlagsRepairInvalid = "KM-SWSH-AI-FLAGS-REPAIR-INVALID";
     public const string TrainerWhiteoutInvalid = "KM-SWSH-TRAINER-WHITEOUT-INVALID";

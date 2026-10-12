@@ -69,6 +69,7 @@ public sealed class SwShStaticEncountersEditSessionService
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(updates);
 
+        projectWorkspaceService.ClearMemoryCache();
         var originalSession = session ?? StartSession();
         var project = projectWorkspaceService.Open(paths);
         var workflow = staticEncountersWorkflowService.Load(project);
@@ -159,7 +160,9 @@ public sealed class SwShStaticEncountersEditSessionService
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(session);
 
+        projectWorkspaceService.ClearMemoryCache();
         var project = projectWorkspaceService.Open(paths);
+        session = RebindDeletedOutputEdits(project, session);
         var workflow = staticEncountersWorkflowService.Load(project);
         var diagnostics = new List<ValidationDiagnostic>();
 
@@ -178,6 +181,7 @@ public sealed class SwShStaticEncountersEditSessionService
         ArgumentNullException.ThrowIfNull(session);
 
         var validation = Validate(paths, session);
+        session = validation.Session;
         var diagnostics = validation.Diagnostics.ToList();
 
         if (session.PendingEdits.Count == 0)
@@ -215,22 +219,29 @@ public sealed class SwShStaticEncountersEditSessionService
             return new ChangePlan(session.Id, [], diagnostics);
         }
 
+        var presentation = BuildPresentation(project, session.PendingEdits, diagnostics);
+        if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)) return new ChangePlan(session.Id, [], diagnostics);
+        var sources = session.PendingEdits.SelectMany(edit => edit.Sources)
+            .Concat(presentation?.Files.Sources ?? []).Distinct().ToArray();
         var write = new PlannedFileWrite(
             source.GraphEntry.RelativePath,
-            session.PendingEdits
-                .SelectMany(edit => edit.Sources)
-                .Distinct()
-                .ToArray(),
+            sources,
             File.Exists(targetPath),
             CreatePlanReason(session.PendingEdits));
-
+        var writes = new List<PlannedFileWrite> { write };
+        if (presentation is not null)
+            foreach (var path in presentation.Files.Outputs.Keys.Order(StringComparer.Ordinal))
+            {
+                var target = ResolveOutputPath(paths, path, diagnostics);
+                if (target is not null) writes.Add(new(path, sources, File.Exists(target), "Synchronize the Wedgehurst station Pokemon scene."));
+            }
         diagnostics.Add(CreateDiagnostic(
             DiagnosticSeverity.Info,
-            "Change plan preview contains 1 target file."));
+            $"Change plan preview contains {writes.Count} target file(s)."));
 
         return SwShChangePlanSourceGuard.Capture(
             paths,
-            new ChangePlan(session.Id, [write], diagnostics));
+            new ChangePlan(session.Id, writes, diagnostics));
     }
 
     public ApplyResult ApplyChangePlan(ProjectPaths paths, EditSession session, ChangePlan reviewedPlan)
@@ -303,8 +314,19 @@ public sealed class SwShStaticEncountersEditSessionService
             }
 
             var output = archive.WriteEdits(edits);
-            WriteOutputAtomically(targetPath, output);
-            writtenFiles.Add(new ProjectFileReference(ProjectFileLayer.Generated, source.GraphEntry.RelativePath));
+            var presentation = BuildPresentation(project, session.PendingEdits, diagnostics, output);
+            if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
+                return CreateApplyResult(applyId, appliedAt, currentPlan, writtenFiles, diagnostics);
+            var outputs = presentation?.Files.Outputs ?? new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            outputs[source.GraphEntry.RelativePath] = output;
+            if (!outputs.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(currentPlan.Writes.Select(write => write.TargetRelativePath)))
+                throw new InvalidDataException("Static Encounter presentation targets changed. Review the changes again.");
+            foreach (var (relative, bytes) in outputs)
+            {
+                var target = ResolveOutputPath(paths, relative, diagnostics) ?? throw new IOException("Static Encounter output target is unavailable.");
+                WriteOutputAtomically(target, bytes);
+                writtenFiles.Add(new ProjectFileReference(ProjectFileLayer.Generated, relative));
+            }
             diagnostics.Add(CreateDiagnostic(
                 DiagnosticSeverity.Info,
                 "Applied Static Encounter change plan to the configured LayeredFS output root."));
@@ -342,8 +364,52 @@ public sealed class SwShStaticEncountersEditSessionService
                 expected: "Supported Sword/Shield static encounter field values"));
         }
 
+        if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)) writtenFiles.Clear();
         return verifiedApply.Commit(
             CreateApplyResult(applyId, appliedAt, currentPlan, writtenFiles, diagnostics));
+    }
+
+    private static SwShWedgehurstPresentation? BuildPresentation(OpenedProject project, IReadOnlyList<PendingEdit> edits,
+        ICollection<ValidationDiagnostic> diagnostics, byte[]? finalTable = null)
+    {
+        try
+        {
+            var source = SwShStaticEncountersWorkflowService.ResolveStaticEncounterDataSource(project)
+                ?? throw new InvalidDataException("Static Encounter source is unavailable.");
+            var archive = SwShStaticEncounterArchive.Parse(File.ReadAllBytes(source.AbsolutePath));
+            if (!edits.Any(edit => edit.Field is "species" or "form"
+                && SwShStaticEncountersWorkflowService.TryParseEncounterRecordId(edit.RecordId, out var index, out _)
+                && archive.Encounters.Any(row => row.Index == index && row.EncounterId == SwShWedgehurstPresentation.EncounterId))) return null;
+            finalTable ??= archive.WriteEdits(edits.Select(edit => ToStaticEncounterEdit(archive, edit, diagnostics))
+                .Where(edit => edit is not null).Select(edit => edit!).ToArray());
+            if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)) return null;
+            var result = new SwShWedgehurstPresentation(project);
+            result.Build(finalTable);
+            foreach (var diagnostic in result.Diagnostics) diagnostics.Add(diagnostic);
+            return result;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException or OverflowException
+            or IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException)
+        {
+            diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error,
+                $"The Wedgehurst scene could not be synchronized: {exception.Message}",
+                expected: "Readable compatible Wedgehurst scene sources and Pokemon model resources")
+                with { Code = SwShWedgehurstPresentation.SourceInvalidCode });
+            return null;
+        }
+    }
+
+    private static EditSession RebindDeletedOutputEdits(OpenedProject project, EditSession session)
+    {
+        var source = SwShStaticEncountersWorkflowService.ResolveStaticEncounterDataSource(project);
+        if (source is null || source.GraphEntry.LayeredFile is not null) return session;
+        return session with { PendingEdits = session.PendingEdits.Select(edit =>
+            edit.Domain == SwShStaticEncountersWorkflowService.StaticEncountersEditDomain
+                && SwShDeletedOutputSource.Contains(project.Paths, edit, source.GraphEntry.RelativePath)
+                ? edit with { Sources = edit.Sources.Select(reference =>
+                    string.Equals(reference.RelativePath, source.GraphEntry.RelativePath, StringComparison.OrdinalIgnoreCase)
+                        ? new ProjectFileReference(ProjectFileLayer.Base, source.GraphEntry.RelativePath) : reference).Distinct().ToArray() }
+                : edit).ToArray() };
     }
 
     private static PendingEdit? CreatePendingEdit(
@@ -370,7 +436,7 @@ public sealed class SwShStaticEncountersEditSessionService
             return null;
         }
 
-        AddAdvancedFieldWarnings(normalizedField, diagnostics);
+        AddAdvancedFieldWarnings(normalizedField, diagnostics, encounter.EncounterKey == SwShWedgehurstPresentation.EncounterId);
 
         return new PendingEdit(
             SwShStaticEncountersWorkflowService.StaticEncountersEditDomain,
@@ -459,7 +525,7 @@ public sealed class SwShStaticEncountersEditSessionService
             ValidateOptionBackedValue(workflow, encounter, editableField, parsedValue.Value, diagnostics);
         }
 
-        AddAdvancedFieldWarnings(edit.Field, diagnostics);
+        AddAdvancedFieldWarnings(edit.Field, diagnostics, encounter.EncounterKey == SwShWedgehurstPresentation.EncounterId);
     }
 
     private static int? TryParseFieldValue(
@@ -1148,13 +1214,15 @@ public sealed class SwShStaticEncountersEditSessionService
 
     private static void AddAdvancedFieldWarnings(
         string? field,
-        ICollection<ValidationDiagnostic> diagnostics)
+        ICollection<ValidationDiagnostic> diagnostics,
+        bool wedgehurst = false)
     {
         if (field is SwShStaticEncountersWorkflowService.SpeciesField or SwShStaticEncountersWorkflowService.FormField)
         {
             diagnostics.Add(CreateDiagnostic(
-                DiagnosticSeverity.Warning,
-                "Species and form edits update the static encounter table only; visible placement, model, or script references may need a separate review.",
+                wedgehurst ? DiagnosticSeverity.Info : DiagnosticSeverity.Warning,
+                wedgehurst ? "Species and form changes also synchronize the Wedgehurst station model, cries, and dialogue."
+                    : "Species and form edits update the static encounter table only; visible placement, model, or script references may need a separate review.",
                 field: field,
                 expected: "Review linked placement assets when changing visible static Pokemon"));
         }

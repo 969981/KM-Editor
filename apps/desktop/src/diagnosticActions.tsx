@@ -144,6 +144,7 @@ function resolveDestination(diagnostic: ApiDiagnostic): WorkbenchSection | null 
   if (diagnostic.domain === 'workflow.modMerger' || diagnostic.domain === 'workflow.mod-merger' || (diagnostic.code && mergerCodes.has(diagnostic.code))) return 'modMerger';
   if (diagnostic.domain === 'tool.trainerDynamax' || diagnostic.code === projectBridgeErrorCodes.trainerDynamaxInvalid
     || diagnostic.code === projectBridgeErrorCodes.trainerDynamaxReviewStale) return 'trainerDynamax';
+  if (diagnostic.domain === 'workflow.shakingTrees' || diagnostic.code?.startsWith('KM-SWSH-TREES-')) return 'shakingTrees';
   if (diagnostic.domain === 'workflow.heldItemChance' || diagnostic.code?.startsWith('KM-SWSH-HELD-ITEM-')) return 'heldItemChance';
   if (diagnostic.domain === 'workflow.gameOptions' || diagnostic.code?.startsWith('KM-SWSH-GAME-OPTIONS-')) return 'gameOptions';
   if (diagnostic.domain === 'workflow.obedience' || diagnostic.code?.startsWith('KM-SWSH-OBEDIENCE-')) return 'obedience';
