@@ -64,6 +64,7 @@ public sealed record SwShTradePokemonEntry(
     string IvSummary,
     SwShTradePokemonProvenance Provenance)
 {
+    public string Nickname { get; init; } = string.Empty;
     public IReadOnlyList<SwShTradePokemonEditableFieldOption> AbilityOptions { get; init; } =
         Array.Empty<SwShTradePokemonEditableFieldOption>();
 

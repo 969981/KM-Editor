@@ -66,6 +66,7 @@ import {
   Table2,
   TextCursorInput,
   TicketCheck,
+  TreeDeciduous,
   Trees,
   Upload,
   UsersRound,
@@ -465,6 +466,10 @@ export const workbenchCapabilityRegistry = [
   workflow({
     description: 'Edit Marnie cheering outcomes in the three Wyndon battles.',
     games: swordShieldGames, icon: Megaphone, id: 'marnieBoosts', label: 'Marnie Wyndon Boosts'
+  }),
+  workflow({
+    description: 'Edit tree items, quantities, encounter tables, and shake risk.',
+    games: swordShieldGames, icon: TreeDeciduous, id: 'shakingTrees', label: 'Shaking Trees'
   }),
   workflow({
     description: 'Choose items and normal or boosted chances for each Pokemon and form.',

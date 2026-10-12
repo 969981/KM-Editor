@@ -131,10 +131,11 @@ public sealed class SwShTradePokemonEditSessionService
                 pendingEdit.Field!);
             var normalizedDependentIvs = !ReferenceEquals(normalizedSession, workingSession);
             workingSession = normalizedSession;
-            var sourceValue = GetTradeFieldValue(sourceTrade, pendingEdit.Field!);
-            var restoresSourceValue = sourceValue == int.Parse(
-                pendingEdit.NewValue!,
-                CultureInfo.InvariantCulture);
+            var sourceValue = pendingEdit.Field == SwShTradePokemonWorkflowService.NicknameField ? null : GetTradeFieldValue(sourceTrade, pendingEdit.Field!);
+            var restoresSourceValue = pendingEdit.Field == SwShTradePokemonWorkflowService.NicknameField
+                ? sourceTrade.Nickname == pendingEdit.NewValue
+                : pendingEdit.Field is not ("species" or "form" or "requiredSpecies" or "requiredForm")
+                    && sourceValue == int.Parse(pendingEdit.NewValue!, CultureInfo.InvariantCulture);
             workingSession = restoresSourceValue
                 ? RemovePendingTradeField(workingSession, trade.TradeIndex, pendingEdit.Field!)
                 : ReplacePendingTradeEdit(workingSession, pendingEdit);
@@ -232,19 +233,27 @@ public sealed class SwShTradePokemonEditSessionService
             .OrderBy(source => source.Layer)
             .ThenBy(source => source.RelativePath, StringComparer.Ordinal)
             .ToArray();
+        var presentation = BuildPresentation(project, tradeEdits, diagnostics);
+        if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)) return new ChangePlan(session.Id, [], diagnostics);
+        sources = sources.Concat(presentation?.Files.Sources ?? []).Distinct().ToArray();
         var write = new PlannedFileWrite(
             tradeSource.GraphEntry.RelativePath,
             sources,
             File.Exists(targetPath),
             CreatePlanReason(tradeEdits));
 
-        diagnostics.Add(CreateDiagnostic(
-            DiagnosticSeverity.Info,
-            "Change plan preview contains 1 target file."));
+        var writes = new List<PlannedFileWrite> { write };
+        if (presentation is not null)
+            foreach (var path in presentation.Files.Outputs.Keys.Where(path => path != tradeSource.GraphEntry.RelativePath).Order(StringComparer.Ordinal))
+            {
+                var target = ResolveOutputPath(paths, path, diagnostics);
+                if (target is not null) writes.Add(new(path, sources, File.Exists(target), "Synchronize Trade Pokemon dialogue and nicknames."));
+            }
+        diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Info, $"Change plan preview contains {writes.Count} target file(s)."));
 
         return SwShChangePlanSourceGuard.Capture(
             paths,
-            new ChangePlan(session.Id, [write], diagnostics));
+            new ChangePlan(session.Id, writes, diagnostics));
     }
 
     public ApplyResult ApplyChangePlan(ProjectPaths paths, EditSession session, ChangePlan reviewedPlan)
@@ -355,6 +364,15 @@ public sealed class SwShTradePokemonEditSessionService
             return CreateApplyResult(applyId, appliedAt, currentPlan, writtenFiles, diagnostics);
         }
 
+        var presentation = BuildPresentation(project, GetTradeEdits(session).ToArray(), diagnostics, output);
+        if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error))
+            return CreateApplyResult(applyId, appliedAt, currentPlan, writtenFiles, diagnostics);
+        var outputs = presentation?.Files.Outputs ?? new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        if (presentation is null) outputs[tradeSource.GraphEntry.RelativePath] = output;
+        if (!outputs.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(currentPlan.Writes.Select(write => write.TargetRelativePath)))
+            return CreateApplyResult(applyId, appliedAt, currentPlan, writtenFiles,
+                [CreateDiagnostic(DiagnosticSeverity.Error, "Trade presentation targets changed. Review the changes again.")]);
+
         if (!SwShOutputRollbackScope.TryCapture(
                 paths,
                 currentPlan.Writes.Select(write => write.TargetRelativePath),
@@ -373,10 +391,12 @@ public sealed class SwShTradePokemonEditSessionService
         {
             try
             {
-                WriteAllBytesAtomically(targetPath, output);
-                writtenFiles.Add(new ProjectFileReference(
-                    ProjectFileLayer.Generated,
-                    tradeSource.GraphEntry.RelativePath));
+                foreach (var (relative, bytes) in outputs)
+                {
+                    var target = ResolveOutputPath(paths, relative, diagnostics) ?? throw new IOException("Trade output target is unavailable.");
+                    WriteAllBytesAtomically(target, bytes);
+                    writtenFiles.Add(new ProjectFileReference(ProjectFileLayer.Generated, relative));
+                }
                 outputRollback.Commit();
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -424,6 +444,14 @@ public sealed class SwShTradePokemonEditSessionService
             return null;
         }
 
+        if (normalizedField == SwShTradePokemonWorkflowService.NicknameField)
+        {
+            if (!ValidateNickname(value, diagnostics)) return null;
+            return new PendingEdit(SwShTradePokemonWorkflowService.TradePokemonEditDomain,
+                $"Set {effectiveTrade.Label} received nickname.", CreateExpectedSources(project, sourceTrade, normalizedField),
+                RecordId: SwShTradePokemonWorkflowService.CreateTradeRecordId(sourceTrade.TradeIndex, sourceTrade.SourceIdentity),
+                Field: normalizedField, NewValue: value);
+        }
         var sourceValue = GetTradeFieldValue(sourceTrade, normalizedField);
         var parsedValue = TryParseFieldValue(editableField, value, sourceValue, diagnostics);
         if (parsedValue is null)
@@ -694,6 +722,11 @@ public sealed class SwShTradePokemonEditSessionService
             return null;
         }
 
+        if (editableField.Field == SwShTradePokemonWorkflowService.NicknameField)
+        {
+            ValidateNickname(edit.NewValue, diagnostics);
+            return effectiveTrade;
+        }
         var sourceValue = GetTradeFieldValue(sourceTrade, editableField.Field);
         var parsedValue = TryParseFieldValue(editableField, edit.NewValue, sourceValue, diagnostics);
         if (parsedValue is not null && parsedValue != sourceValue)
@@ -1311,8 +1344,8 @@ public sealed class SwShTradePokemonEditSessionService
             or SwShTradePokemonWorkflowService.RequiredNatureField)
         {
             diagnostics.Add(CreateDiagnostic(
-                DiagnosticSeverity.Warning,
-                "Trade species, form, and requested-Pokemon edits update the trade table only; dialogue and visible placement references may need separate review.",
+                DiagnosticSeverity.Info,
+                "Trade species and form changes also synchronize requested and received Pokemon dialogue. Custom dialogue is preserved for review in Text.",
                 field: field,
                 expected: "Review linked dialogue and placement assets when changing Trade Pokemon"));
         }
@@ -1433,6 +1466,13 @@ public sealed class SwShTradePokemonEditSessionService
         SwShTradePokemonWorkflow workflow,
         PendingEdit edit)
     {
+        if (edit.Domain == SwShTradePokemonWorkflowService.TradePokemonEditDomain
+            && edit.Field == SwShTradePokemonWorkflowService.NicknameField
+            && SwShTradePresentation.ValidNickname(edit.NewValue)
+            && SwShTradePokemonWorkflowService.TryParseTradeRecordId(edit.RecordId, out var nicknameIndex, out var nicknameIdentity))
+            return workflow with { Trades = workflow.Trades.Select(trade => trade.TradeIndex == nicknameIndex
+                && (nicknameIdentity is null || string.Equals(nicknameIdentity, trade.SourceIdentity, StringComparison.OrdinalIgnoreCase))
+                ? trade with { Nickname = edit.NewValue! } : trade).ToArray() };
         if (!string.Equals(edit.Domain, SwShTradePokemonWorkflowService.TradePokemonEditDomain, StringComparison.Ordinal)
             || !SwShTradePokemonWorkflowService.IsEditableField(edit.Field)
             || !SwShTradePokemonWorkflowService.TryParseTradeRecordId(
@@ -1675,6 +1715,7 @@ public sealed class SwShTradePokemonEditSessionService
         PendingEdit edit,
         ICollection<ValidationDiagnostic> diagnostics)
     {
+        if (edit.Field == SwShTradePokemonWorkflowService.NicknameField) return null;
         if (!SwShTradePokemonWorkflowService.TryParseTradeRecordId(
                 edit.RecordId,
                 out var tradeIndex,
@@ -1708,6 +1749,43 @@ public sealed class SwShTradePokemonEditSessionService
         }
 
         return new SwShTradePokemonEdit(tradeIndex, field, value);
+    }
+
+    private static bool ValidateNickname(string? value, ICollection<ValidationDiagnostic> diagnostics)
+    {
+        if (SwShTradePresentation.ValidNickname(value)) return true;
+        diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error,
+            "Received nickname must be empty or contain 1-12 supported characters, without message codes or control characters.",
+            field: SwShTradePokemonWorkflowService.NicknameField, expected: "A nickname of at most 12 characters, or empty for the species name")
+            with { Code = SwShTradePresentation.NicknameInvalidCode });
+        return false;
+    }
+
+    private static SwShTradePresentation? BuildPresentation(OpenedProject project, IReadOnlyList<PendingEdit> edits,
+        ICollection<ValidationDiagnostic> diagnostics, byte[]? numericTable = null)
+    {
+        if (!edits.Any(edit => edit.Field is "species" or "form" or "requiredSpecies" or "requiredForm" or "nickname")) return null;
+        try
+        {
+            var source = SwShTradePokemonWorkflowService.ResolveTradePokemonDataSource(project)
+                ?? throw new InvalidDataException("Trade source is unavailable.");
+            var archive = SwShTradePokemonArchive.Parse(File.ReadAllBytes(source.AbsolutePath));
+            numericTable ??= archive.WriteEdits(edits.Select(edit => ToTradeEdit(archive, edit, diagnostics))
+                .Where(edit => edit is not null).Select(edit => edit!).ToArray());
+            if (diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error)) return null;
+            var result = new SwShTradePresentation(project);
+            result.Files.Outputs[source.GraphEntry.RelativePath] = result.Build(source.GraphEntry.RelativePath, numericTable, edits);
+            foreach (var diagnostic in result.Diagnostics) diagnostics.Add(diagnostic);
+            return result;
+        }
+        catch (Exception exception) when (exception is InvalidDataException or ArgumentException or OverflowException
+            or IOException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException)
+        {
+            diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error,
+                $"Trade dialogue and nicknames could not be synchronized: {exception.Message}",
+                expected: "Readable compatible trade tables, dialogue, and scripts") with { Code = SwShTradePresentation.SourceInvalidCode });
+            return null;
+        }
     }
 
     private static SwShTradePokemonField? MapField(string? field)

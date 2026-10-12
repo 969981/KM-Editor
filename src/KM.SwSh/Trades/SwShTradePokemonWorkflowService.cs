@@ -17,6 +17,7 @@ namespace KM.SwSh.Trades;
 public sealed class SwShTradePokemonWorkflowService
 {
     public const string SpeciesField = "species";
+    public const string NicknameField = "nickname";
     public const string FormField = "form";
     public const string LevelField = "level";
     public const string HeldItemIdField = "heldItemId";
@@ -118,6 +119,7 @@ public sealed class SwShTradePokemonWorkflowService
 
     private static readonly IReadOnlyList<SwShTradePokemonEditableField> BaseEditableFields =
     [
+        CreateField(NicknameField, "Received nickname", "string", 0, 12),
         CreateField(SpeciesField, "Species", "integer", 1, SwShTradePokemonArchive.MaximumIdValue),
         CreateField(FormField, "Form", "integer", 0, SwShTradePokemonArchive.MaximumByteValue, FormOptions),
         CreateField(LevelField, "Level", "integer", SwShTradePokemonArchive.MinimumLevel, SwShTradePokemonArchive.MaximumLevel),
@@ -199,8 +201,12 @@ public sealed class SwShTradePokemonWorkflowService
         {
             var archive = SwShTradePokemonArchive.Parse(File.ReadAllBytes(tradeSource.AbsolutePath));
             var provenance = CreateProvenance(tradeSource.GraphEntry);
+            var nicknames = SwShTradePresentation.ReadNicknames(project);
             var trades = archive.Trades
-                .Select(trade => ToTradeEntry(trade, lookupTables, provenance))
+                .Select(trade => ToTradeEntry(trade, lookupTables, provenance) with
+                {
+                    Nickname = trade.Hash1 == SwShTradePresentation.EmptyHash ? string.Empty : nicknames.GetValueOrDefault(trade.Hash1, string.Empty),
+                })
                 .ToArray();
             var sourceFileCount = 1 + lookupTables.SourceFileCount;
 

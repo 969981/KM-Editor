@@ -42,6 +42,7 @@ import { type BlueberryWorkflow } from './bridge/blueberryContracts';
 import { type StarmobilesWorkflow } from './bridge/starmobilesContracts';
 import { type TitanSwapperWorkflow } from './bridge/titanSwapperContracts';
 import { type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
+import { type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
 import { type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
 import { type ObedienceWorkflow } from './bridge/obedienceContracts';
@@ -128,6 +129,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
       'angeFight',
       'fairyGymBoosts',
       'marnieBoosts',
+      'shakingTrees',
       'heldItemChance',
       'gameOptions',
       'fashionUnlock',
@@ -190,6 +192,7 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
   'starmobiles',
   'titanSwapper',
   'marnieBoosts',
+  'shakingTrees',
   'heldItemChance',
   'gameOptions',
   'obedience',
@@ -224,6 +227,7 @@ export const sharedStagedEditorDomains = new Set([
   'workflow.starmobiles',
   'workflow.titan-swapper',
   'workflow.marnieBoosts',
+  'workflow.shakingTrees',
   'workflow.heldItemChance',
   'workflow.gameOptions',
   'workflow.obedience',
@@ -316,6 +320,7 @@ export type LoadedWorkflowStateBySection = {
   starmobilesWorkflow: StarmobilesWorkflow | null;
   titanSwapperWorkflow: TitanSwapperWorkflow | null;
   marnieBoostsWorkflow: MarnieBoostsWorkflow | null;
+  shakingTreesWorkflow: ShakingTreesWorkflow | null;
   heldItemChanceWorkflow: HeldItemChanceWorkflow | null;
   gameOptionsWorkflow: GameOptionsWorkflow | null;
   obedienceWorkflow: ObedienceWorkflow | null;
@@ -459,6 +464,8 @@ export function getLoadedWorkflowStateForSection(
       return state.starmobilesWorkflow !== null;
     case 'titanSwapper':
       return state.titanSwapperWorkflow !== null;
+    case 'shakingTrees':
+      return state.shakingTreesWorkflow !== null;
     case 'heldItemChance':
       return state.heldItemChanceWorkflow !== null;
     case 'gameOptions':

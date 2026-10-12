@@ -61,6 +61,7 @@ internal static class SwShExeFsReservedRegionLedger
 
     private static readonly SwShExeFsReservedRegion[] regions =
     [
+        .. KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Reservations(),
         .. KM.SwSh.HyperTraining.SwShHyperTrainingItemsPatcher.Reservations(),
         .. KM.SwSh.HyperTraining.SwShHyperTrainingPickerPatcher.Reservations(),
         .. KM.SwSh.Obedience.SwShObediencePatcher.CreateReservations(),
@@ -422,7 +423,8 @@ internal static class SwShExeFsReservedRegionLedger
                 || string.Equals(owner, OwnerTrainerDynamax, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerHeldItemChance, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerGameOptions, StringComparison.Ordinal)
-                || string.Equals(owner, OwnerObedience, StringComparison.Ordinal))
+                || string.Equals(owner, OwnerObedience, StringComparison.Ordinal)
+                || string.Equals(owner, KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Owner, StringComparison.Ordinal))
             && game is ProjectGame.Sword or ProjectGame.Shield)
         {
             var inactiveGameToken = game == ProjectGame.Sword ? "-shield-" : "-sword-";
@@ -505,7 +507,8 @@ internal static class SwShExeFsReservedRegionLedger
                         && !string.Equals(region.Owner, OwnerNativeGameplayMenu, StringComparison.Ordinal)
                         && !string.Equals(region.Owner, OwnerGameOptions, StringComparison.Ordinal)
                         && !string.Equals(region.Owner, KM.SwSh.HyperTraining.SwShHyperTrainingItemsPatcher.Owner, StringComparison.Ordinal)
-                        && !string.Equals(region.Owner, OwnerObedience, StringComparison.Ordinal))
+                        && !string.Equals(region.Owner, OwnerObedience, StringComparison.Ordinal)
+                        && !string.Equals(region.Owner, KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Owner, StringComparison.Ordinal))
                     || !region.FeatureId.Contains(inactiveDynamaxGameToken, StringComparison.Ordinal))
                 .ToArray();
         }

@@ -470,6 +470,8 @@ import { ObedienceSection } from './features/obedience/ObedienceSection';
 import { RaidDensSection } from './features/raid-dens/RaidDensSection';
 import { FixAiFlagsSection } from './features/fix-ai-flags/FixAiFlagsSection';
 import { TrainerWhiteoutSection } from './features/trainer-whiteout/TrainerWhiteoutSection';
+import { treeValues, treeFieldKey, type TreeUpdate, type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
+import { ShakingTreesSection } from './features/shaking-trees/ShakingTreesSection';
 import { type HeldItemChanceUpdate, type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { encodeGameOptionsSelections, getGameOptionsPendingSelections, type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
 import { encodeObedienceSelections, getObediencePendingSelections, type ObedienceWorkflow } from './bridge/obedienceContracts';
@@ -3233,6 +3235,7 @@ export function App({
   const starmobilesWorkflow = useWorkbenchStore(state => state.starmobilesWorkflow);
   const titanSwapperWorkflow = useWorkbenchStore(state => state.titanSwapperWorkflow);
   const marnieBoostsWorkflow = useWorkbenchStore(state => state.marnieBoostsWorkflow);
+  const shakingTreesWorkflow = useWorkbenchStore(state => state.shakingTreesWorkflow);
   const heldItemChanceWorkflow = useWorkbenchStore(state => state.heldItemChanceWorkflow);
   const gameOptionsWorkflow = useWorkbenchStore(state => state.gameOptionsWorkflow);
   const obedienceWorkflow = useWorkbenchStore(state => state.obedienceWorkflow);
@@ -3245,6 +3248,7 @@ export function App({
   const setStarmobilesWorkflow = useWorkbenchStore(state => state.setStarmobilesWorkflow);
   const setTitanSwapperWorkflow = useWorkbenchStore(state => state.setTitanSwapperWorkflow);
   const setMarnieBoostsWorkflow = useWorkbenchStore(state => state.setMarnieBoostsWorkflow);
+  const setShakingTreesWorkflow = useWorkbenchStore(state => state.setShakingTreesWorkflow);
   const setHeldItemChanceWorkflow = useWorkbenchStore(state => state.setHeldItemChanceWorkflow);
   const setGameOptionsWorkflow = useWorkbenchStore(state => state.setGameOptionsWorkflow);
   const setObedienceWorkflow = useWorkbenchStore(state => state.setObedienceWorkflow);
@@ -3257,6 +3261,7 @@ export function App({
   const [isStarmobilesLoading, setIsStarmobilesLoading] = useState(false);
   const [isTitanSwapperLoading, setIsTitanSwapperLoading] = useState(false);
   const [isMarnieBoostsLoading, setIsMarnieBoostsLoading] = useState(false);
+  const [isShakingTreesLoading, setIsShakingTreesLoading] = useState(false);
   const [isHeldItemChanceLoading, setIsHeldItemChanceLoading] = useState(false);
   const [isGameOptionsLoading, setIsGameOptionsLoading] = useState(false);
   const [isObedienceLoading, setIsObedienceLoading] = useState(false);
@@ -3269,6 +3274,7 @@ export function App({
   const [isStarmobilesStaging, setIsStarmobilesStaging] = useState(false);
   const [isTitanSwapperStaging, setIsTitanSwapperStaging] = useState(false);
   const [isMarnieBoostsStaging, setIsMarnieBoostsStaging] = useState(false);
+  const [isShakingTreesStaging, setIsShakingTreesStaging] = useState(false);
   const [isHeldItemChanceStaging, setIsHeldItemChanceStaging] = useState(false);
   const [isGameOptionsStaging, setIsGameOptionsStaging] = useState(false);
   const [isObedienceStaging, setIsObedienceStaging] = useState(false);
@@ -3281,6 +3287,7 @@ export function App({
   const starmobilesGenerationRef = useRef(0);
   const titanSwapperGenerationRef = useRef(0);
   const marnieBoostsGenerationRef = useRef(0);
+  const shakingTreesGenerationRef = useRef(0);
   const heldItemChanceGenerationRef = useRef(0);
   const gameOptionsGenerationRef = useRef(0);
   const obedienceGenerationRef = useRef(0);
@@ -4203,6 +4210,7 @@ export function App({
           starmobilesWorkflow,
           titanSwapperWorkflow,
           marnieBoostsWorkflow,
+          shakingTreesWorkflow,
           heldItemChanceWorkflow,
           gameOptionsWorkflow,
           obedienceWorkflow,
@@ -4258,6 +4266,7 @@ export function App({
       starmobilesWorkflow,
       titanSwapperWorkflow,
       marnieBoostsWorkflow,
+      shakingTreesWorkflow,
       heldItemChanceWorkflow,
       gameOptionsWorkflow,
       obedienceWorkflow,
@@ -4380,6 +4389,7 @@ export function App({
     starmobilesWorkflow,
     titanSwapperWorkflow,
     marnieBoostsWorkflow,
+    shakingTreesWorkflow,
     heldItemChanceWorkflow,
     gameOptionsWorkflow,
     obedienceWorkflow,
@@ -4520,6 +4530,8 @@ export function App({
   );
   const handleMarnieBoostsDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('marnieBoosts', dirty), [registerEditorDraftDirty]);
+  const handleShakingTreesDirtyChange = useCallback(
+    (dirty: boolean) => registerEditorDraftDirty('shakingTrees', dirty), [registerEditorDraftDirty]);
   const handleHeldItemChanceDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('heldItemChance', dirty), [registerEditorDraftDirty]);
   const handleGameOptionsDirtyChange = useCallback(
@@ -10561,6 +10573,42 @@ export function App({
     return accepted;
   };
 
+  const handleOpenShakingTreesWorkflow = async () => {
+    const generation = shakingTreesGenerationRef.current;
+    await runRetainedWorkflowLoad('shakingTrees', setIsShakingTreesLoading,
+      () => bridge.loadShakingTrees({ paths: createProjectPaths(draftPaths) }),
+      response => setShakingTreesWorkflow(response.workflow),
+      () => generation === shakingTreesGenerationRef.current);
+  };
+  const handleStageShakingTrees = async (updates: TreeUpdate[]) => {
+    const activeSession = getEditSessionForSection('shakingTrees');
+    if (!activeSession) return false;
+    let accepted = false;
+    shakingTreesGenerationRef.current += 1;
+    setIsShakingTreesStaging(true);
+    prepareScopedEditorPanelAction('shakingTrees');
+    try {
+      await runEditSessionMutation(async session => {
+        const response = await bridge.stageShakingTrees({ paths: createProjectPaths(draftPaths), session, updates });
+        const acknowledged = treeValues(response.workflow, response.session);
+        const matches = response.workflow.canEdit && response.session.sessionId === activeSession.sessionId
+          && !acknowledged.invalidPending && updates.every(update => acknowledged.values[treeFieldKey(update.recordId, update.field)] === String(update.value));
+        const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
+        if (!matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error'))
+          diagnostics.push({ severity: 'error', domain: 'workflow.shakingTrees', code: 'KM-SWSH-TREES-SESSION-INVALID', message: t('shakingTrees.failed') });
+        const didSucceed = matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error');
+        return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
+      }, response => {
+        setScopedEditorPanelDiagnostics('shakingTrees', response.diagnostics);
+        if (response.didSucceed) {
+          accepted = true; setShakingTreesWorkflow(response.workflow); setEditSessionSection('shakingTrees');
+        }
+      }, activeSession);
+    } catch (error) { setScopedEditorPanelDiagnostics('shakingTrees', toBridgeDiagnostics(error)); }
+    finally { setIsShakingTreesStaging(false); }
+    return accepted;
+  };
+
   const handleOpenHeldItemChanceWorkflow = async () => {
     const generation = heldItemChanceGenerationRef.current;
     await runRetainedWorkflowLoad('heldItemChance', setIsHeldItemChanceLoading,
@@ -12776,6 +12824,9 @@ export function App({
         case 'marnieBoosts':
           if (!currentState.marnieBoostsWorkflow) await handleOpenMarnieBoostsWorkflow();
           break;
+        case 'shakingTrees':
+          if (!currentState.shakingTreesWorkflow) await handleOpenShakingTreesWorkflow();
+          break;
         case 'heldItemChance':
           if (!currentState.heldItemChanceWorkflow) await handleOpenHeldItemChanceWorkflow();
           break;
@@ -13182,6 +13233,9 @@ export function App({
       case 'marnieBoosts':
         if (!marnieBoostsWorkflow && !isMarnieBoostsLoading) { markLazyLoadStarted(); void handleOpenMarnieBoostsWorkflow(); }
         break;
+      case 'shakingTrees':
+        if (!shakingTreesWorkflow && !isShakingTreesLoading) { markLazyLoadStarted(); void handleOpenShakingTreesWorkflow(); }
+        break;
       case 'heldItemChance':
         if (!heldItemChanceWorkflow && !isHeldItemChanceLoading) { markLazyLoadStarted(); void handleOpenHeldItemChanceWorkflow(); }
         break;
@@ -13475,6 +13529,7 @@ export function App({
     starmobilesWorkflow,
     titanSwapperWorkflow,
     marnieBoostsWorkflow,
+    shakingTreesWorkflow,
     heldItemChanceWorkflow,
     gameOptionsWorkflow,
     obedienceWorkflow,
@@ -13513,6 +13568,7 @@ export function App({
     isStarmobilesLoading,
     isTitanSwapperLoading,
     isMarnieBoostsLoading,
+    isShakingTreesLoading,
     isHeldItemChanceLoading,
     isGameOptionsLoading,
     isObedienceLoading,
@@ -18809,6 +18865,7 @@ export function App({
       'starmobiles',
       'titanSwapper',
       'marnieBoosts',
+      'shakingTrees',
       'heldItemChance',
       'gameOptions',
       'obedience',
@@ -18869,6 +18926,7 @@ export function App({
       starmobiles: setIsStarmobilesLoading,
       titanSwapper: setIsTitanSwapperLoading,
       marnieBoosts: setIsMarnieBoostsLoading,
+      shakingTrees: setIsShakingTreesLoading,
       heldItemChance: setIsHeldItemChanceLoading,
       gameOptions: setIsGameOptionsLoading,
       obedience: setIsObedienceLoading,
@@ -19081,6 +19139,12 @@ export function App({
       reloadTasks.push(async () => {
         const response = await bridge.loadMarnieBoosts({ paths });
         if (canCommitRefresh()) setMarnieBoostsWorkflow(response.workflow);
+      });
+    }
+    if (shakingTreesWorkflow && refreshSections.has('shakingTrees')) {
+      reloadTasks.push(async () => {
+        const response = await bridge.loadShakingTrees({ paths });
+        if (canCommitRefresh()) setShakingTreesWorkflow(response.workflow);
       });
     }
     if (heldItemChanceWorkflow && refreshSections.has('heldItemChance')) {
@@ -21768,6 +21832,16 @@ export function App({
                 onDirtyStateChange={handleMarnieBoostsDirtyChange} onRefresh={handleOpenMarnieBoostsWorkflow}
                 isLoading={isMarnieBoostsLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('marnieBoosts')} />
           ) : null}
+          {activeSection === 'shakingTrees' ? (
+            isShakingTreesLoading && !shakingTreesWorkflow ? <WorkflowLoadingPanel label={t('shakingTrees.title')} /> :
+              <ShakingTreesSection workflow={shakingTreesWorkflow} session={getEditSessionForSection('shakingTrees')}
+                key={getEditSessionForSection('shakingTrees')?.sessionId ?? 'viewing'}
+                isStaging={isShakingTreesStaging} isEditing={getEditSessionForSection('shakingTrees') !== null}
+                isEditStarting={isEditStarting} onStartEditSession={handleStartEditSession}
+                onCancelEditSession={requestCancelEditSession} onStage={handleStageShakingTrees}
+                onDirtyStateChange={handleShakingTreesDirtyChange} onRefresh={handleOpenShakingTreesWorkflow}
+                isLoading={isShakingTreesLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('shakingTrees')} />
+          ) : null}
           {activeSection === 'heldItemChance' ? (
             isHeldItemChanceLoading && !heldItemChanceWorkflow ? <WorkflowLoadingPanel label={t('heldItemChance.title')} /> :
               <HeldItemChanceSection formatPokemonName={(record) => formatPokemonRecordName(record, 'swsh')} workflow={heldItemChanceWorkflow} session={getEditSessionForSection('heldItemChance')}
@@ -22003,6 +22077,7 @@ export function App({
                 starmobilesWorkflow,
                 titanSwapperWorkflow,
                 marnieBoostsWorkflow,
+                shakingTreesWorkflow,
                 heldItemChanceWorkflow,
                 gameOptionsWorkflow,
                 obedienceWorkflow,
@@ -35593,6 +35668,7 @@ function formatPendingEditDomain(domain: string) {
     'workflow.fashionCatalog': 'Fashion Catalog',
     'workflow.habitatCoordinates': 'Habitat Coordinates',
     'workflow.marnieBoosts': 'Marnie Wyndon Boosts',
+    'workflow.shakingTrees': 'Shaking Trees',
     'workflow.heldItemChance': 'Held Item Chance',
     'workflow.gameOptions': 'Game Options',
     'workflow.obedience': 'Obedience Level',
@@ -35662,6 +35738,7 @@ function getPendingEditSection(edit: PendingEdit): WorkbenchSection | null {
     'workflow.fashionCatalog': 'fashionCatalog',
     'workflow.habitatCoordinates': 'habitatCoordinates',
     'workflow.marnieBoosts': 'marnieBoosts',
+    'workflow.shakingTrees': 'shakingTrees',
     'workflow.heldItemChance': 'heldItemChance',
     'workflow.gameOptions': 'gameOptions',
     'workflow.obedience': 'obedience',
@@ -36077,6 +36154,25 @@ function getPendingEditDisplayDetails(
         editorLabel, recordLocalizationKey: 'marnieBoosts.title', fieldLocalizationKey: 'marnieBoosts.outcomes',
         newValueLocalizationKey: 'marnieBoosts.staged'
       });
+    case 'workflow.shakingTrees': {
+      const workflow = context.shakingTreesWorkflow;
+      const tree = workflow?.trees.find(row => row.id === edit.recordId);
+      const area = workflow?.areas.find(row => row.id === edit.recordId);
+      const [field, slot] = (edit.field ?? '').split('.');
+      const number = Number(slot) + 1;
+      const fieldKey = field === 'item' ? 'itemSlot' : field === 'species' ? 'pokemonSlot'
+        : field === 'percent' ? 'chanceSlot' : field;
+      const value = Number(edit.newValue);
+      const newValueLabel = field === 'item' ? workflow?.items.find(row => row.value === value)?.label
+        : field === 'species' ? workflow?.pokemon.find(row => row.species === value)?.label : edit.newValue;
+      return createPendingEditDisplayDetails(edit, {
+        editorLabel, fieldLocalizationKey: `shakingTrees.${fieldKey}`,
+        fieldLocalizationParams: { number }, newValueLabel: newValueLabel ?? edit.newValue ?? '',
+        recordLabel: tree ? `${tree.area} · ${(workflow?.trees.filter(row => row.areaId === tree.areaId).findIndex(row => row.id === tree.id) ?? 0) + 1}`
+          : area?.name ?? undefined,
+        recordLocalizationKey: edit.recordId === 'settings' ? 'shakingTrees.globalRules' : undefined
+      });
+    }
     case 'workflow.heldItemChance':
       return createPendingEditDisplayDetails(edit, {
         editorLabel, recordLocalizationKey: 'heldItemChance.title', fieldLocalizationKey: 'heldItemChance.rates',
@@ -39619,11 +39715,12 @@ function SelectedTradePokemonPanel({
   const tradeDraftDefaults = useMemo(
     () =>
       trade
-        ? createPokemonInstanceDrafts(defaultContextualTradeFields, (field) =>
-            getEditableTradePokemonFieldValue(trade, field)
-          )
+        ? {
+            ...createPokemonInstanceDrafts(defaultContextualTradeFields, (field) => getEditableTradePokemonFieldValue(trade, field)),
+            ...(editorFamily === 'swsh' ? { nickname: trade.nickname ?? '' } : {})
+          }
         : {},
-    [defaultContextualTradeFields, trade]
+    [defaultContextualTradeFields, editorFamily, trade]
   );
   const tradeDrafts = trade
     ? tradeDraftsByIndex[trade.tradeIndex.toString()] ?? tradeDraftDefaults
@@ -39714,13 +39811,22 @@ function SelectedTradePokemonPanel({
     [contextualTradeFields]
   );
   const tradeDraftSummary = useMemo(
-    () =>
-      getTrainerDraftSummary(
+    () => {
+      const summary = getTrainerDraftSummary(
         getActivePokemonInstanceFields(contextualTradeFields, tradeDrafts),
         tradeDrafts,
         trade ? (field) => getEditableTradePokemonFieldValue(trade, field) : null
-      ),
-    [contextualTradeFields, trade, tradeDrafts]
+      );
+      if (editorFamily === 'swsh' && trade && tradeDrafts.nickname !== (trade.nickname ?? '')) {
+        const value = tradeDrafts.nickname ?? '';
+        const change = { field: 'nickname', label: t('trades.nickname'), value };
+        summary.dirtyFieldCount += 1;
+        if (value.length > 12 || (value.length > 0 && !value.trim()) || /[\u0000-\u001f\u007f-\u009f\[\]\\\ud800-\udfff]/u.test(value)) summary.invalidFields.push(change);
+        else summary.changedFields.push(change);
+      }
+      return summary;
+    },
+    [contextualTradeFields, editorFamily, t, trade, tradeDrafts]
   );
   useRegisterEditorDraftDirty('tradePokemon', countFieldDraftRecords(tradeDraftsByIndex) > 0);
   const outstandingTradeDraftCount = countFieldDraftRecords(tradeDraftsByIndex);
@@ -39856,6 +39962,21 @@ function SelectedTradePokemonPanel({
           </dl>
 
           <div className="trainer-edit-form">
+            {editorFamily === 'swsh' ? (
+              <label className="editable-field">
+                <span>{t('trades.nickname')}</span>
+                <input
+                  aria-invalid={tradeDraftSummary.invalidFields.some(field => field.field === 'nickname') || undefined}
+                  disabled={!canEditTrades || editSession === null}
+                  maxLength={12}
+                  onChange={event => setTradeDraftsByIndex(current => setFieldDraftRecord(current, trade.tradeIndex,
+                    { ...tradeDrafts, nickname: event.target.value }, tradeDraftDefaults))}
+                  type="text"
+                  value={tradeDrafts.nickname ?? ''}
+                />
+                <small>{t(tradeDraftSummary.invalidFields.some(field => field.field === 'nickname') ? 'trades.nicknameInvalid' : 'trades.nicknameHelp')}</small>
+              </label>
+            ) : null}
             <div className="editable-field-groups">
               {tradeFieldGroups.map((group) => (
                 <fieldset className="editable-field-group" key={group.group}>
@@ -40085,6 +40206,15 @@ function SelectedTradePokemonPanel({
                     label="Stage"
                   />
                 </button>
+                {editorFamily === 'swsh' ? (
+                  <button className="secondary-button" type="button"
+                    disabled={!canEditTrades || isTradePokemonUpdating || tradeDraftSummary.dirtyFieldCount > 0}
+                    title={t('trades.syncHelp')}
+                    onClick={() => onUpdateTradePokemonFields(trade.tradeIndex, [
+                      { field: 'species', value: trade.speciesId.toString() }, { field: 'form', value: trade.form.toString() },
+                      { field: 'requiredSpecies', value: trade.requiredSpeciesId.toString() }, { field: 'requiredForm', value: trade.requiredForm.toString() }
+                    ])}>{t('trades.sync')}</button>
+                ) : null}
                 {nextTradeDraftKey !== null ? (
                   <button
                     className="secondary-button"
@@ -42614,6 +42744,14 @@ function SelectedStaticEncounterPanel({
                     label="Stage"
                   />
                 </button>
+                {encounter.editorFamily === 'swsh' && encounter.encounterId.toUpperCase() === '0XF619D64A8E0641CB' ? (
+                  <button className="secondary-button" type="button"
+                    disabled={!canEditStaticEncounters || isStaticEncounterUpdating || encounterDraftSummary.dirtyFieldCount > 0}
+                    title={t('staticEncounters.wedgehurstSyncHelp')}
+                    onClick={() => onUpdateStaticEncounterFields(encounter.encounterIndex, encounter.encounterId, [
+                      { field: 'species', value: encounter.speciesId.toString() }, { field: 'form', value: encounter.form.toString() }
+                    ])}>{t('staticEncounters.wedgehurstSync')}</button>
+                ) : null}
                 {nextEncounterDraftIndex !== null ? (
                   <button
                     className="secondary-button"
@@ -57599,6 +57737,7 @@ type PendingEdit = EditSession['pendingEdits'][number];
 
 export type PendingEditContext = {
   marnieBoostsWorkflow?: MarnieBoostsWorkflow | null;
+  shakingTreesWorkflow?: ShakingTreesWorkflow | null;
   heldItemChanceWorkflow?: HeldItemChanceWorkflow | null;
   gameOptionsWorkflow?: GameOptionsWorkflow | null;
   obedienceWorkflow?: ObedienceWorkflow | null;

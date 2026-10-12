@@ -30,6 +30,7 @@ public static class SwShWorkflowIds
     public const string ShinyRate = "shinyRate";
     public const string FairyGymBoosts = "fairyGymBoosts";
     public const string MarnieBoosts = "marnieBoosts";
+    public const string ShakingTrees = "shakingTrees";
     public const string HeldItemChance = "heldItemChance";
     public const string GameOptions = "gameOptions";
     public const string Obedience = "obedience";

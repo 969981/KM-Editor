@@ -126,6 +126,7 @@ const registrations = {
   profanityFilter: operationScoped('profanityFilter'),
   trainerDynamax: operationScoped('trainerDynamax'),
   marnieBoosts: fixedSchemaSlot('marnieBoosts', 'Wyndon cheering answer outcomes'),
+  shakingTrees: intrinsic('shakingTrees', 'placement member, stored zone ID and tree actor hash'),
   heldItemChance: sourceRevisionBound('heldItemChance', 'personal record, species and form plus exact source revision'),
   gameOptions: fixedSchemaSlot('gameOptions', 'Starting values and hidden game option selections'),
   obedience: fixedSchemaSlot('obedience', 'Obedience level limits by badge count'),

@@ -175,6 +175,7 @@ public static class KmCommandNames
     public const string ApplyFpsPatch = "fpsPatch.apply";
     public const string RestoreFpsPatch = "fpsPatch.restore";
     public const string LoadMarnieBoosts = "marnieBoosts.load";
+    public const string LoadShakingTrees = "shakingTrees.load";
     public const string LoadHeldItemChance = "heldItemChance.load";
     public const string LoadGameOptions = "gameOptions.load";
     public const string LoadObedience = "obedience.load";
@@ -183,6 +184,7 @@ public static class KmCommandNames
     public const string StageFixAiFlags = "fixAiFlags.stage";
     public const string LoadTrainerWhiteout = "trainerWhiteout.load";
     public const string StageMarnieBoosts = "marnieBoosts.stage";
+    public const string StageShakingTrees = "shakingTrees.stage";
     public const string StageHeldItemChance = "heldItemChance.stage";
     public const string StageGameOptions = "gameOptions.stage";
     public const string StageObedience = "obedience.stage";

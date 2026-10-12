@@ -170,6 +170,7 @@ export const kmCommandNameValues = [
   "trainerDynamax.review",
   "trainerDynamax.apply",
   "marnieBoosts.load",
+  "shakingTrees.load",
   "heldItemChance.load",
   "gameOptions.load",
   "obedience.load",
@@ -178,6 +179,7 @@ export const kmCommandNameValues = [
   "fixAiFlags.stage",
   "trainerWhiteout.load",
   "marnieBoosts.stage",
+  "shakingTrees.stage",
   "heldItemChance.stage",
   "gameOptions.stage",
   "obedience.stage",
@@ -485,6 +487,7 @@ export const kmCommandNames = {
   applyFpsPatch: "fpsPatch.apply",
   restoreFpsPatch: "fpsPatch.restore",
   loadMarnieBoosts: "marnieBoosts.load",
+  loadShakingTrees: "shakingTrees.load",
   loadHeldItemChance: "heldItemChance.load",
   loadGameOptions: "gameOptions.load",
   loadObedience: "obedience.load",
@@ -493,6 +496,7 @@ export const kmCommandNames = {
   stageFixAiFlags: "fixAiFlags.stage",
   loadTrainerWhiteout: "trainerWhiteout.load",
   stageMarnieBoosts: "marnieBoosts.stage",
+  stageShakingTrees: "shakingTrees.stage",
   stageHeldItemChance: "heldItemChance.stage",
   stageGameOptions: "gameOptions.stage",
   stageObedience: "obedience.stage",
@@ -2926,6 +2930,7 @@ export const tradePokemonEditableFieldSchema = z.strictObject({
 });
 
 export const tradePokemonRecordSchema = z.strictObject({
+  nickname: z.string().nullable().default(null),
   ability: z.number().int(),
   abilityLabel: z.string(),
   abilityOptions: z.array(tradePokemonEditableFieldOptionSchema).default([]),

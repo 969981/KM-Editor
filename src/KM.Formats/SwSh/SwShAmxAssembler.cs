@@ -40,6 +40,16 @@ public sealed class SwShAmxAssembler
 
     public IReadOnlyList<uint> NativeHashes => readOnlyNativeHashes;
 
+    /// <summary>Updates one initialized data cell without relocating other data.</summary>
+    public void ReplaceDataCell(int byteAddress, ulong expectedValue, ulong replacement)
+    {
+        if (byteAddress < 0 || byteAddress % CellSize != 0 || byteAddress / CellSize >= dataCells.Count)
+            throw new InvalidDataException("AMX data cell address is outside initialized data.");
+        var index = byteAddress / CellSize;
+        if (dataCells[index] != expectedValue) throw new InvalidDataException("AMX data cell changed unexpectedly.");
+        dataCells[index] = replacement;
+    }
+
     /// <summary>Appends a separate instruction graph, relocating its internal branches.</summary>
     public IReadOnlyDictionary<SwShAmxInstruction, SwShAmxInstruction> AppendInstructions(
         IReadOnlyList<SwShAmxInstruction> sourceInstructions)
