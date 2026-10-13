@@ -140,6 +140,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "behavior.entry.update",
     "behavior.fields.update",
     "behavior.load",
+    "blueberry.fields.stage",
+    "blueberry.load",
     "catchCap.load",
     "catchCap.stage",
     "catchCap.uninstall.stage",
@@ -203,8 +205,6 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "habitatCoordinates.coordinate.stage",
     "habitatCoordinates.load",
     "heldItemChance.load",
-    "shakingTrees.load",
-    "shakingTrees.stage",
     "heldItemChance.stage",
     "hyperTraining.load",
     "hyperTraining.stage",
@@ -241,6 +241,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "moves.move.vanilla.stage",
     "npcItemGift.load",
     "npcItemGift.stage",
+    "obedience.load",
+    "obedience.stage",
     "output.checkpoint.create",
     "output.checkpoint.delete",
     "output.checkpoint.list",
@@ -326,6 +328,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "semanticMerge.import",
     "semanticMerge.preview",
     "semanticMerge.source.open",
+    "shakingTrees.load",
+    "shakingTrees.stage",
     "shinyRate.load",
     "shinyRate.stage",
     "shops.inventory.items.update",
@@ -334,8 +338,6 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "spreadsheetImport.load",
     "spreadsheetImport.preview",
     "starmobiles.fields.stage",
-    "blueberry.load",
-    "blueberry.fields.stage",
     "starmobiles.load",
     "startingItems.load",
     "startingItems.stage",
@@ -2839,6 +2841,7 @@ fn is_project_bridge_workflow_load_command(command: &str) -> bool {
             | "modMerger.load"
             | "moves.load"
             | "npcItemGift.load"
+            | "obedience.load"
             | "placement.load"
             | "placement.object.load"
             | "pokemon.load"
@@ -3023,6 +3026,7 @@ fn is_replay_safe_edit_session_command(command: &str) -> bool {
             | "moves.fields.update"
             | "moves.move.vanilla.stage"
             | "npcItemGift.stage"
+            | "obedience.stage"
             | "placement.object.update"
             | "placement.objects.update"
             | "pokemon.composite.update"
