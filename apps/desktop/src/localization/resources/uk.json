@@ -9551,6 +9551,7 @@
     "IV Screen requires the original Hyper Training IV getter.": "Для екрана IV потрібна початкова функція читання IV з урахуванням гіпертренування.",
     "Hyper Training IV getter used by IV Screen": "Функція IV з урахуванням гіпертренування, яку використовує екран IV",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Задайте межу рівня слухняності обміняних покемонів для кожної кількості значків незалежно від межі ловлі.",
-    "Obedience Level": "Рівень слухняності"
+    "Obedience Level": "Рівень слухняності",
+    "Party and box icons use the minimum level at {offset}.": "Значки в команді та боксах використовують мінімальний рівень за адресою {offset}."
   }
 }

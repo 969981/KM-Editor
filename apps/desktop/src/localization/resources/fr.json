@@ -9551,6 +9551,7 @@
     "IV Screen requires the original Hyper Training IV getter.": "Écran des IV nécessite la fonction originale de lecture des IV après Entraînement Ultime.",
     "Hyper Training IV getter used by IV Screen": "Fonction des IV après Entraînement Ultime utilisée par Écran des IV",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Définissez le niveau d’obéissance des Pokémon échangés pour chaque nombre de Badges, indépendamment de la limite de capture.",
-    "Obedience Level": "Niveau d’obéissance"
+    "Obedience Level": "Niveau d’obéissance",
+    "Party and box icons use the minimum level at {offset}.": "Les icônes de l’équipe et des boîtes utilisent le niveau minimum défini à {offset}."
   }
 }

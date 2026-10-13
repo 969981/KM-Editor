@@ -9551,6 +9551,7 @@
     "IV Screen requires the original Hyper Training IV getter.": "个体值界面需要原始的极限特训个体值读取函数。",
     "Hyper Training IV getter used by IV Screen": "个体值界面使用的极限特训个体值读取函数",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "为每个徽章数量设置交换宝可梦的听话等级上限，与捕捉等级上限独立。",
-    "Obedience Level": "听话等级"
+    "Obedience Level": "听话等级",
+    "Party and box icons use the minimum level at {offset}.": "队伍和盒子中的图标使用 {offset} 处设置的最低等级。"
   }
 }

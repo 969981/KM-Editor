@@ -9551,6 +9551,7 @@
     "IV Screen requires the original Hyper Training IV getter.": "IV Screen requires the original Hyper Training IV getter.",
     "Hyper Training IV getter used by IV Screen": "Hyper Training IV getter used by IV Screen",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.",
-    "Obedience Level": "Obedience Level"
+    "Obedience Level": "Obedience Level",
+    "Party and box icons use the minimum level at {offset}.": "Party and box icons use the minimum level at {offset}."
   }
 }
