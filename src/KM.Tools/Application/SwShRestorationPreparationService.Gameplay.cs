@@ -3,8 +3,8 @@ using System.Buffers.Binary;
 using System.Globalization;
 using KM.Formats.Models;
 using KM.Formats.SwSh;
+using KM.SwSh.Pokemon;
 using KM.SwSh.Restoration;
-using PKHeX.Core;
 
 namespace KM.Tools.Application;
 
@@ -47,10 +47,10 @@ public sealed partial class SwShRestorationPreparationService
                 foreach (var move in moves) { if (machineMoves.Contains(move)) row[offset + index / 8] |= (byte)(1 << (index % 8)); index++; }
                 if (index > length * 8) throw new InvalidDataException("Compatibility field exceeds native storage.");
             }
-            Compatibility(40, 16, PersonalInfo8SWSH.MachineMovesTechnical.ToArray().Select(m => (int)m));
-            Compatibility(56, 4, new[] { 520, 519, 518, 338, 307, 308, 434, 796 });
-            Compatibility(60, 16, PersonalInfo8SWSH.MachineMovesRecord.ToArray().Select(m => (int)m));
-            Compatibility(168, 4, PersonalInfo8SWSH.SpecialTutorMoves.ToArray().Select(m => (int)m));
+            Compatibility(40, 16, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TechnicalMachineCompatibilityGroupId));
+            Compatibility(56, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TypeTutorCompatibilityGroupId));
+            Compatibility(60, 16, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TechnicalRecordCompatibilityGroupId));
+            Compatibility(168, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.ArmorTutorCompatibilityGroupId));
             BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)species)); Put16(row, 86, 393); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
             _ = SwShPersonalTable.Parse(row);
             var result = new List<SwShRestorationContribution>

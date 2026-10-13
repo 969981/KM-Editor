@@ -1760,6 +1760,19 @@ public sealed class SwShPokemonWorkflowService
         return IsValidCompatibilitySlot(groupId, slot);
     }
 
+    public static IReadOnlyList<int> GetDefaultCompatibilityMoveIds(string groupId)
+    {
+        var moves = groupId switch
+        {
+            TechnicalMachineCompatibilityGroupId => TechnicalMachineMoveIds,
+            TechnicalRecordCompatibilityGroupId => TechnicalRecordMoveIds,
+            TypeTutorCompatibilityGroupId => TypeTutorMoveIds,
+            ArmorTutorCompatibilityGroupId => ArmorTutorMoveIds,
+            _ => throw new ArgumentOutOfRangeException(nameof(groupId)),
+        };
+        return moves.ToArray();
+    }
+
     public static bool IsValidCompatibilitySlot(string groupId, int slot)
     {
         return groupId switch
