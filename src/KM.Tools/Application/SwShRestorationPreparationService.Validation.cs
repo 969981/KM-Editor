@@ -19,7 +19,8 @@ public sealed partial class SwShRestorationPreparationService
                 return System.IO.File.Exists(source) ? Native(path[6..]) : null;
             }, enable: true);
             var files = composition.Files;
-            if (files.Count != 21 || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
+            var speciesCount = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count;
+            if (files.Count != 6 + 5 * speciesCount || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
             var catalog = new SwShPokemonResourceCatalog(files[SwShRestorationComposer.CatalogPath]!);
             var personal = SwShPersonalTable.Parse(files[SwShRestorationComposer.PersonalPath]!, 4096);
             var packs = new Dictionary<string, SwShGfPackFile>(StringComparer.Ordinal);
@@ -62,7 +63,7 @@ public sealed partial class SwShRestorationPreparationService
             }
             var originalBank = new SoundBankDocument(Native(SwShRestorationComposer.VoicesPath[6..]));
             var newBank = new SoundBankDocument(files[SwShRestorationComposer.VoicesPath]!);
-            if (newBank.Objects.Count != originalBank.Objects.Count + 216 || newBank.Media.Count != originalBank.Media.Count + 39)
+            if (newBank.Objects.Count != originalBank.Objects.Count + 72 * speciesCount || newBank.Media.Count != originalBank.Media.Count + 13 * speciesCount)
                 throw new InvalidDataException("Converted voices are incomplete.");
             for (var i = 0; i < originalBank.Objects.Count; i++)
                 if (originalBank.Objects[i].Id != newBank.Objects[i].Id || originalBank.Objects[i].Type != newBank.Objects[i].Type

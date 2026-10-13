@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Bird, RefreshCw, Save, X } from 'lucide-react';
 import type { EditSession, ProjectPaths } from '../../bridge/contracts';
 import type { RestorationProjectBridgeApi } from '../../bridge/restorationProjectBridge';
@@ -10,6 +10,8 @@ import { WorkflowPanelOutputSections, type WorkflowPanelOutput } from '../../com
 import { useLocalization } from '../../localization';
 import './RestoreMissingPokemonSection.css';
 import { readRestorationSources, rememberRestorationSources } from './restorationSourceSettings';
+import { RestorationSourceFolders } from './RestorationSourceFolders';
+import { desktopServices as defaultDesktopServices, type DesktopServices } from '../../desktopServices';
 
 type Props = {
   workflow: RestorationWorkflow | null; paths: ProjectPaths; bridge: RestorationProjectBridgeApi; session: EditSession | null;
@@ -17,35 +19,42 @@ type Props = {
   onStartEditSession: () => void; onCancelEditSession: (discard: () => void) => void;
   onStage: (selections: RestorationSelection[]) => Promise<boolean>;
   onDirtyStateChange: (dirty: boolean) => void; onRefresh: () => void; panelOutput: WorkflowPanelOutput;
+  desktopServices?: DesktopServices;
 };
 const preparationByProject = new Map<string, RestorationPreparation>();
+const preparedByProject = new Map<string, Record<string, string>>();
 
 export function RestoreMissingPokemonSection({ workflow, paths, bridge, session, isEditing, isEditStarting, isStaging, isLoading,
-  onStartEditSession, onCancelEditSession, onStage, onDirtyStateChange, onRefresh, panelOutput }: Props) {
+  onStartEditSession, onCancelEditSession, onStage, onDirtyStateChange, onRefresh, panelOutput, desktopServices = defaultDesktopServices }: Props) {
   const { t } = useLocalization();
   const projectKey = JSON.stringify([paths.selectedGame, paths.baseRomFsPath, paths.outputRootPath]);
   const [search, setSearch] = useState('');
-  const [savedSources] = useState(() => readRestorationSources(projectKey, paths.scarletVioletSupportFolderPath ?? ''));
-  const [donor, setDonor] = useState(savedSources.donor);
-  const [support, setSupport] = useState(savedSources.support);
+  const [sources, setSources] = useState(() => readRestorationSources(projectKey, paths.scarletVioletSupportFolderPath ?? ''));
+  const [preparedHashes, setPreparedHashes] = useState(() => preparedByProject.get(projectKey) ?? {});
   const [drafts, setDrafts] = useState<Record<string, boolean>>({});
   const [preparation, setPreparation] = useState<RestorationPreparation | null>(() => preparationByProject.get(projectKey) ?? null);
   const [error, setError] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const active = useRef(true); const submittedDrafts = useRef(drafts); submittedDrafts.current = drafts;
-  const families = useMemo(() => (workflow?.entries ?? []).filter(e => !e.definitionId || e.speciesId === e.family[0]), [workflow]);
+  const entries = workflow?.entries ?? [];
   const pendingCount = session?.pendingEdits.filter(e => e.domain === 'workflow.restoreMissingPokemon').length ?? 0;
   const dirty = Object.keys(drafts).length > 0;
   const canEdit = isEditing && workflow?.canEdit === true;
-  const hashes = new Map(families.filter(e => e.definitionId && e.preparedHash).map(e => [e.definitionId!, e.preparedHash!]));
+  const hashes = new Map(Object.entries(preparedHashes));
+  for (const entry of entries) if (entry.definitionId && entry.preparedHash) hashes.set(entry.definitionId, entry.preparedHash);
   if (preparation?.preparedHash) hashes.set(preparation.definitionId, preparation.preparedHash);
-  const valid = Object.keys(drafts).every(id => hashes.has(id) && families.some(e => e.definitionId === id && e.installation !== 'External'));
+  const valid = Object.keys(drafts).every(id => hashes.has(id) && entries.some(e => e.definitionId === id && e.installation !== 'External'));
   useEffect(() => { onDirtyStateChange(dirty); }, [dirty, onDirtyStateChange]);
   useEffect(() => { active.current = true; return () => { active.current = false; onDirtyStateChange(false); }; }, [onDirtyStateChange]);
   usePublishCommonEditorError({ domain: 'workflow.restoreMissingPokemon', field: 'draft', message: error });
   const remember = (value: RestorationPreparation) => {
     if (preparationByProject.size >= 4 && !preparationByProject.has(projectKey)) preparationByProject.delete(preparationByProject.keys().next().value!);
     preparationByProject.set(projectKey, value); setPreparation(value);
+    if (value.preparedHash) setPreparedHashes(current => {
+      const next = { ...current, [value.definitionId]: value.preparedHash! };
+      if (preparedByProject.size >= 4 && !preparedByProject.has(projectKey)) preparedByProject.delete(preparedByProject.keys().next().value!);
+      preparedByProject.set(projectKey, next); return next;
+    });
   };
   useEffect(() => {
     if (preparation?.status !== 'preparing') return;
@@ -65,9 +74,8 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
   }, [preparation, projectKey, bridge]);
   const prepare = async (definitionId: string) => {
     setIsPreparing(true); setError(null);
-    rememberRestorationSources(projectKey, { donor: donor.trim(), support: support.trim() });
     try {
-      const response = await bridge.prepareRestoration({ paths, definitionId, donorRomFsPath: donor.trim(), compressionSupportFolderPath: support.trim() || null });
+      const response = await bridge.prepareRestoration({ paths, definitionId, donorRomFsPath: sources.donor.trim(), compressionSupportFolderPath: sources.support.trim() || null });
       if (active.current) remember(response.preparation);
     } catch { if (active.current) setError(t('restoration.failed')); }
     finally { if (active.current) setIsPreparing(false); }
@@ -101,8 +109,7 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
       <span>{t('restoration.drafts', { count: Object.keys(drafts).length, staged: pendingCount })}</span>
     </EditorSessionBarActions> : null}
     <p>{t('restoration.familyHelp')}</p>
-    <div className="restoration-sources"><label>{t('restoration.donor')}<input value={donor} onChange={e => setDonor(e.target.value)} /></label>
-      <label>{t('restoration.support')}<input value={support} onChange={e => setSupport(e.target.value)} /></label></div>
+    <RestorationSourceFolders sources={sources} desktop={desktopServices} onChange={next => { setSources(next); rememberRestorationSources(projectKey, next); }} />
     {preparation ? <div className="restoration-progress" role="status"><span>{t(`restoration.status.${preparation.status}`)} · {preparation.completedSpecies}/{preparation.totalSpecies}</span>
       {preparation.status === 'preparing' ? <button className="secondary-button" type="button" onClick={() => void cancelPreparation()}>{t('restoration.cancelPreparation')}</button> : null}
       {Object.values(preparation.unavailableSourceMoves).some(ids => ids.length > 0) ? <p>{t('restoration.excludedMoves', {
@@ -110,18 +117,18 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
     <label className="restoration-search">{t('restoration.search')}<input type="search" value={search} onChange={e => setSearch(e.target.value)} /></label>
     <div className="restoration-list"><table><thead><tr><th scope="col">{t('restoration.enabled')}</th><th scope="col">{t('restoration.pokemon')}</th>
       <th scope="col">{t('restoration.availability')}</th><th scope="col">{t('restoration.actions')}</th></tr></thead><tbody>
-      {families.filter(e => `${e.speciesId} ${e.family.map(id => workflow?.entries.find(row => row.speciesId === id)?.name ?? id).join(' ')}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).map(entry => {
+      {entries.filter(e => `${e.speciesId} ${e.name}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).map(entry => {
         const id = entry.definitionId;
-        const label = entry.family.map(species => workflow?.entries.find(row => row.speciesId === species)?.name ?? species).join(', ');
+        const label = entry.name;
         const enabled = id && id in drafts ? drafts[id] : entry.selected;
         return <tr key={entry.speciesId}><td><input type="checkbox" aria-label={`${t('restoration.enabled')}: ${label}`} checked={enabled}
           disabled={!canEdit || !id || entry.support === 'NotSupported' || entry.installation === 'External'}
           onChange={event => { if (!id) return; const checked = event.target.checked; setDrafts(current => {
             const next = { ...current, [id]: checked }; if (checked === entry.selected && !isStaging) delete next[id]; return next;
-          }); }} /></td><td><strong>{label}</strong><small>#{entry.family.join(', #')}</small></td>
+          }); }} /></td><td data-localization-ignore="true"><strong>{label}</strong><small>#{entry.speciesId}</small></td>
           <td>{t(`restoration.support.${entry.support}`)}<small>{t(`restoration.installation.${entry.installation}`)}{entry.staged ? ` · ${t('restoration.staged')}` : ''}</small></td>
           <td>{id && entry.installation !== 'External' ? <>
-            {!hashes.has(id) ? <button className="secondary-button" type="button" disabled={!donor.trim() || isPreparing || preparation?.status === 'preparing'}
+            {!hashes.has(id) ? <button className="secondary-button" type="button" disabled={!sources.donor.trim() || isPreparing || preparation?.status === 'preparing'}
               onClick={() => void prepare(id)}>{t('restoration.prepare')}</button> : null}
             {entry.installation === 'NeedsRepair' ? <button className="secondary-button" type="button" disabled={!canEdit || isStaging}
               onClick={() => setDrafts(current => ({ ...current, [id]: true }))}>{t('restoration.repair')}</button> : null}

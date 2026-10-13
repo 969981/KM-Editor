@@ -193,6 +193,7 @@ const editorSurfaceInventory = {
  * makes an unclassified input-bearing TSX file a test failure.
  */
 const embeddedEditableSurfaceInventory = {
+  restorationSources: ['src/features/restore-missing-pokemon/RestorationSourceFolders.tsx', 'RestorationSourceFolders', 'utility-input'],
   wildHeldItems: ['src/features/held-item-chance/WildHeldItems.tsx', 'WildHeldItems', 'choice-local-draft'],
   mergePackages: ['src/features/mod-merger/MergePackageDialog.tsx', 'MergePackageDialog', 'choice-local-draft'],
   zaBehavior: ['src/features/behavior/ZaBehaviorSection.tsx', 'ZaBehaviorSection', 'raw-local-draft'],

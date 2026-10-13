@@ -14,6 +14,27 @@ public static class SwShVoiceWriter
         { "INDEX", "GLAD1", "GLAD2", "GLAD3", "ANGER", "SAD", "ATK", "SPATK", "EX1", "EX2", "EX3", "EX4", "ENV" });
     private static readonly string[] NativeStates = ["INDEX", "GLAD1", "ANGER", "SAD", "ATK"];
 
+    public static IReadOnlySet<uint> ObjectIds(int species)
+    {
+        if (species is < 1 or > 898) throw new ArgumentOutOfRangeException(nameof(species));
+        var result = new HashSet<uint>();
+        uint Owned(string suffix) => Hash(string.Create(CultureInfo.InvariantCulture, $"KM_Restoration_v1_{species}_{suffix}"));
+        foreach (var family in new[] { "", "EV_", "Btl_" })
+        {
+            var label = family.TrimEnd('_');
+            result.Add(Owned(family.Length == 0 ? "parent" : label + "_parent"));
+            foreach (var state in family.Length == 0 ? States : NativeStates)
+            {
+                var prefix = family.Length == 0 ? state : label + "_" + state;
+                result.Add(Owned(prefix + "_sound")); result.Add(Owned(prefix + "_action"));
+                var variant = Array.IndexOf(NativeStates, state);
+                result.Add(Hash(variant >= 0 ? string.Create(CultureInfo.InvariantCulture, $"Play_PV_{family}{species:000}_00_{variant:00}")
+                    : string.Create(CultureInfo.InvariantCulture, $"Play_KM_PV_{species:000}_{state}")));
+            }
+        }
+        return result;
+    }
+
     public static uint MediaId(int species, string state)
     {
         if (species is < 1 or > 898 || !States.Contains(state))
