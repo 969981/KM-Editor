@@ -72,8 +72,10 @@ public sealed class SwShModelTextureEditSessionService
             var originals = new Dictionary<string, ModelTextureResource[]>(StringComparer.Ordinal);
             ProjectFileReference[] Sources(string path)
             {
-                if (File.Exists(Path.Combine(paths.OutputRootPath!, path)) || File.Exists(Path.Combine(paths.BaseRomFsPath!, path[6..])))
-                    return [new(ProjectFileLayer.Base, path)];
+                if (File.Exists(Path.Combine(paths.OutputRootPath!, path)))
+                    return File.Exists(Path.Combine(paths.BaseRomFsPath!, path[6..]))
+                        ? [new(ProjectFileLayer.Base, path), new(ProjectFileLayer.Layered, path)] : [new(ProjectFileLayer.Layered, path)];
+                if (File.Exists(Path.Combine(paths.BaseRomFsPath!, path[6..]))) return [new(ProjectFileLayer.Base, path)];
                 var intent = session.PendingEdits.Select(e => ModelTextureIntent.Parse(e.NewValue)).Single(i => "romfs/" + i.Texture == path && i.Kind == "restore");
                 if (!originals.TryGetValue(intent.Model, out var assets))
                     originals.Add(intent.Model, assets = new SwShModelPreviewService().Assets(Open(paths), intent.Model, true));
@@ -81,10 +83,14 @@ public sealed class SwShModelTextureEditSessionService
                 var source = "romfs/" + archive;
                 // Bind the original archive and effective replacement separately.
                 // The guard also captures the absence of the new loose target.
-                return File.Exists(Path.Combine(paths.OutputRootPath!, source))
-                    ? [new(ProjectFileLayer.Base, source), new(ProjectFileLayer.Layered, source)] : [new(ProjectFileLayer.Base, source)];
+                var references = new List<ProjectFileReference>();
+                if (File.Exists(Path.Combine(paths.BaseRomFsPath!, source[6..]))) references.Add(new(ProjectFileLayer.Base, source));
+                if (File.Exists(Path.Combine(paths.OutputRootPath!, source))) references.Add(new(ProjectFileLayer.Layered, source));
+                if (references.Count == 0) throw new InvalidDataException("Restored model archive is unavailable.");
+                return references.ToArray();
             }
-            var writes = outputs.Select(pair => new PlannedFileWrite(pair.Key, Sources(pair.Key),
+            var catalog = new ProjectFileReference(ProjectFileLayer.Base, KM.SwSh.Pokemon.SwShEffectivePokemonCatalog.ModelCatalogPath);
+            var writes = outputs.Select(pair => new PlannedFileWrite(pair.Key, Sources(pair.Key).Append(catalog).Distinct().ToArray(),
                 File.Exists(Path.Combine(paths.OutputRootPath!, pair.Key)), "Apply verified model changes.",
                 ModelTextureIntent.Hash(System.Text.Encoding.UTF8.GetBytes(string.Join("\n", session.PendingEdits.Select(e => e.NewValue)))))).ToArray();
             return SwShChangePlanSourceGuard.CaptureBounded(paths, new(session.Id, writes, []) { EffectivePendingEdits = session.PendingEdits },

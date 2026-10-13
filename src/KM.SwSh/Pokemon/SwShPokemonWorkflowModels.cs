@@ -143,7 +143,10 @@ public sealed record SwShPokemonRecord(
     IReadOnlyList<SwShPokemonLearnsetMove> Learnset,
     IReadOnlyList<SwShPokemonCompatibilityGroup> Compatibility,
     SwShPokemonProvenance Provenance,
-    string? SpriteName = null);
+    string? SpriteName = null)
+{
+    public bool HasRestoredAssets { get; init; }
+}
 
 public sealed record SwShPokemonWorkflowStats(
     int TotalPokemonCount,

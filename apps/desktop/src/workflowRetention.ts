@@ -46,6 +46,7 @@ export const workflowStoreKeyBySection = {
   titanSwapper: 'titanSwapperWorkflow',
   marnieBoosts: 'marnieBoostsWorkflow',
   shakingTrees: 'shakingTreesWorkflow',
+  restoreMissingPokemon: 'restoreMissingPokemonWorkflow',
   heldItemChance: 'heldItemChanceWorkflow',
   gameOptions: 'gameOptionsWorkflow',
   obedience: 'obedienceWorkflow',
@@ -77,6 +78,7 @@ const refreshDependentsBySection: Partial<
 > = {
   encounters: ['pokemon', 'heldItemChance', 'shakingTrees'],
   shakingTrees: ['placement', 'encounters'],
+  restoreMissingPokemon: ['pokemon', 'trainers', 'encounters', 'giftPokemon', 'tradePokemon', 'rentalPokemon', 'staticEncounters', 'raidBattles', 'placement', 'shakingTrees', 'dynamaxAdventures'],
   placement: ['shakingTrees'],
   pokemon: ['shakingTrees'],
   heldItemChance: ['encounters'],
@@ -143,6 +145,7 @@ const pendingEditSectionByDomain: Readonly<Record<string, RetainedWorkflowSectio
   'workflow.titan-swapper': 'titanSwapper',
   'workflow.marnieBoosts': 'marnieBoosts',
   'workflow.shakingTrees': 'shakingTrees',
+  'workflow.restoreMissingPokemon': 'restoreMissingPokemon',
   'workflow.heldItemChance': 'heldItemChance',
   'workflow.gameOptions': 'gameOptions',
   'workflow.obedience': 'obedience',

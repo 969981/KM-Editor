@@ -2624,6 +2624,8 @@ public sealed class SwShDynamaxAdventuresEditSessionService
             {
                 SpeciesId = value,
                 Species = GetSpeciesLabel(workflow, encounter, value),
+                BossTargetSpeciesId = value,
+                BossTargetSpecies = GetSpeciesLabel(workflow, encounter, value),
             },
             SwShDynamaxAdventuresWorkflowService.FormField => encounter with { Form = value },
             SwShDynamaxAdventuresWorkflowService.LevelField => encounter with { Level = value },

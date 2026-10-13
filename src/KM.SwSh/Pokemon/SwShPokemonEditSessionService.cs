@@ -1082,7 +1082,7 @@ public sealed class SwShPokemonEditSessionService
         try
         {
             var currentRecords = SwShPersonalTable.Parse(File.ReadAllBytes(currentSource.AbsolutePath)).Records;
-            var baseRecords = SwShPersonalTable.Parse(File.ReadAllBytes(baseSource.AbsolutePath)).Records;
+            var baseRecords = SwShPersonalTable.Parse(Restoration.SwShRestorationBaseline.Personal(project.Paths, File.ReadAllBytes(baseSource.AbsolutePath))).Records;
             if (currentRecords.Count == baseRecords.Count
                 && currentRecords.Select(record => record.PersonalId)
                     .SequenceEqual(baseRecords.Select(record => record.PersonalId)))
@@ -2556,7 +2556,7 @@ public sealed class SwShPokemonEditSessionService
 
         try
         {
-            var baseRecords = SwShPersonalTable.Parse(File.ReadAllBytes(baseSource.AbsolutePath)).Records;
+            var baseRecords = SwShPersonalTable.Parse(Restoration.SwShRestorationBaseline.Personal(project.Paths, File.ReadAllBytes(baseSource.AbsolutePath))).Records;
             if (baseRecords.Count != workflow.Pokemon.Count
                 || !baseRecords.Select(record => record.PersonalId)
                     .SequenceEqual(workflow.Pokemon.Select(record => record.PersonalId)))
@@ -3364,7 +3364,7 @@ public sealed class SwShPokemonEditSessionService
             return;
         }
 
-        var baseRecords = SwShPersonalTable.Parse(File.ReadAllBytes(baseSource.AbsolutePath)).Records;
+        var baseRecords = SwShPersonalTable.Parse(Restoration.SwShRestorationBaseline.Personal(project.Paths, File.ReadAllBytes(baseSource.AbsolutePath))).Records;
         if (records.Length != baseRecords.Count
             || !records.Select(record => record.PersonalId)
                 .SequenceEqual(baseRecords.Select(record => record.PersonalId)))
@@ -3448,7 +3448,7 @@ public sealed class SwShPokemonEditSessionService
             return;
         }
 
-        var baseRecords = SwShPersonalTable.Parse(File.ReadAllBytes(baseSource.AbsolutePath)).Records;
+        var baseRecords = SwShPersonalTable.Parse(Restoration.SwShRestorationBaseline.Personal(project.Paths, File.ReadAllBytes(baseSource.AbsolutePath))).Records;
         if (records.Length != baseRecords.Count
             || !records.Select(record => record.PersonalId)
                 .SequenceEqual(baseRecords.Select(record => record.PersonalId)))

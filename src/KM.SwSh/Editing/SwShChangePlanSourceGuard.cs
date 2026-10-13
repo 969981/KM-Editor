@@ -9,6 +9,7 @@ using KM.Core.Files;
 using KM.Core.Output;
 using KM.Core.Projects;
 using KM.Core.Semantics;
+using KM.SwSh.Restoration;
 
 namespace KM.SwSh.Editing;
 
@@ -21,6 +22,52 @@ public static class SwShChangePlanSourceGuard
     private const string OutputOrigin = "workflow.sword-shield.change-plan";
     private const string ComposedExeFsMainPath = "exefs/main";
     private static readonly ConcurrentDictionary<ProjectPaths, VerifiedApplyScope> ActiveSnapshots = new();
+
+    private static bool TryGetSnapshot(ProjectPaths paths, out VerifiedApplyScope scope)
+    {
+        if (ActiveSnapshots.TryGetValue(paths, out scope!)) return true;
+        // Verified output roots are unique. Readers can normalize base paths or
+        // choose a text language without losing their enclosing source scope.
+        scope = ActiveSnapshots.Values.FirstOrDefault(candidate => paths.OutputRootPath is not null
+            && candidate.ApplyPaths.SelectedGame == paths.SelectedGame
+            && string.Equals(Path.GetFullPath(candidate.ApplyPaths.OutputRootPath!), Path.GetFullPath(paths.OutputRootPath),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))!;
+        return scope is not null;
+    }
+
+    internal static ProjectPaths OriginalPaths(ProjectPaths paths)
+    {
+        for (var depth = 0; ; depth++)
+        {
+            if (depth > 16) throw new InvalidDataException("Verified source scopes are nested too deeply.");
+            if (TryGetSnapshot(paths, out var scope)) paths = scope.SourcePaths;
+            else if (SwShRestorationView.Find(paths) is { } view) paths = view.SourcePaths;
+            else return paths;
+        }
+    }
+
+    internal static SwShRestorationView? RestorationView(ProjectPaths paths)
+    {
+        for (var depth = 0; depth < 16; depth++)
+        {
+            if (SwShRestorationView.Find(paths) is { } view) return view;
+            if (!TryGetSnapshot(paths, out var scope)) return null;
+            paths = scope.SourcePaths;
+        }
+        throw new InvalidDataException("Verified source scopes are nested too deeply.");
+    }
+
+    public static void BindRestorationState(ProjectPaths paths, string? before, string after)
+    {
+        if (!TryGetSnapshot(paths, out var scope)) throw new InvalidOperationException("Restoration state requires a verified output scope.");
+        while (TryGetSnapshot(scope.SourcePaths, out var parent)) scope = parent;
+        if (scope.CurrentPlan.EffectivePendingEdits?.Any(e => e.Domain == SwShRestorationDefinitions.Domain) != true)
+            throw new InvalidOperationException("Restoration state was not included in the reviewed plan.");
+        var transition = new SwShRestorationStateTransition(before, after);
+        if (scope.RestorationTransition is not null && scope.RestorationTransition != transition)
+            throw new InvalidDataException("Multiple restoration writers proposed different final states.");
+        scope.RestorationTransition = transition;
+    }
 
     public static ChangePlan Capture(ProjectPaths paths, ChangePlan plan)
     {
@@ -69,6 +116,9 @@ public static class SwShChangePlanSourceGuard
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(plan);
 
+        try { plan = SwShRestorationCustomizations.AddAnchor(paths, plan); }
+        catch (Exception exception) when (SwShRestorationService.SourceError(exception))
+        { return plan with { Diagnostics = plan.Diagnostics.Append(CreateReadDiagnostic("", exception.Message)).ToArray() }; }
         var diagnostics = plan.Diagnostics.ToList();
         var writes = plan.Writes
             .Select(write => CaptureWrite(
@@ -874,6 +924,8 @@ public static class SwShChangePlanSourceGuard
 
         public ChangePlan CurrentPlan { get; }
 
+        internal SwShRestorationStateTransition? RestorationTransition { get; set; }
+
         public bool TryPrepareSnapshotPlan(ChangePlan snapshotPlan, out ChangePlan preparedPlan)
         {
             ArgumentNullException.ThrowIfNull(snapshotPlan);
@@ -932,6 +984,40 @@ public static class SwShChangePlanSourceGuard
                 .Select(file => NormalizeRelativePath(file.RelativePath))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+            var captureCustomizations = !TryGetSnapshot(SourcePaths, out _) && RestorationView(SourcePaths) is null
+                && plannedTargets.Contains(SwShRestorationComposer.PersonalPath);
+            if (captureCustomizations)
+            {
+                try
+                {
+                    var originalState = SwShRestorationStateStore.Read(SourcePaths);
+                    var currentState = RestorationTransition is { } transition
+                        ? SwShRestorationStateStore.ReadState(SourcePaths, transition.After) : originalState;
+                    byte[]? ReadOutput(string relative)
+                    {
+                        var file = ResolveContainedPath(snapshotOutputRootPath, relative)!;
+                        return File.Exists(file) ? File.ReadAllBytes(file) : null;
+                    }
+                    var captured = SwShRestorationCustomizations.Capture(SourcePaths, currentState,
+                        writtenTargets.ToHashSet(StringComparer.Ordinal), ReadOutput);
+                    if (captured.Hash != originalState.Hash)
+                        RestorationTransition = new(originalState.Hash, captured.Hash!);
+                    if (captured.Hash is not null)
+                    {
+                        var anchor = SwShRestorationComposer.PersonalPath;
+                        var target = ResolveContainedPath(snapshotOutputRootPath, anchor)!;
+                        if (!File.Exists(target))
+                        {
+                            if (!TryReadVerifiedBaseSource(anchor, out var baseline)) throw new InvalidDataException("Restoration settings require the verified personal source.");
+                            Directory.CreateDirectory(Path.GetDirectoryName(target)!); File.WriteAllBytes(target, baseline);
+                        }
+                        writtenTargets = writtenTargets.Append(anchor).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+                        snapshotResult = snapshotResult with { WrittenFiles = snapshotResult.WrittenFiles.Append(new(ProjectFileLayer.Generated, anchor)).Distinct().ToArray() };
+                    }
+                }
+                catch (Exception exception) when (SwShRestorationService.SourceError(exception))
+                { return result with { WrittenFiles = [], Diagnostics = [CreateReadDiagnostic("", exception.Message)] }; }
+            }
             IReadOnlyDictionary<string, SnapshotFileState> finalSnapshotFileStates;
             try
             {
@@ -958,6 +1044,12 @@ public static class SwShChangePlanSourceGuard
                     finalSnapshotFileStates.GetValueOrDefault(relativePath)))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var reportedTargets = writtenTargets.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (RestorationTransition is not null)
+            {
+                if (!plannedTargets.Contains(SwShRestorationComposer.PersonalPath) || !reportedTargets.Contains(SwShRestorationComposer.PersonalPath))
+                    throw new InvalidDataException("Restoration state has no reviewed personal data anchor.");
+                changedTargets.Add(SwShRestorationComposer.PersonalPath);
+            }
             var undeclaredTarget = changedTargets.FirstOrDefault(target => !reportedTargets.Contains(target));
             var unplannedTarget = changedTargets.FirstOrDefault(target => !plannedTargets.Contains(target));
             var unplannedReportedTarget = reportedTargets.FirstOrDefault(target => !plannedTargets.Contains(target));
@@ -982,6 +1074,24 @@ public static class SwShChangePlanSourceGuard
                     .Distinct()
                     .ToArray(),
             };
+
+            if (SwShRestorationView.Find(SourcePaths) is { } preview)
+            {
+                foreach (var relative in changedTargets)
+                {
+                    var source = ResolveContainedPath(snapshotOutputRootPath, relative)!;
+                    var destination = preview.Output(relative);
+                    if (!OutputPreimageMatches(relative, destination))
+                        return result with { WrittenFiles = [], Diagnostics = [CreateStaleDiagnostic(relative, "Prospective sources changed during validation.")] };
+                    ReleaseOutputSourceStream(relative);
+                    if (File.Exists(source))
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(destination)!); File.Copy(source, destination, overwrite: true);
+                    }
+                    else if (File.Exists(destination)) File.Delete(destination);
+                }
+                return result;
+            }
 
             var projectId = ProjectIdentity.FromPaths(SourcePaths);
             var outputCoordinator = OutputTransactionCoordinator.ForProject(SourcePaths);
@@ -1100,14 +1210,38 @@ public static class SwShChangePlanSourceGuard
                             .ToArray();
                     }
 
+                    if (relativePath == SwShRestorationComposer.PersonalPath)
+                    {
+                        var prior = ownershipByPath?.GetValueOrDefault(path.CanonicalKey);
+                        if (prior is not null && !outputCoordinator.OwnershipScopeMatches(prior, projectId, GameFamily.SwordShield))
+                            throw new InvalidDataException("Restoration state belongs to another project scope.");
+                        var stateHash = SwShRestorationStateStore.StateHash(prior?.Claims ?? []);
+                        if (RestorationTransition is { } transition)
+                        {
+                            if (stateHash != transition.Before) throw new InvalidDataException("Restoration selection changed after review.");
+                            stateHash = transition.After;
+                        }
+                        ownershipClaims = ownershipClaims.Where(c => !SwShRestorationStateStore.IsStateClaim(c)).ToArray();
+                        if (stateHash is not null)
+                        {
+                            ownershipClaims = ownershipClaims.Append(SwShRestorationStateStore.Claim(stateHash)).ToArray();
+                            if (!File.Exists(snapshotPath))
+                            {
+                                if (!TryReadVerifiedBaseSource(relativePath, out var baseline))
+                                    throw new InvalidDataException("Restoration state retention requires the verified personal baseline.");
+                                File.WriteAllBytes(snapshotPath, baseline);
+                            }
+                        }
+                    }
+
                     if (File.Exists(snapshotPath))
                     {
-                        mutations.Add(OutputMutation.Write(
-                            path,
-                            File.ReadAllBytes(snapshotPath),
-                            expectedPreimage,
-                            ownershipClaims,
-                            ownershipActor: ownership.OwnerId));
+                        var content = File.ReadAllBytes(snapshotPath);
+                        var unchangedAnchor = relativePath == SwShRestorationComposer.PersonalPath
+                            && expectedPreimage == OutputFileState.Existing(Convert.ToHexStringLower(SHA256.HashData(content)), content.LongLength);
+                        mutations.Add(unchangedAnchor
+                            ? OutputMutation.RebindOwnership(path, content, expectedPreimage, ownershipClaims, OutputMode, ownership.OwnerId)
+                            : OutputMutation.Write(path, content, expectedPreimage, ownershipClaims, ownershipActor: ownership.OwnerId));
                     }
                     else if (isComposedExeFsMain && existingOwnership is not null)
                     {
@@ -1191,7 +1325,7 @@ public static class SwShChangePlanSourceGuard
                             }
                         }
                     }
-                    else if (isComposedExeFsMain && !ActiveSnapshots.ContainsKey(SourcePaths))
+                    else if (isComposedExeFsMain && !TryGetSnapshot(SourcePaths, out _))
                     {
                         diagnostics.Add(CreateReadDiagnostic(
                             relativePath,

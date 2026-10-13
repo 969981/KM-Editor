@@ -47,6 +47,7 @@ import {
   Orbit,
   Package,
   PackagePlus,
+  Bird,
   Palette,
   Pill,
   Save,
@@ -466,6 +467,10 @@ export const workbenchCapabilityRegistry = [
   workflow({
     description: 'Edit Marnie cheering outcomes in the three Wyndon battles.',
     games: swordShieldGames, icon: Megaphone, id: 'marnieBoosts', label: 'Marnie Wyndon Boosts'
+  }),
+  workflow({
+    description: 'Restore missing Pokemon and manage their project assets.',
+    games: swordShieldGames, icon: Bird, id: 'restoreMissingPokemon', label: 'Restore Missing Pokemon'
   }),
   workflow({
     description: 'Edit tree items, quantities, encounter tables, and shake risk.',

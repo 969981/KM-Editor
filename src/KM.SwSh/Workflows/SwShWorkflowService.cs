@@ -239,6 +239,9 @@ public sealed class SwShWorkflowService
             fairyGymBoostsWorkflowService.CreateSummary(project),
             marnieBoostsService.CreateSummary(project),
             KM.SwSh.ShakingTrees.SwShShakingTreesService.CreateSummary(project),
+            new(SwShWorkflowIds.RestoreMissingPokemon, "Restore Missing Pokemon", "Restore supported missing families from local game sources.",
+                !ProjectGameMetadata.IsSwordShield(project.Paths.SelectedGame) || !project.Health.CanOpenReadOnlyWorkflows
+                    ? SwShWorkflowAvailability.Disabled : project.Health.CanOpenEditableWorkflows ? SwShWorkflowAvailability.Available : SwShWorkflowAvailability.ReadOnly, []),
             heldItemChanceService.CreateSummary(project),
             gameOptionsService.CreateSummary(project),
             fashionUnlockWorkflowService.CreateSummary(project),

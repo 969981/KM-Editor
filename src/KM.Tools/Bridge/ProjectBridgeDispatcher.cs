@@ -150,7 +150,7 @@ using System.Text.Json;
 
 namespace KM.Tools.Bridge;
 
-public sealed class ProjectBridgeDispatcher : IDisposable
+public sealed partial class ProjectBridgeDispatcher : IDisposable
 {
     private const int BridgeProvisionMultiplier = 4;
     private const int BridgeHardCeilingMultiplier = 2;
@@ -496,6 +496,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
 
     public void Dispose()
     {
+        restorationJobs.Dispose();
         if (ownsSemanticMergeApplicationService)
         {
             semanticMergeApplicationService.Dispose();
@@ -605,6 +606,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
                 semanticExploreApplicationService.ClearMemoryCaches();
             }
 
+            using var speciesView = OpenRestorationReadView(requestJson, command, selectedGame);
             var response = command switch
             {
                 KmCommandNames.OpenProject => DispatchOpenProject(requestJson),
@@ -773,6 +775,11 @@ public sealed class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.RestoreFpsPatch => DispatchRestoreFpsPatch(requestJson),
                 KmCommandNames.LoadMarnieBoosts => DispatchLoadMarnieBoosts(requestJson),
                 KmCommandNames.LoadShakingTrees => DispatchLoadShakingTrees(requestJson),
+                KmCommandNames.LoadRestoration => DispatchRestoration(requestJson, command),
+                KmCommandNames.PrepareRestoration => DispatchRestoration(requestJson, command),
+                KmCommandNames.GetRestorationPreparation => DispatchRestoration(requestJson, command),
+                KmCommandNames.CancelRestorationPreparation => DispatchRestoration(requestJson, command),
+                KmCommandNames.StageRestoration => DispatchRestoration(requestJson, command),
                 KmCommandNames.LoadHeldItemChance => DispatchLoadHeldItemChance(requestJson),
                 KmCommandNames.LoadGameOptions => DispatchLoadGameOptions(requestJson),
                 KmCommandNames.LoadObedience => DispatchLoadObedience(requestJson),
@@ -3211,10 +3218,11 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             : EditSessionBridgeMapper.ToCoreAllowingMalformedPendingEdits(request.Payload.Session);
         var result = dynamaxAdventuresEditSessionService.UpdateField(
             ProjectBridgeMapper.ToCore(request.Payload.Paths),
-            session,
+            session is null ? null : SliceSession(session, EditSessionDomain.DynamaxAdventures),
             request.Payload.EntryIndex,
             request.Payload.Field,
             request.Payload.Value);
+        result = MergeDynamaxSession(result, session);
         var response = SwShBridgeMapper.ToDto(result);
 
         return SerializeSuccess(response, request.RequestId);
@@ -3236,8 +3244,9 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             .ToArray() ?? [];
         var result = dynamaxAdventuresEditSessionService.UpdateFields(
             ProjectBridgeMapper.ToCore(request.Payload.Paths),
-            session,
+            session is null ? null : SliceSession(session, EditSessionDomain.DynamaxAdventures),
             updates);
+        result = MergeDynamaxSession(result, session);
         var response = SwShBridgeMapper.ToDynamaxAdventureFieldsDto(result);
 
         return SerializeSuccess(response, request.RequestId);
@@ -3251,7 +3260,8 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             : EditSessionBridgeMapper.ToCoreAllowingMalformedPendingEdits(request.Payload.Session);
         var result = dynamaxAdventuresEditSessionService.StageRepair(
             ProjectBridgeMapper.ToCore(request.Payload.Paths),
-            session);
+            session is null ? null : SliceSession(session, EditSessionDomain.DynamaxAdventures));
+        result = MergeDynamaxSession(result, session);
         var response = SwShBridgeMapper.ToDto(result);
 
         return SerializeSuccess(response, request.RequestId);
@@ -3265,7 +3275,8 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             : EditSessionBridgeMapper.ToCoreAllowingMalformedPendingEdits(request.Payload.Session);
         var result = dynamaxAdventuresEditSessionService.StageVanillaTableRestore(
             ProjectBridgeMapper.ToCore(request.Payload.Paths),
-            session);
+            session is null ? null : SliceSession(session, EditSessionDomain.DynamaxAdventures));
+        result = MergeDynamaxSession(result, session);
         var response = SwShBridgeMapper.ToDto(result);
 
         return SerializeSuccess(response, request.RequestId);
@@ -3279,7 +3290,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             : EditSessionBridgeMapper.ToCoreAllowingMalformedPendingEdits(request.Payload.Session);
         var preview = dynamaxAdventuresEditSessionService.PreviewDefaults(
             ProjectBridgeMapper.ToCore(request.Payload.Paths),
-            session,
+            session is null ? null : SliceSession(session, EditSessionDomain.DynamaxAdventures),
             request.Payload.EntryIndex,
             request.Payload.Species,
             request.Payload.Form,
@@ -6273,7 +6284,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             ClearCriticalSwShApplyCaches();
             var currentPlan = CreateSwShChangePlan(paths, session) with { EffectivePendingEdits = session.PendingEdits };
             var preserveExplicitSourceLayers =
-                SwShGymUniformRemovalEditSessionService.IsCanonicalUninstallSession(session);
+                HasRestoration(session) || SwShGymUniformRemovalEditSessionService.IsCanonicalUninstallSession(session);
             if (!SwShChangePlanSourceGuard.TryAcquireApplyScope(
                 paths,
                 currentPlan,
@@ -6347,6 +6358,11 @@ public sealed class ProjectBridgeDispatcher : IDisposable
 
     private SwShEditSessionValidation ValidateSwShEditSession(ProjectPaths paths, EditSession session)
     {
+        if (HasRestoration(session))
+        {
+            var plan = CreateRestorationBatchPlan(paths, session);
+            return new(session, plan.CanApply, plan.Diagnostics);
+        }
         var domain = GetEditSessionDomain(session);
         return domain == EditSessionDomain.Mixed && TryGetNormalSwShDomains(session, out var domains)
             ? ValidateNormalSwShDomains(paths, session, domains)
@@ -6355,6 +6371,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
 
     private ChangePlan CreateSwShChangePlan(ProjectPaths paths, EditSession session)
     {
+        if (HasRestoration(session)) return CreateRestorationBatchPlan(paths, session);
         var domain = GetEditSessionDomain(session);
         return domain == EditSessionDomain.Mixed && TryGetNormalSwShDomains(session, out var domains)
             ? CreateNormalSwShChangePlan(paths, session, domains)
@@ -6363,6 +6380,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
 
     private ApplyResult ApplySwShChangePlan(ProjectPaths paths, EditSession session, ChangePlan reviewedPlan)
     {
+        if (HasRestoration(session)) return ApplyRestorationBatch(paths, session, reviewedPlan);
         var domain = GetEditSessionDomain(session);
         return domain == EditSessionDomain.Mixed && TryGetNormalSwShDomains(session, out var domains)
             ? ApplyNormalSwShChangePlan(paths, session, reviewedPlan, domains)
@@ -6830,6 +6848,7 @@ public sealed class ProjectBridgeDispatcher : IDisposable
     private static bool IsNormalSwShDomain(EditSessionDomain domain)
     {
         return domain is
+            EditSessionDomain.DynamaxAdventures or
             EditSessionDomain.BattleCafeRewards or
             EditSessionDomain.MarnieBoosts or
             EditSessionDomain.ShakingTrees or
@@ -8473,6 +8492,8 @@ public sealed class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.StageShinyRate or
             KmCommandNames.LoadMarnieBoosts or
             KmCommandNames.LoadShakingTrees or
+            KmCommandNames.LoadRestoration or KmCommandNames.PrepareRestoration or KmCommandNames.GetRestorationPreparation or
+            KmCommandNames.CancelRestorationPreparation or KmCommandNames.StageRestoration or
             KmCommandNames.LoadHeldItemChance or
             KmCommandNames.LoadGameOptions or
             KmCommandNames.LoadObedience or

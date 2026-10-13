@@ -51,11 +51,11 @@ public sealed class WorkspacePersonalStateApplicationService
     [
         "health", "workbench", "workflows", "items", "pokemon", "moves", "text",
         "trainers", "giftPokemon", "tradePokemon", "shops", "encounters", "placement",
-        "typeChart", "spreadsheetImport", "modMerger", "gameDump", "changes", "settings",
+        "typeChart", "spreadsheetImport", "modMerger", "gameDump", "changes", "settings", "modelViewer", "soundStudio",
     ];
     private static readonly HashSet<string> SwordShieldSections =
     [
-        "staticEncounters", "rentalPokemon", "dynamaxAdventures", "raidBattles",
+        "staticEncounters", "rentalPokemon", "dynamaxAdventures", "raidBattles", "restoreMissingPokemon", "shakingTrees", "heldItemChance",
         "raidRewards", "raidBonusRewards", "behavior", "flagworkSave", "bagHook",
         "royalCandy", "startingItems", "npcItemGift", "catchCap", "ivScreen",
         "hyperTraining", "shinyRate", "fairyGymBoosts", "fashionUnlock",

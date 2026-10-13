@@ -6,6 +6,7 @@ using KM.Core.Projects;
 using KM.Formats.Audio;
 using KM.Formats.SwSh;
 using KM.SwSh.Audio;
+using KM.SwSh.Restoration;
 using System.Text.RegularExpressions;
 
 namespace KM.Tools.Bridge;
@@ -13,7 +14,7 @@ namespace KM.Tools.Bridge;
 internal static class SoundStudioBridge
 {
     private sealed record Asset(SoundBankItem Item, string Path, long FileSize, long Stamp, string? InferredCategory = null,
-        string? SourceDirectory = null);
+        string? SourceDirectory = null, int SpeciesId = 0, string? VoiceState = null);
     private sealed class Catalog(string token, ProjectPaths paths)
     {
         public string Token { get; } = token;
@@ -58,8 +59,10 @@ internal static class SoundStudioBridge
                 return state.Assets.Skip(request.Index).Take(512).Select((asset, i) => new {
                     Id = request.Index + i, asset.Item.Identifier, asset.Item.Kind, asset.Item.Bank,
                     asset.Item.Codec, asset.Item.Channels, asset.Item.SampleRate, asset.Item.Status,
-                    Size = asset.Item.Length, Category = AssetCategory(asset), Species = Species(asset.Item.Bank),
-                    Name = DisplayName(asset.Item, state.SpeciesNames)
+                    Size = asset.Item.Length, Category = AssetCategory(asset), Species = asset.SpeciesId > 0 ? asset.SpeciesId : Species(asset.Item.Bank),
+                    Name = asset.SpeciesId > 0 && asset.SpeciesId < state.SpeciesNames.Length
+                        ? $"{state.SpeciesNames[asset.SpeciesId]} #{asset.SpeciesId} / {asset.VoiceState}"
+                        : DisplayName(asset.Item, state.SpeciesNames)
                 }).ToArray();
             }
             if (request.Action != "media" || request.Index < 0 || request.Index >= state.Assets.Length) throw new InvalidDataException("Audio selection is invalid.");
@@ -123,6 +126,20 @@ internal static class SoundStudioBridge
             var files = graph.Entries.Where(entry => entry.RelativePath.StartsWith("romfs/", StringComparison.OrdinalIgnoreCase)
                 && Path.GetExtension(entry.RelativePath).ToLowerInvariant() is ".bnk" or ".pck" or ".wem" or ".wav" or ".ogg" or ".opus" or ".bfsar" or ".bfstm").ToArray();
             state.Total = files.Length; var assets = new List<Asset>();
+            var restoredVoices = new Dictionary<uint, (int Species, string State)>();
+            if (state.Paths.SelectedGame is ProjectGame.Sword or ProjectGame.Shield)
+                foreach (var selection in SwShRestorationStateStore.Read(state.Paths).State.Selections.Where(s => s.Enabled))
+                {
+                    var prepared = SwShRestorationStateStore.ReadPrepared(state.Paths, selection.PreparedHash);
+                    var keys = prepared.Contributions.Where(c => c.Path == SwShRestorationComposer.VoicesPath).Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+                    foreach (var identity in SwShRestorationDefinitions.Get(selection.DefinitionId).Identities)
+                        foreach (var voice in SwShVoiceWriter.States)
+                        {
+                            var id = SwShVoiceWriter.MediaId(identity.Species, voice);
+                            if (keys.Contains("media:" + id.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                                restoredVoices.TryAdd(id, (identity.Species, voice));
+                        }
+                }
             foreach (var entry in files)
             {
                 token.ThrowIfCancellationRequested();
@@ -134,7 +151,11 @@ internal static class SoundStudioBridge
                 {
                     using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 16384, FileOptions.RandomAccess);
                     foreach (var item in new SoundBankReader(stream, token).Read(entry.RelativePath[6..]))
-                        assets.Add(new(item, path, size, stamp, SourceDirectory: Path.GetDirectoryName(entry.RelativePath)));
+                    {
+                        var voice = entry.RelativePath == SwShRestorationComposer.VoicesPath && uint.TryParse(item.Identifier, out var mediaId)
+                            && restoredVoices.TryGetValue(mediaId, out var restored) ? restored : default;
+                        assets.Add(new(item, path, size, stamp, SourceDirectory: Path.GetDirectoryName(entry.RelativePath), SpeciesId: voice.Species, VoiceState: voice.State));
+                    }
                 }
                 catch (Exception e) when (e is InvalidDataException or EndOfStreamException or OverflowException)
                 { assets.Add(new(new(Path.GetFileName(entry.RelativePath), "bank", 0, 0, entry.RelativePath[6..], Status: "damaged"), path, size, stamp)); }
@@ -170,6 +191,7 @@ internal static class SoundStudioBridge
     }
     private static string AssetCategory(Asset asset)
     {
+        if (asset.SpeciesId > 0) return "cries";
         var category = Category(asset.Item.Bank);
         return category != "other" ? category : asset.InferredCategory ?? (asset.Item.IsMusic ? "music" : "other");
     }

@@ -2809,7 +2809,7 @@ public sealed partial class SwShRandomizerService
             && record.SpeciesId > 0
             && !IsProtectedBoxLegendarySpecies(record.SpeciesId)
             && record.Personal.IsPresentInGame
-            && record.Personal.HasSpriteForm
+            && (record.Personal.HasSpriteForm || record.HasRestoredAssets)
             && record.DexPresence.IsPresentInGame;
     }
 

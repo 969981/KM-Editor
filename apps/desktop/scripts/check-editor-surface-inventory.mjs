@@ -163,6 +163,7 @@ const editorSurfaceInventory = {
   modMerger: ['src/features/mod-merger/MergeWorkspace.tsx', 'MergeWorkspace', 'utility-input'],
   fpsPatch: ['src/App.tsx', 'FpsPatchSection', 'choice-local-draft'],
   profanityFilter: ['src/App.tsx', 'ProfanityFilterSection', 'action-only'],
+  restoreMissingPokemon: ['src/features/restore-missing-pokemon/RestoreMissingPokemonSection.tsx', 'RestoreMissingPokemonSection', 'choice-local-draft'],
   shakingTrees: ['src/features/shaking-trees/ShakingTreesSection.tsx', 'ShakingTreesSection', 'raw-local-draft'],
   heldItemChance: ['src/features/held-item-chance/HeldItemChanceSection.tsx', 'HeldItemChanceSection', 'raw-local-draft'],
   gameOptions: ['src/features/game-options/GameOptionsSection.tsx', 'GameOptionsSection', 'raw-local-draft'],
@@ -258,6 +259,7 @@ const allowedPolicies = new Set([
  */
 const editorDraftContractInventory = {
   shakingTrees: 'source-reconciled-exact-submit',
+  restoreMissingPokemon: 'source-reconciled-exact-submit',
   heldItemChance: 'source-reconciled-exact-submit',
   gameOptions: 'source-reconciled-exact-submit',
   obedience: 'source-reconciled-exact-submit',

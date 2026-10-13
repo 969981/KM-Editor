@@ -25,6 +25,9 @@ internal static class SwShSpeciesAvailability
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(readAllBytes);
 
+        if (maximumRecordCount is null)
+            return SwShEffectivePokemonCatalog.Load(project.Paths).SpeciesFor(SwShPokemonCapability.Assignment);
+
         var source = ResolveWorkflowFile(project, SwShPersonalTable.PersonalDataRelativePath);
         if (source is null)
         {
@@ -55,26 +58,10 @@ internal static class SwShSpeciesAvailability
     {
         ArgumentNullException.ThrowIfNull(personalRecords);
 
-        var speciesIds = new HashSet<int>();
-        foreach (var record in personalRecords)
-        {
-            if (!record.IsPresentInGame)
-            {
-                continue;
-            }
-
-            if (record.PersonalId > 0)
-            {
-                speciesIds.Add(record.PersonalId);
-            }
-
-            if (record.HatchedSpecies > 0)
-            {
-                speciesIds.Add(record.HatchedSpecies);
-            }
-        }
-
-        return speciesIds;
+        return SwShEffectivePokemonCatalog.Identities(personalRecords)
+            .Where(entry => entry.Personal.IsPresentInGame)
+            .Select(entry => entry.Identity.Species)
+            .ToHashSet();
     }
 
     public static IReadOnlyList<TOption> CreateSpeciesOptions<TOption>(
@@ -91,17 +78,16 @@ internal static class SwShSpeciesAvailability
             return [];
         }
 
-        var shouldFilter = presentSpeciesIds.Count > 0;
         return speciesNames
             .Select((name, index) => (name, index))
-            .Where(entry => !shouldFilter || presentSpeciesIds.Contains(entry.index))
+            .Where(entry => presentSpeciesIds.Contains(entry.index))
             .Select(entry => createOption(entry.index, FormatSpeciesOptionLabel(entry.index, entry.name)))
             .ToArray();
     }
 
     public static bool IsPresentSpeciesId(int speciesId, IReadOnlySet<int> presentSpeciesIds)
     {
-        return speciesId > 0 && (presentSpeciesIds.Count == 0 || presentSpeciesIds.Contains(speciesId));
+        return speciesId > 0 && presentSpeciesIds.Contains(speciesId);
     }
 
     private static string FormatSpeciesOptionLabel(int speciesId, string name)

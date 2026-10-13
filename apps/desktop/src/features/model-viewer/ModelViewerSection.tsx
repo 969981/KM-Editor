@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import { kmCommandNames, projectPathsSchema, type EditSession, type ProjectPaths } from '../../bridge/contracts';
 import { sendProjectBridgeRequest } from '../../bridge/projectBridgeRequest';
+import { restorationRevision } from '../../bridge/restorationRequestContext';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
 import { LoadingProgress } from '../../components/LoadingProgress';
 import { SearchableOptionInput } from '../../components/SearchableOptionInput';
@@ -34,8 +35,9 @@ function readBackground(): ModelBackground {
   try { return backgroundSchema.parse(JSON.parse(localStorage.getItem(backgroundKey) ?? 'null')); }
   catch { return { color: defaultBackgroundColor, grid: false }; }
 }
-export default function ModelViewerSection({ paths, session, disabled, onStage, onStageAsset, onDirtyChange }: {
+export default function ModelViewerSection({ paths, session, disabled, onStage, onStageAsset, onDirtyChange, catalogRevision = '' }: {
   paths: ProjectPaths; session: EditSession | null; disabled: boolean;
+    catalogRevision?: string;
   onStage: (model: string, change: TextureChange) => Promise<boolean>;
   onStageAsset: (model: string, change: AssetChange | null, restore?: boolean) => Promise<boolean>;
   onDirtyChange: (section: 'modelViewer', dirty: boolean) => void;
@@ -142,8 +144,10 @@ export default function ModelViewerSection({ paths, session, disabled, onStage, 
     } catch { if (request === uvRequest.current) setUv([]); }
   };
   const error = catalogError ?? viewer.error;
+  const speciesRevision = restorationRevision(session);
+  useEffect(() => { setCatalog([]); setSelected(''); setAnimation(null); }, [pathKey]);
   useEffect(() => {
-    setCatalog([]); setSelected(''); setAnimation(null); setCatalogError(null); setLoading(false);
+    setCatalogError(null); setLoading(false);
     if (!supported || !isTauri()) return;
     let active = true; setLoading(true);
     void (async () => {
@@ -157,7 +161,7 @@ export default function ModelViewerSection({ paths, session, disabled, onStage, 
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
-  }, [pathKey, supported, revision]);
+  }, [pathKey, supported, revision, speciesRevision, catalogRevision]);
   useEffect(() => { setQuery(''); setCategory('all'); }, [pathKey]);
   useEffect(() => { setLoop(viewer.info?.looped ?? false); setSpeed('1'); setRange([0, viewer.info?.frames ? viewer.info.frames - 1 : 0]); }, [viewer.info?.clip]);
   const categories = useMemo(() => [...new Set(catalog.map(entry => entry.category))], [catalog]);

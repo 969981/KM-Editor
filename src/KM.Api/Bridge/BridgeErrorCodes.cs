@@ -56,6 +56,11 @@ public static class BridgeErrorCodes
     public const string OutputStateRevisionChanged = "KM-OUTPUT-STATE-REVISION-CHANGED";
     public const string OutputMetadataUnavailable = "KM-OUTPUT-METADATA-UNAVAILABLE";
 
+    public const string RestorationSourceUnavailable = "KM-SWSH-RESTORATION-SOURCE-UNAVAILABLE";
+    public const string RestorationConflict = "KM-SWSH-RESTORATION-CONFLICT";
+    public const string RestorationSessionInvalid = "KM-SWSH-RESTORATION-SESSION-INVALID";
+    public const string RestorationReference = "KM-SWSH-RESTORATION-REFERENCE";
+    public const string RestorationPreparedStale = "KM-SWSH-RESTORATION-PREPARED-STALE";
     public const string ShakingTreesSourceInvalid = "KM-SWSH-TREES-SOURCE-INVALID";
     public const string ShakingTreesValuesInvalid = "KM-SWSH-TREES-VALUES-INVALID";
     public const string ShakingTreesConflict = "KM-SWSH-TREES-CONFLICT";

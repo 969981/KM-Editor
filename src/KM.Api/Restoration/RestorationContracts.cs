@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: GPL-3.0-only
+using KM.Api.Diagnostics;
+using KM.Api.Editing;
+using KM.Api.Projects;
+
+namespace KM.Api.Restoration;
+
+public sealed record RestorationEntryDto(int SpeciesId, string Name, string? DefinitionId, string Support,
+    string Installation, IReadOnlyList<int> Family, string? PreparedHash, bool Selected, bool Staged);
+public sealed record RestorationWorkflowDto(bool CanEdit, string Revision, IReadOnlyList<RestorationEntryDto> Entries,
+    IReadOnlyList<ApiDiagnostic> Diagnostics);
+public sealed record RestorationPreparationDto(string Id, string DefinitionId, string Status, string Phase, int CompletedSpecies,
+    int TotalSpecies, string? PreparedHash, IReadOnlyDictionary<int, int[]> UnavailableSourceMoves, IReadOnlyList<ApiDiagnostic> Diagnostics);
+public sealed record LoadRestorationRequest(ProjectPathsDto Paths, EditSessionDto? Session = null);
+public sealed record LoadRestorationResponse(RestorationWorkflowDto Workflow);
+public sealed record PrepareRestorationRequest(ProjectPathsDto Paths, string DefinitionId, string DonorRomFsPath, string? CompressionSupportFolderPath);
+public sealed record RestorationPreparationRequest(ProjectPathsDto Paths, string PreparationId);
+public sealed record RestorationPreparationResponse(RestorationPreparationDto Preparation);
+public sealed record StageRestorationRequest(ProjectPathsDto Paths, string DefinitionId, string PreparedHash, bool Enabled, EditSessionDto? Session);
+public sealed record StageRestorationResponse(RestorationWorkflowDto Workflow, EditSessionDto Session, IReadOnlyList<ApiDiagnostic> Diagnostics);

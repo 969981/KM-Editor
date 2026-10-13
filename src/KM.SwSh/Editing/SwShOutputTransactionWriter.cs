@@ -190,9 +190,9 @@ internal static class SwShOutputTransactionWriter
             var coordinator = OutputTransactionCoordinator.ForProject(
                 stablePaths,
                 coordinatorOptions);
-            var hasComposedMutation = materialized.Any(requested =>
-                requested?.ComposesEffectivePreimage == true);
-            var ownershipSnapshot = hasComposedMutation
+            var retainsStaticClaims = materialized.Any(requested =>
+                requested?.ComposesEffectivePreimage == true || requested?.Kind == OutputMutationKind.Write);
+            var ownershipSnapshot = retainsStaticClaims
                 ? coordinator.GetOwnershipInventorySnapshotAsync()
                     .GetAwaiter()
                     .GetResult()
@@ -266,18 +266,19 @@ internal static class SwShOutputTransactionWriter
                         requiresPreimage: true));
                 OutputOwnershipRecord? existingOwnership = null;
                 IReadOnlyCollection<OwnedTarget> ownershipClaims = [ownership];
-                if (requested.ComposesEffectivePreimage
+                if ((requested.ComposesEffectivePreimage || requested.Kind == OutputMutationKind.Write)
                     && ownershipByPath is not null
                     && ownershipByPath.TryGetValue(relativePath.CanonicalKey, out var recordedOwnership)
                     && recordedOwnership.CurrentState == expectedPreimage)
                 {
                     existingOwnership = recordedOwnership;
                     if (!coordinator.OwnershipScopeMatches(existingOwnership, projectId, GameFamily.SwordShield)
+                        || existingOwnership.RuntimeMutableDescriptor is not null
                         || !string.Equals(existingOwnership.OutputMode, OutputMode, StringComparison.Ordinal))
                     {
                         failure = new SwShOutputTransactionFailure(
                             relativePath.Value,
-                            "The composed output target is owned by a different project or output scope.");
+                            "The output target is owned by a different project, runtime, or output scope.");
                         return false;
                     }
 

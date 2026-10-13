@@ -45,6 +45,7 @@ export const workbenchSections = [
   'fairyGymBoosts',
   'marnieBoosts',
   'shakingTrees',
+  'restoreMissingPokemon',
   'heldItemChance',
   'gameOptions',
   'fashionUnlock',
