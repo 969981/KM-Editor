@@ -9551,6 +9551,7 @@
     "IV Screen requires the original Hyper Training IV getter.": "Die IV-Anzeige benötigt die ursprüngliche IV-Lesefunktion für Super-Spezialtraining.",
     "Hyper Training IV getter used by IV Screen": "Von der IV-Anzeige verwendete IV-Lesefunktion für Super-Spezialtraining",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Lege für jede Anzahl von Orden die Gehorsamsgrenze getauschter Pokémon unabhängig von der Fanggrenze fest.",
-    "Obedience Level": "Gehorsamslevel"
+    "Obedience Level": "Gehorsamslevel",
+    "Party and box icons use the minimum level at {offset}.": "Die Symbole im Team und in den Boxen verwenden den Mindestlevel bei {offset}."
   }
 }

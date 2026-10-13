@@ -608,6 +608,16 @@ function translateLiteralBodyForLanguage(language: InterfaceLocale, literal: str
     );
   }
 
+  const hyperTrainingIconSummaryMatch =
+    /^Party and box icons use the minimum level at (main\.text\+0x[0-9A-F]+)\.$/.exec(literal);
+  if (hyperTrainingIconSummaryMatch) {
+    return formatLiteralTemplate(
+      language,
+      'Party and box icons use the minimum level at {offset}.',
+      { offset: hyperTrainingIconSummaryMatch[1] }
+    );
+  }
+
   const npcItemGiftPendingCountMatch = /^(\d+) gift (group|groups) staged$/.exec(literal);
   if (npcItemGiftPendingCountMatch) {
     return formatLiteralTemplate(
