@@ -6039,7 +6039,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 changePlan = SwShChangePlanSourceGuard.Capture(
                     paths,
                     CreateSwShChangePlan(paths, session),
-                    SwShGymUniformRemovalEditSessionService.IsCanonicalUninstallSession(session));
+                    HasRestoration(session) || SwShGymUniformRemovalEditSessionService.IsCanonicalUninstallSession(session));
             }
         }
 

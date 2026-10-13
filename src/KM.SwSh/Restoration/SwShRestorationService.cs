@@ -31,6 +31,17 @@ public sealed class SwShRestorationService
         var current = session ?? EditSession.Start();
         try
         {
+            current = UpgradeSession(paths, current);
+            if (definitionId == SwShRestorationDefinitions.Piplup.Id)
+            {
+                foreach (var definition in SwShRestorationDefinitions.All)
+                {
+                    var result = Stage(paths, definition.Id, SwShRestorationCompatibility.Split(paths, preparedHash, definition.Id), enabled, current);
+                    if (result.Diagnostics.Count > 0) return new(session ?? EditSession.Start(), result.Diagnostics);
+                    current = result.Session;
+                }
+                return new(current, []);
+            }
             var snapshot = SwShRestorationStateStore.Read(paths);
             var intent = new SwShRestorationIntent(definitionId, preparedHash, enabled, snapshot.Hash);
             var edit = CreateEdit(paths, intent);
@@ -105,7 +116,7 @@ public sealed class SwShRestorationService
     {
         if (paths.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || string.IsNullOrWhiteSpace(paths.OutputRootPath)
             || string.IsNullOrWhiteSpace(paths.BaseRomFsPath)) throw new InvalidDataException("Select a Sword or Shield project with a base dump and output folder.");
-        var edits = session.PendingEdits.Where(e => e.Domain == Domain).ToArray();
+        var edits = UpgradeSession(paths, session).PendingEdits.Where(e => e.Domain == Domain).ToArray();
         if (edits.Length is < 1 or > 234 || edits.Select(e => e.RecordId).Distinct(StringComparer.Ordinal).Count() != edits.Length)
             throw new InvalidDataException("Restoration selections are missing, duplicated, or excessive.");
         var snapshot = SwShRestorationStateStore.Read(paths); var selections = snapshot.State.Selections.ToDictionary(s => s.DefinitionId, StringComparer.Ordinal);
@@ -148,13 +159,15 @@ public sealed class SwShRestorationService
             if (!intent.Enabled)
             {
                 var retained = composition.RetainedCustomizations.ToDictionary(c => (c.Path, c.Key));
-                var customized = effective with { Contributions = effective.Contributions.Select(c => retained.GetValueOrDefault((c.Path, c.Key), c)).ToArray() };
+                var customized = effective with { Contributions = effective.Contributions.Select(c =>
+                    SwShRestorationDependencies.Retain(c, retained.GetValueOrDefault((c.Path, c.Key), c), snapshot.State)).ToArray() };
                 var stored = SwShRestorationStateStore.Store(paths, customized); using (stored.Lease) customization = stored.Hash;
                 foreach (var identity in SwShRestorationDefinitions.Get(intent.DefinitionId).Identities) removed.Add(identity.Species);
             }
             selections[intent.DefinitionId] = new(intent.DefinitionId, intent.PreparedHash, intent.Enabled, customization);
         }
         var state = new SwShRestorationState(1, selections.Values.OrderBy(s => s.DefinitionId, StringComparer.Ordinal).ToArray());
+        foreach (var file in SwShRestorationDependencies.Reconcile(paths, snapshot.State, state, Current)) outputs[file.Key] = file.Value;
         var storedState = SwShRestorationStateStore.Store(paths, state); using (storedState.Lease) { }
         if (!outputs.ContainsKey(SwShRestorationComposer.PersonalPath)) outputs.Add(SwShRestorationComposer.PersonalPath, Current(SwShRestorationComposer.PersonalPath)
             ?? throw new InvalidDataException("Restoration state requires a personal data anchor."));
@@ -220,6 +233,22 @@ public sealed class SwShRestorationService
         return new(Domain, (intent.Enabled ? "Restore " : "Remove restored ") + intent.DefinitionId, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(),
             intent.DefinitionId, "enabled", JsonSerializer.Serialize(intent), Domain);
     }
+    public static EditSession UpgradeSession(ProjectPaths paths, EditSession session)
+    {
+        if (!session.PendingEdits.Any(e => e.Domain == Domain && e.RecordId == SwShRestorationDefinitions.Piplup.Id)) return session;
+        var edits = new List<PendingEdit>();
+        foreach (var edit in session.PendingEdits)
+        {
+            if (edit.Domain != Domain || edit.RecordId != SwShRestorationDefinitions.Piplup.Id) { edits.Add(edit); continue; }
+            var intent = Parse(edit); var expected = CreateEdit(paths, intent);
+            if (edit.Summary != expected.Summary || edit.Owner != expected.Owner || edit.Field != expected.Field || !edit.Sources.SequenceEqual(expected.Sources))
+                throw new InvalidDataException("Staged family restoration metadata is invalid.");
+            foreach (var definition in SwShRestorationDefinitions.All)
+                edits.Add(CreateEdit(paths, intent with { DefinitionId = definition.Id,
+                    PreparedHash = SwShRestorationCompatibility.Split(paths, intent.PreparedHash, definition.Id) }));
+        }
+        return session with { PendingEdits = edits };
+    }
     private static SwShRestorationIntent Parse(PendingEdit edit)
     {
         if (edit.NewValue is null || edit.NewValue.Length > 4096) throw new InvalidDataException("Staged restoration intent is missing or oversized.");
@@ -235,7 +264,7 @@ public sealed class SwShRestorationService
             var path = Path.Combine(paths.BaseRomFsPath!, source.RelativePath.Replace('/', Path.DirectorySeparatorChar));
             using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             if (stream.Length != source.Length || Convert.ToHexStringLower(SHA256.HashData(stream)) != source.Sha256)
-                throw new InvalidDataException("The target dump changed since restoration preparation. Prepare the family again.");
+                throw new InvalidDataException("The target dump changed since restoration preparation. Prepare the Pokemon again.");
         }
     }
     private static byte[]? ReadEffective(ProjectPaths paths, string relative, ISet<ProjectFileReference> sources)

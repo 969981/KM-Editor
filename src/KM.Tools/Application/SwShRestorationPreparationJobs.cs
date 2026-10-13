@@ -13,12 +13,14 @@ public sealed class SwShRestorationPreparationJobs : IDisposable
         768L * 1024 * 1024, maximumDegreeOfParallelism: 1);
     private readonly object gate = new();
     private Job? current;
+    private readonly Dictionary<(ProjectPaths Paths, string Definition), FileStream> preparedLeases = [];
     private bool disposed;
     private sealed class Job(ProjectPaths paths, string definition) : IProgress<SwShRestorationPreparationProgress>
     {
         internal readonly ProjectPaths Paths = paths;
         internal readonly CancellationTokenSource Cancellation = new();
-        internal RestorationPreparationDto Status = new(Guid.NewGuid().ToString("N"), definition, "preparing", "sources", 0, 3, null, new Dictionary<int, int[]>(), []);
+        internal RestorationPreparationDto Status = new(Guid.NewGuid().ToString("N"), definition, "preparing", "sources", 0,
+            SwShRestorationDefinitions.Get(definition).Identities.Count, null, new Dictionary<int, int[]>(), []);
         internal FileStream? Lease;
         public void Report(SwShRestorationPreparationProgress value)
         {
@@ -31,7 +33,17 @@ public sealed class SwShRestorationPreparationJobs : IDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             if (current is not null && Read(current).Status == "preparing") throw new InvalidDataException("A restoration preparation is already running. Wait for it or cancel it.");
-            current?.Lease?.Dispose(); current?.Cancellation.Dispose();
+            if (current is { Lease: { } lease } completed)
+            {
+                var key = (completed.Paths, completed.Status.DefinitionId);
+                if (preparedLeases.Remove(key, out var previous)) previous.Dispose();
+                if (preparedLeases.Count >= 256)
+                {
+                    var oldest = preparedLeases.First(); preparedLeases.Remove(oldest.Key); oldest.Value.Dispose();
+                }
+                preparedLeases.Add(key, lease); completed.Lease = null;
+            }
+            current?.Cancellation.Dispose();
             var job = current = new(paths, definition);
             _ = Run(job, donor, support);
             return Read(job);
@@ -74,6 +86,10 @@ public sealed class SwShRestorationPreparationJobs : IDisposable
     }
     public void Dispose()
     {
-        lock (gate) { if (disposed) return; disposed = true; current?.Cancellation.Cancel(); current?.Lease?.Dispose(); }
+        lock (gate)
+        {
+            if (disposed) return; disposed = true; current?.Cancellation.Cancel(); current?.Lease?.Dispose();
+            foreach (var lease in preparedLeases.Values) lease.Dispose(); preparedLeases.Clear();
+        }
     }
 }

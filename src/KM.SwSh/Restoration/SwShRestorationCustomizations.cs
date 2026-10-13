@@ -45,7 +45,7 @@ internal static class SwShRestorationCustomizations
             var touched = items.Values.Where(c => changed.Contains(c.Path) && readOutput(c.Path) is not null).ToArray();
             if (touched.Length > 0)
                 foreach (var item in SwShRestorationComposer.Compose(touched, readOutput, false, captureOnly: true).RetainedCustomizations)
-                    items[(item.Path, item.Key)] = item;
+                    items[(item.Path, item.Key)] = SwShRestorationDependencies.Retain(items[(item.Path, item.Key)], item, state.State);
             var definition = SwShRestorationDefinitions.Get(selection.DefinitionId);
             foreach (var path in changed.Where(p => IsLooseModel(p, definition)))
             {

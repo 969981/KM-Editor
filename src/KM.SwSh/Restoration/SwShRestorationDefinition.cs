@@ -20,8 +20,13 @@ public static class SwShRestorationDefinitions
         {
             [ProjectGame.Sword] = SwShRestorationSupport.Testing, [ProjectGame.Shield] = SwShRestorationSupport.Testing,
         }), Array.AsReadOnly(new[] { "summary", "battle", "field", "evolution", "breeding", "camp", "dynamax" }));
-    public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(new[] { Piplup });
-    public static SwShRestorationDefinition Get(string id) => All.SingleOrDefault(d => d.Id == id)
+    public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(new[]
+    {
+        Species("piplup", 393), Species("prinplup", 394), Species("empoleon", 395),
+    });
+    private static SwShRestorationDefinition Species(string id, int species) => Piplup with
+        { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, 0) }) };
+    public static SwShRestorationDefinition Get(string id) => id == Piplup.Id ? Piplup : All.SingleOrDefault(d => d.Id == id)
         ?? throw new InvalidDataException("This restoration definition is not supported.");
 }
 

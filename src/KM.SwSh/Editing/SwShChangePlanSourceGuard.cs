@@ -1239,9 +1239,18 @@ public static class SwShChangePlanSourceGuard
                         var content = File.ReadAllBytes(snapshotPath);
                         var unchangedAnchor = relativePath == SwShRestorationComposer.PersonalPath
                             && expectedPreimage == OutputFileState.Existing(Convert.ToHexStringLower(SHA256.HashData(content)), content.LongLength);
-                        mutations.Add(unchangedAnchor
-                            ? OutputMutation.RebindOwnership(path, content, expectedPreimage, ownershipClaims, OutputMode, ownership.OwnerId)
-                            : OutputMutation.Write(path, content, expectedPreimage, ownershipClaims, ownershipActor: ownership.OwnerId));
+                        var ownershipChanged = existingOwnership is not null
+                            && !existingOwnership.Claims.ToHashSet().SetEquals(ownershipClaims);
+                        if (unchangedAnchor && existingOwnership is not null && !ownershipChanged)
+                        {
+                            retainedNoOpTargets.Add(relativePath);
+                        }
+                        else
+                        {
+                            mutations.Add(unchangedAnchor
+                                ? OutputMutation.RebindOwnership(path, content, expectedPreimage, ownershipClaims, OutputMode, ownership.OwnerId)
+                                : OutputMutation.Write(path, content, expectedPreimage, ownershipClaims, ownershipActor: ownership.OwnerId));
+                        }
                     }
                     else if (isComposedExeFsMain && existingOwnership is not null)
                     {

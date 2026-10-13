@@ -88,6 +88,7 @@ public sealed partial class ProjectBridgeDispatcher
 
     private static RestorationWorkflowDto LoadRestoration(ProjectPaths paths, EditSession? session)
     {
+        if (session is not null) session = SwShRestorationService.UpgradeSession(paths, session);
         var catalog = SwShRestorationCatalog.Discover(paths);
         var state = SwShRestorationStateStore.Read(paths);
         var intents = session?.PendingEdits.Where(e => e.Domain == SwShRestorationDefinitions.Domain).ToDictionary(e => e.RecordId!,
@@ -113,6 +114,7 @@ public sealed partial class ProjectBridgeDispatcher
         try
         {
             var service = new SwShRestorationService();
+            session = SwShRestorationService.UpgradeSession(paths, session);
             var restoration = session with { PendingEdits = session.PendingEdits.Where(e => e.Domain == SwShRestorationDefinitions.Domain).ToArray() };
             var ordinary = session with { PendingEdits = session.PendingEdits.Where(e => e.Domain != SwShRestorationDefinitions.Domain).ToArray() };
             var domains = ordinary.PendingEdits.Select(e => GetEditSessionDomain(e.Domain)).Distinct().ToList();
@@ -120,7 +122,6 @@ public sealed partial class ProjectBridgeDispatcher
                 throw new InvalidDataException("This editor cannot be combined with a Pokemon restoration. Apply its changes separately.");
             OrderDomainsBySourceDependencies(domains);
             var initial = service.Preview(paths, restoration);
-            var originalState = SwShRestorationStateStore.Read(paths);
             var selections = initial.State.Selections.ToDictionary(s => s.DefinitionId, StringComparer.Ordinal);
             var sources = initial.Sources.ToHashSet();
             var targets = initial.Files.Keys.ToHashSet(StringComparer.Ordinal);
@@ -149,10 +150,18 @@ public sealed partial class ProjectBridgeDispatcher
             }
             if (remove.PendingEdits.Count > 0)
             {
-                view.State = originalState;
-                var preview = service.Preview(view.Paths, remove);
+                var removalSession = remove with { PendingEdits = [] };
+                foreach (var edit in remove.PendingEdits)
+                {
+                    var intent = JsonSerializer.Deserialize<SwShRestorationIntent>(edit.NewValue!)!;
+                    var staged = service.Stage(view.Paths, intent.DefinitionId, intent.PreparedHash, false, removalSession);
+                    if (staged.Diagnostics.Count > 0) return new(new(session.Id, [], staged.Diagnostics), null);
+                    removalSession = staged.Session;
+                }
+                var preview = service.Preview(view.Paths, removalSession);
                 SwShRestorationService.WritePreview(view.Paths, preview);
-                foreach (var selection in preview.State.Selections.Where(s => remove.PendingEdits.Any(e => e.RecordId == s.DefinitionId)))
+                view.State = new(preview.StateHash, preview.State);
+                foreach (var selection in preview.State.Selections)
                     selections[selection.DefinitionId] = selection;
                 foreach (var source in preview.Sources) sources.Add(source);
                 foreach (var file in preview.Files.Keys) targets.Add(file);

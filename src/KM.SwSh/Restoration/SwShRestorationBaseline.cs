@@ -37,7 +37,7 @@ public static class SwShRestorationBaseline
         {
             var prepared = SwShRestorationStateStore.ReadPrepared(paths, selection.PreparedHash);
             if (prepared.DefinitionId != selection.DefinitionId) throw new InvalidDataException("Installed restoration defaults do not match their selection.");
-            foreach (var contribution in prepared.Contributions) yield return contribution;
+            foreach (var contribution in prepared.Contributions) yield return SwShRestorationDependencies.Effective(contribution, state);
         }
     }
 }

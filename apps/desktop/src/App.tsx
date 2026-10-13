@@ -21904,7 +21904,7 @@ export function App({
           ) : null}
           {activeSection === 'restoreMissingPokemon' ? (
             isRestorationLoading && !restoreMissingPokemonWorkflow ? <WorkflowLoadingPanel label={t('restoration.title')} /> :
-              <RestoreMissingPokemonSection workflow={restoreMissingPokemonWorkflow} paths={gameDumpPaths} bridge={bridge}
+              <RestoreMissingPokemonSection desktopServices={desktopServices} workflow={restoreMissingPokemonWorkflow} paths={gameDumpPaths} bridge={bridge}
                 session={getEditSessionForSection('restoreMissingPokemon')} key={`${activeProjectId}:${getEditSessionForSection('restoreMissingPokemon')?.sessionId ?? 'viewing'}`}
                 isEditing={getEditSessionForSection('restoreMissingPokemon') !== null} isEditStarting={isEditStarting}
                 isStaging={isRestorationStaging} isLoading={isRestorationLoading} onStartEditSession={handleStartEditSession}

@@ -10,7 +10,7 @@ namespace KM.Tools.Application;
 
 public sealed record SwShRestorationPreparationProgress(string Phase, int CompletedSpecies, int TotalSpecies);
 
-/// <summary>Converts a registered family using the user's donor and target dumps.</summary>
+/// <summary>Converts registered Pokemon using the user's donor and target dumps.</summary>
 public sealed partial class SwShRestorationPreparationService
 {
     public SwShPreparedRestoration Prepare(ProjectPaths target, string donorRomFs, string? compressionSupport,
@@ -18,7 +18,7 @@ public sealed partial class SwShRestorationPreparationService
     {
         var definition = SwShRestorationDefinitions.Get(definitionId);
         if (target.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || string.IsNullOrWhiteSpace(target.BaseRomFsPath)
-            || definition.Id != SwShRestorationDefinitions.Piplup.Id) throw new InvalidDataException("This restoration is not supported for the selected target.");
+            || definition.Identities.Any(i => i.Species is < 393 or > 395 || i.Form != 0)) throw new InvalidDataException("This restoration is not supported for the selected target.");
         var context = new Preparation(target, donorRomFs, compressionSupport, definition, progress, cancellationToken);
         using (context)
         {

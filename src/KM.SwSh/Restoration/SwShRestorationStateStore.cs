@@ -45,7 +45,7 @@ public static class SwShRestorationStateStore
         var bytes = OutputTransactionCoordinator.ForProject(paths).ReadPreservationArtifactAsync(hash).GetAwaiter().GetResult();
         if (bytes.Length > 1024 * 1024) throw new InvalidDataException("Restoration state exceeds its size limit.");
         var state = JsonSerializer.Deserialize<SwShRestorationState>(bytes) ?? throw new InvalidDataException("Restoration state is empty.");
-        Validate(state); return new(hash, state);
+        Validate(state); return new(hash, SwShRestorationCompatibility.Normalize(paths, state));
     }
     public static SwShPreparedRestoration ReadPrepared(ProjectPaths project, string hash)
     {
