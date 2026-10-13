@@ -6,7 +6,8 @@ using KM.Formats.SwSh;
 
 namespace KM.SwSh.Models;
 
-internal sealed class SwShModelSource(OpenedProject project, long maximumBytes = 128L * 1024 * 1024, int maximumReads = 1024)
+internal sealed class SwShModelSource(OpenedProject project, long maximumBytes = 128L * 1024 * 1024, int maximumReads = 1024,
+    IReadOnlyDictionary<string, byte[]>? restoredDefaults = null)
 {
     private readonly Dictionary<string, byte[]?> observed = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, SwShGfPackFile> packs = new(StringComparer.Ordinal);
@@ -16,6 +17,8 @@ internal sealed class SwShModelSource(OpenedProject project, long maximumBytes =
     internal byte[] Read(string relative, string? archive = null)
     {
         relative = Canonical(relative);
+        if (restoredDefaults?.TryGetValue("romfs/" + relative, out var restored) == true)
+        { Admit(restored.Length); return restored; }
         if (project.Paths.OutputRootPath is { Length: > 0 } output && Physical(output, "romfs/" + relative) is { } layered) return layered;
         if (project.Paths.BaseRomFsPath is { Length: > 0 } root && Physical(root, relative) is { } loose) return loose;
         if (archive is null) throw new FileNotFoundException("Model resource is unavailable.");

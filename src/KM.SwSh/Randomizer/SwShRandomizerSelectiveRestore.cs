@@ -6,13 +6,15 @@ using KM.Core.Editing;
 using KM.Core.Files;
 using KM.Core.Projects;
 using KM.SwSh.Editing;
+using KM.SwSh.Encounters;
 
 namespace KM.SwSh.Randomizer;
 
 public sealed partial class SwShRandomizerService
 {
     private RandomizerDomainPlan? CreateValueRestorePlan(ProjectPaths paths, string domain,
-        IReadOnlyList<RandomizerValueOwnership> ownership, ICollection<ValidationDiagnostic> diagnostics)
+        IReadOnlyList<RandomizerValueOwnership> ownership, ICollection<ValidationDiagnostic> diagnostics,
+        SwShEncountersEditSessionService encounterRestoreService)
     {
         var current = ReadRandomizerValues(paths, [domain], diagnostics);
         var edits = new List<PendingEdit>();
@@ -47,7 +49,7 @@ public sealed partial class SwShRandomizerService
         return domain switch
         {
             "Pokemon" => new(domain, session, pokemonEditSessionService.CreateChangePlan, pokemonEditSessionService.ApplyChangePlan),
-            "Wild Encounters" => new(domain, session, encountersEditSessionService.CreateChangePlan, encountersEditSessionService.ApplyChangePlan),
+            "Wild Encounters" => new(domain, session, encounterRestoreService.CreateChangePlan, encounterRestoreService.ApplyChangePlan),
             "Static Encounters" => new(domain, session, staticEncountersEditSessionService.CreateChangePlan, staticEncountersEditSessionService.ApplyChangePlan),
             "Gift Encounters" => new(domain, session, giftPokemonEditSessionService.CreateChangePlan, giftPokemonEditSessionService.ApplyChangePlan),
             "Raid Rewards" or "Raid Bonus Rewards" => new(domain, session, raidRewardsEditSessionService.CreateChangePlan, raidRewardsEditSessionService.ApplyChangePlan),
@@ -71,11 +73,34 @@ public sealed partial class SwShRandomizerService
             if (ownership.Any(value => !targets.Contains(value.Path)))
                 throw new InvalidDataException("Randomizer value ownership has no matching tracked file.");
 
+            var encounterRestoreService = encountersEditSessionService;
+            var wildEntry = entries.FirstOrDefault(entry => entry.RelativePath == SwShEncountersWorkflowService.WildDataPath);
+            if (wildEntry?.OriginalExisted == true && ownership.Any(value => value.Domain == "Wild Encounters"))
+            {
+                var backup = PrepareRequiredRandomizerBackup(paths, wildEntry, wildEntry.RelativePath, diagnostics);
+                if (backup is null) return CreateApplyResult(diagnostics);
+                var original = File.ReadAllBytes(backup.Path);
+                if (RestoreFilePreimage.ForFile(original) != backup.Preimage)
+                    throw new IOException("Randomizer backup changed while preparing encounter restoration.");
+                var project = projectWorkspaceService.Open(paths);
+                var source = SwShEncountersWorkflowService.ResolveWildDataSource(project)
+                    ?? throw new InvalidDataException("Randomizer encounter restoration source is unavailable.");
+                var reader = new SwShEncountersWorkflowService(file =>
+                    string.Equals(file, source.AbsolutePath, StringComparison.OrdinalIgnoreCase) ? original : File.ReadAllBytes(file));
+                var baseline = reader.Load(project);
+                AddWorkflowErrors(baseline.Diagnostics, diagnostics);
+                // Only the complete probability vector from the verified preimage may
+                // recover a pre-existing custom total. Ordinary edits keep normal validation.
+                encounterRestoreService = new(projectWorkspaceService, encountersWorkflowService,
+                    baseline.Tables.ToDictionary(table => table.TableId,
+                        table => table.Slots.Select(slot => slot.Weight).ToArray(), StringComparer.Ordinal));
+            }
+
             var groups = ownership.GroupBy(value => value.Domain, StringComparer.Ordinal).ToArray();
             var reviewed = new List<(RandomizerDomainPlan Domain, ChangePlan Plan)>();
             foreach (var group in groups)
             {
-                var domain = CreateValueRestorePlan(paths, group.Key, group.ToArray(), diagnostics);
+                var domain = CreateValueRestorePlan(paths, group.Key, group.ToArray(), diagnostics, encounterRestoreService);
                 if (domain is null) continue;
                 var plan = domain.CreateChangePlan(paths, domain.Session);
                 diagnostics.AddRange(plan.Diagnostics);
@@ -121,7 +146,7 @@ public sealed partial class SwShRandomizerService
             foreach (var group in groups)
             {
                 // Earlier domain writes may have changed a shared archive's revision.
-                var domain = CreateValueRestorePlan(stagedPaths, group.Key, group.ToArray(), diagnostics);
+                var domain = CreateValueRestorePlan(stagedPaths, group.Key, group.ToArray(), diagnostics, encounterRestoreService);
                 if (domain is null) continue;
                 var plan = domain.CreateChangePlan(stagedPaths, domain.Session);
                 diagnostics.AddRange(plan.Diagnostics);

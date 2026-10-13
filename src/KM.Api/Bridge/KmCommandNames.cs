@@ -176,6 +176,11 @@ public static class KmCommandNames
     public const string RestoreFpsPatch = "fpsPatch.restore";
     public const string LoadMarnieBoosts = "marnieBoosts.load";
     public const string LoadShakingTrees = "shakingTrees.load";
+    public const string LoadRestoration = "restoreMissingPokemon.load";
+    public const string PrepareRestoration = "restoreMissingPokemon.prepare";
+    public const string GetRestorationPreparation = "restoreMissingPokemon.preparation.get";
+    public const string CancelRestorationPreparation = "restoreMissingPokemon.preparation.cancel";
+    public const string StageRestoration = "restoreMissingPokemon.stage";
     public const string LoadHeldItemChance = "heldItemChance.load";
     public const string LoadGameOptions = "gameOptions.load";
     public const string LoadObedience = "obedience.load";

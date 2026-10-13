@@ -73,6 +73,11 @@ const diagnosticLocalizationKeys: Readonly<Record<string, string>> = {
   'KM-SV-TITAN-RECOVERY-UNSUPPORTED': 'titanRecovery.unsupported',
   'KM-SV-TITAN-RECOVERY-STALE': 'titanRecovery.stale',
   'KM-SV-TITAN-RECOVERY-APPLY-FAILED': 'titanRecovery.apply',
+  'KM-SWSH-RESTORATION-SOURCE-UNAVAILABLE': 'restoration.diagnostic.source',
+  'KM-SWSH-RESTORATION-CONFLICT': 'restoration.diagnostic.conflict',
+  'KM-SWSH-RESTORATION-SESSION-INVALID': 'restoration.diagnostic.session',
+  'KM-SWSH-RESTORATION-REFERENCE': 'restoration.diagnostic.reference',
+  'KM-SWSH-RESTORATION-PREPARED-STALE': 'restoration.diagnostic.stale',
   'KM-SWSH-TREES-SOURCE-INVALID': 'shakingTrees.diagnostic.SourceInvalid',
   'KM-SWSH-TREES-VALUES-INVALID': 'shakingTrees.diagnostic.ValuesInvalid',
   'KM-SWSH-TREES-CONFLICT': 'shakingTrees.diagnostic.Conflict',
@@ -291,7 +296,7 @@ export function formatDiagnosticMessage(
 
   // Stable output and relocation codes intentionally replace raw backend prose in normal UI.
   // The code itself remains visible in Diagnostics for technical support.
-  if (localizedCodeMessage !== null) {
+  if (localizedCodeMessage !== null && !diagnostic.code?.startsWith('KM-SWSH-RESTORATION-')) {
     return message;
   }
 
@@ -326,6 +331,10 @@ export function formatDiagnosticSummary(
     localizedDiagnosticCodeMessage(diagnostic, translateKey) ??
       translateLiteral(diagnostic.message)
   );
+  if (diagnostic.code?.startsWith('KM-SWSH-RESTORATION-')) {
+    const reason = normalizeSentence(translateLiteral(diagnostic.message));
+    return message === reason ? message : `${message} ${reason}`;
+  }
   if (diagnostic.sourceLine != null && diagnostic.code?.startsWith('KM-DUMP-YAML-')) {
     const template = translateKey?.('dumpImporter.yamlLocation') ?? '{file}, line {line}, column {column}, field {field}';
     const location = template.replace('{file}', () => diagnostic.file ?? '')

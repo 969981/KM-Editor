@@ -18,7 +18,7 @@ const categories = ['all', 'music', 'cries', 'battle', 'ambience', 'interface', 
 const volumeKey = 'km-editor.sound-studio.volume';
 function readVolume() { try { const value = Number(localStorage.getItem(volumeKey) ?? '0.5'); return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0.5; } catch { return 0.5; } }
 function time(seconds: number) { return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`; }
-export default function SoundStudioSection({ paths }: { paths: ProjectPaths }) {
+export default function SoundStudioSection({ paths, catalogRevision = '' }: { paths: ProjectPaths; catalogRevision?: string }) {
   const { t } = useLocalization();
   const [catalog, setCatalog] = useState<SoundEntry[]>([]), [selected, setSelected] = useState<SoundEntry | null>(null);
   const [category, setCategory] = useState('all'), [query, setQuery] = useState(''), [everywhere, setEverywhere] = useState(false), [kind, setKind] = useState('sample');
@@ -41,7 +41,7 @@ export default function SoundStudioSection({ paths }: { paths: ProjectPaths }) {
       .finally(() => { if (!abort.signal.aborted) setLoading(false); });
     const heartbeat = setInterval(() => { if (!abort.signal.aborted) void soundRequest(scope, id, 'status', z.unknown()).catch(() => {}); }, 30000);
     return () => { abort.abort(); clearInterval(heartbeat); void closeSoundCatalog(scope, id).catch(() => {}); };
-  }, [pathKey, revision]);
+  }, [pathKey, revision, catalogRevision]);
   useEffect(() => {
     setInfo(null); setPosition(0); setPlaying(false); setRepeat(false); setPlayer(null); setPreparing(false); setError(null);
     if (!selected || selected.status !== 'sample') return;

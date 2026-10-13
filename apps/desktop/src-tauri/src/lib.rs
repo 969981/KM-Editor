@@ -308,6 +308,11 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "researchLab.compare",
     "researchLab.source.close",
     "researchLab.source.open",
+    "restoreMissingPokemon.load",
+    "restoreMissingPokemon.preparation.cancel",
+    "restoreMissingPokemon.preparation.get",
+    "restoreMissingPokemon.prepare",
+    "restoreMissingPokemon.stage",
     "rowClipboard.authorizations.clear",
     "rowClipboard.copy.prepare",
     "rowClipboard.paste.preview",
@@ -2849,6 +2854,8 @@ fn is_project_bridge_workflow_load_command(command: &str) -> bool {
             | "trainerDynamax.load"
             | "heldItemChance.load"
             | "shakingTrees.load"
+            | "restoreMissingPokemon.load"
+            | "restoreMissingPokemon.preparation.get"
             | "gameOptions.load"
             | "marnieBoosts.load"
             | "raidDens.load"
@@ -3006,6 +3013,9 @@ fn is_replay_safe_edit_session_command(command: &str) -> bool {
             | "titan-swapper.fields.stage"
             | "heldItemChance.stage"
             | "shakingTrees.stage"
+            | "restoreMissingPokemon.stage"
+            | "restoreMissingPokemon.prepare"
+            | "restoreMissingPokemon.preparation.cancel"
             | "gameOptions.stage"
             | "marnieBoosts.stage"
             | "raidDens.stage"

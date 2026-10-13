@@ -23,7 +23,7 @@ public sealed record SwShGfPackNamedFile(
     byte[] Data,
     SwShGfPackCompressionType CompressionType = SwShGfPackCompressionType.None);
 
-public sealed class SwShGfPackFile
+public sealed partial class SwShGfPackFile
 {
     public const ulong Magic = 0x4B434150_584C4647;
 

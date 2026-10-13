@@ -42,6 +42,7 @@ import { type BlueberryWorkflow } from './bridge/blueberryContracts';
 import { type StarmobilesWorkflow } from './bridge/starmobilesContracts';
 import { type TitanSwapperWorkflow } from './bridge/titanSwapperContracts';
 import { type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
+import type { RestorationWorkflow } from './bridge/restorationContracts';
 import { type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
 import { type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
@@ -130,6 +131,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
       'fairyGymBoosts',
       'marnieBoosts',
       'shakingTrees',
+  'restoreMissingPokemon',
       'heldItemChance',
       'gameOptions',
       'fashionUnlock',
@@ -183,6 +185,7 @@ export const pokemonLegendsZAAdvancedEditorDomains = new Set([
 ]);
 
 export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
+  'dynamaxAdventures',
   'modelViewer',
   'pokemon',
   'trainers',
@@ -193,6 +196,7 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
   'titanSwapper',
   'marnieBoosts',
   'shakingTrees',
+  'restoreMissingPokemon',
   'heldItemChance',
   'gameOptions',
   'obedience',
@@ -218,6 +222,7 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
 ]);
 
 export const sharedStagedEditorDomains = new Set([
+  'workflow.dynamaxAdventures',
   'workflow.modelTextures',
   'workflow.pokemon',
   'workflow.trainers',
@@ -228,6 +233,7 @@ export const sharedStagedEditorDomains = new Set([
   'workflow.titan-swapper',
   'workflow.marnieBoosts',
   'workflow.shakingTrees',
+  'workflow.restoreMissingPokemon',
   'workflow.heldItemChance',
   'workflow.gameOptions',
   'workflow.obedience',
@@ -321,6 +327,7 @@ export type LoadedWorkflowStateBySection = {
   titanSwapperWorkflow: TitanSwapperWorkflow | null;
   marnieBoostsWorkflow: MarnieBoostsWorkflow | null;
   shakingTreesWorkflow: ShakingTreesWorkflow | null;
+  restoreMissingPokemonWorkflow: RestorationWorkflow | null;
   heldItemChanceWorkflow: HeldItemChanceWorkflow | null;
   gameOptionsWorkflow: GameOptionsWorkflow | null;
   obedienceWorkflow: ObedienceWorkflow | null;
@@ -464,6 +471,8 @@ export function getLoadedWorkflowStateForSection(
       return state.starmobilesWorkflow !== null;
     case 'titanSwapper':
       return state.titanSwapperWorkflow !== null;
+    case 'restoreMissingPokemon':
+      return state.restoreMissingPokemonWorkflow !== null;
     case 'shakingTrees':
       return state.shakingTreesWorkflow !== null;
     case 'heldItemChance':

@@ -31,7 +31,8 @@ public sealed class SwShModelPreviewService
     public ModelTextureResource[] Assets(OpenedProject project, string id, bool vanilla = false)
     {
         var selected = vanilla ? project with { Paths = project.Paths with { OutputRootPath = null } } : project;
-        var source = new SwShModelSource(selected, 512L * 1024 * 1024, 16384);
+        var source = new SwShModelSource(selected, 512L * 1024 * 1024, 16384,
+            vanilla ? Restoration.SwShRestorationBaseline.Models(project.Paths) : null);
         var resource = Resources(selected, source).SingleOrDefault(r => r.Entry.Id == id)
             ?? throw new InvalidDataException("Select a model from the selected catalog.");
         var roots = resource.Animations.Select(a => (a.Path, a.Archive)).Prepend((id, resource.Archive));

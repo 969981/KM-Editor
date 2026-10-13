@@ -997,6 +997,7 @@ public sealed class SwShPlacementWorkflowService
         AppendFingerprint(hash, CatalogParserSchema);
         AppendFingerprint(hash, project.Paths.SelectedGame?.ToString() ?? "none");
         AppendFingerprint(hash, language);
+        var restorationView = KM.SwSh.Restoration.SwShRestorationView.Find(project.Paths);
         foreach (var fingerprint in fingerprints)
         {
             AppendFingerprint(hash, fingerprint.RelativePath.ToLowerInvariant());
@@ -1008,9 +1009,14 @@ public sealed class SwShPlacementWorkflowService
 
             AppendFingerprint(hash, fingerprint.SourceLayer);
             AppendFingerprint(hash, fingerprint.SourceState);
-            AppendFingerprint(hash, fingerprint.AbsolutePath!);
+            // Prospective sources are recreated between requests. Their content and
+            // original project identity, rather than a temporary path or timestamp,
+            // determine whether a paged catalog is still current.
+            AppendFingerprint(hash, restorationView is not null && fingerprint.SourceLayer == "layered"
+                ? Path.Combine(KM.SwSh.Editing.SwShChangePlanSourceGuard.OriginalPaths(project.Paths).OutputRootPath!, fingerprint.RelativePath)
+                : fingerprint.AbsolutePath!);
             AppendFingerprint(hash, fingerprint.Length);
-            AppendFingerprint(hash, fingerprint.LastWriteTimeUtcTicks);
+            AppendFingerprint(hash, restorationView is null ? fingerprint.LastWriteTimeUtcTicks : "prospective-content");
             AppendFingerprint(hash, fingerprint.ContentSha256);
         }
 

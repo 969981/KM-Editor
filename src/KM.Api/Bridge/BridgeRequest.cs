@@ -9,4 +9,5 @@ namespace KM.Api.Bridge;
 public sealed record BridgeRequest<TPayload>(
     string Command,
     TPayload Payload,
-    string? RequestId = null);
+    string? RequestId = null,
+    KM.Api.Editing.EditSessionDto? SpeciesSession = null);

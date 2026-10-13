@@ -13,6 +13,7 @@ import { type LoadTitanSwapperRequest, type LoadTitanSwapperResponse, type Stage
   loadTitanSwapperRequestSchema, loadTitanSwapperResponseSchema, stageTitanSwapperRequestSchema, stageTitanSwapperResponseSchema } from './titanSwapperContracts';
 import { type LoadMarnieBoostsRequest, type LoadMarnieBoostsResponse, type StageMarnieBoostsRequest, type StageMarnieBoostsResponse,
   loadMarnieBoostsRequestSchema, loadMarnieBoostsResponseSchema, stageMarnieBoostsRequestSchema, stageMarnieBoostsResponseSchema } from './marnieBoostsContracts';
+import { createRestorationProjectBridge, type RestorationProjectBridgeApi } from './restorationProjectBridge';
 import { type LoadShakingTreesRequest, type LoadShakingTreesResponse, type StageShakingTreesRequest, type StageShakingTreesResponse,
   loadShakingTreesRequestSchema, loadShakingTreesResponseSchema, stageShakingTreesRequestSchema, stageShakingTreesResponseSchema } from './shakingTreesContracts';
 import { type LoadHeldItemChanceRequest, type LoadHeldItemChanceResponse, type StageHeldItemChanceRequest, type StageHeldItemChanceResponse,
@@ -981,7 +982,7 @@ export type ProjectBridge = {
   validateProject: (
     request: ValidateProjectRequest,
   ) => Promise<ValidateProjectResponse>;
-} & SvBatchFieldProjectBridgeApi &
+} & RestorationProjectBridgeApi & SvBatchFieldProjectBridgeApi &
   SvCacheProjectBridgeApi &
   ZaCacheProjectBridgeApi &
   GameDumpProjectBridgeApi &
@@ -2074,6 +2075,7 @@ export function createProjectBridge(
     ...createSvCacheProjectBridgeApi(transport),
     ...createZaCacheProjectBridgeApi(transport),
     ...createSwShCacheProjectBridgeApi(transport),
+    ...createRestorationProjectBridge(transport),
     ...createSwShPlacementProjectBridgeApi(transport),
     ...createWorkspaceDraftProjectBridgeApi(transport),
     ...createProjectSourceRevisionProjectBridgeApi(transport),

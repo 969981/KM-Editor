@@ -471,6 +471,10 @@ import { RaidDensSection } from './features/raid-dens/RaidDensSection';
 import { FixAiFlagsSection } from './features/fix-ai-flags/FixAiFlagsSection';
 import { TrainerWhiteoutSection } from './features/trainer-whiteout/TrainerWhiteoutSection';
 import { treeValues, treeFieldKey, type TreeUpdate, type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
+import { RestoreMissingPokemonSection } from './features/restore-missing-pokemon/RestoreMissingPokemonSection';
+import type { RestorationSelection } from './bridge/restorationContracts';
+import { configureRestorationRequestContext } from './bridge/restorationRequestContext';
+import { useRestorationCatalogRefresh } from './features/restore-missing-pokemon/useRestorationCatalogRefresh';
 import { ShakingTreesSection } from './features/shaking-trees/ShakingTreesSection';
 import { type HeldItemChanceUpdate, type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { encodeGameOptionsSelections, getGameOptionsPendingSelections, type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
@@ -2309,6 +2313,9 @@ export function App({
       ),
     [createProjectPaths, unscopedBridge]
   );
+  useEffect(() => configureRestorationRequestContext(() => ({
+    paths: createProjectPaths(draftPathsRef.current), session: useWorkbenchStore.getState().editSession
+  })), [createProjectPaths]);
   const legacyMigrationRef = useRef<{
     promise: Promise<PersonalWorkspaceSnapshot<WorkspaceApplicationStateDocument>>;
     registry: typeof personalWorkspaceRegistry;
@@ -3235,6 +3242,12 @@ export function App({
   const starmobilesWorkflow = useWorkbenchStore(state => state.starmobilesWorkflow);
   const titanSwapperWorkflow = useWorkbenchStore(state => state.titanSwapperWorkflow);
   const marnieBoostsWorkflow = useWorkbenchStore(state => state.marnieBoostsWorkflow);
+  const restoreMissingPokemonWorkflow = useWorkbenchStore(state => state.restoreMissingPokemonWorkflow);
+  const setRestorationWorkflow = useWorkbenchStore(state => state.setRestorationWorkflow);
+  const [isRestorationLoading, setIsRestorationLoading] = useState(false);
+  const [isRestorationStaging, setIsRestorationStaging] = useState(false);
+  const restorationGenerationRef = useRef(0);
+  useRestorationCatalogRefresh(bridge, gameDumpPaths, editSession, restoreMissingPokemonWorkflow?.revision);
   const shakingTreesWorkflow = useWorkbenchStore(state => state.shakingTreesWorkflow);
   const heldItemChanceWorkflow = useWorkbenchStore(state => state.heldItemChanceWorkflow);
   const gameOptionsWorkflow = useWorkbenchStore(state => state.gameOptionsWorkflow);
@@ -4210,6 +4223,7 @@ export function App({
           starmobilesWorkflow,
           titanSwapperWorkflow,
           marnieBoostsWorkflow,
+          restoreMissingPokemonWorkflow,
           shakingTreesWorkflow,
           heldItemChanceWorkflow,
           gameOptionsWorkflow,
@@ -4266,6 +4280,7 @@ export function App({
       starmobilesWorkflow,
       titanSwapperWorkflow,
       marnieBoostsWorkflow,
+      restoreMissingPokemonWorkflow,
       shakingTreesWorkflow,
       heldItemChanceWorkflow,
       gameOptionsWorkflow,
@@ -4389,6 +4404,7 @@ export function App({
     starmobilesWorkflow,
     titanSwapperWorkflow,
     marnieBoostsWorkflow,
+    restoreMissingPokemonWorkflow,
     shakingTreesWorkflow,
     heldItemChanceWorkflow,
     gameOptionsWorkflow,
@@ -4530,6 +4546,8 @@ export function App({
   );
   const handleMarnieBoostsDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('marnieBoosts', dirty), [registerEditorDraftDirty]);
+  const handleRestorationDirtyChange = useCallback(
+    (dirty: boolean) => registerEditorDraftDirty('restoreMissingPokemon', dirty), [registerEditorDraftDirty]);
   const handleShakingTreesDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('shakingTrees', dirty), [registerEditorDraftDirty]);
   const handleHeldItemChanceDirtyChange = useCallback(
@@ -10573,6 +10591,42 @@ export function App({
     return accepted;
   };
 
+  const handleOpenRestorationWorkflow = async () => {
+    const generation = restorationGenerationRef.current;
+    await runRetainedWorkflowLoad('restoreMissingPokemon', setIsRestorationLoading,
+      () => bridge.loadRestoration({ paths: createProjectPaths(draftPaths), session: useWorkbenchStore.getState().editSession }),
+      response => setRestorationWorkflow(response.workflow), () => generation === restorationGenerationRef.current);
+  };
+  const handleStageRestoration = async (selections: RestorationSelection[]) => {
+    const activeSession = getEditSessionForSection('restoreMissingPokemon');
+    if (!activeSession) return false;
+    let accepted = false; restorationGenerationRef.current += 1; setIsRestorationStaging(true);
+    prepareScopedEditorPanelAction('restoreMissingPokemon');
+    try {
+      await runEditSessionMutation(async session => {
+        let next = session;
+        let response: Awaited<ReturnType<typeof bridge.stageRestoration>> | null = null;
+        for (const selection of selections) {
+          response = await bridge.stageRestoration({ paths: createProjectPaths(draftPaths), session: next, ...selection });
+          if (response.diagnostics.some(d => d.severity === 'error')) break;
+          next = response.session;
+        }
+        if (!response) throw new Error(t('restoration.failed'));
+        const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
+        const matches = response.session.sessionId === activeSession.sessionId && selections.every(selection =>
+          response!.workflow.entries.some(entry => entry.definitionId === selection.definitionId && entry.staged
+            && entry.selected === selection.enabled && entry.preparedHash === selection.preparedHash));
+        const didSucceed = matches && !diagnostics.some(d => d.severity === 'error');
+        return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
+      }, response => {
+        setScopedEditorPanelDiagnostics('restoreMissingPokemon', response.diagnostics);
+        if (response.didSucceed) { accepted = true; setRestorationWorkflow(response.workflow); setEditSessionSection('restoreMissingPokemon'); }
+      }, activeSession);
+    } catch (error) { setScopedEditorPanelDiagnostics('restoreMissingPokemon', toBridgeDiagnostics(error)); }
+    finally { setIsRestorationStaging(false); }
+    return accepted;
+  };
+
   const handleOpenShakingTreesWorkflow = async () => {
     const generation = shakingTreesGenerationRef.current;
     await runRetainedWorkflowLoad('shakingTrees', setIsShakingTreesLoading,
@@ -12824,6 +12878,9 @@ export function App({
         case 'marnieBoosts':
           if (!currentState.marnieBoostsWorkflow) await handleOpenMarnieBoostsWorkflow();
           break;
+        case 'restoreMissingPokemon':
+          if (!currentState.restoreMissingPokemonWorkflow) await handleOpenRestorationWorkflow();
+          break;
         case 'shakingTrees':
           if (!currentState.shakingTreesWorkflow) await handleOpenShakingTreesWorkflow();
           break;
@@ -13233,6 +13290,9 @@ export function App({
       case 'marnieBoosts':
         if (!marnieBoostsWorkflow && !isMarnieBoostsLoading) { markLazyLoadStarted(); void handleOpenMarnieBoostsWorkflow(); }
         break;
+      case 'restoreMissingPokemon':
+        if (!restoreMissingPokemonWorkflow && !isRestorationLoading) { markLazyLoadStarted(); void handleOpenRestorationWorkflow(); }
+        break;
       case 'shakingTrees':
         if (!shakingTreesWorkflow && !isShakingTreesLoading) { markLazyLoadStarted(); void handleOpenShakingTreesWorkflow(); }
         break;
@@ -13529,6 +13589,7 @@ export function App({
     starmobilesWorkflow,
     titanSwapperWorkflow,
     marnieBoostsWorkflow,
+    restoreMissingPokemonWorkflow,
     shakingTreesWorkflow,
     heldItemChanceWorkflow,
     gameOptionsWorkflow,
@@ -13568,6 +13629,7 @@ export function App({
     isStarmobilesLoading,
     isTitanSwapperLoading,
     isMarnieBoostsLoading,
+    isRestorationLoading,
     isShakingTreesLoading,
     isHeldItemChanceLoading,
     isGameOptionsLoading,
@@ -18866,6 +18928,7 @@ export function App({
       'titanSwapper',
       'marnieBoosts',
       'shakingTrees',
+      'restoreMissingPokemon',
       'heldItemChance',
       'gameOptions',
       'obedience',
@@ -18927,6 +18990,7 @@ export function App({
       titanSwapper: setIsTitanSwapperLoading,
       marnieBoosts: setIsMarnieBoostsLoading,
       shakingTrees: setIsShakingTreesLoading,
+      restoreMissingPokemon: setIsRestorationLoading,
       heldItemChance: setIsHeldItemChanceLoading,
       gameOptions: setIsGameOptionsLoading,
       obedience: setIsObedienceLoading,
@@ -19139,6 +19203,12 @@ export function App({
       reloadTasks.push(async () => {
         const response = await bridge.loadMarnieBoosts({ paths });
         if (canCommitRefresh()) setMarnieBoostsWorkflow(response.workflow);
+      });
+    }
+    if (restoreMissingPokemonWorkflow && refreshSections.has('restoreMissingPokemon')) {
+      reloadTasks.push(async () => {
+        const response = await bridge.loadRestoration({ paths, session: useWorkbenchStore.getState().editSession });
+        if (canCommitRefresh()) setRestorationWorkflow(response.workflow);
       });
     }
     if (shakingTreesWorkflow && refreshSections.has('shakingTrees')) {
@@ -21832,6 +21902,15 @@ export function App({
                 onDirtyStateChange={handleMarnieBoostsDirtyChange} onRefresh={handleOpenMarnieBoostsWorkflow}
                 isLoading={isMarnieBoostsLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('marnieBoosts')} />
           ) : null}
+          {activeSection === 'restoreMissingPokemon' ? (
+            isRestorationLoading && !restoreMissingPokemonWorkflow ? <WorkflowLoadingPanel label={t('restoration.title')} /> :
+              <RestoreMissingPokemonSection workflow={restoreMissingPokemonWorkflow} paths={gameDumpPaths} bridge={bridge}
+                session={getEditSessionForSection('restoreMissingPokemon')} key={`${activeProjectId}:${getEditSessionForSection('restoreMissingPokemon')?.sessionId ?? 'viewing'}`}
+                isEditing={getEditSessionForSection('restoreMissingPokemon') !== null} isEditStarting={isEditStarting}
+                isStaging={isRestorationStaging} isLoading={isRestorationLoading} onStartEditSession={handleStartEditSession}
+                onCancelEditSession={requestCancelEditSession} onStage={handleStageRestoration} onDirtyStateChange={handleRestorationDirtyChange}
+                onRefresh={handleOpenRestorationWorkflow} panelOutput={getOutputSafeScopedEditorPanelOutput('restoreMissingPokemon')} />
+          ) : null}
           {activeSection === 'shakingTrees' ? (
             isShakingTreesLoading && !shakingTreesWorkflow ? <WorkflowLoadingPanel label={t('shakingTrees.title')} /> :
               <ShakingTreesSection workflow={shakingTreesWorkflow} session={getEditSessionForSection('shakingTrees')}
@@ -22014,12 +22093,12 @@ export function App({
           ) : null}
           {activeSection === 'soundStudio' ? (
             <Suspense fallback={<section className="panel wide-panel" role="status">{t('soundStudio.loading')}</section>}>
-              <SoundStudioSection key={`${activeProjectId ?? 'unselected'}:${JSON.stringify(gameDumpPaths)}`} paths={gameDumpPaths} />
+              <SoundStudioSection key={`${activeProjectId ?? 'unselected'}:${JSON.stringify(gameDumpPaths)}`} paths={gameDumpPaths} catalogRevision={restoreMissingPokemonWorkflow?.revision} />
             </Suspense>
           ) : null}
           {activeSection === 'modelViewer' ? (
             <Suspense fallback={<section className="panel wide-panel" role="status">{t('modelViewer.loading')}</section>}>
-              <ModelViewerSection key={activeProjectId ?? 'unselected'} paths={gameDumpPaths} session={editSession}
+              <ModelViewerSection key={activeProjectId ?? 'unselected'} paths={gameDumpPaths} session={editSession} catalogRevision={restoreMissingPokemonWorkflow?.revision}
                     disabled={isEditSessionOperationBusy} onDirtyChange={registerEditorDraftDirty}
                     onStageAsset={async (model, change, restore) => {
                       const response = await runEditSessionMutation(
@@ -35669,6 +35748,7 @@ function formatPendingEditDomain(domain: string) {
     'workflow.habitatCoordinates': 'Habitat Coordinates',
     'workflow.marnieBoosts': 'Marnie Wyndon Boosts',
     'workflow.shakingTrees': 'Shaking Trees',
+    'workflow.restoreMissingPokemon': 'Restore Missing Pokemon',
     'workflow.heldItemChance': 'Held Item Chance',
     'workflow.gameOptions': 'Game Options',
     'workflow.obedience': 'Obedience Level',
@@ -35739,6 +35819,7 @@ function getPendingEditSection(edit: PendingEdit): WorkbenchSection | null {
     'workflow.habitatCoordinates': 'habitatCoordinates',
     'workflow.marnieBoosts': 'marnieBoosts',
     'workflow.shakingTrees': 'shakingTrees',
+    'workflow.restoreMissingPokemon': 'restoreMissingPokemon',
     'workflow.heldItemChance': 'heldItemChance',
     'workflow.gameOptions': 'gameOptions',
     'workflow.obedience': 'obedience',
@@ -36154,6 +36235,15 @@ function getPendingEditDisplayDetails(
         editorLabel, recordLocalizationKey: 'marnieBoosts.title', fieldLocalizationKey: 'marnieBoosts.outcomes',
         newValueLocalizationKey: 'marnieBoosts.staged'
       });
+    case 'workflow.restoreMissingPokemon': {
+      let enabled = false;
+      try { enabled = JSON.parse(edit.newValue ?? '{}').Enabled === true; } catch { /* Invalid changes retain their identity for removal. */ }
+      return createPendingEditDisplayDetails(edit, {
+        editorLabel, recordLabel: edit.recordId === 'piplup-family' ? '393, 394, 395' : edit.recordId ?? '',
+        fieldLocalizationKey: 'restoration.enabled',
+        newValueLocalizationKey: enabled ? 'restoration.installation.Enabled' : 'restoration.installation.Disabled'
+      });
+    }
     case 'workflow.shakingTrees': {
       const workflow = context.shakingTreesWorkflow;
       const tree = workflow?.trees.find(row => row.id === edit.recordId);
@@ -40943,6 +41033,11 @@ function DynamaxAdventuresSection({
       null,
     [encounters, filteredEncounters, selectedEntryIndex]
   );
+  useEffect(() => {
+    if (selectedEncounter && selectedEntryIndex !== selectedEncounter.entryIndex) {
+      onSelectAdventure(selectedEncounter.entryIndex);
+    }
+  }, [onSelectAdventure, selectedEncounter, selectedEntryIndex]);
   const canUseDynamaxAdventuresWorkflow =
     workflow?.summary.availability === 'available' &&
     !workflow.usesVanillaRecoveryProjection;
@@ -41335,7 +41430,9 @@ function SelectedDynamaxAdventurePanel({
     () => getPendingDynamaxAdventureOwner(editSession),
     [editSession]
   );
-  const hasPendingSessionChanges = (editSession?.pendingEdits.length ?? 0) > 0;
+  const hasPendingSessionChanges = editSession?.pendingEdits.some(
+    (edit) => edit.domain === 'workflow.dynamaxAdventures'
+  ) ?? false;
   const hasPendingTableRestore =
     editSession?.pendingEdits.some(
       (edit) =>
@@ -65688,17 +65785,17 @@ function getPendingDynamaxAdventureIndexes(editSession: EditSession | null) {
 }
 
 function getPendingDynamaxAdventureOwner(editSession: EditSession | null) {
+  const adventureEdits = editSession?.pendingEdits.filter(
+    (edit) => edit.domain === 'workflow.dynamaxAdventures'
+  ) ?? [];
   if (
     !editSession?.hasPendingChanges ||
-    editSession.pendingEdits.length === 0 ||
-    editSession.pendingEdits.some(
-      (edit) => edit.domain !== 'workflow.dynamaxAdventures'
-    )
+    adventureEdits.length === 0
   ) {
     return null;
   }
 
-  const entryIndexes = editSession.pendingEdits.map((edit) =>
+  const entryIndexes = adventureEdits.map((edit) =>
     parseDynamaxAdventureRecordId(edit.recordId)
   );
   if (

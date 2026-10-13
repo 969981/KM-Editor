@@ -12,11 +12,18 @@ namespace KM.Tools.Bridge;
 
 public static class ProjectBridgeMapper
 {
+    private static readonly AsyncLocal<(ProjectPaths Source, ProjectPaths Target)?> ProspectivePaths = new();
+    internal static IDisposable UseProspectivePaths(ProjectPaths source, ProjectPaths target)
+    {
+        var previous = ProspectivePaths.Value; ProspectivePaths.Value = (source, target);
+        return new PathsLease(() => ProspectivePaths.Value = previous);
+    }
+    private sealed class PathsLease(Action release) : IDisposable { public void Dispose() => release(); }
     public static ProjectPaths ToCore(ProjectPathsDto paths)
     {
         ArgumentNullException.ThrowIfNull(paths);
 
-        return new ProjectPaths(
+        var result = new ProjectPaths(
             paths.BaseRomFsPath,
             paths.BaseExeFsPath,
             paths.OutputRootPath,
@@ -27,6 +34,7 @@ public static class ProjectBridgeMapper
             GameTextLanguage = paths.GameTextLanguage,
             PokemonLegendsZASupportFolderPath = paths.PokemonLegendsZASupportFolderPath,
         };
+        return ProspectivePaths.Value is { } prospective && prospective.Source == result ? prospective.Target : result;
     }
 
     public static ProjectHealthDto ToDto(ProjectHealth health)

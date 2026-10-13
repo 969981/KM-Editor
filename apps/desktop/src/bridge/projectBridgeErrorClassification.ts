@@ -14,6 +14,7 @@ import {
   swshPlacementErrorCodes,
   type KmErrorCode
 } from '../errorCodes';
+import { StaleSpeciesCatalogError } from './restorationRequestContext';
 import { ProjectBridgeError } from './projectBridgeError';
 
 // These codes describe anticipated capability boundaries, stale reviews, and
@@ -68,7 +69,7 @@ const expectedProjectBridgeRejectionCodes = new Set<KmErrorCode>([
 ]);
 
 export function isExpectedProjectBridgeRejection(error: unknown) {
-  return error instanceof ProjectBridgeError &&
+  return error instanceof StaleSpeciesCatalogError || error instanceof ProjectBridgeError &&
     error.semanticCode !== null &&
     expectedProjectBridgeRejectionCodes.has(error.semanticCode);
 }

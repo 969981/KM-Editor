@@ -491,7 +491,8 @@ public sealed class SwShPokemonWorkflowService
             {
                 var vanillaSource = ResolveBasePersonalDataSource(project);
                 if (vanillaSource is not null)
-                    vanillaTable = SwShPersonalTable.Parse(readAllBytes(vanillaSource.AbsolutePath), maximumRecordCount);
+                    vanillaTable = SwShPersonalTable.Parse(Restoration.SwShRestorationBaseline.Personal(project.Paths,
+                        readAllBytes(vanillaSource.AbsolutePath)), maximumRecordCount);
             }
             catch (Exception exception) when (IsReadFailure(exception) || IsDecodeFailure(exception))
             {
@@ -517,6 +518,9 @@ public sealed class SwShPokemonWorkflowService
                 presentSpeciesIds);
             var provenance = CreateProvenance(personalSource.GraphEntry);
             var formOwners = CreateFormOwnerLookup(personalTable.Records, diagnostics);
+            var restoredAssets = maximumRecordCount is null ? SwShEffectivePokemonCatalog.Load(project.Paths).Entries
+                .Where(e => e.Origin is SwShPokemonOrigin.ManagedRestoration or SwShPokemonOrigin.ExternalRestoration
+                    && e.Capabilities.HasFlag(SwShPokemonCapability.Assignment)).Select(e => e.PersonalId).ToHashSet() : [];
             var pokemon = personalTable.Records
                 .Select(record => ToPokemonRecord(
                     record,
@@ -531,7 +535,7 @@ public sealed class SwShPokemonWorkflowService
                     learnsets,
                     evolutions,
                     formOwners,
-                    provenance))
+                    provenance) with { HasRestoredAssets = restoredAssets.Contains(record.PersonalId) })
                 .ToArray();
             var sourceFileCount =
                 1

@@ -9,6 +9,7 @@ public sealed record PreviewTexture(int Width, int Height, uint Format, byte[] B
     public string? SourcePath { get; init; }
     public byte[][] Mips { get; init; } = [];
     public long ByteLength => Blocks.LongLength + Mips.Sum(m => m.LongLength);
+    public static PreviewTexture ReadBaseLevel(byte[] bytes) => ReadLevel(bytes, 0);
     public static PreviewTexture Read(byte[] bytes) => ModelDerivedCache<PreviewTexture>.Get(bytes, "",
         () => PreviewTextureResolution.Select(ReadUncached(bytes), 1), texture => texture.ByteLength);
     private static PreviewTexture ReadUncached(byte[] bytes)

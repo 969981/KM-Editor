@@ -83,6 +83,28 @@ public sealed class ModelTextureDocument
         return PixelBytes(Decode(levels[mip], original));
     }
 
+    /// <summary>Replaces explicitly authored mip images without changing the container layout.</summary>
+    public byte[] EncodeMipImages(IReadOnlyList<byte[]> rgbaLevels, CancellationToken cancellationToken = default)
+    {
+        if (rgbaLevels.Count != levels.Length) throw new InvalidDataException("Every stored texture mip must be supplied.");
+        var output = original.ToArray();
+        var encoder = new BcEncoder(compression);
+        encoder.OutputOptions.Quality = CompressionQuality.BestQuality;
+        encoder.OutputOptions.GenerateMipMaps = false;
+        encoder.Options.IsParallel = false;
+        for (var mip = 0; mip < levels.Length; mip++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var level = levels[mip]; var rgba = rgbaLevels[mip];
+            if (rgba.Length != level.Width * level.Height * 4) throw new InvalidDataException("Texture mip dimensions do not match the container.");
+            var pixels = new ColorRgba32[rgba.Length / 4];
+            for (var i = 0; i < pixels.Length; i++) pixels[i] = new(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]);
+            Encode(level, pixels, output, encoder, cancellationToken, preserveSourceAlpha: false);
+        }
+        _ = new ModelTextureDocument(output);
+        return output;
+    }
+
     public byte[] Preview(IReadOnlyList<ModelTextureColorChange> changes) => PixelBytes(RecoloredPixels(changes, out _, default));
 
     private static byte[] PixelBytes(ColorRgba32[] pixels)
@@ -191,7 +213,7 @@ public sealed class ModelTextureDocument
         return level.Offset + offset;
     }
 
-    private void Encode(Level level, ColorRgba32[] pixels, byte[] output, BcEncoder encoder, CancellationToken token)
+    private void Encode(Level level, ColorRgba32[] pixels, byte[] output, BcEncoder encoder, CancellationToken token, bool preserveSourceAlpha = true)
     {
         var before = Decode(level, original);
         var linear = Linear(level, original);
@@ -253,7 +275,7 @@ public sealed class ModelTextureDocument
                     }
                 }
                 if (encoded.Length != blockBytes) throw new InvalidDataException("Texture block length changed.");
-                if (compression is CompressionFormat.Bc2 or CompressionFormat.Bc3)
+                if (preserveSourceAlpha && compression is CompressionFormat.Bc2 or CompressionFormat.Bc3)
                     linear.AsSpan((by * columns + bx) * blockBytes, 8).CopyTo(encoded);
                 for (var b = 0; b < blockBytes; b++) output[Address(level, bx * blockBytes + b, by, columns * blockBytes, rows)] = encoded[b];
             }

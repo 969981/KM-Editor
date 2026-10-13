@@ -171,6 +171,11 @@ export const kmCommandNameValues = [
   "trainerDynamax.apply",
   "marnieBoosts.load",
   "shakingTrees.load",
+  "restoreMissingPokemon.load",
+  "restoreMissingPokemon.prepare",
+  "restoreMissingPokemon.preparation.get",
+  "restoreMissingPokemon.preparation.cancel",
+  "restoreMissingPokemon.stage",
   "heldItemChance.load",
   "gameOptions.load",
   "obedience.load",
@@ -488,6 +493,11 @@ export const kmCommandNames = {
   restoreFpsPatch: "fpsPatch.restore",
   loadMarnieBoosts: "marnieBoosts.load",
   loadShakingTrees: "shakingTrees.load",
+  loadRestoration: "restoreMissingPokemon.load",
+  prepareRestoration: "restoreMissingPokemon.prepare",
+  getRestorationPreparation: "restoreMissingPokemon.preparation.get",
+  cancelRestorationPreparation: "restoreMissingPokemon.preparation.cancel",
+  stageRestoration: "restoreMissingPokemon.stage",
   loadHeldItemChance: "heldItemChance.load",
   loadGameOptions: "gameOptions.load",
   loadObedience: "obedience.load",
@@ -2926,7 +2936,7 @@ export const tradePokemonEditableFieldSchema = z.strictObject({
   maximumValue: z.number().int().nullable(),
   minimumValue: z.number().int().nullable(),
   options: z.array(tradePokemonEditableFieldOptionSchema),
-  valueKind: z.enum(["boolean", "integer"]),
+  valueKind: z.enum(["boolean", "integer", "string"]),
 });
 
 export const tradePokemonRecordSchema = z.strictObject({
@@ -6378,8 +6388,7 @@ function validateDynamaxAdventureRestoreResponse(
     response.diagnostics.some((diagnostic) => diagnostic.severity === "error")
   ) {
     if (
-      response.session.hasPendingChanges ||
-      response.session.pendingEdits.length > 0
+      response.session.pendingEdits.some(edit => edit.domain === "workflow.dynamaxAdventures")
     ) {
       addDynamaxAdventureContractIssue(
         context,
@@ -6390,7 +6399,7 @@ function validateDynamaxAdventureRestoreResponse(
     return;
   }
 
-  const pendingEdits = response.session.pendingEdits;
+  const pendingEdits = response.session.pendingEdits.filter(edit => edit.domain === "workflow.dynamaxAdventures");
   if (
     !response.session.hasPendingChanges ||
     pendingEdits.length !== 1 ||
@@ -6441,7 +6450,7 @@ function validateDynamaxAdventureRepairResponse(
     return;
   }
 
-  const pendingEdits = response.session.pendingEdits;
+  const pendingEdits = response.session.pendingEdits.filter(edit => edit.domain === "workflow.dynamaxAdventures");
   if (pendingEdits.length !== 1) {
     addDynamaxAdventureContractIssue(
       context,
@@ -6528,14 +6537,7 @@ function validateDynamaxAdventureUpdateResponse(
       );
     }
 
-    if (edit.domain !== "workflow.dynamaxAdventures") {
-      addDynamaxAdventureContractIssue(
-        context,
-        ["session", "pendingEdits", editIndex, "domain"],
-        "Dynamax Adventures update responses cannot contain another workflow domain.",
-      );
-      return;
-    }
+    if (edit.domain !== "workflow.dynamaxAdventures") return;
 
     const ownerMatch = /^dynamaxAdventure:(0|[1-9]\d*)$/.exec(
       edit.recordId ?? "",

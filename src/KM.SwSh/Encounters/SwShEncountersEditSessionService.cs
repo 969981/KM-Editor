@@ -18,6 +18,7 @@ public sealed class SwShEncountersEditSessionService
 
     private readonly ProjectWorkspaceService projectWorkspaceService;
     private readonly SwShEncountersWorkflowService encountersWorkflowService;
+    private readonly IReadOnlyDictionary<string, int[]>? restorationProbabilities;
 
     public SwShEncountersEditSessionService(
         ProjectWorkspaceService? projectWorkspaceService = null,
@@ -25,6 +26,16 @@ public sealed class SwShEncountersEditSessionService
     {
         this.projectWorkspaceService = projectWorkspaceService ?? new ProjectWorkspaceService();
         this.encountersWorkflowService = encountersWorkflowService ?? new SwShEncountersWorkflowService();
+    }
+
+    internal SwShEncountersEditSessionService(
+        ProjectWorkspaceService projectWorkspaceService,
+        SwShEncountersWorkflowService encountersWorkflowService,
+        IReadOnlyDictionary<string, int[]> restorationProbabilities)
+        : this(projectWorkspaceService, encountersWorkflowService)
+    {
+        this.restorationProbabilities = restorationProbabilities
+            .ToDictionary(pair => pair.Key, pair => pair.Value.ToArray(), StringComparer.Ordinal);
     }
 
     public EditSession StartSession()
@@ -523,7 +534,7 @@ public sealed class SwShEncountersEditSessionService
         }
     }
 
-    private static void ValidateEncounterProbabilityTotals(
+    private void ValidateEncounterProbabilityTotals(
         SwShEncountersWorkflow sourceWorkflow,
         SwShEncountersWorkflow projectedWorkflow,
         IEnumerable<PendingEdit> edits,
@@ -538,7 +549,10 @@ public sealed class SwShEncountersEditSessionService
             var projectedTotal = projectedTable.Slots.Sum(slot => slot.Weight);
             var sourceDeviation = Math.Abs(sourceTotal - 100);
             var projectedDeviation = Math.Abs(projectedTotal - 100);
-            if (projectedDeviation <= sourceDeviation)
+            if (projectedDeviation <= sourceDeviation
+                || restorationProbabilities is not null
+                && restorationProbabilities.TryGetValue(projectedTable.TableId, out var restored)
+                && projectedTable.Slots.Select(slot => slot.Weight).SequenceEqual(restored))
             {
                 continue;
             }

@@ -10,6 +10,7 @@ import {
 import { ProjectBridgeError } from './projectBridgeError';
 import { isExpectedProjectBridgeRejection } from './projectBridgeErrorClassification';
 import { recordBridgePerformanceDiagnostic } from '../performanceDiagnostics';
+import { readRestorationRequestContext, StaleSpeciesCatalogError } from './restorationRequestContext';
 
 export type ProjectBridgeTransport = (requestJson: string) => Promise<string>;
 
@@ -68,7 +69,8 @@ async function sendProjectBridgeRequestInner<TPayloadSchema extends ZodTypeAny>(
   payloadSchema: TPayloadSchema
 ): Promise<z.infer<TPayloadSchema>> {
   const requestId = createRequestId(command);
-  const requestJson = JSON.stringify({ command, payload, requestId });
+  const speciesContext = readRestorationRequestContext(payload);
+  const requestJson = JSON.stringify({ command, payload, requestId, speciesSession: speciesContext?.session ?? null });
   if (
     requestJson.length > maximumProjectBridgeRequestBytes ||
     new TextEncoder().encode(requestJson).byteLength > maximumProjectBridgeRequestBytes
@@ -100,6 +102,8 @@ async function sendProjectBridgeRequestInner<TPayloadSchema extends ZodTypeAny>(
       error
     );
   }
+
+  if (speciesContext && !speciesContext.isCurrent()) throw new StaleSpeciesCatalogError();
 
   let responseValue: unknown;
   try {
