@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using KM.Core.Diagnostics;
@@ -19,6 +20,7 @@ public static class SwShChangePlanSourceGuard
     private const string OutputPreservationRule = "verified-whole-file-postimage";
     private const string OutputOrigin = "workflow.sword-shield.change-plan";
     private const string ComposedExeFsMainPath = "exefs/main";
+    private static readonly ConcurrentDictionary<ProjectPaths, VerifiedApplyScope> ActiveSnapshots = new();
 
     public static ChangePlan Capture(ProjectPaths paths, ChangePlan plan)
     {
@@ -863,6 +865,7 @@ public static class SwShChangePlanSourceGuard
             this.sourceStreams = sourceStreams;
             this.initialSnapshotFileStates = initialSnapshotFileStates;
             this.preserveExplicitSourceLayers = preserveExplicitSourceLayers;
+            ActiveSnapshots.TryAdd(applyPaths, this);
         }
 
         public ProjectPaths SourcePaths { get; }
@@ -1188,7 +1191,7 @@ public static class SwShChangePlanSourceGuard
                             }
                         }
                     }
-                    else if (isComposedExeFsMain)
+                    else if (isComposedExeFsMain && !ActiveSnapshots.ContainsKey(SourcePaths))
                     {
                         diagnostics.Add(CreateReadDiagnostic(
                             relativePath,
@@ -1201,6 +1204,8 @@ public static class SwShChangePlanSourceGuard
                     }
                     else
                     {
+                        // Nested editors only change a live private snapshot here. Its outer scope
+                        // verifies real output ownership before promoting the combined result.
                         var adoptionAuthority = new OutputLegacyAdoptionDeleteAuthority(
                             projectId,
                             GameFamily.SwordShield,
@@ -1334,6 +1339,7 @@ public static class SwShChangePlanSourceGuard
             }
 
             disposed = true;
+            ActiveSnapshots.TryRemove(ApplyPaths, out _);
             DisposeStreams(sourceStreams.Values);
             sourceStreams.Clear();
             TryDeleteSnapshotDirectory(snapshotRootPath);

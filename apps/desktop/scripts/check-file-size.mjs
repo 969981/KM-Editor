@@ -8,6 +8,8 @@ import './check-analysis-selector-contract.mjs';
 import './check-editor-field-lock-contract.mjs';
 import './check-editor-interaction-contract.mjs';
 import './check-editor-icon-contract.mjs';
+import './check-editor-category-contract.mjs';
+import './check-editor-command-contract.mjs';
 import './check-editor-surface-inventory.mjs';
 import './check-gameplay-input-contracts.mjs';
 import './check-local-editor-draft-contract.mjs';
