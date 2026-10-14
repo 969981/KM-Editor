@@ -38,12 +38,12 @@ public sealed partial class ZaSwShRestorationPreparationService
             var result = new List<SwShRestorationContribution>();
             foreach (var id in species)
             {
-                var states = ZaRestorationVoiceGraph.Resolve(source, id);
+                var states = ZaRestorationVoiceGraph.ResolvePlayback(source, id);
                 var media = new Dictionary<string, byte[]>(StringComparer.Ordinal);
                 foreach (var state in SwShVoiceWriter.States)
                 {
                     token.ThrowIfCancellationRequested();
-                    var mediaId = states[state];
+                    var mediaId = states[state].MediaId;
                     if (!packages.TryGetValue(mediaId, out var entry) || entry.Media.Length > 32 * 1024 * 1024) throw new InvalidDataException("Donor cry media is unavailable or oversized.");
                     using var input = new FileStream(entry.Path, FileMode.Open, FileAccess.Read, FileShare.Read); input.Position = entry.Media.Offset;
                     var encoded = new byte[entry.Media.Length]; input.ReadExactly(encoded);
@@ -51,12 +51,29 @@ public sealed partial class ZaSwShRestorationPreparationService
                     var decoded = PtAdpcmDecoder.Decode(encoded, token); media.Add(state, SoundBankDocument.EncodePcm16(decoded.Samples, decoded.Channels, decoded.SampleRate));
                 }
                 var contribution = SwShVoiceWriter.Create(targetBank, id, 7, media);
-                result.AddRange(contribution.Objects.Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
+                var gains = states.Values.Select(v => v.GainDecibels).Distinct().ToArray();
+                if (gains.Length != 1) throw new InvalidDataException("Z-A cry gains need a per state target adapter.");
+                result.AddRange(contribution.Objects.Select(o => o.Type == 2 ? Gain(o, gains[0]) : o).Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
                     string.Create(CultureInfo.InvariantCulture, $"{o.Type}:{o.Id}"), null, o.Payload)));
                 result.AddRange(contribution.Media.Select(m => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
                     "media:" + m.Id.ToString(CultureInfo.InvariantCulture), null, m.Bytes)));
             }
             return result;
+        }
+
+        private static SoundBankObject Gain(SoundBankObject sound, float decibels)
+        {
+            if (decibels == 0) return sound;
+            var source = sound.Payload;
+            // The selected version 128 PCM template has no local properties.
+            // Preserve sample data and carry source makeup gain as a bank property.
+            if (!float.IsFinite(decibels) || decibels is < -96 or > 24 || source.Length < 28
+                || source[14] != 0 || source[15] != 0 || source[16] != 0 || source[25] != 0 || source[26] != 0)
+                throw new InvalidDataException("Native voice gain requires another target adapter.");
+            var bytes = new byte[source.Length + 5]; source.AsSpan(0, 27).CopyTo(bytes);
+            bytes[26] = 1; bytes[27] = 6; BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(28), decibels);
+            source.AsSpan(27).CopyTo(bytes.AsSpan(32));
+            return sound with { Payload = bytes };
         }
     }
 }

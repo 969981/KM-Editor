@@ -5,10 +5,15 @@ using KM.Formats.SwSh;
 
 namespace KM.Formats.ZA;
 
+public sealed record ZaRestorationVoice(uint MediaId, float GainDecibels);
+
 /// <summary>Resolves the form and cry switches in supported Legends Z-A voice banks.</summary>
 public static class ZaRestorationVoiceGraph
 {
     public static IReadOnlyDictionary<string, uint> Resolve(SoundBankDocument bank, int species, int form = 0)
+        => ResolvePlayback(bank, species, form).ToDictionary(p => p.Key, p => p.Value.MediaId, StringComparer.Ordinal);
+
+    public static IReadOnlyDictionary<string, ZaRestorationVoice> ResolvePlayback(SoundBankDocument bank, int species, int form = 0)
     {
         if (bank.Version != 145 || species is < 1 or > 1025 || form is < 0 or > 99)
             throw new InvalidDataException("Z-A voice bank version or identity is unsupported.");
@@ -23,15 +28,17 @@ public static class ZaRestorationVoiceGraph
         if (action.Payload.Length < 6 || action.Payload[0] != 3 || action.Payload[1] != 4)
             throw new InvalidDataException("Z-A voice event does not contain a play action.");
         var choice = Switch(Object(6, U32(action.Payload, 2)).Payload);
+        var gain = choice.Gain;
         if (choice.Group == SwShVoiceWriter.Hash("FORM"))
         {
             if (!choice.States.TryGetValue(SwShVoiceWriter.Hash($"FORM{form:00}"), out var children) || children.Length != 1)
                 throw new InvalidDataException("Z-A voice form requires another conversion adapter.");
             choice = Switch(Object(6, children[0]).Payload);
+            gain += choice.Gain;
         }
         else if (form != 0) throw new InvalidDataException("Z-A voice event has no requested form.");
         if (choice.Group != SwShVoiceWriter.Hash("PV")) throw new InvalidDataException("Z-A cry state switch is missing.");
-        var result = new Dictionary<string, uint>(StringComparer.Ordinal);
+        var result = new Dictionary<string, ZaRestorationVoice>(StringComparer.Ordinal);
         foreach (var state in SwShVoiceWriter.States)
         {
             if (!choice.States.TryGetValue(SwShVoiceWriter.Hash(state), out var children) || children.Length != 1)
@@ -39,12 +46,12 @@ public static class ZaRestorationVoiceGraph
             var sound = Object(2, children[0]).Payload;
             if (sound.Length < 9 || U32(sound, 0) != 0x00020001 || sound[4] != 2)
                 throw new InvalidDataException("Z-A cry codec or streaming layout is unsupported.");
-            result.Add(state, U32(sound, 5));
+            result.Add(state, new(U32(sound, 5), gain));
         }
         return result;
     }
 
-    private static (uint Group, Dictionary<uint, uint[]> States) Switch(byte[] bytes)
+    private static (uint Group, Dictionary<uint, uint[]> States, float Gain) Switch(byte[] bytes)
     {
         // Version 145 adds metadata and attachment flags before the parent data.
         // Parse the property bundle instead of assuming a fixed child offset.
@@ -60,10 +67,14 @@ public static class ZaRestorationVoiceGraph
         var properties = Byte();
         if (properties > 32) throw new InvalidDataException("Z-A voice property count exceeds its budget.");
         var ids = Enumerable.Range(0, properties).Select(_ => Byte()).ToArray();
+        if (ids.Distinct().Count() != ids.Length) throw new InvalidDataException("Z-A voice properties are duplicated.");
+        var gain = 0f;
         foreach (var id in ids)
         {
             var value = BitConverter.UInt32BitsToSingle(Word());
-            if (id != 6 || value != 1) throw new InvalidDataException("Z-A voice switch has unconverted playback properties.");
+            if (id != 6 || !float.IsFinite(value) || value is < -96 or > 24)
+                throw new InvalidDataException("Z-A voice switch has unconverted playback properties.");
+            gain += value;
         }
         Zero(); // Random property ranges.
         Zero(); // Inherit positioning.
@@ -90,7 +101,7 @@ public static class ZaRestorationVoiceGraph
                 throw new InvalidDataException("Z-A voice switch has unsupported child transitions.");
         }
         if (at != bytes.Length || configured.Count != children.Count) throw new InvalidDataException("Z-A voice switch contains unconverted data.");
-        return (group, states);
+        return (group, states, gain);
     }
 
     private static uint U32(byte[] bytes, int at) => at >= 0 && at <= bytes.Length - 4

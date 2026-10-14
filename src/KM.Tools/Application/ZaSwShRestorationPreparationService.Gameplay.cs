@@ -14,6 +14,7 @@ public sealed partial class ZaSwShRestorationPreparationService
     {
         internal (IReadOnlyList<SwShRestorationContribution> Contributions, int[] ExcludedMoves) Gameplay(int species)
         {
+            var profile = Profiles[species];
             var source = new ModelBuffer(Donor("avalon/data/personal_array.bin"));
             var candidates = source.Tables(source.Root, 0, 4096).Where(t => source.Field(t, 0) is var at && at != 0
                 && source.U16(at) == species && source.U16(at + 2) == 0).ToArray();
@@ -42,7 +43,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             row[21] = checked((byte)Scalar(8)); row[22] = checked((byte)Scalar(11)); row[23] = checked((byte)Scalar(12));
             for (var i = 0; i < 3; i++) { var ability = Scalar(5 + i, true); if (ability is < 1 or > 267) throw new InvalidDataException("Source ability needs a target mechanics adapter."); Put16(row, 24 + i * 2, ability); }
             Put16(row, 30, 0); row[32] = 1; row[33] = (byte)((source.U8(detail + 6) & 63) | 64);
-            Put16(row, 34, new[] { 39, 72, 178 }[species - 13]); Put16(row, 36, source.U16(detail + 8)); Put16(row, 38, source.U16(detail + 10));
+            Put16(row, 34, profile.Experience); Put16(row, 36, source.U16(detail + 8)); Put16(row, 38, source.U16(detail + 10));
             var excluded = new HashSet<int>();
             bool MoveAvailable(int move)
             {
@@ -63,7 +64,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             Compatibility(56, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TypeTutorCompatibilityGroupId));
             Compatibility(60, 16, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TechnicalRecordCompatibilityGroupId));
             Compatibility(168, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.ArmorTutorCompatibilityGroupId));
-            BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)species)); Put16(row, 86, 13); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
+            BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)species)); Put16(row, 86, profile.HatchedSpecies); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
             _ = SwShPersonalTable.Parse(row);
             var result = new List<SwShRestorationContribution>
             { new(SwShRestorationComposer.PersonalPath, SwShRestorationWriter.Personal, species.ToString(CultureInfo.InvariantCulture), before, row) };
@@ -84,7 +85,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             for (var i = 0; i < evolutionCount; i++)
             {
                 var at = evolutionStart + i * 16; var destination = source.U16(at + 12); var form = source.U16(at + 14);
-                if (destination is < 13 or > 15 || form != 0) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
+                if (!Profiles.TryGetValue(destination, out var evolutionProfile) || evolutionProfile.HatchedSpecies != profile.HatchedSpecies || form != 0) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
                 if (source.U16(at + 2) != 4 || source.U16(at + 4) != 0 || source.U16(at) is < 1 or > 100)
                     throw new InvalidDataException("Z-A evolution condition needs another target adapter.");
                 Put16(evolution, i * 8, source.U16(at + 2)); Put16(evolution, i * 8 + 2, source.U16(at + 4)); Put16(evolution, i * 8 + 4, destination);
@@ -101,11 +102,11 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 string Name(int id) => group == "common" ? $"poke_{id:0000}_XX_X.bin" : $"poke_{group}_{id:0000}_00_0.bin";
                 var folder = $"bin/pokemon_data/pokecamp/{group}/";
-                var data = camp.ReadFileByHash(SwShGfPackFile.HashMemberPath(folder + Name(species - 3)), 1024 * 1024);
+                var data = camp.ReadFileByHash(SwShGfPackFile.HashMemberPath(folder + Name(profile.NativeTemplate)), 1024 * 1024);
                 if (group == "common")
                 {
                     var metadata = new ModelBuffer(data); var field = metadata.Field(metadata.Root, 2);
-                    if (metadata.U32(field) != species - 3) throw new InvalidDataException("Native camp donor identity is invalid.");
+                    if (metadata.U32(field) != profile.NativeTemplate) throw new InvalidDataException("Native camp donor identity is invalid.");
                     BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(field), checked((uint)species));
                 }
                 result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp, folder + Name(species), null, data));
