@@ -13,6 +13,8 @@
   <ItemGroup>
     <EmbeddedResource Include="Resources\km-native-settings.nso"
                       LogicalName="KM.Tools.Resources.km-native-settings.nso" />
+    <EmbeddedResource Include="../../apps/desktop/public/sprites/gen5/weedle.png;../../apps/desktop/public/sprites/gen5/kakuna.png;../../apps/desktop/public/sprites/gen5/beedrill.png;../../apps/desktop/public/sprites/gen5/pidgey.png;../../apps/desktop/public/sprites/gen5/pidgeotto.png;../../apps/desktop/public/sprites/gen5/pidgeot.png;../../apps/desktop/public/sprites/gen5/kecleon.png;../../apps/desktop/public/sprites/gen5/piplup.png;../../apps/desktop/public/sprites/gen5/prinplup.png;../../apps/desktop/public/sprites/gen5/empoleon.png"
+                      LogicalName="KM.Tools.PartySprites.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -69,16 +69,24 @@ public static class ZaRestorationVoiceGraph
         var ids = Enumerable.Range(0, properties).Select(_ => Byte()).ToArray();
         if (ids.Distinct().Count() != ids.Length) throw new InvalidDataException("Z-A voice properties are duplicated.");
         var gain = 0f;
+        var inheritedAuxProperties = false;
         foreach (var id in ids)
         {
             var value = BitConverter.UInt32BitsToSingle(Word());
-            if (id != 6 || !float.IsFinite(value) || value is < -96 or > 24)
+            if ((id != 6 && id is not (>= 19 and <= 22)) || !float.IsFinite(value) || value is < -96 or > 24)
                 throw new InvalidDataException("Z-A voice switch has unconverted playback properties.");
-            gain += value;
+            if (id == 6) gain += value;
+            else inheritedAuxProperties = true;
         }
         Zero(); // Random property ranges.
         Zero(); // Inherit positioning.
-        if ((Byte() & ~2) != 0 || Word() != 0) throw new InvalidDataException("Z-A voice switch has unsupported auxiliary routing.");
+        var auxiliaryFlags = Byte();
+        // Stored sends are inactive when user sends inherit from the parent.
+        // Keep the target game's environment routing instead of donor bus IDs.
+        if ((auxiliaryFlags & ~10) != 0 || (inheritedAuxProperties && (auxiliaryFlags & 8) == 0))
+            throw new InvalidDataException("Z-A voice switch has unsupported auxiliary routing.");
+        if ((auxiliaryFlags & 8) != 0) for (var i = 0; i < 4; i++) _ = Word();
+        if (Word() != 0) throw new InvalidDataException("Z-A voice switch has unsupported auxiliary routing.");
         Zero(); _ = Byte(); _ = Byte(); _ = Byte(); _ = Byte(); _ = Byte();
         Zero(); Zero(); Zero(); Zero(); // State and RTPC counts.
         if (Byte() != 0) throw new InvalidDataException("Z-A voice selector is not a switch.");

@@ -36,6 +36,7 @@ public static class SwShRestorationDefinitions
         Species("pidgey", 16) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("pidgeotto", 17) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("pidgeot", 18) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("kecleon", 352) with { Donor = SwShRestorationDonor.LegendsZA },
     }).ToArray());
     private static SwShRestorationDefinition Species(string id, int species) => Piplup with
         { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, 0) }) };

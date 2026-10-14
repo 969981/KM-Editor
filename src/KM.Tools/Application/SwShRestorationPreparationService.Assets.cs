@@ -24,6 +24,8 @@ public sealed partial class SwShRestorationPreparationService
         internal IReadOnlyList<SwShRestorationContribution> Assets(int species)
         {
             var stem = $"pm{species:0000}_00"; var sourceStem = stem + "_00"; var sourceFolder = $"pokemon/data/pm{species:0000}/{sourceStem}/";
+            SwShRestorationGenderAudit.RequireSharedModel(Donor("pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
+                species, 0, $"pm{species:0000}/{sourceStem}/{sourceStem}.trmdl");
             var graph = ModelAssetGraph.Read(new[] { (sourceFolder + sourceStem + ".trmdl", (string?)null),
                 (sourceFolder + sourceStem + "_rare.trmtr", null), (sourceFolder + sourceStem + "_base.tracn", null) }, (path, _) => Donor(path));
             var scene = new TrinityPreviewReader(Donor).Load(sourceFolder + sourceStem + ".trmdl");
@@ -114,8 +116,7 @@ public sealed partial class SwShRestorationPreparationService
             foreach (var name in shaderNames) foreach (var extension in new[] { ".bnsh_vsh", ".bnsh_fsh" })
                 giantMembers[$"bin/pokemon/{stem}/g_shader/{name}{extension}"] = Member(giantDonor, name + extension);
             result.Add(File($"bin/archive/gpokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(giantMembers).Write()));
-            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx", SwShMaterialBaker.Icon(
-                Donor(sourceFolder + $"icon/{sourceStem}_00.bntx"), Native("bin/appli/icon_pokemon/poke_icon_0007_00s_n.bntx"), token)));
+            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token)));
             foreach (var shiny in new[] { false, true })
             {
                 var identity = new SwShPokemonResourceIdentity(species, 0, 0, shiny);
