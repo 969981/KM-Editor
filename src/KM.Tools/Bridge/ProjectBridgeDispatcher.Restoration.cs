@@ -100,7 +100,7 @@ public sealed partial class ProjectBridgeDispatcher
                 var selected = state.State.Selections.SingleOrDefault(s => s.DefinitionId == e.DefinitionId);
                 var intent = e.DefinitionId is { } id ? intents.GetValueOrDefault(id) : null;
                 return new RestorationEntryDto(e.SpeciesId, e.Name, e.DefinitionId, e.Support.ToString(), e.Installation.ToString(), e.Family,
-                    intent?.PreparedHash ?? selected?.PreparedHash, intent?.Enabled ?? selected?.Enabled == true, intent is not null);
+                    intent?.PreparedHash ?? selected?.PreparedHash, intent?.Enabled ?? selected?.Enabled == true, intent is not null) { Donor = e.Donor?.ToString() };
             }).ToArray(), catalog.UnavailableReason is null ? [] : [ProjectBridgeMapper.ToDto(new ValidationDiagnostic(DiagnosticSeverity.Error, catalog.UnavailableReason,
                 Domain: SwShRestorationDefinitions.Domain) { Code = SwShRestorationService.SourceCode })]);
     }

@@ -5,7 +5,7 @@ import { apiDiagnosticSchema, editSessionSchema, projectPathsSchema } from './co
 export const restorationWorkflowSchema = z.strictObject({ canEdit: z.boolean(), revision: z.string(),
   entries: z.array(z.strictObject({ speciesId: z.number().int(), name: z.string(), definitionId: z.string().nullable(),
     support: z.enum(['NotSupported', 'Testing', 'Ready']), installation: z.enum(['Disabled', 'Enabled', 'NeedsRepair', 'External']),
-    family: z.array(z.number().int()), preparedHash: z.string().nullable(), selected: z.boolean(), staged: z.boolean() })).max(898),
+    donor: z.enum(['ScarletViolet', 'LegendsZA']).nullable(), family: z.array(z.number().int()), preparedHash: z.string().nullable(), selected: z.boolean(), staged: z.boolean() })).max(898),
   diagnostics: z.array(apiDiagnosticSchema) });
 export const restorationPreparationSchema = z.strictObject({ id: z.string(), definitionId: z.string(),
   status: z.enum(['preparing', 'prepared', 'canceled', 'failed']), phase: z.string(), completedSpecies: z.number().int(),

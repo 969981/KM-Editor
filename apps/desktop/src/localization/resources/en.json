@@ -5087,7 +5087,7 @@
     "workbench.section.restore-missing-pokemon.label": "Restore Missing Pokemon",
     "workbench.section.restore-missing-pokemon.description": "Restore supported Pokémon using your local game sources.",
     "restoration.donorZa": "Z-A donor RomFS folder",
-    "restoration.zaHelp": "Saved for future imports. The currently supported Pokémon use S/V sources.",
+    "restoration.zaHelp": "Used for Pokémon whose source is Legends: Z-A.",
     "restoration.browse": "Browse for {folder}",
     "restoration.browseFailed": "Could not open the folder picker. Try again or enter the folder manually.",
     "restoration.find": "Find oo2core_8_win64.dll",
@@ -5097,7 +5097,9 @@
     "restoration.searchHelp": "Search local drives for the Oodle runtime. Only the matching folder is filled in; your game project and output stay the same.",
     "restoration.startSearch": "Start search",
     "restoration.searchFailed": "Could not search for oo2core_8_win64.dll. Try again or choose the folder manually.",
-    "restoration.notFound": "No oo2core_8_win64.dll was found. Choose its folder manually."
+    "restoration.notFound": "No oo2core_8_win64.dll was found. Choose its folder manually.",
+    "restoration.source.LegendsZA": "Source: Z-A",
+    "restoration.source.ScarletViolet": "Source: S/V"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.",

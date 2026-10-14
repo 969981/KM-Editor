@@ -5087,7 +5087,7 @@
     "workbench.section.restore-missing-pokemon.label": "Fehlende Pokémon wiederherstellen",
     "workbench.section.restore-missing-pokemon.description": "Stelle unterstützte Pokémon mit deinen lokalen Spieldateien wieder her.",
     "restoration.donorZa": "RomFS Quellordner für Z-A",
-    "restoration.zaHelp": "Für spätere Importe gespeichert. Die derzeit unterstützten Pokémon verwenden Quellen aus S/V.",
+    "restoration.zaHelp": "Für Pokémon, deren Quelle Legenden: Z-A ist.",
     "restoration.browse": "{folder} auswählen",
     "restoration.browseFailed": "Die Ordnerauswahl konnte nicht geöffnet werden. Versuche es erneut oder gib den Pfad manuell ein.",
     "restoration.find": "oo2core_8_win64.dll suchen",
@@ -5097,7 +5097,9 @@
     "restoration.searchHelp": "Suche auf lokalen Laufwerken nach der Oodle Laufzeitbibliothek. Nur der gefundene Ordner wird eingetragen; Spielprojekt und Ausgabe bleiben erhalten.",
     "restoration.startSearch": "Suche starten",
     "restoration.searchFailed": "Die Suche nach oo2core_8_win64.dll ist fehlgeschlagen. Versuche es erneut oder wähle den Ordner manuell.",
-    "restoration.notFound": "oo2core_8_win64.dll wurde nicht gefunden. Wähle den Ordner manuell."
+    "restoration.notFound": "oo2core_8_win64.dll wurde nicht gefunden. Wähle den Ordner manuell.",
+    "restoration.source.LegendsZA": "Quelle: Z-A",
+    "restoration.source.ScarletViolet": "Quelle: S/V"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Das Super-Spezialtraining verwendet einen älteren Levelpatch, der für die Symbole im Team und in den Boxen weiterhin Lv.100 voraussetzt. Wende diesen Editor erneut an, um die Auswahl zu aktualisieren.",

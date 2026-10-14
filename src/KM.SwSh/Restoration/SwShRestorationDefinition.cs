@@ -7,9 +7,13 @@ namespace KM.SwSh.Restoration;
 
 public enum SwShRestorationSupport { NotSupported, Testing, Ready }
 public enum SwShRestorationInstallation { Disabled, Enabled, NeedsRepair, External }
+public enum SwShRestorationDonor { ScarletViolet, LegendsZA }
 public sealed record SwShRestorationDefinition(string Id, int Version, int ConverterVersion,
     IReadOnlyList<SwShPokemonIdentity> Identities, IReadOnlyDictionary<ProjectGame, SwShRestorationSupport> Support,
-    IReadOnlyList<string> RequiredContexts);
+    IReadOnlyList<string> RequiredContexts)
+{
+    public SwShRestorationDonor Donor { get; init; } = SwShRestorationDonor.ScarletViolet;
+}
 
 public static class SwShRestorationDefinitions
 {
@@ -20,10 +24,16 @@ public static class SwShRestorationDefinitions
         {
             [ProjectGame.Sword] = SwShRestorationSupport.Testing, [ProjectGame.Shield] = SwShRestorationSupport.Testing,
         }), Array.AsReadOnly(new[] { "summary", "battle", "field", "evolution", "breeding", "camp", "dynamax" }));
-    public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(new[]
+    public static IReadOnlyList<SwShRestorationDefinition> PiplupSpecies { get; } = Array.AsReadOnly(new[]
     {
         Species("piplup", 393), Species("prinplup", 394), Species("empoleon", 395),
     });
+    public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(PiplupSpecies.Concat(new[]
+    {
+        Species("weedle", 13) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("kakuna", 14) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("beedrill", 15) with { Donor = SwShRestorationDonor.LegendsZA },
+    }).ToArray());
     private static SwShRestorationDefinition Species(string id, int species) => Piplup with
         { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, 0) }) };
     public static SwShRestorationDefinition Get(string id) => id == Piplup.Id ? Piplup : All.SingleOrDefault(d => d.Id == id)
@@ -31,7 +41,10 @@ public static class SwShRestorationDefinitions
 }
 
 public sealed record SwShRestorationCatalogEntry(int SpeciesId, string Name, string? DefinitionId,
-    SwShRestorationSupport Support, SwShRestorationInstallation Installation, IReadOnlyList<int> Family);
+    SwShRestorationSupport Support, SwShRestorationInstallation Installation, IReadOnlyList<int> Family)
+{
+    public SwShRestorationDonor? Donor { get; init; }
+}
 public sealed record SwShRestorationCatalog(string Revision, IReadOnlyList<SwShRestorationCatalogEntry> Entries, string? UnavailableReason)
 {
     public static SwShRestorationCatalog Discover(ProjectPaths paths)
@@ -59,7 +72,7 @@ public sealed record SwShRestorationCatalog(string Revision, IReadOnlyList<SwShR
                     definition?.Id, paths.SelectedGame is { } game && definition is not null ? definition.Support.GetValueOrDefault(game) : SwShRestorationSupport.NotSupported,
                     selection?.Enabled == true ? complete ? SwShRestorationInstallation.Enabled : SwShRestorationInstallation.NeedsRepair
                         : group.Any(e => e.Personal.IsPresentInGame) ? SwShRestorationInstallation.External : SwShRestorationInstallation.Disabled,
-                    definition?.Identities.Select(i => i.Species).Distinct().ToArray() ?? [group.Key]);
+                    definition?.Identities.Select(i => i.Species).Distinct().ToArray() ?? [group.Key]) { Donor = definition?.Donor };
             }).OrderBy(e => e.SpeciesId).ToArray();
         return new(catalog.Revision, entries, null);
     }

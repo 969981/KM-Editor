@@ -5087,7 +5087,7 @@
     "workbench.section.restore-missing-pokemon.label": "Відновити відсутніх покемонів",
     "workbench.section.restore-missing-pokemon.description": "Відновлюйте підтримуваних покемонів із локальних файлів гри.",
     "restoration.donorZa": "Папка RomFS гри донора Z-A",
-    "restoration.zaHelp": "Зберігається для майбутнього імпорту. Наразі підтримувані покемони використовують файли S/V.",
+    "restoration.zaHelp": "Використовується для покемонів, імпортованих із Legends: Z-A.",
     "restoration.browse": "Вибрати: {folder}",
     "restoration.browseFailed": "Не вдалося відкрити вибір папки. Спробуйте ще раз або введіть шлях вручну.",
     "restoration.find": "Знайти oo2core_8_win64.dll",
@@ -5097,7 +5097,9 @@
     "restoration.searchHelp": "Пошук бібліотеки Oodle на локальних дисках. Буде заповнено лише шлях до знайденої папки; ігровий проєкт і вихідні файли збережуться.",
     "restoration.startSearch": "Почати пошук",
     "restoration.searchFailed": "Не вдалося знайти oo2core_8_win64.dll. Спробуйте ще раз або виберіть папку вручну.",
-    "restoration.notFound": "oo2core_8_win64.dll не знайдено. Виберіть його папку вручну."
+    "restoration.notFound": "oo2core_8_win64.dll не знайдено. Виберіть його папку вручну.",
+    "restoration.source.LegendsZA": "Джерело: Z-A",
+    "restoration.source.ScarletViolet": "Джерело: S/V"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Гіпертренування використовує стару зміну рівня, за якої значки в команді та боксах усе ще вимагають рів.100. Застосуйте цей редактор повторно, щоб оновити вибір покемонів.",

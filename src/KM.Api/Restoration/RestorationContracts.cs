@@ -6,7 +6,10 @@ using KM.Api.Projects;
 namespace KM.Api.Restoration;
 
 public sealed record RestorationEntryDto(int SpeciesId, string Name, string? DefinitionId, string Support,
-    string Installation, IReadOnlyList<int> Family, string? PreparedHash, bool Selected, bool Staged);
+    string Installation, IReadOnlyList<int> Family, string? PreparedHash, bool Selected, bool Staged)
+{
+    public string? Donor { get; init; }
+}
 public sealed record RestorationWorkflowDto(bool CanEdit, string Revision, IReadOnlyList<RestorationEntryDto> Entries,
     IReadOnlyList<ApiDiagnostic> Diagnostics);
 public sealed record RestorationPreparationDto(string Id, string DefinitionId, string Status, string Phase, int CompletedSpecies,
