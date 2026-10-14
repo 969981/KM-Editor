@@ -5087,7 +5087,7 @@
     "workbench.section.restore-missing-pokemon.label": "恢复缺失的宝可梦",
     "workbench.section.restore-missing-pokemon.description": "使用本地游戏文件恢复受支持的宝可梦。",
     "restoration.donorZa": "Z-A 来源 RomFS 文件夹",
-    "restoration.zaHelp": "为未来导入保存。目前支持的宝可梦使用 S/V 来源文件。",
+    "restoration.zaHelp": "用于从《宝可梦传说 Z-A》导入宝可梦。",
     "restoration.browse": "浏览并选择{folder}",
     "restoration.browseFailed": "无法打开文件夹选择器。请重试或手动输入路径。",
     "restoration.find": "查找 oo2core_8_win64.dll",
@@ -5097,7 +5097,9 @@
     "restoration.searchHelp": "在本地驱动器中查找 Oodle 运行库。仅填写找到的文件夹路径；游戏项目和输出保持不变。",
     "restoration.startSearch": "开始查找",
     "restoration.searchFailed": "无法查找 oo2core_8_win64.dll。请重试或手动选择文件夹。",
-    "restoration.notFound": "未找到 oo2core_8_win64.dll。请手动选择其所在文件夹。"
+    "restoration.notFound": "未找到 oo2core_8_win64.dll。请手动选择其所在文件夹。",
+    "restoration.source.LegendsZA": "来源：Z-A",
+    "restoration.source.ScarletViolet": "来源：S/V"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "极限特训正在使用旧版等级补丁，队伍和盒子中的图标仍要求 100 级。请重新应用此编辑器以更新选择界面。",

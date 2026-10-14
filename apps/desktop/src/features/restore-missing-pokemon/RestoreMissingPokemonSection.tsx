@@ -72,10 +72,14 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
     // Each response starts the next poll; project changes unmount this scoped editor.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preparation, projectKey, bridge]);
+  const donorPath = (definitionId: string) => {
+    const donor = entries.find(entry => entry.definitionId === definitionId)?.donor;
+    return (donor === 'LegendsZA' ? sources.donorZa : donor === 'ScarletViolet' ? sources.donor : '').trim();
+  };
   const prepare = async (definitionId: string) => {
     setIsPreparing(true); setError(null);
     try {
-      const response = await bridge.prepareRestoration({ paths, definitionId, donorRomFsPath: sources.donor.trim(), compressionSupportFolderPath: sources.support.trim() || null });
+      const response = await bridge.prepareRestoration({ paths, definitionId, donorRomFsPath: donorPath(definitionId), compressionSupportFolderPath: sources.support.trim() || null });
       if (active.current) remember(response.preparation);
     } catch { if (active.current) setError(t('restoration.failed')); }
     finally { if (active.current) setIsPreparing(false); }
@@ -126,9 +130,9 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
           onChange={event => { if (!id) return; const checked = event.target.checked; setDrafts(current => {
             const next = { ...current, [id]: checked }; if (checked === entry.selected && !isStaging) delete next[id]; return next;
           }); }} /></td><td data-localization-ignore="true"><strong>{label}</strong><small>#{entry.speciesId}</small></td>
-          <td>{t(`restoration.support.${entry.support}`)}<small>{t(`restoration.installation.${entry.installation}`)}{entry.staged ? ` · ${t('restoration.staged')}` : ''}</small></td>
+          <td>{t(`restoration.support.${entry.support}`)}{entry.donor ? <small>{t(`restoration.source.${entry.donor}`)}</small> : null}<small>{t(`restoration.installation.${entry.installation}`)}{entry.staged ? ` · ${t('restoration.staged')}` : ''}</small></td>
           <td>{id && entry.installation !== 'External' ? <>
-            {!hashes.has(id) ? <button className="secondary-button" type="button" disabled={!sources.donor.trim() || isPreparing || preparation?.status === 'preparing'}
+            {!hashes.has(id) ? <button className="secondary-button" type="button" disabled={!donorPath(id) || isPreparing || preparation?.status === 'preparing'}
               onClick={() => void prepare(id)}>{t('restoration.prepare')}</button> : null}
             {entry.installation === 'NeedsRepair' ? <button className="secondary-button" type="button" disabled={!canEdit || isStaging}
               onClick={() => setDrafts(current => ({ ...current, [id]: true }))}>{t('restoration.repair')}</button> : null}

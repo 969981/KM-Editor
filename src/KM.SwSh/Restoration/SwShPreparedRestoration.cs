@@ -101,7 +101,7 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
                     item.Path == $"romfs/bin/archive/pokemon/pm{i.Species:0000}_{i.Form:00}.gfpak"
                     || item.Path == $"romfs/bin/archive/gpokemon/pm{i.Species:0000}_{i.Form:00}.gfpak"
                     || item.Path == $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx"
-                    || item.Path == $"romfs/bin/pml/evolution/evo_{i.Species}.bin"
+                    || item.Path == $"romfs/bin/pml/evolution/evo_{i.Species:000}.bin"
                     || item.Path == $"romfs/bin/pml/tamagowaza/tamagowaza_{i.Species:0000}.bin"
                     || item.Path.StartsWith($"romfs/bin/pokemon/pm{i.Species:0000}_{i.Form:00}/", StringComparison.Ordinal)),
                 SwShRestorationWriter.ModelCatalog => definition.Identities.Any(i => item.Key.StartsWith($"{i.Species}:{i.Form}:", StringComparison.Ordinal)),

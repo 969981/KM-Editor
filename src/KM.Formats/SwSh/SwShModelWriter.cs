@@ -6,7 +6,10 @@ using KM.Formats.Models;
 namespace KM.Formats.SwSh;
 
 public sealed record SwShMaterialBinding(string Name, int NativeMaterial, IReadOnlyDictionary<string, string> Textures);
-public sealed record SwShEffectLocator(string Name, string Parent, Vector3 Translation);
+public sealed record SwShEffectLocator(string Name, string Parent, Vector3 Translation)
+{
+    public Quaternion Rotation { get; init; } = Quaternion.Identity;
+}
 public sealed record SwShConvertedGeometry(byte[] Model, PreviewBone[] Bones, Vector3 Minimum, Vector3 Maximum);
 
 /// <summary>Encodes skinned geometry against an explicitly selected native shader contract.</summary>
@@ -33,7 +36,11 @@ public static class SwShModelWriter
         {
             var parent = bones.FindIndex(b => b.Name == locator.Parent);
             if (parent < 0 || bones.Any(b => b.Name == locator.Name)) throw new InvalidDataException("Effect locator parent or identity is invalid.");
-            bones.Add(new(locator.Name, parent, -1, false, [1, 1, 1], [0, 0, 0, 1],
+            var rotation = locator.Rotation;
+            if (!float.IsFinite(rotation.LengthSquared()) || MathF.Abs(rotation.LengthSquared() - 1) > .001f
+                || !float.IsFinite(locator.Translation.X + locator.Translation.Y + locator.Translation.Z))
+                throw new InvalidDataException("Effect locator transform is invalid.");
+            bones.Add(new(locator.Name, parent, -1, false, [1, 1, 1], [rotation.X, rotation.Y, rotation.Z, rotation.W],
                 [locator.Translation.X, locator.Translation.Y, locator.Translation.Z], []));
         }
         if (bones.Count > 255) throw new InvalidDataException("Converted skeleton exceeds the native joint limit.");

@@ -34,7 +34,7 @@ public sealed class SwShRestorationService
             current = UpgradeSession(paths, current);
             if (definitionId == SwShRestorationDefinitions.Piplup.Id)
             {
-                foreach (var definition in SwShRestorationDefinitions.All)
+                foreach (var definition in SwShRestorationDefinitions.PiplupSpecies)
                 {
                     var result = Stage(paths, definition.Id, SwShRestorationCompatibility.Split(paths, preparedHash, definition.Id), enabled, current);
                     if (result.Diagnostics.Count > 0) return new(session ?? EditSession.Start(), result.Diagnostics);
@@ -243,7 +243,7 @@ public sealed class SwShRestorationService
             var intent = Parse(edit); var expected = CreateEdit(paths, intent);
             if (edit.Summary != expected.Summary || edit.Owner != expected.Owner || edit.Field != expected.Field || !edit.Sources.SequenceEqual(expected.Sources))
                 throw new InvalidDataException("Staged family restoration metadata is invalid.");
-            foreach (var definition in SwShRestorationDefinitions.All)
+            foreach (var definition in SwShRestorationDefinitions.PiplupSpecies)
                 edits.Add(CreateEdit(paths, intent with { DefinitionId = definition.Id,
                     PreparedHash = SwShRestorationCompatibility.Split(paths, intent.PreparedHash, definition.Id) }));
         }

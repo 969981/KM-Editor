@@ -17,7 +17,7 @@ public static class SwShRestorationCompatibility
         var legacy = state.Selections.SingleOrDefault(s => s.DefinitionId == SwShRestorationDefinitions.Piplup.Id);
         if (legacy is null) return state;
         var selections = state.Selections.Where(s => s != legacy).ToList();
-        foreach (var definition in SwShRestorationDefinitions.All)
+        foreach (var definition in SwShRestorationDefinitions.PiplupSpecies)
         {
             if (selections.Any(s => s.DefinitionId == definition.Id)) throw new InvalidDataException("Family and individual restoration records overlap.");
             selections.Add(new(definition.Id, Split(paths, legacy.PreparedHash, definition.Id), legacy.Enabled,
@@ -32,9 +32,9 @@ public static class SwShRestorationCompatibility
         if (prepared.DefinitionId == definitionId) return hash;
         if (prepared.DefinitionId != SwShRestorationDefinitions.Piplup.Id) throw new InvalidDataException("Prepared restoration does not match its selection.");
         var definition = SwShRestorationDefinitions.Get(definitionId);
-        if (definition.Identities.Count != 1) throw new InvalidDataException("Individual restoration identity is required.");
-        var all = SwShRestorationDefinitions.All.ToDictionary(d => d.Id, d => prepared.Contributions.Where(c => Owns(d, c)).ToArray());
-        if (all.Values.Sum(c => c.Length) != prepared.Contributions.Count || prepared.Contributions.Any(c => SwShRestorationDefinitions.All.Count(d => Owns(d, c)) != 1))
+        if (!SwShRestorationDefinitions.PiplupSpecies.Contains(definition)) throw new InvalidDataException("An individual member of the original family is required.");
+        var all = SwShRestorationDefinitions.PiplupSpecies.ToDictionary(d => d.Id, d => prepared.Contributions.Where(c => Owns(d, c)).ToArray());
+        if (all.Values.Sum(c => c.Length) != prepared.Contributions.Count || prepared.Contributions.Any(c => SwShRestorationDefinitions.PiplupSpecies.Count(d => Owns(d, c)) != 1))
             throw new InvalidDataException("Existing family resources cannot be separated without losing ownership.");
         var split = prepared with { DefinitionId = definition.Id, DefinitionVersion = definition.Version, ConverterVersion = definition.ConverterVersion,
             Contributions = all[definition.Id], UnavailableSourceMoves = prepared.UnavailableSourceMoves.Where(p => definition.Identities.Any(i => i.Species == p.Key)).ToDictionary() };
@@ -55,7 +55,7 @@ public static class SwShRestorationCompatibility
             SwShRestorationWriter.File => item.Path == $"romfs/bin/archive/pokemon/pm{species:0000}_00.gfpak"
                 || item.Path == $"romfs/bin/archive/gpokemon/pm{species:0000}_00.gfpak"
                 || item.Path == $"romfs/bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx"
-                || item.Path == $"romfs/bin/pml/evolution/evo_{species}.bin"
+                || item.Path == $"romfs/bin/pml/evolution/evo_{species:000}.bin"
                 || item.Path == $"romfs/bin/pml/tamagowaza/tamagowaza_{species:0000}.bin"
                 || item.Path.StartsWith($"romfs/bin/pokemon/pm{species:0000}_00/", StringComparison.Ordinal),
             SwShRestorationWriter.Voices => uint.TryParse(item.Key.Split(':').Last(), NumberStyles.None, CultureInfo.InvariantCulture, out var id)
