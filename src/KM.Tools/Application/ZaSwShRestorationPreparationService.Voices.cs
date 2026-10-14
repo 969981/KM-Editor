@@ -21,7 +21,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                 .Where(System.IO.File.Exists).ToArray();
             if (banks.Length != 1) throw new InvalidDataException("Donor voice bank is missing or ambiguous.");
             var relative = Path.GetRelativePath(donorRoot, banks[0]).Replace('\\', '/');
-            var bytes = ReadPhysical(banks[0], 64 * 1024 * 1024);
+            var bytes = archive.Read(relative, 64 * 1024 * 1024);
             Fingerprint("donor", relative, bytes); var source = new SoundBankDocument(bytes);
             var targetBank = new SoundBankDocument(Native(SwShRestorationComposer.VoicesPath[6..]));
             if (source.Version != 145 || targetBank.Version != 128) throw new InvalidDataException("Voice conversion is not defined for these sound bank versions.");

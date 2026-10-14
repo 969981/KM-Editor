@@ -13,6 +13,7 @@ public sealed partial class ZaSwShRestorationPreparationService
     {
         internal void Verify(SwShPreparedRestoration prepared)
         {
+            archive.VerifySource();
             var composition = SwShRestorationComposer.Compose(prepared.Contributions, path =>
             {
                 var source = Path.Combine(target.BaseRomFsPath!, path[6..].Replace('/', Path.DirectorySeparatorChar));

@@ -176,6 +176,7 @@ public static class KmCommandNames
     public const string RestoreFpsPatch = "fpsPatch.restore";
     public const string LoadMarnieBoosts = "marnieBoosts.load";
     public const string LoadShakingTrees = "shakingTrees.load";
+    public const string InspectRestorationDonor = "restoreMissingPokemon.donor.inspect";
     public const string LoadRestoration = "restoreMissingPokemon.load";
     public const string PrepareRestoration = "restoreMissingPokemon.prepare";
     public const string GetRestorationPreparation = "restoreMissingPokemon.preparation.get";

@@ -6,6 +6,8 @@ import { sendProjectBridgeRequest, type ProjectBridgeTransport } from './project
 
 export function createRestorationProjectBridge(transport: ProjectBridgeTransport) {
   return {
+    inspectRestorationDonor: (request: z.infer<typeof contracts.inspectRestorationDonorRequestSchema>) => sendProjectBridgeRequest(transport,
+      kmCommandNames.inspectRestorationDonor, contracts.inspectRestorationDonorRequestSchema.parse(request), contracts.restorationDonorResponseSchema),
     loadRestoration: (request: z.infer<typeof contracts.loadRestorationRequestSchema>) => sendProjectBridgeRequest(transport,
       kmCommandNames.loadRestoration, contracts.loadRestorationRequestSchema.parse(request), contracts.loadRestorationResponseSchema),
     prepareRestoration: (request: z.infer<typeof contracts.prepareRestorationRequestSchema>) => sendProjectBridgeRequest(transport,

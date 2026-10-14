@@ -775,6 +775,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.RestoreFpsPatch => DispatchRestoreFpsPatch(requestJson),
                 KmCommandNames.LoadMarnieBoosts => DispatchLoadMarnieBoosts(requestJson),
                 KmCommandNames.LoadShakingTrees => DispatchLoadShakingTrees(requestJson),
+                KmCommandNames.InspectRestorationDonor => DispatchRestoration(requestJson, command),
                 KmCommandNames.LoadRestoration => DispatchRestoration(requestJson, command),
                 KmCommandNames.PrepareRestoration => DispatchRestoration(requestJson, command),
                 KmCommandNames.GetRestorationPreparation => DispatchRestoration(requestJson, command),
@@ -8492,7 +8493,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.StageShinyRate or
             KmCommandNames.LoadMarnieBoosts or
             KmCommandNames.LoadShakingTrees or
-            KmCommandNames.LoadRestoration or KmCommandNames.PrepareRestoration or KmCommandNames.GetRestorationPreparation or
+            KmCommandNames.InspectRestorationDonor or KmCommandNames.LoadRestoration or KmCommandNames.PrepareRestoration or KmCommandNames.GetRestorationPreparation or
             KmCommandNames.CancelRestorationPreparation or KmCommandNames.StageRestoration or
             KmCommandNames.LoadHeldItemChance or
             KmCommandNames.LoadGameOptions or

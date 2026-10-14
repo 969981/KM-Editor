@@ -13,7 +13,18 @@ public sealed record RestorationEntryDto(int SpeciesId, string Name, string? Def
 public sealed record RestorationWorkflowDto(bool CanEdit, string Revision, IReadOnlyList<RestorationEntryDto> Entries,
     IReadOnlyList<ApiDiagnostic> Diagnostics);
 public sealed record RestorationPreparationDto(string Id, string DefinitionId, string Status, string Phase, int CompletedSpecies,
-    int TotalSpecies, string? PreparedHash, IReadOnlyDictionary<int, int[]> UnavailableSourceMoves, IReadOnlyList<ApiDiagnostic> Diagnostics);
+    int TotalSpecies, string? PreparedHash, IReadOnlyDictionary<int, int[]> UnavailableSourceMoves, IReadOnlyList<ApiDiagnostic> Diagnostics)
+{
+    public string Activity { get; init; } = "";
+    public int? Species { get; init; }
+    public int CompletedUnits { get; init; }
+    public int? TotalUnits { get; init; }
+    public long ElapsedMilliseconds { get; init; }
+    public bool CancellationRequested { get; init; }
+    public string? CacheMode { get; init; }
+}
+public sealed record InspectRestorationDonorRequest(ProjectPathsDto Paths, string Donor, string DonorRomFsPath, string? CompressionSupportFolderPath);
+public sealed record RestorationDonorResponse(string Mode);
 public sealed record LoadRestorationRequest(ProjectPathsDto Paths, EditSessionDto? Session = null);
 public sealed record LoadRestorationResponse(RestorationWorkflowDto Workflow);
 public sealed record PrepareRestorationRequest(ProjectPathsDto Paths, string DefinitionId, string DonorRomFsPath, string? CompressionSupportFolderPath);

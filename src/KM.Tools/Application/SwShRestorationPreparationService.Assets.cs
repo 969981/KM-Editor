@@ -23,18 +23,24 @@ public sealed partial class SwShRestorationPreparationService
         };
         internal IReadOnlyList<SwShRestorationContribution> Assets(int species)
         {
+            currentSpecies = species; Report("reading");
             var stem = $"pm{species:0000}_00"; var sourceStem = stem + "_00"; var sourceFolder = $"pokemon/data/pm{species:0000}/{sourceStem}/";
             SwShRestorationGenderAudit.RequireSharedModel(Donor("pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
                 species, 0, $"pm{species:0000}/{sourceStem}/{sourceStem}.trmdl");
             var graph = ModelAssetGraph.Read(new[] { (sourceFolder + sourceStem + ".trmdl", (string?)null),
                 (sourceFolder + sourceStem + "_rare.trmtr", null), (sourceFolder + sourceStem + "_base.tracn", null) }, (path, _) => Donor(path));
+            Report("reading");
             var scene = new TrinityPreviewReader(Donor).Load(sourceFolder + sourceStem + ".trmdl");
             if (scene.Rig.Warnings.Length > 0) throw new InvalidDataException("Source model requires an additional conversion adapter.");
             var nativePack = SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0007_00.gfpak"));
             var nativeModel = Member(nativePack, "pm0007_00.gfbmdl"); var nativeMetadata = new ModelBuffer(nativeModel);
             var materialBytes = Donor(sourceFolder + sourceStem + ".trmtr");
-            var baked = scene.Primitives.Select((primitive, index) => SwShMaterialBaker.Bake(primitive, materialBytes, index,
-                name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token)).ToArray();
+            var baked = scene.Primitives.Select((primitive, index) => {
+                Report("textures", index, scene.Primitives.Count);
+                var result = SwShMaterialBaker.Bake(primitive, materialBytes, index,
+                    name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
+                Report("textures", index + 1, scene.Primitives.Count); return result;
+            }).ToArray();
             var aliases = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["origin"] = "Origin", ["waist"] = "Waist", ["head"] = "Head", ["neck"] = "Neck", ["spine"] = "Spine",
@@ -76,6 +82,7 @@ public sealed partial class SwShRestorationPreparationService
                     textureBindings["LightTblTex"] = "Default_lta"; textureBindings["EffectTex"] = "projection_effect_col";
                     return new SwShMaterialBinding(primitive.Material.Name, nativeMaterial, textureBindings);
                 }).ToArray();
+                Report("geometry", rare ? 1 : 0, 2);
                 var converted = SwShModelWriter.Convert(scene, nativeModel, bindings, aliases, locators, cancellationToken: token);
                 geometry ??= converted; members[modelFolder + stem + (rare ? "_rare" : "") + ".gfbmdl"] = converted.Model;
             }
@@ -84,7 +91,9 @@ public sealed partial class SwShRestorationPreparationService
             members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(Member(sizePack, sizeStem + ".gfbpokecfg"), species, geometry!, materialNames,
                 new[] { 66f, 100f, 150f }[species - 393], new[] { 40f, 80f, 170f }[species - 393]);
             var clips = new Dictionary<string, (byte[] Skeleton, PreviewClip Decoded)>(StringComparer.Ordinal);
-            foreach (var resource in graph.Where(r => r.Id.EndsWith(".tranm", StringComparison.Ordinal)))
+            var motions = graph.Where(r => r.Id.EndsWith(".tranm", StringComparison.Ordinal)).ToArray();
+            Report("animations", 0, motions.Length + NativeClips.Count);
+            foreach (var resource in motions)
             {
                 token.ThrowIfCancellationRequested();
                 var clip = PreviewRigReader.Animation(new(resource.Bytes), resource.Id, scene.Rig.Bones);
@@ -92,17 +101,21 @@ public sealed partial class SwShRestorationPreparationService
                 clip = PreviewMaterialAnimation.Read(new(Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/'))), clip, warnings, true);
                 if (warnings.Count > 0 || clip.Visibility.Any(v => v.Keys.Any(k => k.Value.Any(x => x == 0))))
                     throw new InvalidDataException("Source animation needs an unsupported material or visibility adapter.");
+                Report("animations", clips.Count, motions.Length + NativeClips.Count);
                 var name = Path.GetFileNameWithoutExtension(resource.Id); var code = name[sourceStem.Length..].TrimStart('_').Split('_')[0];
                 if (!clips.TryAdd(code, (resource.Bytes, clip))) throw new InvalidDataException("Source animation code is ambiguous.");
                 members[animationFolder + name.Replace(sourceStem, stem, StringComparison.Ordinal) + ".gfbanm"] = SwShAnimationWriter.Convert(resource.Bytes, clip.Materials, scene.Rig.Bones, aliases, completePose: false);
             }
+            var nativeClipsDone = 0;
             foreach (var (name, code) in NativeClips)
             {
                 if (!clips.TryGetValue(code, out var clip)) throw new InvalidDataException($"Required animation is unavailable: {code}");
+                Report("animations", motions.Length + nativeClipsDone++, motions.Length + NativeClips.Count);
                 var expression = name == "eye01" ? SwShExpressionCurve.Eyes : name == "mouth01" ? SwShExpressionCurve.Mouth : SwShExpressionCurve.None;
                 members[animationFolder + stem + "_" + name + ".gfbanm"] = SwShAnimationWriter.Convert(clip.Skeleton, clip.Decoded.Materials,
                     scene.Rig.Bones, aliases, completePose: expression == SwShExpressionCurve.None, expression);
             }
+            Report("packing");
             members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"), materialNames);
             var facialBones = new Dictionary<string, string[]>(StringComparer.Ordinal);
             foreach (var name in new[] { "eye01", "mouth01" }) facialBones.Add(name, clips[NativeClips[name]].Decoded.Tracks.Select(t => scene.Rig.Bones[t.Bone].Name)
