@@ -40,9 +40,11 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
   const pendingCount = session?.pendingEdits.filter(e => e.domain === 'workflow.restoreMissingPokemon').length ?? 0;
   const dirty = Object.keys(drafts).length > 0;
   const canEdit = isEditing && workflow?.canEdit === true;
-  const hashes = new Map(Object.entries(preparedHashes));
+  const hashes = new Map<string, string>();
   for (const entry of entries) if (entry.definitionId && entry.preparedHash) hashes.set(entry.definitionId, entry.preparedHash);
+  for (const [id, hash] of Object.entries(preparedHashes)) hashes.set(id, hash);
   if (preparation?.preparedHash) hashes.set(preparation.definitionId, preparation.preparedHash);
+  const currentHashes = useRef(hashes); currentHashes.current = hashes;
   const valid = Object.keys(drafts).every(id => hashes.has(id) && entries.some(e => e.definitionId === id && e.installation !== 'External'));
   useEffect(() => { onDirtyStateChange(dirty); }, [dirty, onDirtyStateChange]);
   useEffect(() => { active.current = true; return () => { active.current = false; onDirtyStateChange(false); }; }, [onDirtyStateChange]);
@@ -55,6 +57,8 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
       if (preparedByProject.size >= 4 && !preparedByProject.has(projectKey)) preparedByProject.delete(preparedByProject.keys().next().value!);
       preparedByProject.set(projectKey, next); return next;
     });
+    if (value.preparedHash && entries.some(entry => entry.definitionId === value.definitionId && entry.selected && entry.preparedHash !== value.preparedHash))
+      setDrafts(current => value.definitionId in current ? current : { ...current, [value.definitionId]: true });
   };
   useEffect(() => {
     if (preparation?.status !== 'preparing') return;
@@ -87,11 +91,14 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
   const stage = async () => {
     if (!canEdit || !dirty || !valid || isStaging) return;
     const submitted = { ...submittedDrafts.current }; setError(null);
+    const submittedHashes = new Map(hashes);
     try {
-      if (!await onStage(Object.entries(submitted).map(([definitionId, enabled]) => ({ definitionId, enabled, preparedHash: hashes.get(definitionId)! })))) {
+      if (!await onStage(Object.entries(submitted).map(([definitionId, enabled]) => ({ definitionId, enabled,
+        preparedHash: (!enabled ? entries.find(entry => entry.definitionId === definitionId)?.preparedHash : null) ?? hashes.get(definitionId)! })))) {
         if (active.current) setError(t('restoration.failed')); return;
       }
-      if (active.current) setDrafts(current => Object.fromEntries(Object.entries(current).filter(([id, value]) => submitted[id] !== value)));
+      if (active.current) setDrafts(current => Object.fromEntries(Object.entries(current).filter(([id, value]) =>
+        submitted[id] !== value || value && submittedHashes.get(id) !== currentHashes.current.get(id))));
     } catch { if (active.current) setError(t('restoration.failed')); }
   };
   const cancelPreparation = async () => {
@@ -132,8 +139,8 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
           }); }} /></td><td data-localization-ignore="true"><strong>{label}</strong><small>#{entry.speciesId}</small></td>
           <td>{t(`restoration.support.${entry.support}`)}{entry.donor ? <small>{t(`restoration.source.${entry.donor}`)}</small> : null}<small>{t(`restoration.installation.${entry.installation}`)}{entry.staged ? ` · ${t('restoration.staged')}` : ''}</small></td>
           <td>{id && entry.installation !== 'External' ? <>
-            {!hashes.has(id) ? <button className="secondary-button" type="button" disabled={!donorPath(id) || isPreparing || preparation?.status === 'preparing'}
-              onClick={() => void prepare(id)}>{t('restoration.prepare')}</button> : null}
+            <button className="secondary-button" type="button" disabled={!donorPath(id) || isPreparing || preparation?.status === 'preparing'}
+              onClick={() => void prepare(id)}>{t('restoration.prepare')}</button>
             {entry.installation === 'NeedsRepair' ? <button className="secondary-button" type="button" disabled={!canEdit || isStaging}
               onClick={() => setDrafts(current => ({ ...current, [id]: true }))}>{t('restoration.repair')}</button> : null}
           </> : null}</td></tr>;

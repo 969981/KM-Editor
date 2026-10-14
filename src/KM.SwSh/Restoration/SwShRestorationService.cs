@@ -138,10 +138,22 @@ public sealed class SwShRestorationService
             var bundle = SwShRestorationStateStore.ReadPrepared(paths, intent.PreparedHash);
             if (bundle.DefinitionId != intent.DefinitionId) throw new InvalidDataException("Prepared restoration definition does not match the selection.");
             selections.TryGetValue(intent.DefinitionId, out var installed);
-            if (installed is not null && installed.PreparedHash != intent.PreparedHash) throw new InvalidDataException("Installed definition versions remain pinned until a supported update is reviewed.");
             if (!intent.Enabled && (installed is null || !installed.Enabled)) throw new InvalidDataException("Only an installed, owned restoration can be removed.");
             VerifyTargetSources(paths, bundle);
             var effective = installed?.CustomizationHash is { } customHash ? SwShRestorationStateStore.ReadPrepared(paths, customHash) : bundle;
+            SwShRestorationContribution[] iconUpdates = [];
+            var customization = installed?.CustomizationHash;
+            if (installed is not null && installed.PreparedHash != intent.PreparedHash)
+            {
+                if (!intent.Enabled) throw new InvalidDataException("Remove a restoration using its installed definition.");
+                var previous = SwShRestorationStateStore.ReadPrepared(paths, installed.PreparedHash);
+                effective = SwShRestorationIconUpdate.Rebase(previous, bundle, customization is null ? previous : effective, out iconUpdates);
+                if (customization is not null)
+                {
+                    var rebased = SwShRestorationStateStore.Store(paths, effective);
+                    using (rebased.Lease) customization = rebased.Hash;
+                }
+            }
             if (effective.DefinitionId != bundle.DefinitionId) throw new InvalidDataException("Retained customizations belong to another definition.");
             if (!intent.Enabled) effective = SwShRestorationCustomizations.IncludeLooseModels(paths, effective, owned);
             if (!intent.Enabled) VerifyVoiceRemoval(paths, effective, Current(SwShRestorationComposer.VoicesPath)!);
@@ -154,8 +166,10 @@ public sealed class SwShRestorationService
             }
             var composition = SwShRestorationComposer.Compose(effective.Contributions, Current, intent.Enabled,
                 allowOwnedCustomizations: installed?.Enabled == true, ownedPaths: owned);
+            var refreshedIcons = iconUpdates.Where(item => installed?.Enabled == true && owned.Contains(item.Path)
+                && Current(item.Path) is { } current && current.AsSpan().SequenceEqual(item.Before)).ToArray();
             foreach (var file in composition.Files) outputs[file.Key] = file.Value;
-            var customization = installed?.CustomizationHash;
+            foreach (var item in refreshedIcons) outputs[item.Path] = item.After;
             if (!intent.Enabled)
             {
                 var retained = composition.RetainedCustomizations.ToDictionary(c => (c.Path, c.Key));
