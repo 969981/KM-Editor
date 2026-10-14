@@ -936,7 +936,7 @@ public sealed partial class ZaCacheManager
         TouchProjectDirectory(context);
     }
 
-    private bool TryReadPayload(ZaCacheProjectContext context, string virtualPath, out byte[] bytes)
+    private bool TryReadPayload(ZaCacheProjectContext context, string virtualPath, out byte[] bytes, bool touch = true)
     {
         var metadataPath = GetPayloadMetadataPath(context, virtualPath);
         var payloadPath = GetPayloadPath(context, virtualPath);
@@ -974,7 +974,7 @@ public sealed partial class ZaCacheManager
                 return false;
             }
 
-            if (!isReadWorker)
+            if (touch && !isReadWorker)
             {
                 TouchCacheFile(payloadPath);
             }

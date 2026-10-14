@@ -6,13 +6,16 @@ import { desktopErrorCodes, type KmErrorCode } from '../../errorCodes';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
 import { useModalDialog } from '../../components/useModalDialog';
 import { useLocalization } from '../../localization';
+import { RestorationDonorStatus } from './RestorationDonorStatus';
+import type { RestorationProjectBridgeApi } from '../../bridge/restorationProjectBridge';
+import type { ProjectPaths } from '../../bridge/contracts';
 import type { ApiDiagnostic } from '../../bridge/contracts';
 import type { RestorationSources } from './restorationSourceSettings';
 
-type Props = { sources: RestorationSources; onChange: (sources: RestorationSources) => void; desktop: DesktopServices };
+type Props = { sources: RestorationSources; onChange: (sources: RestorationSources) => void; desktop: DesktopServices; paths?: ProjectPaths; bridge?: RestorationProjectBridgeApi };
 type Field = keyof RestorationSources;
 
-export function RestorationSourceFolders({ sources, onChange, desktop }: Props) {
+export function RestorationSourceFolders({ sources, onChange, desktop, paths, bridge }: Props) {
   const { t } = useLocalization();
   const latest = useRef(sources); latest.current = sources;
   const active = useRef(true);
@@ -79,6 +82,8 @@ export function RestorationSourceFolders({ sources, onChange, desktop }: Props) 
             aria-label={t('restoration.browse', { folder: t(`restoration.${field}`) })} title={t('restoration.browse', { folder: t(`restoration.${field}`) })}
             onClick={() => void browse(field, t(`restoration.${field}`))}><FolderOpen size={18} aria-hidden="true" /></button>
         </div>
+        {field !== 'support' && paths && bridge ? <RestorationDonorStatus donor={field === 'donor' ? 'ScarletViolet' : 'LegendsZA'}
+          path={sources[field]} support={sources.support} paths={paths} bridge={bridge} /> : null}
         {field === 'donorZa' ? <small id="restoration-za-help">{t('restoration.zaHelp')}</small> : null}
         {field === 'support' ? <div className="restoration-source-actions">
           <button className="secondary-button" type="button" disabled={!desktop.isAvailable || searching} aria-busy={searching || undefined}

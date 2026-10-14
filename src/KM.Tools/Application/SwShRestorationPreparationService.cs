@@ -8,29 +8,35 @@ using KM.SwSh.Restoration;
 
 namespace KM.Tools.Application;
 
-public sealed record SwShRestorationPreparationProgress(string Phase, int CompletedSpecies, int TotalSpecies);
+public sealed record SwShRestorationPreparationProgress(string Phase, int CompletedSpecies, int TotalSpecies)
+{
+    public string Activity { get; init; } = "";
+    public int? Species { get; init; }
+    public int CompletedUnits { get; init; }
+    public int? TotalUnits { get; init; }
+}
 
 /// <summary>Converts registered Pokemon using the user's donor and target dumps.</summary>
 public sealed partial class SwShRestorationPreparationService
 {
     public SwShPreparedRestoration Prepare(ProjectPaths target, string donorRomFs, string? compressionSupport,
-        string definitionId, IProgress<SwShRestorationPreparationProgress>? progress = null, CancellationToken cancellationToken = default)
+        string definitionId, IProgress<SwShRestorationPreparationProgress>? progress = null, CancellationToken cancellationToken = default, SwShRestorationDonorSession? donorSession = null)
     {
         var definition = SwShRestorationDefinitions.Get(definitionId);
         if (definition.Donor == SwShRestorationDonor.LegendsZA)
-            return new ZaSwShRestorationPreparationService().Prepare(target, donorRomFs, compressionSupport, definitionId, progress, cancellationToken);
+            return new ZaSwShRestorationPreparationService().Prepare(target, donorRomFs, compressionSupport, definitionId, progress, cancellationToken, donorSession);
         if (target.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || string.IsNullOrWhiteSpace(target.BaseRomFsPath)
             || definition.Identities.Any(i => i.Species is < 393 or > 395 || i.Form != 0)) throw new InvalidDataException("This restoration is not supported for the selected target.");
-        var context = new Preparation(target, donorRomFs, compressionSupport, definition, progress, cancellationToken);
+        var context = new Preparation(target, donorRomFs, compressionSupport, definition, progress, cancellationToken, donorSession);
         using (context)
         {
             var contributions = new List<SwShRestorationContribution>(); var unavailableMoves = new Dictionary<int, int[]>();
             foreach (var identity in definition.Identities)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                progress?.Report(new("models", unavailableMoves.Count, definition.Identities.Count));
+                progress?.Report(new("models", unavailableMoves.Count, definition.Identities.Count) { Species = identity.Species, Activity = "reading" });
                 contributions.AddRange(context.Assets(identity.Species));
-                progress?.Report(new("gameplay", unavailableMoves.Count, definition.Identities.Count));
+                progress?.Report(new("gameplay", unavailableMoves.Count, definition.Identities.Count) { Species = identity.Species });
                 var gameplay = context.Gameplay(identity.Species); contributions.AddRange(gameplay.Contributions); unavailableMoves.Add(identity.Species, gameplay.ExcludedMoves);
             }
             progress?.Report(new("voices", definition.Identities.Count, definition.Identities.Count));
@@ -49,7 +55,13 @@ public sealed partial class SwShRestorationPreparationService
     {
         private readonly ProjectPaths target;
         private readonly string donorRoot;
-        private readonly SvTrinityArchive archive;
+        private readonly SwShRestorationDonorSession archive;
+        private readonly bool ownsArchive;
+        private readonly IProgress<SwShRestorationPreparationProgress>? progress;
+        private readonly int totalSpecies;
+        private int currentSpecies;
+        private void Report(string activity, int completed = 0, int? total = null) => progress?.Report(
+            new("models", 0, totalSpecies) { Species = currentSpecies, Activity = activity, CompletedUnits = completed, TotalUnits = total });
         private readonly CancellationToken token;
         private readonly Dictionary<string, byte[]> native = new(StringComparer.Ordinal);
         private readonly Dictionary<string, byte[]> donor = new(StringComparer.Ordinal);
@@ -57,12 +69,14 @@ public sealed partial class SwShRestorationPreparationService
         private long retainedBytes;
 
         internal Preparation(ProjectPaths target, string donorRoot, string? support, SwShRestorationDefinition definition,
-            IProgress<SwShRestorationPreparationProgress>? progress, CancellationToken token)
+            IProgress<SwShRestorationPreparationProgress>? progress, CancellationToken token, SwShRestorationDonorSession? donorSession)
         {
-            this.target = target; this.donorRoot = Path.GetFullPath(donorRoot); this.token = token;
+            this.target = target; this.token = token; this.progress = progress; totalSpecies = definition.Identities.Count;
             progress?.Report(new("sources", 0, definition.Identities.Count));
             token.ThrowIfCancellationRequested();
-            archive = SvTrinityArchive.Open(donorRoot, support, maximumIndexBytes: 32 * 1024 * 1024, maximumPackBytes: 256L * 1024 * 1024);
+            ownsArchive = donorSession is null;
+            archive = donorSession ?? new SwShRestorationDonorSession(definition.Donor, donorRoot, support);
+            this.donorRoot = archive.Root;
         }
         internal byte[] Native(string path)
         {
@@ -75,7 +89,7 @@ public sealed partial class SwShRestorationPreparationService
         {
             path = Canonical(path);
             if (donor.TryGetValue(path, out var bytes)) return bytes;
-            token.ThrowIfCancellationRequested(); bytes = archive.ReadFile(path, 32 * 1024 * 1024);
+            token.ThrowIfCancellationRequested(); bytes = archive.Read(path);
             Retain(bytes); donor.Add(path, bytes); Fingerprint("donor", path, bytes); return bytes;
         }
         private void Retain(byte[] bytes)
@@ -105,6 +119,6 @@ public sealed partial class SwShRestorationPreparationService
             var physical = Path.Combine(target.BaseRomFsPath!, Canonical(path).Replace('/', Path.DirectorySeparatorChar));
             return new("romfs/" + path, SwShRestorationWriter.File, "", System.IO.File.Exists(physical) ? Native(path) : null, bytes);
         }
-        public void Dispose() => archive.Dispose();
+        public void Dispose() { if (ownsArchive) archive.Dispose(); }
     }
 }

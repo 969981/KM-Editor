@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 export type RestorationSources = { donor: string; donorZa: string; support: string };
 const storageKey = 'km-editor.restoration-sources.v1';
+const sharedStorageKey = 'km-editor.restoration-sources.v2';
 
 function read(): Record<string, RestorationSources> {
   try {
@@ -16,11 +17,20 @@ function read(): Record<string, RestorationSources> {
   } catch { return {}; }
 }
 export function readRestorationSources(project: string, support: string): RestorationSources {
-  return read()[project] ?? { donor: '', donorZa: '', support };
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(sharedStorageKey) ?? 'null');
+    if (saved && typeof saved === 'object' && ['donor', 'donorZa', 'support'].every(field =>
+      typeof Reflect.get(saved, field) === 'string' && Reflect.get(saved, field).length < 4096)) return saved as RestorationSources;
+  } catch { /* Fall back to the previous preference format. */ }
+  const previous = read();
+  const sources = previous[project] ?? Object.values(previous).at(-1) ?? { donor: '', donorZa: '', support };
+  rememberRestorationSources(project, sources);
+  return sources;
 }
 export function rememberRestorationSources(project: string, sources: RestorationSources) {
+  void project;
   try {
-    const entries = Object.entries(read()).filter(([key]) => key !== project).slice(-7);
-    localStorage.setItem(storageKey, JSON.stringify(Object.fromEntries([...entries, [project, sources]])));
-  } catch { /* Source selection remains available when local preferences cannot be saved. */ }
+    localStorage.setItem(sharedStorageKey, JSON.stringify(sources));
+    return true;
+  } catch { return false; }
 }

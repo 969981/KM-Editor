@@ -60,6 +60,12 @@ public sealed partial class ProjectBridgeDispatcher
 
     private string DispatchRestoration(string requestJson, string command)
     {
+        if (command == KmCommandNames.InspectRestorationDonor)
+        {
+            var request = DeserializeRequest<InspectRestorationDonorRequest>(requestJson);
+            return SerializeSuccess(restorationJobs.InspectDonor(request.Payload.Donor, request.Payload.DonorRomFsPath,
+                request.Payload.CompressionSupportFolderPath), request.RequestId);
+        }
         if (command == KmCommandNames.LoadRestoration)
         {
             var request = DeserializeRequest<LoadRestorationRequest>(requestJson);
@@ -75,8 +81,15 @@ public sealed partial class ProjectBridgeDispatcher
         if (command is KmCommandNames.GetRestorationPreparation or KmCommandNames.CancelRestorationPreparation)
         {
             var request = DeserializeRequest<RestorationPreparationRequest>(requestJson);
-            return SerializeSuccess(new RestorationPreparationResponse(restorationJobs.Get(ProjectBridgeMapper.ToCore(request.Payload.Paths),
-                request.Payload.PreparationId, command == KmCommandNames.CancelRestorationPreparation)), request.RequestId);
+            try
+            {
+                return SerializeSuccess(new RestorationPreparationResponse(restorationJobs.Get(ProjectBridgeMapper.ToCore(request.Payload.Paths),
+                    request.Payload.PreparationId, command == KmCommandNames.CancelRestorationPreparation)), request.RequestId);
+            }
+            catch (InvalidDataException exception)
+            {
+                return SerializeFailure(SwShRestorationService.SessionCode, exception.Message, request.RequestId);
+            }
         }
         var stage = DeserializeRequest<StageRestorationRequest>(requestJson);
         var paths = ProjectBridgeMapper.ToCore(stage.Payload.Paths);

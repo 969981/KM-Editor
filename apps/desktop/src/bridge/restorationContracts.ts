@@ -9,6 +9,9 @@ export const restorationWorkflowSchema = z.strictObject({ canEdit: z.boolean(), 
   diagnostics: z.array(apiDiagnosticSchema) });
 export const restorationPreparationSchema = z.strictObject({ id: z.string(), definitionId: z.string(),
   status: z.enum(['preparing', 'prepared', 'canceled', 'failed']), phase: z.string(), completedSpecies: z.number().int(),
+  activity: z.string().default(''), species: z.number().int().nullable().default(null), completedUnits: z.number().int().nonnegative().default(0),
+  totalUnits: z.number().int().positive().nullable().default(null), elapsedMilliseconds: z.number().nonnegative().default(0),
+  cancellationRequested: z.boolean().default(false), cacheMode: z.enum(['existing', 'temporary']).nullable().default(null),
   totalSpecies: z.number().int(), preparedHash: z.string().nullable(), unavailableSourceMoves: z.record(z.string(), z.array(z.number().int())),
   diagnostics: z.array(apiDiagnosticSchema) });
 export const loadRestorationRequestSchema = z.strictObject({ paths: projectPathsSchema, session: editSessionSchema.nullable().optional() });
@@ -24,3 +27,7 @@ export const stageRestorationResponseSchema = z.strictObject({ workflow: restora
 export type RestorationWorkflow = z.infer<typeof restorationWorkflowSchema>;
 export type RestorationPreparation = z.infer<typeof restorationPreparationSchema>;
 export type RestorationSelection = { definitionId: string; preparedHash: string; enabled: boolean };
+
+export const inspectRestorationDonorRequestSchema = z.strictObject({ paths: projectPathsSchema, donor: z.enum(['ScarletViolet', 'LegendsZA']),
+  donorRomFsPath: z.string().min(1), compressionSupportFolderPath: z.string().nullable() });
+export const restorationDonorResponseSchema = z.strictObject({ mode: z.enum(['existing', 'temporary']) });
