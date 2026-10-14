@@ -29,7 +29,9 @@ public static class ZaSwShAnimationWriter
         return writer.Finish(source.Root);
     }
 
-    public static PreviewMaterialTrack[] ReadMaterials(byte[] bytes, PreviewClip skeletal)
+    public static PreviewMaterialTrack[] ReadMaterials(byte[] bytes, PreviewClip skeletal) => ReadClip(bytes, skeletal).Materials;
+
+    public static PreviewClip ReadClip(byte[] bytes, PreviewClip skeletal, bool supportVisibility = false)
     {
         var source = new ModelBuffer(bytes); var sanitized = new ModelTableBuilder(bytes);
         var config = source.Table(source.Root, 0);
@@ -63,13 +65,15 @@ public static class ZaSwShAnimationWriter
         }
         var warnings = new List<string>();
         var decoded = PreviewMaterialAnimation.Read(new(sanitized.Finish(source.Root)), skeletal, warnings, true);
-        if (warnings.Count != 0 || decoded.Visibility.Any(v => v.Keys.Any(k => k.Value.Any(value => value == 0))))
+        if (warnings.Count != 0 || (!supportVisibility && decoded.Visibility.Any(v => v.Keys.Any(k => k.Value.Any(value => value == 0)))))
             throw new InvalidDataException("Z-A visibility or morph animation needs another adapter.");
-        if (decoded.Materials.Any(t => t.Parameter != "UVScaleOffset1"))
+        if (decoded.Materials.Any(t => t.Parameter is not ("UVScaleOffset" or "UVScaleOffset1")))
             throw new InvalidDataException("Z-A vector material animation needs another adapter.");
         var result = decoded.Materials.Concat(scalars).ToArray();
         if (result.GroupBy(t => (t.Material, t.Parameter)).Any(g => g.Count() != 1)) throw new InvalidDataException("Z-A material animation identity is ambiguous.");
-        return result;
+        if (result.GroupBy(t => t.Material).Any(g => g.Any(t => t.Parameter == "UVScaleOffset") && g.Any(t => t.Parameter == "UVScaleOffset1")))
+            throw new InvalidDataException("Independent Z-A UV channels need another material adapter.");
+        return decoded with { Materials = result };
     }
 
     public static byte[] Convert(byte[] skeleton, PreviewMaterialTrack[] materials, PreviewBone[] bones,
@@ -105,7 +109,7 @@ public static class ZaSwShAnimationWriter
                     if (track.Channels[0].Any(k => k.Value[0] is < 0 or > 1)) throw new InvalidDataException("Z-A eye override is outside its range.");
                     native.Add(("ConstantColorVal", Enumerable.Range(0, frames).Select(f => 1 - Sample(track.Channels[0], Frame(f))).ToArray()));
                 }
-                else if (track.Parameter == "UVScaleOffset1")
+                else if (track.Parameter is "UVScaleOffset" or "UVScaleOffset1")
                 {
                     if (track.Channels.Length != 4) throw new InvalidDataException("Z-A highlight UV animation has invalid channels.");
                     foreach (var channel in track.Channels) Validate(channel);
@@ -134,6 +138,41 @@ public static class ZaSwShAnimationWriter
             }
         }
         return writer.Finish(source.Root);
+    }
+
+    public static byte[] Visibility(byte[] animation, IReadOnlyList<PreviewVisibility> tracks, IReadOnlySet<string> meshNames)
+    {
+        var source = new ModelBuffer(animation);
+        var frames = checked((int)source.Value(source.Table(source.Root, 0), 1));
+        if (frames is < 1 or > 18000 || tracks.Count > 128 || tracks.Select(t => t.Name).Distinct(StringComparer.Ordinal).Count() != tracks.Count)
+            throw new InvalidDataException("Z-A mesh visibility exceeds native limits.");
+        var writer = new ModelTableBuilder(); var root = writer.Table(5, absent: new HashSet<int> { 4 });
+        var copy = writer.Append(animation);
+        for (var field = 0; field < 3; field++) writer.Reference(root, field, copy + source.Table(source.Root, field));
+        var visibility = writer.Table(1); writer.Reference(root, 3, visibility);
+        var slots = writer.Vector(visibility, 0, tracks.Count);
+        for (var i = 0; i < tracks.Count; i++)
+        {
+            var track = tracks[i]; Validate(track.Keys);
+            if (!meshNames.Contains(track.Name) || track.Keys[0].Frame != 0 || track.Keys.Any(k => k.Frame >= frames || k.Value[0] is not (0 or 1)))
+                throw new InvalidDataException("Z-A mesh visibility has invalid targets or samples.");
+            var constant = track.Keys.All(k => k.Value[0] == track.Keys[0].Value[0]);
+            var target = writer.Table(3, new Dictionary<int, byte[]> { [1] = ModelTableBuilder.Integer(constant ? 1 : 2) });
+            writer.Pointer(slots[i], target); writer.Text(target, 0, track.Name);
+            var curve = writer.Table(1); writer.Reference(target, 2, curve);
+            if (constant) writer.Int32(writer.Field(curve, 0), (int)track.Keys[0].Value[0]);
+            else
+            {
+                var packed = new byte[(frames + 7) / 8]; var key = 0;
+                for (var frame = 0; frame < frames; frame++)
+                {
+                    while (key + 1 < track.Keys.Length && track.Keys[key + 1].Frame <= frame) key++;
+                    if (track.Keys[key].Value[0] != 0) packed[frame / 8] |= (byte)(1 << (frame % 8));
+                }
+                writer.Blob(curve, 0, packed, packed.Length);
+            }
+        }
+        return writer.Finish(root);
     }
 
     private static void Validate(PreviewKey[] keys)

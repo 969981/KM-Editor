@@ -17,7 +17,8 @@ public static class SwShModelWriter
 {
     public static SwShConvertedGeometry Convert(PreviewScene scene, byte[] nativeModel,
         IReadOnlyList<SwShMaterialBinding> bindings, IReadOnlyDictionary<string, string> boneAliases,
-        IReadOnlyList<SwShEffectLocator> locators, float scale = 100, CancellationToken cancellationToken = default)
+        IReadOnlyList<SwShEffectLocator> locators, float scale = 100, CancellationToken cancellationToken = default,
+        bool preserveMeshNames = false)
     {
         if (!float.IsFinite(scale) || scale <= 0 || scene.Primitives.Count is < 1 or > 128
             || scene.Rig.Bones.Length is < 1 or > 255 || bindings.Count != scene.Primitives.Count)
@@ -43,6 +44,15 @@ public static class SwShModelWriter
             bones.Add(new(locator.Name, parent, -1, false, [1, 1, 1], [rotation.X, rotation.Y, rotation.Z, rotation.W],
                 [locator.Translation.X, locator.Translation.Y, locator.Translation.Z], []));
         }
+        var meshBones = new Dictionary<string, int>(StringComparer.Ordinal);
+        if (preserveMeshNames)
+            foreach (var name in scene.Primitives.Select(p => p.Name).Distinct(StringComparer.Ordinal))
+            {
+                if (string.IsNullOrWhiteSpace(name) || bones.Any(b => b.Name == name))
+                    throw new InvalidDataException("Converted mesh node identity is invalid.");
+                meshBones.Add(name, bones.Count);
+                bones.Add(new(name, 0, -1, false, [1, 1, 1], [0, 0, 0, 1], [0, 0, 0], []));
+            }
         if (bones.Count > 255) throw new InvalidDataException("Converted skeleton exceeds the native joint limit.");
         var joints = scene.Rig.Bones.Select((bone, index) => (bone.Joint, Index: index)).Where(b => b.Joint >= 0)
             .ToDictionary(b => b.Joint, b => b.Index);
@@ -75,7 +85,7 @@ public static class SwShModelWriter
         for (var i = 0; i < slots.Length; i++)
             writer.Pointer(slots[i], writer.Table(4, new Dictionary<int, byte[]>
             {
-                [0] = ModelTableBuilder.Integer(0), [1] = ModelTableBuilder.Integer(i),
+                [0] = ModelTableBuilder.Integer(preserveMeshNames ? meshBones[scene.Primitives[i].Name] : 0), [1] = ModelTableBuilder.Integer(i),
                 [2] = BoundsBytes(bounds[i].Min, bounds[i].Max), [3] = ModelTableBuilder.Integer(0),
             }, new Dictionary<int, int> { [2] = 24 }));
         slots = writer.Vector(root, 8, scene.Primitives.Count);
@@ -105,11 +115,12 @@ public static class SwShModelWriter
         for (var i = 0; i < bones.Count; i++)
         {
             var bone = bones[i]; var locator = i >= scene.Rig.Bones.Length;
+            var meshNode = i >= scene.Rig.Bones.Length + locators.Count;
             if (bone.Parent < -1 || bone.Parent >= i || bone.Scale.Length != 3 || bone.Translation.Length != 3 || bone.Rotation.Length != 4)
                 throw new InvalidDataException("Converted skeleton hierarchy is invalid.");
             var table = writer.Table(11, new Dictionary<int, byte[]>
             {
-                [1] = ModelTableBuilder.Integer(locator ? 2 : 1), [2] = ModelTableBuilder.Integer(bone.Parent),
+                [1] = ModelTableBuilder.Integer(meshNode ? 0 : locator ? 2 : 1), [2] = ModelTableBuilder.Integer(bone.Parent),
                 [3] = ModelTableBuilder.Integer(0), [4] = ModelTableBuilder.Integer(bone.CompensateScale ? 1 : 0),
                 [5] = ModelTableBuilder.Floats(bone.Scale), [6] = ModelTableBuilder.Floats(Euler(bone.Rotation)),
                 [7] = ModelTableBuilder.Floats(bone.Translation), [8] = new byte[12], [9] = new byte[12],

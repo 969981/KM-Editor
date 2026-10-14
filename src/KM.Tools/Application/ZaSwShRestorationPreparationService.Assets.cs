@@ -24,18 +24,19 @@ public sealed partial class ZaSwShRestorationPreparationService
         };
         internal IReadOnlyList<SwShRestorationContribution> Assets(int species)
         {
+            var profile = Profiles[species];
             var stem = $"pm{species:0000}_00"; var sourceStem = stem + "_00"; var sourceFolder = $"ik_pokemon/data/pm{species:0000}/{sourceStem}/";
             var iconBytes = ZaSwShMaterialBaker.Icon(Donor(sourceFolder + $"icon/{sourceStem}_00_0.bntx"),
                 Native("bin/appli/icon_pokemon/poke_icon_0007_00s_n.bntx"), token);
             var graph = ModelAssetGraph.Read(new[] { (sourceFolder + sourceStem + ".trmdl", (string?)null),
                 (sourceFolder + sourceStem + "_rare.trmtr", null), (sourceFolder + sourceStem + "_base.tracn", null) }, (path, _) => Donor(path));
             var sourceScene = new TrinityPreviewReader(Donor, topOriginMaterialUv: true).Load(sourceFolder + sourceStem + ".trmdl");
-            var scene = NormalizeUvs(sourceScene);
+            var scene = NormalizeUvs(sourceScene, profile.WingVisibility);
             if (scene.Rig.Warnings.Length > 0) throw new InvalidDataException("Source model requires an additional conversion adapter.");
             var nativePack = SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0007_00.gfpak"));
             var nativeModel = Member(nativePack, "pm0007_00.gfbmdl"); var nativeMetadata = new ModelBuffer(nativeModel);
             var materialBytes = Donor(sourceFolder + sourceStem + ".trmtr");
-            var textureTemplateName = sourceStem + (species == 15 ? "_body_b_alb" : "_body_alb");
+            var textureTemplateName = sourceStem + profile.TextureSuffix;
             var textureTemplate = Donor(sourceFolder + textureTemplateName + ".bntx");
             var aliases = new Dictionary<string, string>(StringComparer.Ordinal)
             {
@@ -45,7 +46,9 @@ public sealed partial class ZaSwShRestorationPreparationService
             foreach (var bone in scene.Rig.Bones) aliases.TryAdd(bone.Name, bone.Name.Replace(sourceStem, stem, StringComparison.Ordinal));
             var locators = Locators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_{(species == 15 ? 20000 : 0):00000}_eff.trskl"));
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
-            foreach (var resource in graph.Where(r => r.Id.EndsWith(".bntx", StringComparison.Ordinal))) members[modelFolder + Path.GetFileName(resource.Id)] = resource.Bytes;
+            if (!profile.WingVisibility)
+                foreach (var resource in graph.Where(r => r.Id.EndsWith(".bntx", StringComparison.Ordinal))) members[modelFolder + Path.GetFileName(resource.Id)] = resource.Bytes;
+            var textures = new RestorationTexturePool(members, modelFolder, profile.WingVisibility);
             foreach (var name in new[] { "Default_lta", "dummy_col", "projection_effect_col", "pm0007_00_Eye_amb" })
                 members[modelFolder + name + ".bntx"] = Member(nativePack, name + ".bntx");
             var shaderNames = new HashSet<string>(StringComparer.Ordinal);
@@ -61,18 +64,32 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 var variant = rare ? PreviewMaterialVariant.Shiny(new(Donor(sourceFolder + sourceStem + ".trmmt")), sourceFolder + sourceStem + ".trmmt")
                     ?? throw new InvalidDataException("Z-A shiny materials are missing.") : null;
-                var variantScene = rare ? NormalizeUvs(new TrinityPreviewReader(Donor, topOriginMaterialUv: true).Load(sourceFolder + sourceStem + ".trmdl", variant)) : scene;
+                var variantScene = rare ? NormalizeUvs(new TrinityPreviewReader(Donor, topOriginMaterialUv: true).Load(sourceFolder + sourceStem + ".trmdl", variant), profile.WingVisibility) : scene;
                 if (variantScene.Primitives.Count != scene.Primitives.Count || variantScene.Primitives.Where((p, i) => p.Material.Name != scene.Primitives[i].Material.Name).Any())
                     throw new InvalidDataException("Z-A shiny material identities do not match the model.");
                 var sourceMaterialBytes = rare ? Donor(variant!.Materials.Single()) : materialBytes;
-                var baked = variantScene.Primitives.Select((primitive, index) => ZaSwShMaterialBaker.Bake(primitive, sourceMaterialBytes, index, rare,
-                    textureTemplate, textureTemplateName, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token)).ToArray();
-                foreach (var material in baked)
+                var baked = variantScene.Primitives.Select((primitive, index) =>
                 {
-                    members[modelFolder + material.ColorName + ".bntx"] = material.Color;
-                    members[modelFolder + material.NormalName + ".bntx"] = material.Normal;
-                    members[modelFolder + material.AmbientName + ".bntx"] = material.Ambient;
-                }
+                    var templateName = textureTemplateName; var template = textureTemplate;
+                    if (profile.WingVisibility)
+                    {
+                        // Use each authored material's image size, including the small eyes.
+                        var sourceMaterials = new ModelBuffer(sourceMaterialBytes);
+                        var material = sourceMaterials.Tables(sourceMaterials.Root, 1, 128).Single(t => sourceMaterials.Text(t, 0) == primitive.Material.Name);
+                        var color = sourceMaterials.Tables(material, 2, 64).Single(t => sourceMaterials.Text(t, 0) == "BaseColorMap");
+                        var path = sourceMaterials.Text(color, 1) ?? throw new InvalidDataException("Z-A material texture is unnamed.");
+                        templateName = Path.GetFileNameWithoutExtension(path);
+                        template = Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", path));
+                    }
+                    var materialBake = ZaSwShMaterialBaker.Bake(primitive, sourceMaterialBytes, index, rare,
+                        template, templateName, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
+                    return materialBake with
+                    {
+                        ColorName = textures.Add(materialBake.ColorName, materialBake.Color),
+                        NormalName = textures.Add(materialBake.NormalName, materialBake.Normal),
+                        AmbientName = textures.Add(materialBake.AmbientName, materialBake.Ambient),
+                    };
+                }).ToArray();
                 var bindings = variantScene.Primitives.Select((primitive, index) =>
                 {
                     var nativeMaterial = primitive.Material.Name.Contains("eye", StringComparison.Ordinal) ? 1 : 0;
@@ -83,16 +100,18 @@ public sealed partial class ZaSwShRestorationPreparationService
                     textureBindings["LightTblTex"] = "Default_lta"; textureBindings["EffectTex"] = "projection_effect_col";
                     return new SwShMaterialBinding(primitive.Material.Name, nativeMaterial, textureBindings);
                 }).ToArray();
-                var converted = SwShModelWriter.Convert(scene, nativeModel, bindings, aliases, locators, cancellationToken: token);
+                var targetScene = UniqueMaterials(scene);
+                bindings = bindings.Select((binding, index) => binding with { Name = targetScene.Primitives[index].Material.Name }).ToArray();
+                var converted = SwShModelWriter.Convert(targetScene, nativeModel, bindings, aliases, locators, cancellationToken: token, preserveMeshNames: profile.WingVisibility);
                 geometry ??= converted; members[modelFolder + stem + (rare ? "_rare" : "") + ".gfbmdl"] = converted.Model;
             }
-            var sizeStem = $"pm{species - 3:0000}_00"; var sizePack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{sizeStem}.gfpak"));
-            var materialNames = scene.Primitives.Select(p => p.Material.Name).ToArray();
+            var sizeStem = $"pm{profile.NativeTemplate:0000}_00"; var sizePack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{sizeStem}.gfpak"));
+            var materialNames = UniqueMaterials(scene).Primitives.Select(p => p.Material.Name).ToArray();
+            var meshNames = scene.Primitives.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
             var configuration = Member(sizePack, sizeStem + ".gfbpokecfg");
-            if (species == 15)
+            if (profile.SourceFraming)
             {
-                // Beedrill's flight origin differs from the native butterfly template.
-                // Keep its authored framing and convert Z-A meters to SwSh centimeters.
+                // Keep authored framing and convert Z-A meters to SwSh centimeters.
                 var framing = new ModelBuffer(Donor(sourceFolder + sourceStem + ".trpokecfg"));
                 var target = new ModelBuffer(configuration);
                 for (var field = 3; field <= 8; field++)
@@ -106,16 +125,18 @@ public sealed partial class ZaSwShRestorationPreparationService
                 }
             }
             members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(configuration, species, geometry!, materialNames,
-                new[] { 30f, 60f, 100f }[species - 13], new[] { 40f, 45f, 100f }[species - 13]);
+                profile.BattleHeight, profile.FieldHeight);
             var clips = new Dictionary<string, (byte[] Skeleton, PreviewClip Decoded)>(StringComparer.Ordinal);
             foreach (var resource in graph.Where(r => r.Id.EndsWith(".tranm", StringComparison.Ordinal)))
             {
                 token.ThrowIfCancellationRequested();
                 var clip = PreviewRigReader.Animation(new(resource.Bytes), resource.Id, scene.Rig.Bones);
-                clip = clip with { Materials = ZaSwShAnimationWriter.ReadMaterials(Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/')), clip) };
+                clip = ZaSwShAnimationWriter.ReadClip(Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/')), clip, profile.WingVisibility);
                 var name = Path.GetFileNameWithoutExtension(resource.Id); var code = name[sourceStem.Length..].TrimStart('_').Split('_')[0];
                 if (!clips.TryAdd(code, (resource.Bytes, clip))) throw new InvalidDataException("Source animation code is ambiguous.");
-                members[animationFolder + name.Replace(sourceStem, stem, StringComparison.Ordinal) + ".gfbanm"] = ZaSwShAnimationWriter.Convert(resource.Bytes, clip.Materials, scene.Rig.Bones, aliases, completePose: false);
+                var convertedClip = ZaSwShAnimationWriter.Convert(resource.Bytes, clip.Materials, scene.Rig.Bones, aliases, completePose: false);
+                members[animationFolder + name.Replace(sourceStem, stem, StringComparison.Ordinal) + ".gfbanm"] = profile.WingVisibility
+                    ? ZaSwShAnimationWriter.Visibility(convertedClip, clip.Visibility, meshNames) : convertedClip;
             }
             string Code(string value) => species == 15 ? (int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) + 20000).ToString("00000", System.Globalization.CultureInfo.InvariantCulture) : value;
             foreach (var (name, code) in NativeClips)
@@ -125,6 +146,9 @@ public sealed partial class ZaSwShRestorationPreparationService
                 if (!clips.TryGetValue(Code(empty ? "00000" : code), out var clip)) throw new InvalidDataException($"Required Z-A motion is unavailable: {code}");
                 members[animationFolder + stem + "_" + name + ".gfbanm"] = ZaSwShAnimationWriter.Convert(clip.Skeleton, clip.Decoded.Materials,
                     scene.Rig.Bones, aliases, completePose: expression == SwShExpressionCurve.None, expression, empty);
+                if (profile.WingVisibility && expression == SwShExpressionCurve.None)
+                    members[animationFolder + stem + "_" + name + ".gfbanm"] = ZaSwShAnimationWriter.Visibility(
+                        members[animationFolder + stem + "_" + name + ".gfbanm"], clip.Decoded.Visibility, meshNames);
             }
             members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"), materialNames);
             var facialBones = new Dictionary<string, string[]>(StringComparer.Ordinal);
@@ -161,14 +185,35 @@ public sealed partial class ZaSwShRestorationPreparationService
             return result;
         }
 
-        private static PreviewScene NormalizeUvs(PreviewScene scene)
+        private static PreviewScene UniqueMaterials(PreviewScene scene)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            return scene with { Primitives = scene.Primitives.Select((primitive, index) =>
+            {
+                var name = primitive.Material.Name;
+                if (!names.Add(name)) { name += "_mesh" + index.ToString(System.Globalization.CultureInfo.InvariantCulture); if (!names.Add(name)) throw new InvalidDataException("Converted material name is ambiguous."); }
+                return primitive with { Material = primitive.Material with { Name = name } };
+            }).ToArray() };
+        }
+
+        private static PreviewScene NormalizeUvs(PreviewScene scene, bool compact = false)
         {
             return scene with { Primitives = scene.Primitives.Select(p =>
             {
+                var indices = p.Indices;
                 var vertices = p.Vertices.ToArray();
+                if (compact)
+                {
+                    // Source material sections share a vertex buffer. Keep every referenced
+                    // vertex and triangle without duplicating other sections in the target.
+                    var used = indices.Distinct().Order().ToArray();
+                    var remap = used.Select((source, index) => (source, index)).ToDictionary(pair => pair.source, pair => (uint)pair.index);
+                    vertices = used.SelectMany(index => p.Vertices.Skip(checked((int)index * 16)).Take(16)).ToArray();
+                    indices = indices.Select(index => remap[index]).ToArray();
+                }
                 for (var i = 0; i < vertices.Length; i += 16)
                     for (var c = 6; c <= 7; c++) vertices[i + c] -= MathF.Floor(vertices[i + c]);
-                return p with { Vertices = vertices };
+                return p with { Vertices = vertices, Indices = indices };
             }).ToArray() };
         }
 
