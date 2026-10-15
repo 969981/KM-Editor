@@ -1436,12 +1436,6 @@ const pathStatusLabels = {
   wrongKind: 'Wrong kind'
 } as const;
 
-const workflowLoadingSteps = [
-  'Reading project files',
-  'Loading labels and tables',
-  'Building editor records'
-] as const;
-
 const applyProgressSteps = [
   'Reviewing change plan',
   'Writing output files',
@@ -1679,14 +1673,16 @@ function createDeterminateWorkProgress(
   detail: string,
   steps: readonly string[],
   activeIndex: number,
-  percent: number
+  percent: number,
+  status: WorkProgressState['status'] = 'complete'
 ): WorkProgressState {
   const step = Math.min(Math.max(activeIndex + 1, 1), steps.length);
 
   return {
     detail,
     label,
-    mode: 'determinate',
+    mode: status === 'error' || status === 'paused' ? 'indeterminate' : 'determinate',
+    status,
     percent: Math.max(0, Math.min(100, percent)),
     step,
     steps: buildWorkProgressSteps(steps, activeIndex),
@@ -10615,7 +10611,7 @@ export function App({
         const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
         const matches = response.session.sessionId === activeSession.sessionId && selections.every(selection =>
           response!.workflow.entries.some(entry => entry.definitionId === selection.definitionId && entry.staged
-            && entry.selected === selection.enabled && entry.preparedHash === selection.preparedHash));
+            && entry.selected === selection.enabled && (selection.removeAssets ? entry.removalStaged : !entry.removalStaged && entry.preparedHash === selection.preparedHash)));
         const didSucceed = matches && !diagnostics.some(d => d.severity === 'error');
         return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
       }, response => {
@@ -14187,8 +14183,9 @@ export function App({
           ? 'Randomizer needs attention'
           : 'Randomizer output complete',
         randomizerProgressSteps,
-        randomizerProgressSteps.length,
-        100
+        hasApplyErrors ? 0 : randomizerProgressSteps.length,
+        100,
+        hasApplyErrors ? 'error' : 'complete'
       ));
       return response;
     } catch (error) {
@@ -14251,8 +14248,9 @@ export function App({
             ? 'Vanilla values restored'
             : 'No changes',
         randomizerRestoreProgressSteps,
-        randomizerRestoreProgressSteps.length,
-        100
+        hasApplyErrors ? 0 : restoreNeedsAttention ? 2 : randomizerRestoreProgressSteps.length,
+        100,
+        hasApplyErrors ? 'error' : restoreNeedsAttention ? 'paused' : 'complete'
       ));
       return response;
     } catch (error) {
@@ -18062,20 +18060,18 @@ export function App({
       );
       const targetTableCount = new Set(nonEmptyUpdates.map((update) => update.tableId)).size;
 
-      setWorkProgress(createDeterminateWorkProgress(
+      setWorkProgress(createIndeterminateWorkProgress(
         'Applying Encounter Updates',
         `Preparing ${targetTableCount} encounter ${targetTableCount === 1 ? 'table' : 'tables'}`,
         encounterBatchUpdateProgressSteps,
-        0,
         0
       ));
 
-      setWorkProgress(createDeterminateWorkProgress(
+      setWorkProgress(createIndeterminateWorkProgress(
         'Applying Encounter Updates',
         `Applying ${totalChanges} slot field updates`,
         encounterBatchUpdateProgressSteps,
-        1,
-        50
+        1
       ));
 
       const response = await runEditSessionMutation(
@@ -18104,12 +18100,11 @@ export function App({
         },
         (updateResponse) => {
           if (updateResponse.didSucceed && updateResponse.workflow) {
-            setWorkProgress(createDeterminateWorkProgress(
+            setWorkProgress(createIndeterminateWorkProgress(
               'Applying Encounter Updates',
               'Refreshing encounter tables',
               encounterBatchUpdateProgressSteps,
-              2,
-              100
+              2
             ));
             setEncountersWorkflow(updateResponse.workflow);
           }
@@ -20296,6 +20291,10 @@ export function App({
           className="workspace-content"
           inert={isProjectScopeTransitioning ? true : undefined}
         >
+          {(isSessionValidating || isChangePlanCreating) && workProgress === null ? (
+            <LoadingProgress className="is-compact wide-panel" label={translateLiteral('Review')}
+              detail={translateLiteral('Reviewing change plan')} operationKey={activeProjectId ?? 'unselected'} />
+          ) : null}
           <Fragment
             key={`${activeProjectId ?? 'no-project'}:${selectedGame}:${activeSection}:${workspaceContentDiscardRevision}`}
           >
@@ -22092,12 +22091,12 @@ export function App({
             />
           ) : null}
           {activeSection === 'soundStudio' ? (
-            <Suspense fallback={<section className="panel wide-panel" role="status">{t('soundStudio.loading')}</section>}>
+            <Suspense fallback={<section className="panel wide-panel"><LoadingProgress label={t('soundStudio.loading')} /></section>}>
               <SoundStudioSection key={`${activeProjectId ?? 'unselected'}:${JSON.stringify(gameDumpPaths)}`} paths={gameDumpPaths} catalogRevision={restoreMissingPokemonWorkflow?.revision} />
             </Suspense>
           ) : null}
           {activeSection === 'modelViewer' ? (
-            <Suspense fallback={<section className="panel wide-panel" role="status">{t('modelViewer.loading')}</section>}>
+            <Suspense fallback={<section className="panel wide-panel"><LoadingProgress label={t('modelViewer.loading')} /></section>}>
               <ModelViewerSection key={activeProjectId ?? 'unselected'} paths={gameDumpPaths} session={editSession} catalogRevision={restoreMissingPokemonWorkflow?.revision}
                     disabled={isEditSessionOperationBusy} onDirtyChange={registerEditorDraftDirty}
                     onStageAsset={async (model, change, restore) => {
@@ -22527,35 +22526,9 @@ function EmptySelectionEditorSessionActions({
 
 function WorkflowLoadingPanel({ label }: { label: string }) {
   const { translateLiteral } = useLocalization();
-  const localizedLabel = translateLiteral(label);
-
-  return (
-    <section aria-labelledby="workflow-loading-heading" className="panel wide-panel">
-      <div className="panel-heading">
-        <RefreshCw aria-hidden="true" size={18} />
-        <h2 id="workflow-loading-heading">{localizedLabel}</h2>
-      </div>
-
-      <div aria-live="polite" className="workflow-loading-body" role="status">
-        <div className="workflow-loading-status">
-          <RefreshCw aria-hidden="true" className="workflow-loading-spinner" size={20} />
-          <p>{translateLiteral('Loading backend workflow data.')}</p>
-        </div>
-        <div
-          aria-label={`${localizedLabel} ${translateLiteral('loading progress')}`}
-          className="workflow-loading-track"
-          role="progressbar"
-        >
-          <div className="workflow-loading-fill" />
-        </div>
-        <ol className="workflow-loading-steps">
-          {workflowLoadingSteps.map((step) => (
-            <li key={step}>{translateLiteral(step)}</li>
-          ))}
-        </ol>
-      </div>
-    </section>
-  );
+  return <section className="panel wide-panel">
+    <LoadingProgress label={translateLiteral(label)} detail={translateLiteral('Loading backend workflow data.')} />
+  </section>;
 }
 
 function HealthSection({
@@ -22921,41 +22894,14 @@ function SvCacheProgressPanel({
             ? `Persistent ${cacheTitle} warmup is off in Minimal mode.`
             : effectiveStatus!.message;
 
+  const running = isRetrying || isChecking || isValidatingPaths || (isWarming && !isWarmupPaused && !isError);
+  const measured = !isMinimal && effectiveStatus !== null && !isAwaitingValidation && !isValidatingPaths;
   return (
-    <div
-      className="sv-cache-progress-panel"
-      role={isError || isWarmupPaused ? 'alert' : 'status'}
-    >
-      <div className="sv-cache-progress-header">
-        <div>
-          <Layers aria-hidden="true" size={18} />
-          <strong>{cacheTitle}</strong>
-        </div>
-        <span
-          className={`status-pill ${isError || isWarmupPaused ? 'status-blocked' : 'status-pill-info'}`}
-        >
-          {phaseLabel}
-        </span>
-      </div>
-      {!isMinimal && !isError && !isAwaitingValidation && !isValidatingPaths ? (
-        <div
-          aria-label={`${cacheTitle} build progress`}
-          aria-valuemax={100}
-          aria-valuemin={0}
-          aria-valuenow={percent}
-          aria-valuetext={
-            isSetupRequired
-              ? `${cacheTitle} setup required`
-              : isChecking
-                ? `Checking ${cacheTitle} status`
-                : `${completedUnitCount} of ${totalUnitCount}`
-          }
-          className="work-progress-track"
-          role="progressbar"
-        >
-          <div className="work-progress-fill" style={{ width: `${percent}%` }} />
-        </div>
-      ) : null}
+    <LoadingProgress className="sv-cache-progress-panel" label={cacheTitle}
+      status={running ? 'running' : isError ? 'error' : isWarmupPaused ? 'paused' : isReady && !isMinimal ? 'complete' : 'idle'}
+      statusLabel={translateLiteral(isRetrying ? isWarmupPaused ? 'Retrying cache build' : 'Retrying cache check' : phaseLabel)}
+      detail={translateLiteral(message)}
+      completed={measured ? completedUnitCount : undefined} total={measured ? totalUnitCount : undefined}>
       <dl className="work-progress-detail">
         <div>
           <dt>Mode</dt>
@@ -23007,7 +22953,6 @@ function SvCacheProgressPanel({
           </dd>
         </div>
       </dl>
-      <p className="sv-cache-progress-message">{message}</p>
       {isError || isWarmupPaused ? (
         <div className="action-row">
           <button
@@ -23027,7 +22972,7 @@ function SvCacheProgressPanel({
           </button>
         </div>
       ) : null}
-    </div>
+    </LoadingProgress>
   );
 }
 
@@ -24146,7 +24091,7 @@ function SelectedItemPanel({
               ) : item.metadata.machineMoveId === null ? (
                 <p className="empty-copy">{t('za.items.compatibility.chooseMove')}</p>
               ) : isPokemonLoading && !pokemonWorkflow ? (
-                <p className="empty-copy">{t('za.items.compatibility.loading')}</p>
+                <LoadingProgress className="is-compact" label={t('za.items.compatibility.loading')} />
               ) : !pokemonWorkflow ? (
                 <p className="empty-copy">{t('za.items.compatibility.loadUnavailable')}</p>
               ) : technicalMachineCompatibilityRows.length === 0 ? (
@@ -30717,6 +30662,8 @@ function TextSection({
           />
         ) : null}
 
+        {workflow && isTextLoading ? <LoadingProgress className="is-compact" label={t('workbench.section.text.label')}
+          detail={translateLiteral('Loading backend workflow data.')} /> : null}
         {workflow ? (
           <div className="text-layout">
             <div
@@ -52085,10 +52032,7 @@ function PlacementSection({
           <div className="encounters-layout placement-layout">
             <div className="placement-browser-stack">
               {remotePaging?.isPageLoading ? (
-                <div aria-live="polite" className="placement-load-status" role="status">
-                  <RefreshCw aria-hidden="true" className="workflow-loading-spinner" size={16} />
-                  <span>{t('placement.loadingMatches')}</span>
-                </div>
+                <LoadingProgress className="is-compact" label={t('placement.loadingMatches')} />
               ) : null}
               {remotePaging?.isPageStale && !remotePaging.isPageLoading ? (
                 <div aria-live="polite" className="placement-load-status" role="status">
@@ -52547,10 +52491,7 @@ function SelectedPlacementPanel({
       </div>
 
       {isDetailsLoading ? (
-        <div aria-live="polite" className="placement-load-status" role="status">
-          <RefreshCw aria-hidden="true" className="workflow-loading-spinner" size={16} />
-          <span>{t('placement.loadingDetails')}</span>
-        </div>
+        <LoadingProgress className="is-compact" label={t('placement.loadingDetails')} />
       ) : null}
 
       {placedObject ? (
@@ -56977,6 +56918,8 @@ function FpsPatchSection({
           </dl>
         </details>
 
+        {isBusy ? <LoadingProgress className="is-compact" label={t('workbench.section.fps-patch.label')}
+          detail={translateLiteral(isLoading ? 'Refreshing' : 'Working')} operationKey={isLoading ? 'refresh' : 'apply'} /> : null}
         <div className="action-row technical-tool-action-row">
           <button
             aria-busy={isLoading || undefined}
@@ -57401,6 +57344,8 @@ function ProfanityFilterSection({
           </div>
         </section>
 
+        {isBusy ? <LoadingProgress className="is-compact" label={t('profanityFilter.title')}
+          detail={translateLiteral(isLoading ? 'Refreshing' : 'Working')} operationKey={isLoading ? 'refresh' : 'apply'} /> : null}
         <div className="action-row technical-tool-action-row">
           <button
             aria-busy={isLoading || undefined}
@@ -57603,6 +57548,8 @@ function SpreadsheetImportSection({
           />
         </div>
 
+        {isPreviewing ? <LoadingProgress className="is-compact" label={translateLiteral('Dump Importer')}
+          detail={translateLiteral('Previewing')} /> : null}
         {workflow ? (
           <div
             className={`flagwork-layout spreadsheet-import-layout${
@@ -58135,6 +58082,8 @@ function SettingsSection({
                         : translateLiteral(availableUpdateActionLabel)}
           </span>
         </button>
+        {status.kind === 'checking' ? <LoadingProgress className="is-compact" label={translateLiteral('Checking for native updates')}
+          detail={translateLiteral(status.message)} /> : null}
         <p
           className={`update-status update-status-${status.kind}`}
           role={status.kind === 'error' ? 'alert' : 'status'}
@@ -58885,69 +58834,18 @@ function ChangesSection({
 }
 
 function WorkProgressModal({ progress }: { progress: WorkProgressState }) {
-  const { t, translateLiteral } = useLocalization();
-  const dialogRef = useModalDialog({
-    canClose: false,
-    onClose: () => undefined
-  });
+  const { translateLiteral } = useLocalization();
+  const dialogRef = useModalDialog({ canClose: false, onClose: () => undefined });
   const isDeterminate = progress.mode === 'determinate';
-  const percent = isDeterminate ? Math.max(0, Math.min(100, progress.percent ?? 0)) : null;
-
   return (
     <div className="modal-backdrop" role="presentation">
-      <section
-        aria-busy="true"
-        aria-labelledby="work-progress-heading"
-        aria-modal="true"
-        className="modal-panel work-progress-panel"
-        ref={dialogRef}
-        role="dialog"
-        tabIndex={-1}
-      >
-        <div className="panel-heading work-progress-heading">
-          <Activity aria-hidden="true" size={18} />
-          <h2 id="work-progress-heading">{progress.label}</h2>
-          {progress.step !== undefined &&
-          progress.totalSteps !== undefined &&
-          progress.totalSteps > 1 ? (
-            <span className="status-pill status-pill-info">
-              {t('editorText.progress.phase', { step: progress.step, total: progress.totalSteps })}
-            </span>
-          ) : null}
-        </div>
-        <LoadingProgress
-          completed={percent ?? undefined}
-          label={progress.detail}
-          total={isDeterminate ? 100 : undefined}
-        />
-        <dl className="work-progress-detail">
-          <div>
-            <dt>Status</dt>
-            <dd>{isDeterminate ? t('editorText.progress.percent', { percent: percent ?? 0 }) : translateLiteral('In progress')}</dd>
-          </div>
-          {progress.step !== undefined &&
-          progress.totalSteps !== undefined &&
-          progress.totalSteps > 1 ? (
-            <div>
-              <dt>Current phase</dt>
-              <dd>{progress.steps?.[progress.step - 1]?.label ?? progress.detail}</dd>
-            </div>
-          ) : null}
-        </dl>
-        {progress.steps?.length ? (
-          <ol aria-label={t('editorText.progress.phases', { operation: translateLiteral(progress.label) })} className="changes-progress work-progress-phases">
-            {progress.steps.map((step, index) => (
-              <li
-                aria-current={step.state === 'active' ? 'step' : undefined}
-                className={step.state === 'complete' ? 'is-complete' : step.state === 'active' ? 'is-active' : ''}
-                key={step.label}
-              >
-                <span aria-hidden="true">{index + 1}</span>
-                <strong>{step.label}</strong>
-              </li>
-            ))}
-          </ol>
-        ) : null}
+      <section aria-label={translateLiteral(progress.label)} aria-modal="true"
+        className="modal-panel work-progress-panel" ref={dialogRef} role="dialog" tabIndex={-1}>
+        <LoadingProgress label={translateLiteral(progress.label)} detail={translateLiteral(progress.detail)}
+          completed={isDeterminate ? progress.percent : undefined} total={isDeterminate ? 100 : undefined}
+          countLabel={isDeterminate ? translateLiteral('Progress') : undefined}
+          status={progress.status ?? 'running'}
+          steps={progress.steps?.map(step => ({ ...step, label: translateLiteral(step.label) }))} />
       </section>
     </div>
   );
@@ -59175,6 +59073,7 @@ function UpdatePromptModal({
   status: UpdateCheckStatus;
   update: AvailableUpdate;
 }) {
+  const { formatLocale, translateLiteral } = useLocalization();
   const isNativeUpdate = update.kind === 'native';
   const isApplying =
     status.kind === 'downloading' ||
@@ -59186,10 +59085,9 @@ function UpdatePromptModal({
     canClose: !isApplying,
     onClose: onDismiss
   });
-  const isProgressVisible =
-    status.kind === 'downloading' || status.kind === 'installing' || status.kind === 'preparing';
+  const isProgressVisible = isApplying;
   const progressTitle =
-    status.kind === 'preparing'
+    status.kind === 'restarting' ? 'Restarting' : status.kind === 'opening' ? 'Opening' : status.kind === 'preparing'
       ? 'Preparing update'
       : status.kind === 'installing'
         ? 'Installing update'
@@ -59199,10 +59097,6 @@ function UpdatePromptModal({
       ? status.contentLength
       : null;
   const downloadedBytes = status.kind === 'downloading' ? status.downloadedBytes : 0;
-  const downloadPercent =
-    downloadContentLength !== null
-      ? Math.max(0, Math.min(100, Math.round((downloadedBytes / downloadContentLength) * 100)))
-      : null;
 
   return (
     <div className="modal-backdrop" role="presentation">
@@ -59235,31 +59129,14 @@ function UpdatePromptModal({
           <p className="modal-copy modal-copy-muted">{update.body}</p>
         ) : null}
         {isProgressVisible ? (
-          <div className="update-progress-panel" role="status">
-            <div className="update-progress-header">
-              <strong>{progressTitle}</strong>
-              {downloadPercent !== null ? <span>{downloadPercent}%</span> : null}
-            </div>
-            <div
-              aria-label="Update download progress"
-              aria-valuemax={downloadContentLength !== null ? 100 : undefined}
-              aria-valuemin={downloadContentLength !== null ? 0 : undefined}
-              aria-valuenow={downloadPercent ?? undefined}
-              aria-valuetext={status.message}
-              className={`work-progress-track${
-                downloadContentLength !== null ? '' : ' work-progress-track-indeterminate'
-              }`}
-              role="progressbar"
-            >
-              <div
-                className="work-progress-fill"
-                style={
-                  downloadContentLength !== null ? { width: `${downloadPercent}%` } : undefined
-                }
-              />
-            </div>
-            <p>{status.message}</p>
-          </div>
+          <LoadingProgress className="update-progress-panel" label={translateLiteral(progressTitle)}
+            detail={translateLiteral(status.message)} completed={downloadContentLength === null ? undefined : downloadedBytes}
+            total={downloadContentLength ?? undefined}
+            countLabel={downloadContentLength === null ? undefined : `${formatByteSize(downloadedBytes, formatLocale)} / ${formatByteSize(downloadContentLength, formatLocale)}`}
+            steps={isNativeUpdate ? buildWorkProgressSteps(
+              ['Preparing update', 'Downloading update', 'Installing update', 'Restarting'].map(translateLiteral),
+              status.kind === 'preparing' ? 0 : status.kind === 'downloading' ? 1 : status.kind === 'installing' ? 2 : 3
+            ) : undefined} />
         ) : null}
         {status.kind === 'error' ? (
           <>
@@ -64554,6 +64431,7 @@ type WorkProgressStep = {
 };
 
 type WorkProgressState = {
+  status?: 'running' | 'complete' | 'error' | 'paused';
   detail: string;
   label: string;
   mode: 'determinate' | 'indeterminate';

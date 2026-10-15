@@ -71,7 +71,7 @@ export default function SoundStudioSection({ paths, catalogRevision = '' }: { pa
     <header className="sound-studio__header"><Music size={24} aria-hidden="true" /><div><h2 id="sound-studio-title">{t('soundStudio.title')}</h2><p>{t('soundStudio.description')}</p></div>
       <button type="button" onClick={() => { player?.stop(); setSelected(null); setRevision(value => value + 1); }}>{t('soundStudio.reload')}</button></header>
     {!isTauri() ? <p>{t('soundStudio.desktopRequired')}</p> : null}
-    {loading ? <div className="sound-studio__loading"><LoadingProgress label={t('soundStudio.loading')} completed={progress[0]} total={progress[1] || undefined} /><button type="button" onClick={stopCatalog}>{t('soundStudio.cancel')}</button></div> : null}
+    {loading ? <div className="sound-studio__loading"><LoadingProgress operationKey={revision} label={t('soundStudio.loading')} completed={progress[0]} total={progress[1] || undefined} onCancel={stopCatalog} cancelLabel={t('soundStudio.cancel')} /></div> : null}
     <div className="sound-studio__workspace">
       <aside className="sound-studio__categories" aria-label={t('soundStudio.categories')}>
         {categories.map(value => <button type="button" key={value} aria-pressed={value === category && !everywhere} onClick={() => { setCategory(value); setEverywhere(false); }}><span>{t(`soundStudio.category.${value}`)}</span><span>{counts[value] ?? 0}</span></button>)}
@@ -96,7 +96,7 @@ export default function SoundStudioSection({ paths, catalogRevision = '' }: { pa
         <div className="sound-studio__now"><small>{selected ? t(`soundStudio.category.${selected.category}`) : t('soundStudio.title')}</small><h3>{selected?.name ?? t('soundStudio.select')}</h3></div>
         <SoundAnalysis player={player} enabled={visualizer} muted={muted} />
         <label className="sound-studio__visualizer-toggle"><input type="checkbox" checked={visualizer} onChange={event => setVisualizer(event.target.checked)} />{t('soundStudio.visualizer')}</label>
-        {preparing ? <LoadingProgress label={t('soundStudio.preparing')} /> : null}
+        {preparing ? <LoadingProgress operationKey={selected?.id} className="is-compact" label={t('soundStudio.preparing')} /> : null}
         {selected && selected.status !== 'sample' ? <p role="status">{t(`soundStudio.explain.${selected.status}`)}</p> : null}
         <div className="sound-studio__transport">
           <label htmlFor="sound-seek" className="sound-studio__time"><span>{t('soundStudio.position')}</span><span>{time(position / (info?.rate ?? 1))} / {time(info ? info.frames / info.rate : 0)}</span></label>

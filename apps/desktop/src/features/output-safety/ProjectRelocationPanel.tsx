@@ -11,6 +11,7 @@ import {
 import { type ProjectBridge } from '../../bridge/projectBridge';
 import { type DesktopServices } from '../../desktopServices';
 import { DiagnosticsSection } from '../../components/workflowPanels';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import { useModalDialog } from '../../components/useModalDialog';
 import { toDesktopErrorDiagnostics, toProjectBridgeDiagnostics } from '../../uiErrorDiagnostics';
@@ -378,6 +379,8 @@ export function ProjectRelocationPanel({
             })}
           </div>
 
+          {isBusy && actionPhaseRef.current !== 'pick' ? <LoadingProgress className="is-compact"
+            label={t(actionPhaseRef.current === 'apply' ? 'outputSafety.relocation.apply' : 'outputSafety.relocation.review')} /> : null}
           <div className="project-relocation-actions">
             <button
               className="secondary-button"

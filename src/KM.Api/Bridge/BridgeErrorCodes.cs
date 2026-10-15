@@ -61,6 +61,7 @@ public static class BridgeErrorCodes
     public const string RestorationSessionInvalid = "KM-SWSH-RESTORATION-SESSION-INVALID";
     public const string RestorationReference = "KM-SWSH-RESTORATION-REFERENCE";
     public const string RestorationPreparedStale = "KM-SWSH-RESTORATION-PREPARED-STALE";
+    public const string RestorationCleanupPending = "KM-SWSH-RESTORATION-CLEANUP-PENDING";
     public const string ShakingTreesSourceInvalid = "KM-SWSH-TREES-SOURCE-INVALID";
     public const string ShakingTreesValuesInvalid = "KM-SWSH-TREES-VALUES-INVALID";
     public const string ShakingTreesConflict = "KM-SWSH-TREES-CONFLICT";

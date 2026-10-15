@@ -42,10 +42,23 @@ public sealed partial class SwShRestorationPreparationService
                 throw new InvalidDataException("Source gender or hatch identity needs another conversion profile.");
             Put16(row, 10, ev); row.AsSpan(12, 6).Clear(); row[18] = profile.GenderThreshold; row[19] = checked((byte)Scalar(16)); row[20] = checked((byte)Scalar(17));
             row[21] = checked((byte)Scalar(10)); row[22] = checked((byte)Scalar(13)); row[23] = checked((byte)Scalar(14));
-            for (var i = 0; i < 3; i++) { var ability = Scalar(7 + i, true); if (ability is < 1 or > 267) throw new InvalidDataException("Source ability needs a target mechanics adapter."); Put16(row, 24 + i * 2, ability); }
+            var abilities = Enumerable.Range(0, 3).Select(i => Scalar(7 + i, true)).ToArray();
+            var fallbackAbility = abilities.FirstOrDefault(ability => ability is >= 1 and <= 267);
+            if (fallbackAbility == 0) throw new InvalidDataException("This Pokemon has no ability supported by Sword and Shield in its source data.");
+            for (var i = 0; i < abilities.Length; i++)
+                Put16(row, 24 + i * 2, abilities[i] is >= 1 and <= 267 ? abilities[i] : fallbackAbility);
             Put16(row, 30, 0); row[32] = 1; row[33] = (byte)((source.U8(detail + 6) & 63) | 64);
             Put16(row, 34, profile.Experience); Put16(row, 36, source.U16(detail + 8)); Put16(row, 38, source.U16(detail + 10));
-            var machineMoves = Moves(24).ToHashSet();
+            var excluded = new HashSet<int>();
+            bool MoveAvailable(int move)
+            {
+                var path = $"bin/pml/waza/waza{move:0000}.wazabin";
+                if (move is < 1 or > 826 || !System.IO.File.Exists(Path.Combine(target.BaseRomFsPath!, path))
+                    || !SwShMoveDataFile.Parse(Native(path)).Record.CanUseMove)
+                { excluded.Add(move); return false; }
+                return true;
+            }
+            var machineMoves = Moves(24).Where(MoveAvailable).ToHashSet();
             void Compatibility(int offset, int length, IEnumerable<int> moves)
             {
                 row.AsSpan(offset, length).Clear(); var index = 0;
@@ -60,13 +73,6 @@ public sealed partial class SwShRestorationPreparationService
             _ = SwShPersonalTable.Parse(row);
             var result = new List<SwShRestorationContribution>
             { new(SwShRestorationComposer.PersonalPath, SwShRestorationWriter.Personal, species.ToString(CultureInfo.InvariantCulture), before, row) };
-            var excluded = new HashSet<int>();
-            bool MoveAvailable(int move)
-            {
-                if (move is < 1 or > 826 || !System.IO.File.Exists(Path.Combine(target.BaseRomFsPath!, $"bin/pml/waza/waza{move:0000}.wazabin")))
-                { excluded.Add(move); return false; }
-                return true;
-            }
             var learned = Moves(26).Where(MoveAvailable).Select(m => (Move: m, Level: 1)).ToList();
             var (learnStart, learnCount) = source.Vector(table, 27, 4, 1024);
             for (var i = 0; i < learnCount; i++)

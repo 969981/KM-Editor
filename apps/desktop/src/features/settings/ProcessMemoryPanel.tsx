@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
 import { formatCompactMemory, setHeaderMemoryEnabled, useHeaderMemoryEnabled, setHeaderVramEnabled, useHeaderVramEnabled, useProcessMemory } from './processMemory';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import './ProcessMemoryPanel.css';
 
@@ -89,7 +90,8 @@ export function ProcessMemoryPanel() {
               </table>
             </div>
           </>
-        ) : <p role="status">{t(`settings.memory.${status}`)}</p>}
+        ) : status === 'loading' ? <LoadingProgress className="is-compact" label={t('settings.memory.loading')} />
+          : <p role="status">{t(`settings.memory.${status}`)}</p>}
       </div>
     </section>
   );

@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { EditSession, ProjectPaths } from '../../bridge/contracts';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
 import { SearchableOptionInput } from '../../components/SearchableOptionInput';
@@ -97,7 +98,8 @@ export function ModelMaterialEditor({ paths, model, session, disabled, onDirtyCh
     <h3 id="model-materials-title">{t('modelEditor.materials')}</h3>
     <details className="model-workspace__help"><summary>{t('modelWorkspace.help')}</summary><p>{t('modelEditor.materialHelp')}</p><p>{t('modelEditor.studioPreview')}</p></details>
     {error ? <p role="alert">{t('modelEditor.error')}</p> : null}
-    {!properties && !error ? <p role="status">{t('modelViewer.loading')}</p> : null}
+    {!properties && !error ? <LoadingProgress className="is-compact" operationKey={model} label={t('modelViewer.loading')} /> : null}
+    {busy ? <LoadingProgress className="is-compact" label={t('modelEditor.stageMaterial')} /> : null}
     {properties ? <>
       <label htmlFor="model-material-select">{t('modelEditor.material')}</label>
       <SearchableOptionInput id="model-material-select" ariaLabel={t('modelEditor.material')} value={selection} disabled={locked}

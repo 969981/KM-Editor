@@ -5116,7 +5116,6 @@
     "workbench.section.restore-missing-pokemon.label": "恢复缺失的宝可梦",
     "workbench.section.restore-missing-pokemon.description": "使用本地游戏文件恢复受支持的宝可梦。",
     "restoration.donorZa": "Z-A 来源 RomFS 文件夹",
-    "restoration.zaHelp": "用于从《宝可梦传说 Z-A》导入宝可梦。",
     "restoration.browse": "浏览并选择{folder}",
     "restoration.browseFailed": "无法打开文件夹选择器。请重试或手动输入路径。",
     "restoration.find": "查找 oo2core_8_win64.dll",
@@ -5128,7 +5127,19 @@
     "restoration.searchFailed": "无法查找 oo2core_8_win64.dll。请重试或手动选择文件夹。",
     "restoration.notFound": "未找到 oo2core_8_win64.dll。请手动选择其所在文件夹。",
     "restoration.source.LegendsZA": "来源：Z-A",
-    "restoration.source.ScarletViolet": "来源：S/V"
+    "restoration.source.ScarletViolet": "来源：S/V",
+    "progressFeedback.cancel": "取消",
+    "progressFeedback.idle": "等待中",
+    "progressFeedback.canceling": "正在取消...",
+    "restoration.removeAssets": "移除资源",
+    "progressFeedback.elapsed": "已用时间：{time}",
+    "progressFeedback.running": "进行中",
+    "restoration.removalStaged": "已暂存移除操作。请审查并应用以删除资源。",
+    "progressFeedback.canceled": "已取消",
+    "progressFeedback.paused": "已暂停",
+    "restoration.removeHelp": "禁用会保留已准备的资源和自定义内容，以便再次使用。“移除资源”会暂存删除此宝可梦的受管理输出文件和已准备资源，包括模型编辑。应用移除前，请先清除对它的引用。",
+    "progressFeedback.complete": "已完成",
+    "progressFeedback.error": "因错误停止"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "极限特训正在使用旧版等级补丁，队伍和盒子中的图标仍要求 100 级。请重新应用此编辑器以更新选择界面。",
@@ -9583,6 +9594,8 @@
     "Hyper Training IV getter used by IV Screen": "个体值界面使用的极限特训个体值读取函数",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "为每个徽章数量设置交换宝可梦的听话等级上限，与捕捉等级上限独立。",
     "Obedience Level": "听话等级",
-    "Party and box icons use the minimum level at {offset}.": "队伍和盒子中的图标使用 {offset} 处设置的最低等级。"
+    "Party and box icons use the minimum level at {offset}.": "队伍和盒子中的图标使用 {offset} 处设置的最低等级。",
+    "This Pokemon has no ability supported by Sword and Shield in its source data.": "此宝可梦的来源数据中没有《剑／盾》支持的特性。",
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "未能完全清除已移除宝可梦的资源。请刷新以重试。"
   }
 }

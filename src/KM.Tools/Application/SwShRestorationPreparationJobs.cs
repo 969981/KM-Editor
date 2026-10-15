@@ -14,15 +14,15 @@ public sealed class SwShRestorationPreparationJobs : IDisposable
     private readonly object gate = new();
     private readonly SwShRestorationDonorCache donors = new();
     private Job? current;
-    private readonly Dictionary<(ProjectPaths Paths, string Definition), FileStream> preparedLeases = [];
+    private readonly Dictionary<(ProjectPaths Paths, string Definition), (FileStream Lease, string? RemovalId)> preparedLeases = [];
     private bool disposed;
-    private sealed class Job(ProjectPaths paths, string definition) : IProgress<SwShRestorationPreparationProgress>
+    private sealed class Job(ProjectPaths paths, string definition, string? removalId) : IProgress<SwShRestorationPreparationProgress>
     {
         internal readonly ProjectPaths Paths = paths;
         internal readonly CancellationTokenSource Cancellation = new();
         internal readonly System.Diagnostics.Stopwatch Timer = System.Diagnostics.Stopwatch.StartNew();
         internal RestorationPreparationDto Status = new(Guid.NewGuid().ToString("N"), definition, "preparing", "sources", 0,
-            SwShRestorationDefinitions.Get(definition).Identities.Count, null, new Dictionary<int, int[]>(), []);
+            SwShRestorationDefinitions.Get(definition).Identities.Count, null, new Dictionary<int, int[]>(), []) { RemovalId = removalId };
         internal FileStream? Lease;
         public void Report(SwShRestorationPreparationProgress value)
         {
@@ -45,17 +45,46 @@ public sealed class SwShRestorationPreparationJobs : IDisposable
             if (current is { Lease: { } lease } completed)
             {
                 var key = (completed.Paths, completed.Status.DefinitionId);
-                if (preparedLeases.Remove(key, out var previous)) previous.Dispose();
+                if (preparedLeases.Remove(key, out var previous)) previous.Lease.Dispose();
                 if (preparedLeases.Count >= 256)
                 {
-                    var oldest = preparedLeases.First(); preparedLeases.Remove(oldest.Key); oldest.Value.Dispose();
+                    var oldest = preparedLeases.First(); preparedLeases.Remove(oldest.Key); oldest.Value.Lease.Dispose();
                 }
-                preparedLeases.Add(key, lease); completed.Lease = null;
+                preparedLeases.Add(key, (lease, completed.Status.RemovalId)); completed.Lease = null;
             }
             current?.Cancellation.Dispose();
-            var job = current = new(paths, definition);
+            var job = current = new(paths, definition, SwShRestorationStateStore.Read(paths).State.Selections.SingleOrDefault(s => s.DefinitionId == definition)?.RemovalId);
             _ = Run(job, donor, support);
             return Read(job);
+        }
+    }
+    public IReadOnlySet<string> ActivePreparedHashes(ProjectPaths paths, string? definition = null)
+    {
+        lock (gate)
+        {
+            if (string.IsNullOrWhiteSpace(paths.OutputRootPath)) return new HashSet<string>();
+            var output = Path.GetFullPath(paths.OutputRootPath!).TrimEnd(Path.DirectorySeparatorChar);
+            bool Same(ProjectPaths other) => other.SelectedGame == paths.SelectedGame && string.Equals(output,
+                Path.GetFullPath(other.OutputRootPath!).TrimEnd(Path.DirectorySeparatorChar), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            var hashes = preparedLeases.Where(pair => Same(pair.Key.Paths) && (definition is null || pair.Key.Definition == definition)).Select(pair => Path.GetFileNameWithoutExtension(pair.Value.Lease.Name)).ToHashSet(StringComparer.Ordinal);
+            if (current is { Lease: { } lease } job && Same(job.Paths) && (definition is null || job.Status.DefinitionId == definition)) hashes.Add(Path.GetFileNameWithoutExtension(lease.Name));
+            return hashes;
+        }
+    }
+    public void ReleaseRemoved(ProjectPaths paths, string definition, string removalId)
+    {
+        lock (gate)
+        {
+            bool SameOutput(ProjectPaths other) => other.SelectedGame == paths.SelectedGame
+                && string.Equals(Path.GetFullPath(other.OutputRootPath!).TrimEnd(Path.DirectorySeparatorChar),
+                    Path.GetFullPath(paths.OutputRootPath!).TrimEnd(Path.DirectorySeparatorChar), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            foreach (var key in preparedLeases.Keys.Where(k => k.Definition == definition && SameOutput(k.Paths)).ToArray())
+                if (preparedLeases[key].RemovalId != removalId) { preparedLeases[key].Lease.Dispose(); preparedLeases.Remove(key); }
+            if (current is { } job && job.Status.DefinitionId == definition && SameOutput(job.Paths) && job.Status.RemovalId != removalId)
+            {
+                if (Read(job).Status == "preparing") job.Cancellation.Cancel();
+                else { job.Lease?.Dispose(); job.Lease = null; lock (job) job.Status = job.Status with { Status = "canceled", PreparedHash = null }; }
+            }
         }
     }
     public RestorationPreparationDto Get(ProjectPaths paths, string id, bool cancel = false)
@@ -102,7 +131,7 @@ public sealed class SwShRestorationPreparationJobs : IDisposable
         lock (gate)
         {
             if (disposed) return; disposed = true; current?.Cancellation.Cancel(); current?.Lease?.Dispose();
-            foreach (var lease in preparedLeases.Values) lease.Dispose(); preparedLeases.Clear();
+            foreach (var lease in preparedLeases.Values) lease.Lease.Dispose(); preparedLeases.Clear();
             donors.Dispose();
         }
     }

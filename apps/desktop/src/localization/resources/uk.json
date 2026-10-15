@@ -5116,7 +5116,6 @@
     "workbench.section.restore-missing-pokemon.label": "Відновити відсутніх покемонів",
     "workbench.section.restore-missing-pokemon.description": "Відновлюйте підтримуваних покемонів із локальних файлів гри.",
     "restoration.donorZa": "Папка RomFS гри донора Z-A",
-    "restoration.zaHelp": "Використовується для покемонів, імпортованих із Legends: Z-A.",
     "restoration.browse": "Вибрати: {folder}",
     "restoration.browseFailed": "Не вдалося відкрити вибір папки. Спробуйте ще раз або введіть шлях вручну.",
     "restoration.find": "Знайти oo2core_8_win64.dll",
@@ -5128,7 +5127,19 @@
     "restoration.searchFailed": "Не вдалося знайти oo2core_8_win64.dll. Спробуйте ще раз або виберіть папку вручну.",
     "restoration.notFound": "oo2core_8_win64.dll не знайдено. Виберіть його папку вручну.",
     "restoration.source.LegendsZA": "Джерело: Z-A",
-    "restoration.source.ScarletViolet": "Джерело: S/V"
+    "restoration.source.ScarletViolet": "Джерело: S/V",
+    "progressFeedback.cancel": "Скасувати",
+    "progressFeedback.idle": "Очікування",
+    "progressFeedback.canceling": "Скасування операції...",
+    "restoration.removeAssets": "Видалити ресурси",
+    "progressFeedback.elapsed": "Минуло часу: {time}",
+    "progressFeedback.running": "Виконується",
+    "restoration.removalStaged": "Видалення підготовлено. Перевірте й застосуйте зміни, щоб видалити ресурси.",
+    "progressFeedback.canceled": "Скасовано",
+    "progressFeedback.paused": "Призупинено",
+    "restoration.removeHelp": "Вимкнення зберігає підготовлені ресурси й налаштування для повторного використання. Видалення ресурсів готує видалення керованих вихідних файлів і підготовлених ресурсів цього покемона, зокрема змін моделі. Видаліть посилання на нього перед застосуванням.",
+    "progressFeedback.complete": "Завершено",
+    "progressFeedback.error": "Зупинено через помилки"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Гіпертренування використовує стару зміну рівня, за якої значки в команді та боксах усе ще вимагають рів.100. Застосуйте цей редактор повторно, щоб оновити вибір покемонів.",
@@ -9583,6 +9594,8 @@
     "Hyper Training IV getter used by IV Screen": "Функція IV з урахуванням гіпертренування, яку використовує екран IV",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Задайте межу рівня слухняності обміняних покемонів для кожної кількості значків незалежно від межі ловлі.",
     "Obedience Level": "Рівень слухняності",
-    "Party and box icons use the minimum level at {offset}.": "Значки в команді та боксах використовують мінімальний рівень за адресою {offset}."
+    "Party and box icons use the minimum level at {offset}.": "Значки в команді та боксах використовують мінімальний рівень за адресою {offset}.",
+    "This Pokemon has no ability supported by Sword and Shield in its source data.": "У вихідних даних цього покемона немає здібностей, які підтримуються Sword і Shield.",
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Не вдалося повністю очистити ресурси видаленого покемона. Оновіть список, щоб повторити спробу."
   }
 }

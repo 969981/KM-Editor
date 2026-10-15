@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 import { useEffect, useRef, useState } from 'react';
 import type { ProjectPaths } from '../../bridge/contracts';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import { SearchableOptionInput } from '../../components/SearchableOptionInput';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
@@ -58,6 +59,7 @@ export function ModelTextureInspector({ paths, model, texture, changes, uv, onCl
       <label><input type="checkbox" checked={showUv} disabled={!uv.length} onChange={event => setShowUv(event.target.checked)} />{t('modelWorkspace.uvOverlay')}</label>
       <button type="button" disabled={!pixels} onClick={exportImage}>{t('modelWorkspace.exportTexture')}</button>
     </div>
+    {!pixels && !error ? <LoadingProgress className="is-compact" operationKey={model} label={t('modelViewer.loading')} /> : null}
     <div className="model-texture-inspector__area" ref={area} tabIndex={0} aria-label={t('modelWorkspace.textureNavigation')}
       onWheel={event => { setZoom(old => Math.max(.02, Math.min(32, old * Math.exp(-event.deltaY * .001)))); }}
       onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); drag.current = { x: event.clientX, y: event.clientY, pan }; }}
@@ -65,7 +67,7 @@ export function ModelTextureInspector({ paths, model, texture, changes, uv, onCl
       onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}
       onKeyDown={event => { if (event.key === '0') fit(); if (event.key === '+' || event.key === '=') setZoom(z => Math.min(32,z*1.2)); if (event.key === '-') setZoom(z => Math.max(.02,z/1.2));
         if (event.key.startsWith('Arrow')) { event.preventDefault(); setPan(p => ({ x: p.x + (event.key === 'ArrowRight' ? 20 : event.key === 'ArrowLeft' ? -20 : 0), y: p.y + (event.key === 'ArrowDown' ? 20 : event.key === 'ArrowUp' ? -20 : 0) })); } }}>
-      {error ? <p role="alert">{t('modelViewer.texture.error')}</p> : !pixels ? <p role="status">{t('modelViewer.loading')}</p> : null}
+      {error ? <p role="alert">{t('modelViewer.texture.error')}</p> : null}
       <div className="model-texture-inspector__image" style={{ width: texture.width, height: texture.height, transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
         <canvas ref={canvas} width={texture.width} height={texture.height} />
         {showUv ? <svg viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">{uv.map((mesh, index) => <path key={index} fill="none" stroke="#ffcd48" vectorEffect="non-scaling-stroke" strokeWidth="1"

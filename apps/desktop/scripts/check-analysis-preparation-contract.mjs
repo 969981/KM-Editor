@@ -69,22 +69,13 @@ assert.match(
 const panel = read('../src/features/workbench/AnalysisPreparationPanel.tsx');
 assert.match(
   panel,
-  /className="work-progress-track"[\s\S]*?role="progressbar"/,
-  'The preparation panel must use the determinate KM progress track.'
+  /<LoadingProgress[\s\S]*?completed=\{snapshot\.completedUnitCount\} total=\{snapshot\.totalUnitCount\}/,
+  'Analysis preparation must send measured units to the shared accessible progress presentation.'
 );
 assert.match(
   panel,
-  /style=\{\{ width: `\$\{snapshot\.percent\}%` \}\}/,
-  'The visible progress width must come from the measured snapshot.'
-);
-assert.ok(
-  !panel.includes('work-progress-indeterminate'),
-  'Measured analysis preparation must not use a scrolling indeterminate animation.'
-);
-assert.match(
-  panel,
-  /aria-valuemax=\{100\}[\s\S]*?aria-valuemin=\{0\}[\s\S]*?aria-valuenow=\{snapshot\.percent\}[\s\S]*?aria-valuetext=/,
-  'Measured analysis preparation must expose its real value and localized summary to assistive technology.'
+  /status=\{hasError \? 'error' : isReady \? 'complete' : 'running'\}/,
+  'Analysis preparation must distinguish incomplete and failed work from successful completion.'
 );
 const workbenchStyles = read('../src/features/workbench/workbench.css');
 assert.match(
@@ -396,7 +387,7 @@ assert.ok(
 );
 assert.match(
   app,
-  /role=\{isError \|\| isWarmupPaused \? 'alert' : 'status'\}[\s\S]*?Retry cache check/,
+  /status=\{running \? 'running' : isError \? 'error' : isWarmupPaused \? 'paused'[\s\S]*?Retry cache check/,
   'Cache request and warmup failures must expose a KM-themed retry action and announce the error truthfully.'
 );
 assert.match(

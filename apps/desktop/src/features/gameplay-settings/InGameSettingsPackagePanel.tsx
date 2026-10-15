@@ -16,6 +16,7 @@ import { DesktopServiceError, desktopServices } from '../../desktopServices';
 import { inGameSettingsPackageErrorCodes } from '../../errorCodes';
 import { toDesktopErrorDiagnostics, toProjectBridgeDiagnostics } from '../../uiErrorDiagnostics';
 import type { ApiDiagnostic } from '../../bridge/contracts';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import './InGameSettingsPackagePanel.css';
 
@@ -683,6 +684,9 @@ export function InGameSettingsPackagePanel({
         </button>
       </header>
 
+      {busy ? <LoadingProgress className="is-compact" operationKey={busy}
+        label={t(busy === 'load' ? 'gameplaySettings.inGamePackage.checking'
+          : busy === 'preview' ? 'gameplaySettings.inGamePackage.reviewing' : 'gameplaySettings.inGamePackage.applying')} /> : null}
       {purpose !== 'output' ? <section
         aria-labelledby="in-game-settings-installation-title"
         className="in-game-settings-package__installation"
@@ -729,7 +733,9 @@ export function InGameSettingsPackagePanel({
               <button type="button" className="secondary-button" disabled={installationTargetSelectionBusy || !onRememberDestination}
                 onClick={() => void chooseDestination()}><FolderOpen size={18} aria-hidden="true" />{t('gameplaySettings.destination.browse')}</button>
             </div>
-            {destinationSearchMessage ? <p role="status">{t(destinationSearchMessage)}</p> : null}
+            {destinationSearchMessage ? isPickingDestination
+              ? <LoadingProgress className="is-compact" label={t(destinationSearchMessage)} />
+              : <p role="status">{t(destinationSearchMessage)}</p> : null}
             {foundDestinations.length > 1 ? <div className="in-game-settings-package__found-destinations">
               {foundDestinations.map(path => <button type="button" className="secondary-button" key={path}
                 disabled={installationTargetSelectionBusy} onClick={() => void useFoundDestination(path)}><code>{path}</code></button>)}

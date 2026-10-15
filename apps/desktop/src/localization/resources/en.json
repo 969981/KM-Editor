@@ -5116,7 +5116,6 @@
     "workbench.section.restore-missing-pokemon.label": "Restore Missing Pokemon",
     "workbench.section.restore-missing-pokemon.description": "Restore supported Pokémon using your local game sources.",
     "restoration.donorZa": "Z-A donor RomFS folder",
-    "restoration.zaHelp": "Used for Pokémon whose source is Legends: Z-A.",
     "restoration.browse": "Browse for {folder}",
     "restoration.browseFailed": "Could not open the folder picker. Try again or enter the folder manually.",
     "restoration.find": "Find oo2core_8_win64.dll",
@@ -5128,7 +5127,19 @@
     "restoration.searchFailed": "Could not search for oo2core_8_win64.dll. Try again or choose the folder manually.",
     "restoration.notFound": "No oo2core_8_win64.dll was found. Choose its folder manually.",
     "restoration.source.LegendsZA": "Source: Z-A",
-    "restoration.source.ScarletViolet": "Source: S/V"
+    "restoration.source.ScarletViolet": "Source: S/V",
+    "progressFeedback.cancel": "Cancel",
+    "progressFeedback.idle": "Waiting",
+    "progressFeedback.canceling": "Canceling...",
+    "restoration.removeAssets": "Remove Assets",
+    "progressFeedback.elapsed": "Elapsed {time}",
+    "progressFeedback.running": "In progress",
+    "restoration.removalStaged": "Removal is staged. Review and Apply to delete the assets.",
+    "progressFeedback.canceled": "Canceled",
+    "progressFeedback.paused": "Paused",
+    "restoration.removeHelp": "Disabling keeps prepared assets and customizations for reuse. Remove Assets stages deletion of this Pokémon’s owned output and prepared assets, including model edits. Clear references before applying removal.",
+    "progressFeedback.complete": "Completed",
+    "progressFeedback.error": "Stopped with errors"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.",
@@ -9583,6 +9594,8 @@
     "Hyper Training IV getter used by IV Screen": "Hyper Training IV getter used by IV Screen",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.",
     "Obedience Level": "Obedience Level",
-    "Party and box icons use the minimum level at {offset}.": "Party and box icons use the minimum level at {offset}."
+    "Party and box icons use the minimum level at {offset}.": "Party and box icons use the minimum level at {offset}.",
+    "This Pokemon has no ability supported by Sword and Shield in its source data.": "This Pokemon has no ability supported by Sword and Shield in its source data.",
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Removed Pokemon assets could not be fully cleared. Refresh to retry."
   }
 }

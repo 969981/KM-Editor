@@ -4,6 +4,7 @@ import { History, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { OutputHistoryReceipt } from '../../bridge/outputSafetyContracts';
 import { DiagnosticsSection } from '../../components/workflowPanels';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import { getWorkbenchSectionLabelKey, workbenchCapabilityRegistry } from '../../workbench/capabilityRegistry';
 import type { OutputSafetyController } from './useOutputSafetyController';
@@ -131,7 +132,8 @@ export function OutputHistoryPage({ controller, formatChange, loadFormatter }: {
       <button className="secondary-button" disabled={!isAvailable || busyAction !== null}
         onClick={() => void loadHistory()} type="button"><RefreshCw aria-hidden="true" size={16} />{t('outputSafety.refresh')}</button>
     </div>
-    {!isAvailable ? <p>{t('history.unavailable')}</p> : !history ? <p role="status">{t(busyAction ? 'history.loading' : 'history.loadFailed')}</p> : days.size === 0 ?
+    {isAvailable && busyAction === 'loadActivity' ? <LoadingProgress className="is-compact" label={t('history.loading')} /> : null}
+    {!isAvailable ? <p>{t('history.unavailable')}</p> : !history ? busyAction ? null : <p role="status">{t('history.loadFailed')}</p> : days.size === 0 ?
       <p>{t('outputSafety.history.empty')}</p> : <div className="output-history-browser">
       <nav className="output-history-days" aria-label={t('history.days')}>
         {[...days].map(([day, receipts]) => <button type="button" key={day}

@@ -57,7 +57,9 @@ internal static class SwShRestorationCustomizations
             if (touched.Length == 0 && !changed.Any(p => IsLooseModel(p, definition))) { selections.Add(selection); continue; }
             var stored = SwShRestorationStateStore.Store(paths, previous with { Contributions = items.Values.ToArray() });
             using (stored.Lease) { }
-            selections.Add(selection with { CustomizationHash = stored.Hash }); any |= stored.Hash != selection.CustomizationHash;
+            selections.Add(selection with { CustomizationHash = stored.Hash,
+                AssetHashes = selection.AssetHashes.Concat(new[] { selection.PreparedHash, selection.CustomizationHash, stored.Hash }.OfType<string>()).Distinct(StringComparer.Ordinal).ToArray() });
+            any |= stored.Hash != selection.CustomizationHash;
         }
         if (!any) return state;
         var next = state.State with { Selections = selections }; var saved = SwShRestorationStateStore.Store(paths, next);

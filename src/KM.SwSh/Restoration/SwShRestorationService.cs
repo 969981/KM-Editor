@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Buffers.Binary;
 using KM.Formats.Audio;
+using KM.Formats.Models;
 using KM.Core.Diagnostics;
 using KM.Core.Editing;
 using KM.Core.Files;
@@ -12,7 +13,11 @@ using KM.SwSh.Items;
 
 namespace KM.SwSh.Restoration;
 
-public sealed record SwShRestorationIntent(string DefinitionId, string PreparedHash, bool Enabled, string? ExpectedStateHash);
+public sealed record SwShRestorationIntent(string DefinitionId, string PreparedHash, bool Enabled, string? ExpectedStateHash)
+{
+    public string? RemovalId { get; init; }
+    public IReadOnlyList<string> AdditionalPreparedHashes { get; init; } = [];
+}
 public sealed record SwShRestorationStageResult(EditSession Session, IReadOnlyList<ValidationDiagnostic> Diagnostics);
 public sealed record SwShRestorationPreview(IReadOnlyDictionary<string, byte[]?> Files, string StateHash, string? PreviousStateHash,
     SwShRestorationState State, IReadOnlyList<ProjectFileReference> Sources, IReadOnlyList<int> RemovedSpecies);
@@ -26,26 +31,37 @@ public sealed class SwShRestorationService
     public const string ReferenceCode = "KM-SWSH-RESTORATION-REFERENCE";
     public const string StaleCode = "KM-SWSH-RESTORATION-PREPARED-STALE";
 
-    public SwShRestorationStageResult Stage(ProjectPaths paths, string definitionId, string preparedHash, bool enabled, EditSession? session)
+    public SwShRestorationStageResult Stage(ProjectPaths paths, string definitionId, string preparedHash, bool enabled, EditSession? session, bool removeAssets = false, string? removalId = null, IReadOnlyCollection<string>? preparedAssets = null)
     {
         var current = session ?? EditSession.Start();
         try
         {
+            if (enabled && removeAssets) throw new InvalidDataException("Asset removal cannot enable a restoration.");
             current = UpgradeSession(paths, current);
             if (definitionId == SwShRestorationDefinitions.Piplup.Id)
             {
                 foreach (var definition in SwShRestorationDefinitions.PiplupSpecies)
                 {
-                    var result = Stage(paths, definition.Id, SwShRestorationCompatibility.Split(paths, preparedHash, definition.Id), enabled, current);
+                    var result = Stage(paths, definition.Id, SwShRestorationCompatibility.Split(paths, preparedHash, definition.Id), enabled, current, removeAssets);
                     if (result.Diagnostics.Count > 0) return new(session ?? EditSession.Start(), result.Diagnostics);
                     current = result.Session;
                 }
                 return new(current, []);
             }
             var snapshot = SwShRestorationStateStore.Read(paths);
-            var intent = new SwShRestorationIntent(definitionId, preparedHash, enabled, snapshot.Hash);
+            var intent = new SwShRestorationIntent(definitionId, preparedHash, enabled, snapshot.Hash) { RemovalId = removeAssets ? removalId ?? Guid.NewGuid().ToString("N") : null,
+                AdditionalPreparedHashes = removeAssets ? (preparedAssets ?? []).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray() : [] };
             var edit = CreateEdit(paths, intent);
-            var pending = current.PendingEdits.Where(e => e.Domain != Domain || e.RecordId != definitionId).Append(edit).ToArray();
+            var removalDefinition = SwShRestorationDefinitions.Get(definitionId);
+            bool Keep(PendingEdit pending)
+            {
+                if (pending.Domain == Domain && pending.RecordId == definitionId) return false;
+                if (!removeAssets || pending.Domain != ModelTextureIntent.Domain) return true;
+                var model = ModelTextureIntent.Parse(pending.NewValue);
+                return model.Game != paths.SelectedGame.ToString() || !removalDefinition.Identities.Any(identity =>
+                    model.Model.StartsWith($"bin/pokemon/pm{identity.Species:0000}_{identity.Form:00}/", StringComparison.Ordinal));
+            }
+            var pending = current.PendingEdits.Where(Keep).Append(edit).ToArray();
             var next = current with { PendingEdits = pending };
             _ = Preview(paths, next);
             return new(next, []);
@@ -138,6 +154,12 @@ public sealed class SwShRestorationService
             var bundle = SwShRestorationStateStore.ReadPrepared(paths, intent.PreparedHash);
             if (bundle.DefinitionId != intent.DefinitionId) throw new InvalidDataException("Prepared restoration definition does not match the selection.");
             selections.TryGetValue(intent.DefinitionId, out var installed);
+            if (installed?.RemovalId is not null && intent.Enabled) installed = null;
+            if (intent.RemovalId is not null && installed?.Enabled != true)
+            {
+                selections[intent.DefinitionId] = RemovedSelection(intent, installed);
+                continue;
+            }
             if (!intent.Enabled && (installed is null || !installed.Enabled)) throw new InvalidDataException("Only an installed, owned restoration can be removed.");
             VerifyTargetSources(paths, bundle);
             var effective = installed?.CustomizationHash is { } customHash ? SwShRestorationStateStore.ReadPrepared(paths, customHash) : bundle;
@@ -174,13 +196,18 @@ public sealed class SwShRestorationService
             }
             if (!intent.Enabled)
             {
+                if (intent.RemovalId is null)
+                {
                 var retained = composition.RetainedCustomizations.ToDictionary(c => (c.Path, c.Key));
                 var customized = effective with { Contributions = effective.Contributions.Select(c =>
                     SwShRestorationDependencies.Retain(c, retained.GetValueOrDefault((c.Path, c.Key), c), snapshot.State)).ToArray() };
                 var stored = SwShRestorationStateStore.Store(paths, customized); using (stored.Lease) customization = stored.Hash;
+                }
                 foreach (var identity in SwShRestorationDefinitions.Get(intent.DefinitionId).Identities) removed.Add(identity.Species);
             }
-            selections[intent.DefinitionId] = new(intent.DefinitionId, intent.PreparedHash, intent.Enabled, customization);
+            selections[intent.DefinitionId] = intent.RemovalId is not null ? RemovedSelection(intent, installed)
+                : new(intent.DefinitionId, intent.PreparedHash, intent.Enabled, customization)
+                { AssetHashes = (installed?.AssetHashes ?? []).Concat(new[] { intent.PreparedHash, installed?.PreparedHash, installed?.CustomizationHash, customization }.OfType<string>()).Distinct(StringComparer.Ordinal).ToArray() };
         }
         var state = new SwShRestorationState(1, selections.Values.OrderBy(s => s.DefinitionId, StringComparer.Ordinal).ToArray());
         foreach (var file in SwShRestorationDependencies.Reconcile(paths, snapshot.State, state, Current)) outputs[file.Key] = file.Value;
@@ -238,15 +265,27 @@ public sealed class SwShRestorationService
             if (referenced) throw new InvalidDataException($"External voice object {node.Type}:{node.Id} still references this restoration. Remove that reference first.");
         }
     }
+    private static SwShRestorationSelection RemovedSelection(SwShRestorationIntent intent, SwShRestorationSelection? installed) =>
+        new(intent.DefinitionId, intent.PreparedHash, false)
+        {
+            RemovalId = intent.RemovalId,
+            RemovedHashes = new[] { intent.PreparedHash, installed?.PreparedHash, installed?.CustomizationHash }
+                .OfType<string>().Concat(intent.AdditionalPreparedHashes).Concat(installed?.RemovedHashes ?? []).Concat(installed?.AssetHashes ?? []).Distinct(StringComparer.Ordinal).ToArray()
+        };
+
     private static PendingEdit CreateEdit(ProjectPaths paths, SwShRestorationIntent intent)
     {
         paths = SwShChangePlanSourceGuard.OriginalPaths(paths);
         var bundle = SwShRestorationStateStore.ReadPrepared(paths, intent.PreparedHash);
         if (bundle.DefinitionId != intent.DefinitionId) throw new InvalidDataException("Prepared restoration does not match its selection.");
+        if (intent.AdditionalPreparedHashes is null || intent.AdditionalPreparedHashes.Count > 16) throw new InvalidDataException("Prepared removal set is invalid.");
+        foreach (var hash in intent.AdditionalPreparedHashes)
+            if (SwShRestorationStateStore.ReadPrepared(paths, hash).DefinitionId != intent.DefinitionId)
+                throw new InvalidDataException("Prepared removal data belongs to another Pokemon.");
         var sources = new HashSet<ProjectFileReference>();
         foreach (var path in bundle.Contributions.Select(c => c.Path).Distinct(StringComparer.Ordinal)) _ = ReadEffective(paths, path, sources);
         foreach (var source in bundle.Sources.Where(s => s.Role == "target")) sources.Add(new(ProjectFileLayer.Base, "romfs/" + source.RelativePath));
-        return new(Domain, (intent.Enabled ? "Restore " : "Remove restored ") + intent.DefinitionId, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(),
+        return new(Domain, (intent.RemovalId is not null ? "Remove assets for " : intent.Enabled ? "Restore " : "Remove restored ") + intent.DefinitionId, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(),
             intent.DefinitionId, "enabled", JsonSerializer.Serialize(intent), Domain);
     }
     public static EditSession UpgradeSession(ProjectPaths paths, EditSession session)
@@ -270,6 +309,8 @@ public sealed class SwShRestorationService
         if (edit.NewValue is null || edit.NewValue.Length > 4096) throw new InvalidDataException("Staged restoration intent is missing or oversized.");
         var intent = JsonSerializer.Deserialize<SwShRestorationIntent>(edit.NewValue) ?? throw new InvalidDataException("Staged restoration intent is empty.");
         if (intent.DefinitionId != edit.RecordId) throw new InvalidDataException("Staged restoration identity is inconsistent.");
+        if (intent.RemovalId is not null && (intent.Enabled || !Guid.TryParseExact(intent.RemovalId, "N", out _)))
+            throw new InvalidDataException("Staged asset removal is invalid.");
         _ = SwShRestorationDefinitions.Get(intent.DefinitionId); return intent;
     }
     private static void VerifyTargetSources(ProjectPaths paths, SwShPreparedRestoration prepared)

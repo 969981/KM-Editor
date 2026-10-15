@@ -8,7 +8,12 @@ using KM.SwSh.Editing;
 
 namespace KM.SwSh.Restoration;
 
-public sealed record SwShRestorationSelection(string DefinitionId, string PreparedHash, bool Enabled, string? CustomizationHash = null);
+public sealed record SwShRestorationSelection(string DefinitionId, string PreparedHash, bool Enabled, string? CustomizationHash = null)
+{
+    public string? RemovalId { get; init; }
+    public IReadOnlyList<string> AssetHashes { get; init; } = [];
+    public IReadOnlyList<string> RemovedHashes { get; init; } = [];
+}
 public sealed record SwShRestorationState(int Schema, IReadOnlyList<SwShRestorationSelection> Selections)
 {
     public static SwShRestorationState Empty { get; } = new(1, []);
@@ -110,6 +115,10 @@ public static class SwShRestorationStateStore
         {
             _ = SwShRestorationDefinitions.Get(selection.DefinitionId); ValidateHash(selection.PreparedHash);
             if (selection.CustomizationHash is not null) ValidateHash(selection.CustomizationHash);
+            if (selection.RemovalId is not null && (!Guid.TryParseExact(selection.RemovalId, "N", out _) || selection.Enabled || selection.CustomizationHash is not null)
+                || selection.RemovedHashes is null || selection.RemovedHashes.Count > 1024 || selection.AssetHashes is null || selection.AssetHashes.Count > 1024)
+                throw new InvalidDataException("Restoration removal state is invalid.");
+            foreach (var hash in selection.RemovedHashes.Concat(selection.AssetHashes)) ValidateHash(hash);
         }
     }
 }

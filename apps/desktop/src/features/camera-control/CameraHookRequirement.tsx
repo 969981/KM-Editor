@@ -6,6 +6,7 @@ import type { PreviewInGameSettingsPackageRequest } from '../../bridge/inGameSet
 import type { ProjectBridge } from '../../bridge/projectBridge';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
 import { inGameSettingsPackageErrorCodes } from '../../errorCodes';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import type { GameplaySettingsDestinations } from '../gameplay-settings/InGameSettingsPackagePanel';
 import type { ApiDiagnostic } from '../../bridge/contracts';
@@ -70,7 +71,8 @@ export function CameraHookRequirement({ scope, bridge, destinations, onStatus, o
       <span>{t('cameraHook.consoleOutput')}</span>
     </label>
     {consoleOutput ? <p>{t('cameraHook.consoleHelp')}</p> : <>
-      <p role="status">{t(`cameraHook.${phase}`)}</p>
+      {phase === 'checking' ? <LoadingProgress className="is-compact" label={t('cameraHook.checking')}
+        operationKey={`${scopeKey}:${destinationKey}:${revision}`} /> : <p role="status">{t(`cameraHook.${phase}`)}</p>}
       {phase === 'ready' ? <p><code>{hookPath}</code></p> : null}
       <div className="camera-hook-requirement__actions">
         <button className="secondary-button" type="button" onClick={onOpenCameraHook}>{t('cameraHook.open')}</button>

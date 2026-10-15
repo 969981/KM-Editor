@@ -9,6 +9,8 @@ public sealed record RestorationEntryDto(int SpeciesId, string Name, string? Def
     string Installation, IReadOnlyList<int> Family, string? PreparedHash, bool Selected, bool Staged)
 {
     public string? Donor { get; init; }
+    public string? AssetsRemoved { get; init; }
+    public bool RemovalStaged { get; init; }
 }
 public sealed record RestorationWorkflowDto(bool CanEdit, string Revision, IReadOnlyList<RestorationEntryDto> Entries,
     IReadOnlyList<ApiDiagnostic> Diagnostics);
@@ -22,6 +24,7 @@ public sealed record RestorationPreparationDto(string Id, string DefinitionId, s
     public long ElapsedMilliseconds { get; init; }
     public bool CancellationRequested { get; init; }
     public string? CacheMode { get; init; }
+    public string? RemovalId { get; init; }
 }
 public sealed record InspectRestorationDonorRequest(ProjectPathsDto Paths, string Donor, string DonorRomFsPath, string? CompressionSupportFolderPath);
 public sealed record RestorationDonorResponse(string Mode);
@@ -30,5 +33,5 @@ public sealed record LoadRestorationResponse(RestorationWorkflowDto Workflow);
 public sealed record PrepareRestorationRequest(ProjectPathsDto Paths, string DefinitionId, string DonorRomFsPath, string? CompressionSupportFolderPath);
 public sealed record RestorationPreparationRequest(ProjectPathsDto Paths, string PreparationId);
 public sealed record RestorationPreparationResponse(RestorationPreparationDto Preparation);
-public sealed record StageRestorationRequest(ProjectPathsDto Paths, string DefinitionId, string PreparedHash, bool Enabled, EditSessionDto? Session);
+public sealed record StageRestorationRequest(ProjectPathsDto Paths, string DefinitionId, string PreparedHash, bool Enabled, EditSessionDto? Session, bool RemoveAssets = false);
 public sealed record StageRestorationResponse(RestorationWorkflowDto Workflow, EditSessionDto Session, IReadOnlyList<ApiDiagnostic> Diagnostics);

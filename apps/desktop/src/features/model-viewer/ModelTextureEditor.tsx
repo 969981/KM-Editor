@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { EditSession, ProjectPaths } from '../../bridge/contracts';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
 import { SearchableOptionInput } from '../../components/SearchableOptionInput';
@@ -113,7 +114,8 @@ export function ModelTextureEditor({ paths, model, session, disabled, onPreview,
     <h3 id="model-textures-title">{t('modelViewer.texture.title')}</h3>
     <p>{t('modelViewer.texture.shared')}</p>
     {dirty ? <p role="status">{t('modelViewer.texture.dirty')}</p> : null}
-    {loading ? <p role="status">{t('modelViewer.loading')}</p> : textures.length === 0 ? <p>{t('modelViewer.texture.empty')}</p> : <>
+    {busy ? <LoadingProgress className="is-compact" label={t('modelViewer.texture.encoding')} /> : null}
+    {loading ? <LoadingProgress className="is-compact" operationKey={model} label={t('modelViewer.loading')} /> : textures.length === 0 ? <p>{t('modelViewer.texture.empty')}</p> : <>
       <label htmlFor="model-texture-select">{t('modelViewer.texture.select')}</label>
       <SearchableOptionInput id="model-texture-select" ariaLabel={t('modelViewer.texture.select')} value={selected} disabled={locked}
         isFiniteCatalog localizeOptions={false} onChange={setSelected}
