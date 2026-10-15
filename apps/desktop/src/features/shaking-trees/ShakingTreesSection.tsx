@@ -58,8 +58,15 @@ export function ShakingTreesSection({ workflow, session, isEditing, isEditStarti
     areaCounts.set(tree.areaId, number); numbered.set(tree.id, number);
   }
   const treeName = (tree: NonNullable<typeof selected>) => `${translateLiteral(tree.area)} · ${t('shakingTrees.treeNumber', { number: numbered.get(tree.id) ?? 1 })}`;
-  const filtered = workflow?.trees.filter(row => `${treeName(row)} ${row.label}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())) ?? [];
   const get = (id: string, field: string) => values[treeFieldKey(id, field)] ?? '';
+  const itemNames = useMemo(() => new Map(workflow?.items.map(item => [item.value, item.label.toLocaleLowerCase()])), [workflow?.items]);
+  const query = search.trim().toLocaleLowerCase();
+  const filtered = workflow?.trees.filter(row => `${treeName(row)} ${row.label}`.toLocaleLowerCase().includes(query)
+    || row.drops.some((_, slot) => {
+      const itemId = parseTreeNumber(get(row.id, `item.${slot}`));
+      const chance = parseTreeNumber(get(row.id, `percent.${slot}`));
+      return itemId !== null && chance !== null && chance > 0 && (itemNames.get(itemId)?.includes(query) ?? false);
+    })) ?? [];
   const updateDrafts = (updates: Record<string, string>) => {
     setDrafts(current => {
       const next = { ...current, ...updates };
