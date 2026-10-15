@@ -14,6 +14,7 @@ public sealed partial class SwShRestorationPreparationService
     {
         internal (IReadOnlyList<SwShRestorationContribution> Contributions, int[] ExcludedMoves) Gameplay(int species)
         {
+            var profile = Profiles[species];
             var source = new ModelBuffer(Donor("avalon/data/personal_array.bin"));
             var candidates = source.Tables(source.Root, 0, 4096).Where(t => source.Field(t, 0) is var at && at != 0
                 && source.U16(at + 4) == species && source.U16(at + 2) == 0).ToArray();
@@ -35,11 +36,15 @@ public sealed partial class SwShRestorationPreparationService
             row[6] = checked((byte)Scalar(5)); row[7] = checked((byte)Scalar(6)); row[8] = checked((byte)Scalar(11)); row[9] = checked((byte)Scalar(19));
             var ev = 0;
             for (var i = 0; i < order.Length; i++) { var value = source.U8(yields + order[i]); if (value > 3) throw new InvalidDataException("Source EV yield is unsupported."); ev |= value << (i * 2); }
-            Put16(row, 10, ev); row.AsSpan(12, 6).Clear(); row[18] = 31; row[19] = checked((byte)Scalar(16)); row[20] = checked((byte)Scalar(17));
+            var gender = source.Field(table, 12); var hatch = source.Field(table, 15);
+            if (gender == 0 || source.U8(gender) != 0 || source.U8(gender + 1) != profile.FemalePercent
+                || hatch == 0 || source.U16(hatch) != profile.HatchedSpecies || source.U16(hatch + 2) != 0)
+                throw new InvalidDataException("Source gender or hatch identity needs another conversion profile.");
+            Put16(row, 10, ev); row.AsSpan(12, 6).Clear(); row[18] = profile.GenderThreshold; row[19] = checked((byte)Scalar(16)); row[20] = checked((byte)Scalar(17));
             row[21] = checked((byte)Scalar(10)); row[22] = checked((byte)Scalar(13)); row[23] = checked((byte)Scalar(14));
             for (var i = 0; i < 3; i++) { var ability = Scalar(7 + i, true); if (ability is < 1 or > 267) throw new InvalidDataException("Source ability needs a target mechanics adapter."); Put16(row, 24 + i * 2, ability); }
             Put16(row, 30, 0); row[32] = 1; row[33] = (byte)((source.U8(detail + 6) & 63) | 64);
-            Put16(row, 34, new[] { 63, 142, 265 }[species - 393]); Put16(row, 36, source.U16(detail + 8)); Put16(row, 38, source.U16(detail + 10));
+            Put16(row, 34, profile.Experience); Put16(row, 36, source.U16(detail + 8)); Put16(row, 38, source.U16(detail + 10));
             var machineMoves = Moves(24).ToHashSet();
             void Compatibility(int offset, int length, IEnumerable<int> moves)
             {
@@ -51,7 +56,7 @@ public sealed partial class SwShRestorationPreparationService
             Compatibility(56, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TypeTutorCompatibilityGroupId));
             Compatibility(60, 16, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TechnicalRecordCompatibilityGroupId));
             Compatibility(168, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.ArmorTutorCompatibilityGroupId));
-            BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)species)); Put16(row, 86, 393); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
+            BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)species)); Put16(row, 86, profile.HatchedSpecies); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
             _ = SwShPersonalTable.Parse(row);
             var result = new List<SwShRestorationContribution>
             { new(SwShRestorationComposer.PersonalPath, SwShRestorationWriter.Personal, species.ToString(CultureInfo.InvariantCulture), before, row) };
@@ -79,7 +84,7 @@ public sealed partial class SwShRestorationPreparationService
             for (var i = 0; i < evolutionCount; i++)
             {
                 var at = evolutionStart + i * 16; var destination = source.U16(at + 12); var form = source.U16(at + 14);
-                if (destination is < 393 or > 395 || form != 0) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
+                if (!Profiles.TryGetValue(destination, out var evolved) || evolved.HatchedSpecies != profile.HatchedSpecies || form != 0) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
                 Put16(evolution, i * 8, source.U16(at + 2)); Put16(evolution, i * 8 + 2, source.U16(at + 4)); Put16(evolution, i * 8 + 4, destination);
                 evolution[i * 8 + 6] = checked((byte)form); evolution[i * 8 + 7] = checked((byte)source.U16(at));
             }
@@ -94,11 +99,11 @@ public sealed partial class SwShRestorationPreparationService
             {
                 string Name(int id) => group == "common" ? $"poke_{id:0000}_XX_X.bin" : $"poke_{group}_{id:0000}_00_0.bin";
                 var folder = $"bin/pokemon_data/pokecamp/{group}/";
-                var data = camp.ReadFileByHash(SwShGfPackFile.HashMemberPath(folder + Name(species - 386)), 1024 * 1024);
+                var data = camp.ReadFileByHash(SwShGfPackFile.HashMemberPath(folder + Name(profile.NativeTemplate)), 1024 * 1024);
                 if (group == "common")
                 {
                     var metadata = new ModelBuffer(data); var field = metadata.Field(metadata.Root, 2);
-                    if (metadata.U32(field) != species - 386) throw new InvalidDataException("Native camp donor identity is invalid.");
+                    if (metadata.U32(field) != profile.NativeTemplate) throw new InvalidDataException("Native camp donor identity is invalid.");
                     BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(field), checked((uint)species));
                 }
                 result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp, folder + Name(species), null, data));

@@ -26,7 +26,7 @@ public sealed partial class SwShRestorationPreparationService
         if (definition.Donor == SwShRestorationDonor.LegendsZA)
             return new ZaSwShRestorationPreparationService().Prepare(target, donorRomFs, compressionSupport, definitionId, progress, cancellationToken, donorSession);
         if (target.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || string.IsNullOrWhiteSpace(target.BaseRomFsPath)
-            || definition.Identities.Any(i => i.Species is < 393 or > 395 || i.Form != 0)) throw new InvalidDataException("This restoration is not supported for the selected target.");
+            || definition.Identities.Any(i => !Profiles.ContainsKey(i.Species) || i.Form != 0)) throw new InvalidDataException("This restoration is not supported for the selected target.");
         var context = new Preparation(target, donorRomFs, compressionSupport, definition, progress, cancellationToken, donorSession);
         using (context)
         {

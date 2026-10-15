@@ -31,7 +31,7 @@ public sealed partial class SwShRestorationPreparationService
                 var species = identity.Species; var stem = $"pm{species:0000}_00";
                 var packPath = $"romfs/bin/archive/pokemon/{stem}.gfpak";
                 var pack = SwShGfPackFile.Parse(files[packPath]!); packs.Add(packPath, pack);
-                if (!personal.Records[species].IsPresentInGame || personal.Records[species].HatchedSpecies != 393 || personal.Records[species].CanNotDynamax)
+                if (!personal.Records[species].IsPresentInGame || personal.Records[species].HatchedSpecies != Profiles[species].HatchedSpecies || personal.Records[species].CanNotDynamax)
                     throw new InvalidDataException("Converted personal data does not support the declared contexts.");
                 foreach (var shiny in new[] { false, true })
                 {

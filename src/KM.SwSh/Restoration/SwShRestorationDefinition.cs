@@ -30,6 +30,7 @@ public static class SwShRestorationDefinitions
     });
     public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(PiplupSpecies.Concat(new[]
     {
+        Species("ekans", 23), Species("arbok", 24),
         Species("weedle", 13) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("kakuna", 14) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("beedrill", 15) with { Donor = SwShRestorationDonor.LegendsZA },

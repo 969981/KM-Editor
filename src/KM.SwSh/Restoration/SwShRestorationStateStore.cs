@@ -29,8 +29,7 @@ public static class SwShRestorationStateStore
         if (string.IsNullOrWhiteSpace(paths.OutputRootPath) || !new OutputWorkspaceStorage(paths).HasMaterial)
             return new(null, SwShRestorationState.Empty);
         var coordinator = OutputTransactionCoordinator.ForProject(paths);
-        var inventory = coordinator.GetOwnershipInventorySnapshotAsync().GetAwaiter().GetResult();
-        var record = inventory.Inventory.Files.SingleOrDefault(r => r.Path.Value == SwShRestorationComposer.PersonalPath);
+        var record = coordinator.GetOwnershipRecordAsync(new(SwShRestorationComposer.PersonalPath)).GetAwaiter().GetResult();
         if (record is null) return new(null, SwShRestorationState.Empty);
         if (!coordinator.OwnershipScopeMatches(record, ProjectIdentity.FromPaths(paths), GameFamily.SwordShield))
             throw new InvalidDataException("Restoration state belongs to another project scope.");
@@ -42,7 +41,8 @@ public static class SwShRestorationStateStore
     {
         ValidateHash(hash);
         var paths = SwShChangePlanSourceGuard.OriginalPaths(project);
-        var bytes = OutputTransactionCoordinator.ForProject(paths).ReadPreservationArtifactAsync(hash).GetAwaiter().GetResult();
+        var bytes = SwShRestorationReadScope.Find(paths)?.ReadBytes(hash)
+            ?? OutputTransactionCoordinator.ForProject(paths).ReadPreservationArtifactAsync(hash).GetAwaiter().GetResult();
         if (bytes.Length > 1024 * 1024) throw new InvalidDataException("Restoration state exceeds its size limit.");
         var state = JsonSerializer.Deserialize<SwShRestorationState>(bytes) ?? throw new InvalidDataException("Restoration state is empty.");
         Validate(state); return new(hash, SwShRestorationCompatibility.Normalize(paths, state));
@@ -51,9 +51,24 @@ public static class SwShRestorationStateStore
     {
         ValidateHash(hash);
         var paths = SwShChangePlanSourceGuard.OriginalPaths(project);
+        if (SwShRestorationReadScope.Find(paths) is { } scope) return scope.ReadPrepared([hash])[hash];
         var bundle = SwShPreparedRestoration.Decode(OutputTransactionCoordinator.ForProject(paths).ReadPreservationArtifactAsync(hash).GetAwaiter().GetResult());
         if (bundle.Game != paths.SelectedGame) throw new InvalidDataException("Prepared restoration belongs to another game edition.");
         return bundle;
+    }
+    internal static IReadOnlyDictionary<string, SwShPreparedRestoration> ReadPreparedMany(ProjectPaths project, IEnumerable<string> hashes)
+    {
+        var identities = hashes.Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var identity in identities) ValidateHash(identity);
+        var paths = SwShChangePlanSourceGuard.OriginalPaths(project);
+        if (SwShRestorationReadScope.Find(paths) is { } scope) return scope.ReadPrepared(identities);
+        var artifacts = OutputTransactionCoordinator.ForProject(paths).ReadPreservationArtifactsAsync(identities).GetAwaiter().GetResult();
+        return artifacts.ToDictionary(pair => pair.Key, pair =>
+        {
+            var bundle = SwShPreparedRestoration.Decode(pair.Value);
+            if (bundle.Game != paths.SelectedGame) throw new InvalidDataException("Prepared restoration belongs to another game edition.");
+            return bundle;
+        }, StringComparer.Ordinal);
     }
     public static (string Hash, FileStream Lease) Store(ProjectPaths project, SwShPreparedRestoration prepared, CancellationToken token = default)
     {

@@ -299,6 +299,28 @@ public sealed partial class OutputTransactionCoordinator
         }
     }
 
+    /// <summary>Reads current ownership for one target without inspecting unrelated output files.</summary>
+    public async Task<OutputOwnershipRecord?> GetOwnershipRecordAsync(
+        RelativeOutputPath target, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        await operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await using var workspaceLease = workspace is null ? null
+                : await workspace.AcquireAsync(options, cancellationToken).ConfigureAwait(false);
+            paths.EnsureMetadataLayout();
+            await using var outputLock = await AcquireOutputRootLockAsync(cancellationToken).ConfigureAwait(false);
+            paths.ValidateTarget(target);
+            var inventory = await ReadInventoryAsync(cancellationToken, validateAllPaths: false).ConfigureAwait(false);
+            return inventory.Files.SingleOrDefault(record => record.Path.CanonicalKey == target.CanonicalKey);
+        }
+        finally
+        {
+            operationGate.Release();
+        }
+    }
+
     public async Task<OutputIntegrityReport> ScanIntegrityAsync(
         IEnumerable<OutputBaselineEntry>? baseline = null,
         CancellationToken cancellationToken = default)
@@ -4192,7 +4214,7 @@ public sealed partial class OutputTransactionCoordinator
         paths.ValidateTarget(relativePath);
     }
 
-    private async Task<OutputOwnershipInventory> ReadInventoryAsync(CancellationToken cancellationToken)
+    private async Task<OutputOwnershipInventory> ReadInventoryAsync(CancellationToken cancellationToken, bool validateAllPaths = true)
     {
         var path = paths.GetContainedMetadataPath(paths.MetadataRoot, "ownership.json");
         var inventory = await metadata.ReadJsonAsync<OutputOwnershipInventory>(path, cancellationToken)
@@ -4202,7 +4224,10 @@ public sealed partial class OutputTransactionCoordinator
             return OutputOwnershipInventory.Empty;
         }
 
-        ValidateInventoryPaths(inventory);
+        if (validateAllPaths) ValidateInventoryPaths(inventory);
+        else
+            foreach (var directory in inventory.CreatedDirectories)
+                if (!IsStrictAncestor(directory.Path, directory.AuthorizationTarget)) throw new OutputPathSecurityException();
         return inventory;
     }
 

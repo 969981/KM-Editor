@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Globalization;
 using KM.Formats.Audio;
 using KM.Formats.SwSh;
+using KM.Formats.SV;
 using KM.SwSh.Restoration;
 
 namespace KM.Tools.Application;
@@ -34,34 +35,15 @@ public sealed partial class SwShRestorationPreparationService
                 foreach (var item in SoundPackageIndex.Read(package, token).Where(m => m.Group == 1 && m.Language == 0))
                     if (!packages.TryAdd(item.Id, (path, item))) throw new InvalidDataException("Donor voice media identity exists in multiple packages.");
             }
-            SoundBankObject Object(byte type, uint id)
-            {
-                var matches = source.Objects.Where(o => o.Type == type && o.Id == id).ToArray();
-                return matches.Length == 1 ? matches[0] : throw new InvalidDataException("Donor voice graph is incomplete or ambiguous.");
-            }
             var result = new List<SwShRestorationContribution>();
             foreach (var id in species)
             {
-                var evt = Object(4, SwShVoiceWriter.Hash($"Play_PV_{id:0000}"));
-                if (evt.Payload.Length != 5 || evt.Payload[0] != 1) throw new InvalidDataException("Donor voice event layout is unsupported.");
-                var action = Object(3, U32(evt.Payload, 1)); var container = Object(6, U32(action.Payload, 2));
-                var childrenCount = checked((int)U32(container.Payload, 42));
-                if (childrenCount is < 1 or > 128) throw new InvalidDataException("Donor voice switch has an invalid child count.");
-                var children = Enumerable.Range(0, childrenCount).Select(i => U32(container.Payload, 46 + i * 4)).ToHashSet();
-                var at = 46 + childrenCount * 4; var stateCount = checked((int)U32(container.Payload, at)); at += 4;
-                if (stateCount is < 1 or > 128) throw new InvalidDataException("Donor voice state count is invalid.");
-                var states = new Dictionary<uint, uint>();
-                for (var i = 0; i < stateCount; i++, at += 12)
-                {
-                    var state = U32(container.Payload, at); var count = U32(container.Payload, at + 4); var child = U32(container.Payload, at + 8);
-                    if (count != 1 || !children.Contains(child) || !states.TryAdd(state, child)) throw new InvalidDataException("Donor voice switch needs another state adapter.");
-                }
+                var states = SvRestorationVoiceGraph.ResolvePlayback(source, id);
                 var media = new Dictionary<string, byte[]>(StringComparer.Ordinal);
                 foreach (var state in SwShVoiceWriter.States)
                 {
                     token.ThrowIfCancellationRequested();
-                    if (!states.TryGetValue(SwShVoiceWriter.Hash(state), out var soundId)) throw new InvalidDataException($"Donor cry state is missing: {state}");
-                    var sound = Object(2, soundId); var mediaId = U32(sound.Payload, 5);
+                    var mediaId = states[state].MediaId;
                     if (!packages.TryGetValue(mediaId, out var entry) || entry.Media.Length > 32 * 1024 * 1024) throw new InvalidDataException("Donor cry media is unavailable or oversized.");
                     using var input = new FileStream(entry.Path, FileMode.Open, FileAccess.Read, FileShare.Read); input.Position = entry.Media.Offset;
                     var encoded = new byte[entry.Media.Length]; input.ReadExactly(encoded);
@@ -69,17 +51,28 @@ public sealed partial class SwShRestorationPreparationService
                     var decoded = PtAdpcmDecoder.Decode(encoded, token); media.Add(state, SoundBankDocument.EncodePcm16(decoded.Samples, decoded.Channels, decoded.SampleRate));
                 }
                 var contribution = SwShVoiceWriter.Create(targetBank, id, 7, media);
-                result.AddRange(contribution.Objects.Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
+                var gains = states.ToDictionary(p => SwShVoiceWriter.MediaId(id, p.Key), p => p.Value.GainDecibels);
+                result.AddRange(contribution.Objects.Select(o => o.Type == 2 ? Gain(o, gains[BinaryPrimitives.ReadUInt32LittleEndian(o.Payload.AsSpan(5))]) : o).Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
                     string.Create(CultureInfo.InvariantCulture, $"{o.Type}:{o.Id}"), null, o.Payload)));
                 result.AddRange(contribution.Media.Select(m => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
                     "media:" + m.Id.ToString(CultureInfo.InvariantCulture), null, m.Bytes)));
             }
             return result;
         }
-        private static uint U32(byte[] bytes, int at)
+
+        private static SoundBankObject Gain(SoundBankObject sound, float decibels)
         {
-            if (at < 0 || at > bytes.Length - 4) throw new InvalidDataException("Donor voice record is truncated.");
-            return BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(at));
+            if (decibels == 0) return sound;
+            var source = sound.Payload;
+            // The selected version 128 PCM template has no local properties.
+            // Preserve sample data and carry source makeup gain as a bank property.
+            if (!float.IsFinite(decibels) || decibels is < -96 or > 24 || source.Length < 28
+                || source[14] != 0 || source[15] != 0 || source[16] != 0 || source[25] != 0 || source[26] != 0)
+                throw new InvalidDataException("Native voice gain requires another target adapter.");
+            var bytes = new byte[source.Length + 5]; source.AsSpan(0, 27).CopyTo(bytes);
+            bytes[26] = 1; bytes[27] = 6; BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(28), decibels);
+            source.AsSpan(27).CopyTo(bytes.AsSpan(32));
+            return sound with { Payload = bytes };
         }
     }
 }
