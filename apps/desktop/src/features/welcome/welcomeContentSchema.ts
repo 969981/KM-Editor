@@ -6,8 +6,10 @@ const audience = z.array(z.enum(['all', 'swsh', 'sv', 'za', 'sword', 'shield', '
 const safeUrl = z.string().url().max(2048).refine(value => {
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password && url.hostname === 'github.com' &&
+    const repository = url.hostname === 'github.com' &&
       (url.pathname === '/KotMatrosk1n/KM-Editor' || url.pathname.startsWith('/KotMatrosk1n/KM-Editor/'));
+    const community = value === 'https://discord.gg/ess4reb5eB';
+    return url.protocol === 'https:' && !url.username && !url.password && !url.port && (repository || community);
   } catch {
     return false;
   }

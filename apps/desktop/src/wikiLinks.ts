@@ -8,6 +8,7 @@ const wikiBaseUrl = 'https://github.com/KotMatrosk1n/KM-Editor/wiki';
 
 const commonWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
   bagHook: 'Bag-Hook',
+  cameraHook: 'Camera-Hook',
   behavior: 'Behavior-Editor',
   catchCap: 'Catch-Cap-Editor',
   changes: 'Changes-and-Apply',
@@ -34,10 +35,11 @@ const commonWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
   modelViewer: '3D-Model-Editor',
   soundStudio: 'Sound-Studio',
   gameplaySettings: 'Gameplay-Settings',
-  cameraControl: 'Gameplay-Settings',
-  battleItems: 'Gameplay-Settings',
+  cameraControl: 'Camera-Control',
+  battleItems: 'Battle-Items',
   moves: 'Moves-Editor',
   npcItemGift: 'NPC-Item-Gift',
+  obedience: 'Obedience-Level',
   placement: 'Placement-Editor',
   pokemon: 'Pokemon-Editor',
   profanityFilter: 'Profanity-Filter',
@@ -49,9 +51,11 @@ const commonWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
   raidRewards: 'Raid-Rewards-Editor',
   randomizer: 'Randomizer',
   rentalPokemon: 'Rental-Pokemon-Editor',
+  restoreMissingPokemon: 'Restore-Missing-Pokemon',
   royalCandy: 'Royal-Candy',
   settings: 'Settings',
   shinyRate: 'Shiny-Rate',
+  shakingTrees: 'Shaking-Trees',
   shops: 'Shops-Editor',
   spreadsheetImport: 'Dump-Importer',
   startingItems: 'Starting-Items',
@@ -64,6 +68,9 @@ const commonWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
 };
 
 const scarletVioletWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
+  bbqRewards: 'BBQ-Rewards',
+  supportBoard: 'Support-Board',
+  snacksworth: 'Snacksworth',
   encounters: 'Scarlet-and-Violet-Wild-Encounters-Editor',
   fashionUnlock: 'Scarlet-and-Violet-Fashion-Unlock',
   hyperspaceBypass: 'Hyperspace-Bypass',

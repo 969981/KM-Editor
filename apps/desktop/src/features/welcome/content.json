@@ -2,6 +2,201 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "2.6.6",
+      "summary": {
+        "en": "Bring missing Pokemon back to Sword and Shield, explore with outdoor camera controls, and build your own training and reward progression. KM Editor 2.6.6 also adds clearer progress feedback, customizable editor categories, faster restoration output, and a new home for the community on Discord."
+      },
+      "sections": [
+        {
+          "title": {
+            "en": "Sword And Shield"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Bring twelve missing Pokemon back under their original species IDs with Restore Missing Pokemon. Prepare and enable Ekans, Arbok, Weedle, Kakuna, Beedrill, Pidgey, Pidgeotto, Pidgeot, Kecleon, Piplup, Prinplup, and Empoleon individually from your own compatible S/V or Z-A donor files. Each conversion remains marked Testing."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Explore supported outdoor maps with Camera Control and its in game Unlocked Camera choice. The added camera yields to events and indoor areas, with extended scenery and NPC visibility while active. Camera Hook handles emulator settings separately from game output. Camera Control remains a Beta feature."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Offer Hyper Training at Pokemon Centers before Champion status, choose its minimum level, and customize both payment items. Service dialogue and party picker eligibility stay in step. IV Screen now shows 31 for Hyper Trained stats and raw IVs for untrained stats, including the training panel and its graph."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Shape berry tree rewards and encounters with Shaking Trees. Edit 73 ordinary item pools, 33 shared encounter areas, risk and loss rules, and supported quantities from one through three, with probability previews before staging."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Set traded Pokemon obedience limits independently for every badge count with Obedience Level. Battle Items adds a separate Beta restriction for ordinary player Bag items, preserving native ball rules. Installed camera and battle choices can also be configured through Game Options."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Starter replacements synchronize their supported scenes, cries, names, and dialogue. Restore an individual gift to its original record, synchronize earlier starter edits, edit received trade nicknames, and keep trade dialogue or the Wedgehurst station scene aligned with supported Pokemon replacements."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Restored Pokemon integrate with supported data, encounter, team, model, and audio tools. Conversions include normal and shiny resources, supported animations and facial channels, cries, native sized party icons, and ordinary Dynamax assets. Unsupported moves are omitted; unsupported abilities use an eligible ability from that same donor species and form."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Preparation remembers donor and Oodle folders, reuses compatible donor caches, and starts a temporary session cache when needed. Prepared entries offer Remove Assets through Stage, Review, and Apply, including tracked model customizations. Dependent references must be cleared, while unrelated output and recovery checkpoints remain protected."
+              },
+              "audience": [
+                "swsh"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Scarlet And Violet"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Tune Blueberry Quest BP rewards and Support Board prices with dedicated editors, including filtered bulk changes and scoped Restore Vanilla actions."
+              },
+              "audience": [
+                "sv"
+              ]
+            },
+            {
+              "body": {
+                "en": "Choose solo and group quest eligibility separately for each edition in Snacksworth, or make all treats available through solo quests. Supported dialogue follows those choices while later custom Text edits and player progression remain preserved."
+              },
+              "audience": [
+                "sv"
+              ]
+            },
+            {
+              "body": {
+                "en": "Shared output composition better preserves independent Text, TM, Titan, and other supported editor changes. Separately installed Gameplay Settings packages still need Refresh and Upgrade after standalone edits."
+              },
+              "audience": [
+                "sv"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Legends Z-A"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Shared native output preparation preserves current descriptor and Text contributions when combined with supported standalone edits. The separate Z-A donor pipeline also supplies compatible source assets for the supported Sword and Shield restorations."
+              },
+              "audience": [
+                "za"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Workspace And Progress"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Long operations now show their current activity, elapsed time, measured counts, and workflow stages in a consistent progress card. Loading, asset preparation, Review and Apply, imports, exports, models, audio, updates, and Mod Merger distinguish completion, failure, cancellation, and waiting without inventing progress percentages."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Arrange the editor around your workflow with custom categories, saved names, editor ordering, and category ordering. Restore Original Categories offers a confirmed reset, and distinct editor icons make the sidebar and workflow cards easier to scan."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Review and Apply reuse verified restoration assets within each operation and avoid repeated mixed plan construction. Current source checks, stale review rejection, rollback, and ownership validation remain in place."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "The Welcome Hub links directly to KM Hub on Discord and includes a new developer message. Updated wiki guides explain the new tools and their limits, with contextual help links from the affected editors."
+              },
+              "audience": [
+                "all"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Compatibility And Maintenance"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Shared editor output, selective restoration, and recovery better preserve independent changes in existing mod projects. Gift, trade, and rental table expansion retains alignment, while NPC gift review handles edits across multiple scripts."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Updated source map and TLS dependencies address the reported dependency vulnerabilities. The Windows setup, updater, and application metadata consistently identify version 2.6.6."
+              },
+              "audience": [
+                "all"
+              ]
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "label": {
+            "en": "Full changelog"
+          },
+          "url": "https://github.com/KotMatrosk1n/KM-Editor/compare/v2.6.5...v2.6.6"
+        }
+      ]
+    },
+    {
       "version": "2.6.5",
       "summary": {
         "en": "KM Editor 2.6.5 adds editable YAML game dumps, Game Options and per Pokemon held item chances for Sword and Shield, and the Beta Titan Swapper for Scarlet and Violet. It also adds trainer AI flag repair and Mum's starting money, improves custom model previews, and fixes cache reuse, scrolling input and trainer controls."
@@ -1709,6 +1904,46 @@
   ],
   "announcements": [
     {
+      "id": "km-hub-2-6-6",
+      "title": {
+        "en": "Welcome to KM Hub",
+        "de": "Willkommen im KM Hub",
+        "es": "Te damos la bienvenida a KM Hub",
+        "fr": "Bienvenue sur KM Hub",
+        "ru": "Добро пожаловать в KM Hub",
+        "uk": "Ласкаво просимо до KM Hub",
+        "zh": "欢迎来到 KM Hub"
+      },
+      "body": {
+        "en": "The new KM Hub Discord server is live! Come hang out, get the latest updates, share your feedback, and chat with me and the community about KM Editor, KM Calculator, and Royal Sword. Hope to see you there!",
+        "de": "Der neue Discord Server KM Hub ist da! Komm vorbei, erfahre die neuesten Updates, teile dein Feedback und unterhalte dich mit mir und der Community über KM Editor, KM Calculator und Royal Sword. Ich freue mich auf dich!",
+        "es": "¡El nuevo servidor de Discord KM Hub ya está disponible! Ven a pasar un buen rato, entérate de las últimas novedades, comparte tus comentarios y charla conmigo y con la comunidad sobre KM Editor, KM Calculator y Royal Sword. ¡Espero verte allí!",
+        "fr": "Le nouveau serveur Discord KM Hub est ouvert ! Venez passer un moment avec nous, découvrir les dernières nouveautés, partager vos retours et discuter avec moi et la communauté de KM Editor, KM Calculator et Royal Sword. Au plaisir de vous y retrouver !",
+        "ru": "Новый сервер KM Hub в Discord уже открыт! Заходите пообщаться, узнать последние новости, поделиться отзывами и обсудить со мной и сообществом KM Editor, KM Calculator и Royal Sword. Буду рад вас видеть!",
+        "uk": "Новий сервер KM Hub у Discord уже відкрито! Заходьте поспілкуватися, дізнатися останні новини, поділитися відгуками й обговорити зі мною та спільнотою KM Editor, KM Calculator і Royal Sword. Буду радий вас бачити!",
+        "zh": "全新的 KM Hub Discord 服务器上线了！欢迎来这里交流、获取最新消息、分享反馈，与我和社区一起聊聊 KM Editor、KM Calculator 和 Royal Sword。期待在那里见到你！"
+      },
+      "audience": [
+        "all"
+      ],
+      "published": "2026-10-15",
+      "featured": true,
+      "links": [
+        {
+          "label": {
+            "en": "Join KM Hub",
+            "de": "KM Hub beitreten",
+            "es": "Únete a KM Hub",
+            "fr": "Rejoindre KM Hub",
+            "ru": "Присоединиться к KM Hub",
+            "uk": "Приєднатися до KM Hub",
+            "zh": "加入 KM Hub"
+          },
+          "url": "https://discord.gg/ess4reb5eB"
+        }
+      ]
+    },
+    {
       "id": "build-your-adventure-2-6-5",
       "title": {
         "en": "Build the adventure you want to play",
@@ -1732,7 +1967,7 @@
         "all"
       ],
       "published": "2026-10-04",
-      "featured": true,
+      "featured": false,
       "links": [
         {
           "label": {
