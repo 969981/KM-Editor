@@ -5970,6 +5970,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                         return SerializeSuccess(SvBridgeMapper.ToDto(svValidation), request.RequestId);
                     }
 
+                    using var restorationReads = KM.SwSh.Restoration.SwShRestorationReadScope.Begin(paths);
                     var validation = ValidateSwShEditSession(paths, session);
                     return SerializeSuccess(SwShBridgeMapper.ToDto(validation), request.RequestId);
                 })
@@ -6036,6 +6037,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         {
             lock (SwShApplySyncRoot)
             {
+                using var restorationReads = KM.SwSh.Restoration.SwShRestorationReadScope.Begin(paths);
                 ClearCriticalSwShApplyCaches();
                 changePlan = SwShChangePlanSourceGuard.Capture(
                     paths,
@@ -6282,6 +6284,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
     {
         lock (SwShApplySyncRoot)
         {
+            using var restorationReads = KM.SwSh.Restoration.SwShRestorationReadScope.Begin(paths);
             ClearCriticalSwShApplyCaches();
             var currentPlan = CreateSwShChangePlan(paths, session) with { EffectivePendingEdits = session.PendingEdits };
             var preserveExplicitSourceLayers =
@@ -6568,13 +6571,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         EditSession session,
         IReadOnlyList<EditSessionDomain> domains)
     {
-        var validation = ValidateNormalSwShDomains(paths, session, domains);
-        var diagnostics = validation.Diagnostics.ToList();
-        if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-        {
-            return new ChangePlan(session.Id, Array.Empty<PlannedFileWrite>(), diagnostics);
-        }
-
+        // Each editor validates its session when creating its plan, as it does for a single editor draft.
+        var diagnostics = new List<ValidationDiagnostic>();
         var writes = new List<PlannedFileWrite>();
         foreach (var domain in domains)
         {
@@ -6596,23 +6594,16 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
     private ApplyResult ApplyNormalSwShChangePlan(
         ProjectPaths paths,
         EditSession session,
-        ChangePlan reviewedPlan,
+        ChangePlan verifiedPlan,
         IReadOnlyList<EditSessionDomain> domains)
     {
         var applyId = Guid.NewGuid().ToString("N");
         var appliedAt = DateTimeOffset.UtcNow;
-        var currentPlan = CreateNormalSwShChangePlan(paths, session, domains);
+        // The caller has just rebuilt and verified this plan in its private apply snapshot.
+        // Individual editors still replan against preceding writes below.
+        var currentPlan = verifiedPlan;
         var diagnostics = currentPlan.Diagnostics.ToList();
         var writtenFiles = new List<ProjectFileReference>();
-
-        if (!ReviewedPlanMatchesCurrentPlan(reviewedPlan, currentPlan))
-        {
-            diagnostics.Add(new ValidationDiagnostic(
-                DiagnosticSeverity.Error,
-                "Reviewed change plan is stale. Review the change plan again before applying.",
-                Domain: "workflow.editSession",
-                Expected: "Current reviewed Sword/Shield change plan"));
-        }
 
         if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
@@ -6963,11 +6954,6 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             })
             .OrderBy(write => write.TargetRelativePath, StringComparer.Ordinal)
             .ToArray();
-    }
-
-    private static bool ReviewedPlanMatchesCurrentPlan(ChangePlan reviewedPlan, ChangePlan currentPlan)
-    {
-        return ChangePlanReview.Matches(reviewedPlan, currentPlan);
     }
 
     private static EditSessionDomain GetEditSessionDomain(EditSession session)

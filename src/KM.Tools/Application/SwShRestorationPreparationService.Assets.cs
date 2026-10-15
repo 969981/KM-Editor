@@ -24,6 +24,7 @@ public sealed partial class SwShRestorationPreparationService
         internal IReadOnlyList<SwShRestorationContribution> Assets(int species)
         {
             currentSpecies = species; Report("reading");
+            var profile = Profiles[species];
             var stem = $"pm{species:0000}_00"; var sourceStem = stem + "_00"; var sourceFolder = $"pokemon/data/pm{species:0000}/{sourceStem}/";
             SwShRestorationGenderAudit.RequireSharedModel(Donor("pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
                 species, 0, $"pm{species:0000}/{sourceStem}/{sourceStem}.trmdl");
@@ -35,7 +36,7 @@ public sealed partial class SwShRestorationPreparationService
             var nativePack = SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0007_00.gfpak"));
             var nativeModel = Member(nativePack, "pm0007_00.gfbmdl"); var nativeMetadata = new ModelBuffer(nativeModel);
             var materialBytes = Donor(sourceFolder + sourceStem + ".trmtr");
-            var baked = scene.Primitives.Select((primitive, index) => {
+            var baked = profile.AuthoredMaterials ? [] : scene.Primitives.Select((primitive, index) => {
                 Report("textures", index, scene.Primitives.Count);
                 var result = SwShMaterialBaker.Bake(primitive, materialBytes, index,
                     name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
@@ -47,9 +48,12 @@ public sealed partial class SwShRestorationPreparationService
                 ["lower_jaw"] = "Jaw", ["jaw"] = "Jaw", ["left_hand"] = "LHand", ["right_hand"] = "RHand", ["left_foot"] = "LFoot", ["right_foot"] = "RFoot",
             };
             foreach (var bone in scene.Rig.Bones) aliases.TryAdd(bone.Name, bone.Name.Replace(sourceStem, stem, StringComparison.Ordinal));
-            var locators = Locators(scene, aliases);
+            var locators = profile.AuthoredMaterials
+                ? SourceLocators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_00000_eff.trskl"))
+                : Locators(scene, aliases);
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
-            foreach (var resource in graph.Where(r => r.Id.EndsWith(".bntx", StringComparison.Ordinal))) members[modelFolder + Path.GetFileName(resource.Id)] = resource.Bytes;
+            if (!profile.AuthoredMaterials)
+                foreach (var resource in graph.Where(r => r.Id.EndsWith(".bntx", StringComparison.Ordinal))) members[modelFolder + Path.GetFileName(resource.Id)] = resource.Bytes;
             foreach (var material in baked)
             {
                 members[modelFolder + material.ColorName + ".bntx"] = material.Color;
@@ -69,7 +73,9 @@ public sealed partial class SwShRestorationPreparationService
             SwShConvertedGeometry? geometry = null;
             foreach (var rare in new[] { false, true })
             {
-                var sourceMaterial = new ModelBuffer(Donor(sourceFolder + sourceStem + (rare ? "_rare" : "") + ".trmtr"));
+                var paletteBytes = Donor(sourceFolder + sourceStem + (rare ? "_rare" : "") + ".trmtr");
+                var sourceMaterial = new ModelBuffer(paletteBytes);
+                var palette = profile.AuthoredMaterials ? BakePalette(scene, paletteBytes, rare, sourceFolder + sourceStem + ".trmtr", members, modelFolder) : baked;
                 var bindings = scene.Primitives.Select((primitive, index) =>
                 {
                     var original = sourceMaterial.Tables(sourceMaterial.Root, 1, 128).Single(t => sourceMaterial.Text(t, 0) == primitive.Material.Name);
@@ -77,8 +83,8 @@ public sealed partial class SwShRestorationPreparationService
                     var eye = primitive.Material.Name.Contains("eye", StringComparison.Ordinal); var nativeMaterial = eye ? 1 : 0;
                     var textureBindings = nativeMetadata.Tables(nativeMetadata.Tables(nativeMetadata.Root, 6, 128)[nativeMaterial], 11, 64)
                         .ToDictionary(t => nativeMetadata.Text(t, 0)!, _ => "dummy_col", StringComparer.Ordinal);
-                    textureBindings["Col0Tex"] = eye ? baked[index].ColorName : textureNames["BaseColorMap"];
-                    textureBindings["NormalMapTex"] = baked[index].NormalName; textureBindings["AmbientTex"] = baked[index].AmbientName;
+                    textureBindings["Col0Tex"] = eye || profile.AuthoredMaterials ? palette[index].ColorName : textureNames["BaseColorMap"];
+                    textureBindings["NormalMapTex"] = palette[index].NormalName; textureBindings["AmbientTex"] = palette[index].AmbientName;
                     textureBindings["LightTblTex"] = "Default_lta"; textureBindings["EffectTex"] = "projection_effect_col";
                     return new SwShMaterialBinding(primitive.Material.Name, nativeMaterial, textureBindings);
                 }).ToArray();
@@ -86,10 +92,10 @@ public sealed partial class SwShRestorationPreparationService
                 var converted = SwShModelWriter.Convert(scene, nativeModel, bindings, aliases, locators, cancellationToken: token);
                 geometry ??= converted; members[modelFolder + stem + (rare ? "_rare" : "") + ".gfbmdl"] = converted.Model;
             }
-            var sizeStem = $"pm{species - 386:0000}_00"; var sizePack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{sizeStem}.gfpak"));
+            var sizeStem = $"pm{profile.NativeTemplate:0000}_00"; var sizePack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{sizeStem}.gfpak"));
             var materialNames = scene.Primitives.Select(p => p.Material.Name).ToArray();
-            members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(Member(sizePack, sizeStem + ".gfbpokecfg"), species, geometry!, materialNames,
-                new[] { 66f, 100f, 150f }[species - 393], new[] { 40f, 80f, 170f }[species - 393]);
+            var frameStem = profile.FramingTemplate == 0 ? sizeStem : $"pm{profile.FramingTemplate:0000}_00";
+            var framePack = profile.FramingTemplate == 0 ? sizePack : SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{frameStem}.gfpak"));
             var clips = new Dictionary<string, (byte[] Skeleton, PreviewClip Decoded)>(StringComparer.Ordinal);
             var motions = graph.Where(r => r.Id.EndsWith(".tranm", StringComparison.Ordinal)).ToArray();
             Report("animations", 0, motions.Length + NativeClips.Count);
@@ -122,6 +128,9 @@ public sealed partial class SwShRestorationPreparationService
                 .Where(b => b.Contains(name == "eye01" ? "eyelid" : "jaw", StringComparison.OrdinalIgnoreCase)).Select(b => aliases[b]).ToArray());
             foreach (var group in new[] { "battle", "camp", "field" })
                 members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = SwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
+            var framingGeometry = profile.AuthoredMaterials ? IdleBounds(members, modelFolder, animationFolder, stem, geometry!) : geometry!;
+            members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(Member(framePack, frameStem + ".gfbpokecfg"), species, framingGeometry, materialNames,
+                profile.BattleHeight, profile.FieldHeight);
             var result = new List<SwShRestorationContribution> { File($"bin/archive/pokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(members).Write()) };
             var giantDonor = SwShGfPackFile.Parse(Native("bin/archive/gpokemon/pm0007_00.gfpak"));
             var giantSize = SwShGfPackFile.Parse(Native($"bin/archive/gpokemon/{sizeStem}.gfpak"));

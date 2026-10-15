@@ -141,13 +141,13 @@ public sealed class SwShRestorationService
             if (!intent.Enabled && (installed is null || !installed.Enabled)) throw new InvalidDataException("Only an installed, owned restoration can be removed.");
             VerifyTargetSources(paths, bundle);
             var effective = installed?.CustomizationHash is { } customHash ? SwShRestorationStateStore.ReadPrepared(paths, customHash) : bundle;
-            SwShRestorationContribution[] iconUpdates = [];
+            SwShRestorationContribution[] defaultUpdates = [];
             var customization = installed?.CustomizationHash;
             if (installed is not null && installed.PreparedHash != intent.PreparedHash)
             {
                 if (!intent.Enabled) throw new InvalidDataException("Remove a restoration using its installed definition.");
                 var previous = SwShRestorationStateStore.ReadPrepared(paths, installed.PreparedHash);
-                effective = SwShRestorationIconUpdate.Rebase(previous, bundle, customization is null ? previous : effective, out iconUpdates);
+                effective = SwShRestorationIconUpdate.Rebase(previous, bundle, customization is null ? previous : effective, out defaultUpdates);
                 if (customization is not null)
                 {
                     var rebased = SwShRestorationStateStore.Store(paths, effective);
@@ -166,10 +166,12 @@ public sealed class SwShRestorationService
             }
             var composition = SwShRestorationComposer.Compose(effective.Contributions, Current, intent.Enabled,
                 allowOwnedCustomizations: installed?.Enabled == true, ownedPaths: owned);
-            var refreshedIcons = iconUpdates.Where(item => installed?.Enabled == true && owned.Contains(item.Path)
-                && Current(item.Path) is { } current && current.AsSpan().SequenceEqual(item.Before)).ToArray();
             foreach (var file in composition.Files) outputs[file.Key] = file.Value;
-            foreach (var item in refreshedIcons) outputs[item.Path] = item.After;
+            if (installed?.Enabled == true && defaultUpdates.Length > 0)
+            {
+                var refreshed = SwShRestorationComposer.Compose(defaultUpdates, Current, true, allowOwnedCustomizations: true, ownedPaths: owned);
+                foreach (var file in refreshed.Files) outputs[file.Key] = file.Value;
+            }
             if (!intent.Enabled)
             {
                 var retained = composition.RetainedCustomizations.ToDictionary(c => (c.Path, c.Key));

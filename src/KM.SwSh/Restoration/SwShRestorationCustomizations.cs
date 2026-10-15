@@ -12,7 +12,7 @@ internal static class SwShRestorationCustomizations
         if (plan.Writes.Count == 0 || plan.EffectivePendingEdits?.Any(e => e.Domain == SwShRestorationDefinitions.Domain) == true) return plan;
         var state = SwShRestorationStateStore.Read(paths);
         if (!state.State.Selections.Any(s => s.Enabled)) return plan;
-        var definitions = state.State.Selections.Where(s => s.Enabled).Select(s => SwShRestorationStateStore.ReadPrepared(paths, s.PreparedHash)).ToArray();
+        var definitions = SwShRestorationStateStore.ReadPreparedMany(paths, state.State.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash)).Values.ToArray();
         // Species validation runs again in a verified snapshot. Bind the complete
         // installed resource closure so that snapshot sees the same capabilities.
         var dependencies = definitions.SelectMany(d => d.Contributions).Select(c => c.Path).Distinct(StringComparer.Ordinal)
@@ -36,11 +36,13 @@ internal static class SwShRestorationCustomizations
         IReadOnlySet<string> changed, Func<string, byte[]?> readOutput)
     {
         var selections = new List<SwShRestorationSelection>(); var any = false;
+        var prepared = SwShRestorationStateStore.ReadPreparedMany(paths, state.State.Selections.Where(s => s.Enabled)
+            .SelectMany(s => s.CustomizationHash is { } hash ? new[] { s.PreparedHash, hash } : new[] { s.PreparedHash }));
         foreach (var selection in state.State.Selections)
         {
             if (!selection.Enabled) { selections.Add(selection); continue; }
-            var original = SwShRestorationStateStore.ReadPrepared(paths, selection.PreparedHash);
-            var previous = selection.CustomizationHash is { } hash ? SwShRestorationStateStore.ReadPrepared(paths, hash) : original;
+            var original = prepared[selection.PreparedHash];
+            var previous = selection.CustomizationHash is { } hash ? prepared[hash] : original;
             var items = previous.Contributions.ToDictionary(c => (c.Path, c.Key));
             var touched = items.Values.Where(c => changed.Contains(c.Path) && readOutput(c.Path) is not null).ToArray();
             if (touched.Length > 0)

@@ -10,6 +10,7 @@ internal static class SwShRestorationPartyIcons
         // Frames use native resource IDs, which are not always National Dex IDs.
         [13] = ("weedle", "0010_00s"), [14] = ("kakuna", "0011_00s"), [15] = ("beedrill", "0012_00m"),
         [16] = ("pidgey", "0918_00s"), [17] = ("pidgeotto", "0919_00s"), [18] = ("pidgeot", "0920_00s"),
+        [23] = ("ekans", "0147_00s"), [24] = ("arbok", "0350_00m"),
         [352] = ("kecleon", "0560_00s"), [393] = ("piplup", "0007_00s"), [394] = ("prinplup", "0008_00s"), [395] = ("empoleon", "0009_00s"),
     };
     internal static byte[] Create(int species, Func<string, byte[]> native, CancellationToken token)
