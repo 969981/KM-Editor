@@ -5017,7 +5017,7 @@
     "shakingTrees.tab.encounters": "区域遭遇",
     "shakingTrees.tab.rules": "全局规则与概率",
     "shakingTrees.treeNumber": "树 {number}",
-    "shakingTrees.search": "搜索树木或区域",
+    "shakingTrees.search": "搜索树木、区域或道具",
     "shakingTrees.selectTree": "选择树木",
     "shakingTrees.changed": "未暂存的更改",
     "shakingTrees.noResults": "没有匹配的树木。已选树木保持打开。",
