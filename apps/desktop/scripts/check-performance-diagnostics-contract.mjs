@@ -74,6 +74,7 @@ try {
     projectBridgeErrorCodes.outputReviewStateUnverifiable,
     projectBridgeErrorCodes.outputStateRevisionChanged,
     projectBridgeErrorCodes.outputMetadataUnavailable,
+    projectBridgeErrorCodes.restorationCleanupPending,
     ...Object.values(gameplaySettingsErrorCodes),
     ...Object.values(guidedDesignErrorCodes),
     ...Object.values(inGameSettingsPackageErrorCodes),

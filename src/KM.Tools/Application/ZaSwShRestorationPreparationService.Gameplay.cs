@@ -41,7 +41,11 @@ public sealed partial class ZaSwShRestorationPreparationService
                 throw new InvalidDataException("Z-A gender ratio needs another target adapter.");
             row[18] = 127; row[19] = checked((byte)Scalar(14)); row[20] = checked((byte)Scalar(15));
             row[21] = checked((byte)Scalar(8)); row[22] = checked((byte)Scalar(11)); row[23] = checked((byte)Scalar(12));
-            for (var i = 0; i < 3; i++) { var ability = Scalar(5 + i, true); if (ability is < 1 or > 267) throw new InvalidDataException("Source ability needs a target mechanics adapter."); Put16(row, 24 + i * 2, ability); }
+            var abilities = Enumerable.Range(0, 3).Select(i => Scalar(5 + i, true)).ToArray();
+            var fallbackAbility = abilities.FirstOrDefault(ability => ability is >= 1 and <= 267);
+            if (fallbackAbility == 0) throw new InvalidDataException("This Pokemon has no ability supported by Sword and Shield in its source data.");
+            for (var i = 0; i < abilities.Length; i++)
+                Put16(row, 24 + i * 2, abilities[i] is >= 1 and <= 267 ? abilities[i] : fallbackAbility);
             Put16(row, 30, 0); row[32] = 1; row[33] = (byte)((source.U8(detail + 6) & 63) | 64);
             Put16(row, 34, profile.Experience); Put16(row, 36, source.U16(detail + 8)); Put16(row, 38, source.U16(detail + 10));
             var excluded = new HashSet<int>();

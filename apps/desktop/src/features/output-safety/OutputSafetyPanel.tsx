@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { type OutputCheckpoint } from '../../bridge/outputSafetyContracts';
 import { DiagnosticsSection } from '../../components/workflowPanels';
 import { usePublishCommonEditorError } from '../../components/CommonEditorDiagnostics';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import { type OutputSafetyController } from './useOutputSafetyController';
 
@@ -108,6 +109,16 @@ export function OutputSafetyPanel({ controller }: { controller: OutputSafetyCont
         </div>
       </div>
 
+      {controller.busyAction || controller.readiness === 'checking' ? <LoadingProgress className="is-compact"
+        operationKey={controller.busyAction ?? 'refresh'} label={t('outputSafety.title')}
+        detail={t(controller.busyAction ? {
+          refresh: 'outputSafety.summary.checking', reconcile: 'outputSafety.reconcile',
+          scan: 'outputSafety.integrity.scan', cleanupPreview: 'outputSafety.cleanup.preview',
+          cleanupApply: 'outputSafety.cleanup.apply', loadActivity: 'outputSafety.activity.load',
+          checkpointCreate: 'outputSafety.checkpoints.create', checkpointRestorePreview: 'outputSafety.checkpoints.reviewRestore',
+          checkpointRestore: 'outputSafety.checkpoints.restore', checkpointDelete: 'outputSafety.checkpoints.delete',
+          supportReport: 'outputSafety.support.build'
+        }[controller.busyAction] : 'outputSafety.summary.checking')} /> : null}
       {bodyOpen ? (
         <div className="output-safety-details">
           <section className="output-safety-group" aria-labelledby="output-recovery-heading">

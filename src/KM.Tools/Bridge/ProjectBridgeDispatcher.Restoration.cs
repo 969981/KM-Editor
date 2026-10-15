@@ -7,6 +7,7 @@ using KM.Core.Projects;
 using KM.SwSh.Editing;
 using KM.SwSh.Restoration;
 using KM.Api.Bridge;
+using KM.Api.Diagnostics;
 using KM.Api.Restoration;
 using KM.Api.Editing;
 using KM.Api.Projects;
@@ -94,16 +95,34 @@ public sealed partial class ProjectBridgeDispatcher
         var stage = DeserializeRequest<StageRestorationRequest>(requestJson);
         var paths = ProjectBridgeMapper.ToCore(stage.Payload.Paths);
         var result = new SwShRestorationService().Stage(paths, stage.Payload.DefinitionId, stage.Payload.PreparedHash, stage.Payload.Enabled,
-            stage.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(stage.Payload.Session));
+            stage.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(stage.Payload.Session), stage.Payload.RemoveAssets, preparedAssets: stage.Payload.RemoveAssets ? restorationJobs.ActivePreparedHashes(paths, stage.Payload.DefinitionId) : null);
         return SerializeSuccess(new StageRestorationResponse(LoadRestoration(paths, result.Session), EditSessionBridgeMapper.ToDto(result.Session),
             result.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), stage.RequestId);
     }
 
-    private static RestorationWorkflowDto LoadRestoration(ProjectPaths paths, EditSession? session)
+    private IReadOnlyList<ValidationDiagnostic> CleanupRemovedRestoration(ProjectPaths paths)
+    {
+        try
+        {
+            var state = SwShRestorationStateStore.Read(paths).State;
+            foreach (var removed in state.Selections.Where(s => s.RemovalId is not null))
+                restorationJobs.ReleaseRemoved(paths, removed.DefinitionId, removed.RemovalId!);
+            SwShRestorationAssetCleanup.Collect(paths, state, restorationJobs.ActivePreparedHashes(paths));
+            return [];
+        }
+        catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or JsonException or KM.Core.Output.OutputCoordinatorException)
+        {
+            return [new(DiagnosticSeverity.Warning, "Removed Pokemon assets could not be fully cleared. Refresh to retry.",
+                Domain: SwShRestorationDefinitions.Domain) { Code = BridgeErrorCodes.RestorationCleanupPending }];
+        }
+    }
+
+    private RestorationWorkflowDto LoadRestoration(ProjectPaths paths, EditSession? session)
     {
         if (session is not null) session = SwShRestorationService.UpgradeSession(paths, session);
-        var catalog = SwShRestorationCatalog.Discover(paths);
         var state = SwShRestorationStateStore.Read(paths);
+        var cleanupDiagnostics = CleanupRemovedRestoration(paths).Select(ProjectBridgeMapper.ToDto).ToArray();
+        var catalog = SwShRestorationCatalog.Discover(paths);
         var intents = session?.PendingEdits.Where(e => e.Domain == SwShRestorationDefinitions.Domain).ToDictionary(e => e.RecordId!,
             e => JsonSerializer.Deserialize<SwShRestorationIntent>(e.NewValue!)!) ?? new Dictionary<string, SwShRestorationIntent>();
         return new(paths.SelectedGame is ProjectGame.Sword or ProjectGame.Shield && !string.IsNullOrWhiteSpace(paths.OutputRootPath)
@@ -113,8 +132,10 @@ public sealed partial class ProjectBridgeDispatcher
                 var selected = state.State.Selections.SingleOrDefault(s => s.DefinitionId == e.DefinitionId);
                 var intent = e.DefinitionId is { } id ? intents.GetValueOrDefault(id) : null;
                 return new RestorationEntryDto(e.SpeciesId, e.Name, e.DefinitionId, e.Support.ToString(), e.Installation.ToString(), e.Family,
-                    intent?.PreparedHash ?? selected?.PreparedHash, intent?.Enabled ?? selected?.Enabled == true, intent is not null) { Donor = e.Donor?.ToString() };
-            }).ToArray(), catalog.UnavailableReason is null ? [] : [ProjectBridgeMapper.ToDto(new ValidationDiagnostic(DiagnosticSeverity.Error, catalog.UnavailableReason,
+                    intent?.RemovalId is not null ? null : intent?.PreparedHash ?? (selected?.RemovalId is null ? selected?.PreparedHash : null),
+                    intent?.Enabled ?? selected?.Enabled == true, intent is not null)
+                    { Donor = e.Donor?.ToString(), AssetsRemoved = selected?.RemovalId, RemovalStaged = intent?.RemovalId is not null };
+            }).ToArray(), catalog.UnavailableReason is null ? cleanupDiagnostics : [.. cleanupDiagnostics, ProjectBridgeMapper.ToDto(new ValidationDiagnostic(DiagnosticSeverity.Error, catalog.UnavailableReason,
                 Domain: SwShRestorationDefinitions.Domain) { Code = SwShRestorationService.SourceCode })]);
     }
     private static bool HasRestoration(EditSession session) => session.PendingEdits.Any(e => e.Domain == SwShRestorationDefinitions.Domain);
@@ -167,7 +188,7 @@ public sealed partial class ProjectBridgeDispatcher
                 foreach (var edit in remove.PendingEdits)
                 {
                     var intent = JsonSerializer.Deserialize<SwShRestorationIntent>(edit.NewValue!)!;
-                    var staged = service.Stage(view.Paths, intent.DefinitionId, intent.PreparedHash, false, removalSession);
+                    var staged = service.Stage(view.Paths, intent.DefinitionId, intent.PreparedHash, false, removalSession, intent.RemovalId is not null, intent.RemovalId, intent.AdditionalPreparedHashes);
                     if (staged.Diagnostics.Count > 0) return new(new(session.Id, [], staged.Diagnostics), null);
                     removalSession = staged.Session;
                 }

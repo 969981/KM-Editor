@@ -6332,6 +6332,12 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             {
                 ClearCriticalSwShApplyCaches();
             }
+            if (HasRestoration(session) && result.OutputTransaction?.Outcome == OutputApplyOutcome.Committed)
+            {
+                applyScope.Dispose();
+                restorationReads.Dispose();
+                result = result with { Diagnostics = result.Diagnostics.Concat(CleanupRemovedRestoration(paths)).ToArray() };
+            }
 
             return result;
         }

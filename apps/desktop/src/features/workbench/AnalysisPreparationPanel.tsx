@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
-import { Activity, Check, CircleAlert, Clock3, Gauge } from 'lucide-react';
-import { useId } from 'react';
+import { Activity, Check, CircleAlert, Clock3 } from 'lucide-react';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import {
   analysisSystemIds,
@@ -19,7 +19,6 @@ export function AnalysisPreparationPanel({
   snapshot: AnalysisPreparationSnapshot;
 }) {
   const { t } = useLocalization();
-  const titleId = useId();
   const isReady = snapshot.readyCount === snapshot.targetCount && snapshot.errorCount === 0;
   const hasError = snapshot.errorCount > 0;
   const phase = hasError ? 'error' : isReady ? 'ready' : 'preparing';
@@ -29,38 +28,10 @@ export function AnalysisPreparationPanel({
   ]);
 
   return (
-    <section aria-labelledby={titleId} className="analysis-preparation-panel">
-      <div className="analysis-preparation-header">
-        <div>
-          <Gauge aria-hidden="true" size={18} />
-          <strong id={titleId}>{t('analysisPreparation.title')}</strong>
-        </div>
-        <span className={`status-pill status-pill-info${hasError ? ' is-error' : ''}`}>
-          {t(`analysisPreparation.phase.${phase}`)}
-        </span>
-      </div>
-      <div
-        aria-label={t('analysisPreparation.progressLabel')}
-        aria-valuemax={100}
-        aria-valuemin={0}
-        aria-valuenow={snapshot.percent}
-        aria-valuetext={t('analysisPreparation.summary', {
-          completed: snapshot.completedUnitCount,
-          percent: snapshot.percent,
-          total: snapshot.totalUnitCount
-        })}
-        className="work-progress-track"
-        role="progressbar"
-      >
-        <div className="work-progress-fill" style={{ width: `${snapshot.percent}%` }} />
-      </div>
-      <p className="analysis-preparation-summary">
-        {t('analysisPreparation.summary', {
-          completed: snapshot.completedUnitCount,
-          percent: snapshot.percent,
-          total: snapshot.totalUnitCount
-        })}
-      </p>
+    <LoadingProgress className="analysis-preparation-panel" label={t('analysisPreparation.title')}
+      status={hasError ? 'error' : isReady ? 'complete' : 'running'}
+      statusLabel={t(`analysisPreparation.phase.${phase}`)}
+      completed={snapshot.completedUnitCount} total={snapshot.totalUnitCount}>
       <ul className="analysis-preparation-systems">
         {analysisSystemIds.map((system) => {
           const isTargeted = targetedTools.has(system);
@@ -90,6 +61,6 @@ export function AnalysisPreparationPanel({
           );
         })}
       </ul>
-    </section>
+    </LoadingProgress>
   );
 }

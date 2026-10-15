@@ -5,6 +5,7 @@ import type { ProjectGame, ProjectPaths } from '../../bridge/contracts';
 import { ProjectBridgeError } from '../../bridge/projectBridgeError';
 import { usePublishCommonEditorDiagnostics } from '../../components/CommonEditorDiagnostics';
 import { SearchableOptionInput } from '../../components/SearchableOptionInput';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { useLocalization } from '../../localization';
 import { runMerge, scanMergePackages, type MergePackageCatalog, type MergeRequest, type MergeResult, type MergeSource } from './mergeWorkspaceBridge';
 import { MergePackageDialog } from './MergePackageDialog';
@@ -218,7 +219,7 @@ export default function MergeWorkspace({ paths, active, onExportingChange, armWr
             {detected && <small>{label('detected')}: {gameOptions.find(option => option.value === detected.game)?.label ?? detected.game ?? label('unknown')} · {label(detected.layout)} · {detected.fileCount} {label('files')}</small>}
             {detected && <details><summary>{label('detectionDetails')}</summary>{detected.evidence.map(item => <p className="field-note" key={item}>{label(`evidence.${item}`)}</p>)}</details>}</div>
           <div className="merge-workspace-package-summary">
-            {scanning.includes(source.id) ? <span role="status">{label('packages.scanning')}</span>
+            {scanning.includes(source.id) ? <LoadingProgress className="is-compact" label={label('packages.scanning')} />
               : <><span>{source.packageCount ? `${source.packageIds?.length ?? 0} / ${source.packageCount} ${label('packages.selected')}` : label('packages.inspectHelp')}</span>
                 <button type="button" disabled={busy !== null || safetyBusy} onClick={() => void inspectSource(source, true)}>{source.packageIds?.length === 0 ? label('packages.title') : label('packages.manage')}</button></>}
             {sourceErrors[source.id] && <p role="alert" className="field-error">{issueMessage(sourceErrors[source.id]!)}</p>}
@@ -236,6 +237,7 @@ export default function MergeWorkspace({ paths, active, onExportingChange, armWr
         </article>;
       })}</div>
     </fieldset>
+    {busy ? <LoadingProgress operationKey={busy} label={label(busy === 'analyze' ? 'analyzing' : 'exporting')} /> : null}
     <div className="merge-workspace-review-bar" role="group" aria-label={label('review')}>
       <button type="button" className="primary-button" disabled={safetyBusy || busy !== null || blockedPackages || sources.length === 0 || !outputRoot.trim()}
         onClick={() => void execute(false)}>{busy === 'analyze' ? label('analyzing') : label('review')}</button>

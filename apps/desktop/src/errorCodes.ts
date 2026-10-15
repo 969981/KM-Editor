@@ -99,6 +99,7 @@ export const projectBridgeErrorCodes = {
   restorationSessionInvalid: "KM-SWSH-RESTORATION-SESSION-INVALID",
   restorationReference: "KM-SWSH-RESTORATION-REFERENCE",
   restorationPreparedStale: "KM-SWSH-RESTORATION-PREPARED-STALE",
+  restorationCleanupPending: "KM-SWSH-RESTORATION-CLEANUP-PENDING",
   shakingTreesSourceInvalid: "KM-SWSH-TREES-SOURCE-INVALID",
   shakingTreesValuesInvalid: "KM-SWSH-TREES-VALUES-INVALID",
   shakingTreesConflict: "KM-SWSH-TREES-CONFLICT",

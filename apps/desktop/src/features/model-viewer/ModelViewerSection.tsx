@@ -228,13 +228,13 @@ export default function ModelViewerSection({ paths, session, disabled, onStage, 
             original={original} onCompare={() => { void viewer.playback('pause'); setOriginal(!original); }} options={options} onOptions={setOptions}
             camera={viewer.camera} stats={statistics} onStats={setStatistics} inGame={inGame} onLighting={setInGame} orientation={viewer.stats} historyOpen={tab === 'history'} onHistory={() => setTab(tab === 'history' ? 'materials' : 'history')} />
             {original ? <p className="model-workspace__comparison" role="status">{t('modelWorkspace.comparing')}</p> : null}
+            {viewer.loading ? <LoadingProgress className="is-compact" operationKey={selected} label={t('modelViewer.opening')} /> : null}
           </div> : null}
           <div className="model-viewer__properties model-viewer__properties--primary">
           <div className="model-viewer__toolbar">
             <strong data-localization-ignore="true">{entry?.name ?? t('modelViewer.selectModel')}</strong>
             {!editing ? <button type="button" className="primary-button model-viewer__edit" disabled={!selected || disabled} onClick={() => setEditing(true)}>{t('modelEditor.edit')}</button> : null}
             <button type="button" disabled={!viewer.info} onClick={() => void viewer.camera('reset')}>{t('modelViewer.resetCamera')}</button>
-            {viewer.loading && !editing ? <button type="button" disabled={dirty} onClick={() => select('')}>{t('modelViewer.cancel')}</button> : null}
           </div>
           <div className="model-viewer__background">
             <label htmlFor="model-background-style">{t('modelViewer.backgroundStyle')}</label>
@@ -246,12 +246,15 @@ export default function ModelViewerSection({ paths, session, disabled, onStage, 
             <button type="button" disabled={background.color.toLowerCase() === defaultBackgroundColor}
               onClick={() => setBackground(current => ({ ...current, color: defaultBackgroundColor }))}>{t('modelViewer.resetBackground')}</button>
           </div>
+          {viewer.loading && !editing ? <LoadingProgress className="is-compact" operationKey={selected}
+            label={t('modelViewer.opening')} onCancel={!editing && !dirty ? () => select('') : undefined}
+            cancelLabel={t('modelViewer.cancel')} /> : null}
           </div>
           {editing && image ? <ModelTextureInspector paths={paths} model={selected} texture={image.texture} changes={image.changes} uv={uv} onClose={() => setImage(null)} /> : null}
           <div ref={viewer.viewport} className="model-viewer__viewport" tabIndex={0} role="region" aria-label={t('modelViewer.viewport')}
             style={{ backgroundColor: background.color }}
             onFocus={() => { if (viewer.info) void viewer.camera('focus'); }} onContextMenu={event => event.preventDefault()}>
-            <p role="status">{viewer.loading ? t('modelViewer.opening') : !selected ? t('modelViewer.selectModel') : error ? t(message) : ''}</p>
+            <p role="status">{!selected ? t('modelViewer.selectModel') : error ? t(message) : ''}</p>
           </div>
           <p className="model-viewer__controls">{t('modelViewer.controls')}</p>
           {editing && statistics && viewer.info ? <div className="model-workspace__statistics">

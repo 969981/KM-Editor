@@ -5116,7 +5116,6 @@
     "workbench.section.restore-missing-pokemon.label": "Fehlende Pokémon wiederherstellen",
     "workbench.section.restore-missing-pokemon.description": "Stelle unterstützte Pokémon mit deinen lokalen Spieldateien wieder her.",
     "restoration.donorZa": "RomFS Quellordner für Z-A",
-    "restoration.zaHelp": "Für Pokémon, deren Quelle Legenden: Z-A ist.",
     "restoration.browse": "{folder} auswählen",
     "restoration.browseFailed": "Die Ordnerauswahl konnte nicht geöffnet werden. Versuche es erneut oder gib den Pfad manuell ein.",
     "restoration.find": "oo2core_8_win64.dll suchen",
@@ -5128,7 +5127,19 @@
     "restoration.searchFailed": "Die Suche nach oo2core_8_win64.dll ist fehlgeschlagen. Versuche es erneut oder wähle den Ordner manuell.",
     "restoration.notFound": "oo2core_8_win64.dll wurde nicht gefunden. Wähle den Ordner manuell.",
     "restoration.source.LegendsZA": "Quelle: Z-A",
-    "restoration.source.ScarletViolet": "Quelle: S/V"
+    "restoration.source.ScarletViolet": "Quelle: S/V",
+    "progressFeedback.cancel": "Abbrechen",
+    "progressFeedback.idle": "Wartet",
+    "progressFeedback.canceling": "Wird abgebrochen...",
+    "restoration.removeAssets": "Assets entfernen",
+    "progressFeedback.elapsed": "Vergangene Zeit: {time}",
+    "progressFeedback.running": "In Bearbeitung",
+    "restoration.removalStaged": "Die Entfernung ist vorgemerkt. Prüfe und wende sie an, um die Assets zu löschen.",
+    "progressFeedback.canceled": "Abgebrochen",
+    "progressFeedback.paused": "Pausiert",
+    "restoration.removeHelp": "Deaktivieren behält vorbereitete Assets und Anpassungen zur Wiederverwendung. Assets entfernen merkt die Löschung der verwalteten Ausgabedateien und vorbereiteten Assets dieses Pokémon samt Modelländerungen vor. Entferne Verweise, bevor du die Entfernung anwendest.",
+    "progressFeedback.complete": "Abgeschlossen",
+    "progressFeedback.error": "Wegen Fehlern angehalten"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Das Super-Spezialtraining verwendet einen älteren Levelpatch, der für die Symbole im Team und in den Boxen weiterhin Lv.100 voraussetzt. Wende diesen Editor erneut an, um die Auswahl zu aktualisieren.",
@@ -9583,6 +9594,8 @@
     "Hyper Training IV getter used by IV Screen": "Von der IV-Anzeige verwendete IV-Lesefunktion für Super-Spezialtraining",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Lege für jede Anzahl von Orden die Gehorsamsgrenze getauschter Pokémon unabhängig von der Fanggrenze fest.",
     "Obedience Level": "Gehorsamslevel",
-    "Party and box icons use the minimum level at {offset}.": "Die Symbole im Team und in den Boxen verwenden den Mindestlevel bei {offset}."
+    "Party and box icons use the minimum level at {offset}.": "Die Symbole im Team und in den Boxen verwenden den Mindestlevel bei {offset}.",
+    "This Pokemon has no ability supported by Sword and Shield in its source data.": "Die Quelldaten dieses Pokémon enthalten keine Fähigkeit, die von Schwert und Schild unterstützt wird.",
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Die Assets des entfernten Pokémon konnten nicht vollständig gelöscht werden. Aktualisiere, um es erneut zu versuchen."
   }
 }

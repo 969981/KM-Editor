@@ -5116,7 +5116,6 @@
     "workbench.section.restore-missing-pokemon.label": "Restaurer les Pokémon manquants",
     "workbench.section.restore-missing-pokemon.description": "Restaurez les Pokémon pris en charge à partir de vos fichiers de jeu locaux.",
     "restoration.donorZa": "Dossier RomFS source de Z-A",
-    "restoration.zaHelp": "Utilisé pour les Pokémon provenant de Légendes : Z-A.",
     "restoration.browse": "Parcourir pour choisir {folder}",
     "restoration.browseFailed": "Impossible d’ouvrir le sélecteur de dossiers. Réessayez ou saisissez le chemin manuellement.",
     "restoration.find": "Rechercher oo2core_8_win64.dll",
@@ -5128,7 +5127,19 @@
     "restoration.searchFailed": "Impossible de rechercher oo2core_8_win64.dll. Réessayez ou choisissez le dossier manuellement.",
     "restoration.notFound": "Aucun fichier oo2core_8_win64.dll trouvé. Choisissez son dossier manuellement.",
     "restoration.source.LegendsZA": "Source : Z-A",
-    "restoration.source.ScarletViolet": "Source : S/V"
+    "restoration.source.ScarletViolet": "Source : S/V",
+    "progressFeedback.cancel": "Annuler",
+    "progressFeedback.idle": "En attente",
+    "progressFeedback.canceling": "Annulation...",
+    "restoration.removeAssets": "Supprimer les ressources",
+    "progressFeedback.elapsed": "Temps écoulé : {time}",
+    "progressFeedback.running": "En cours",
+    "restoration.removalStaged": "La suppression est préparée. Vérifiez puis appliquez pour supprimer les ressources.",
+    "progressFeedback.canceled": "Annulé",
+    "progressFeedback.paused": "En pause",
+    "restoration.removeHelp": "La désactivation conserve les ressources préparées et les personnalisations. Supprimer les ressources prépare la suppression des fichiers gérés de ce Pokémon et de ses ressources préparées, y compris les modifications du modèle. Retirez les références avant d’appliquer la suppression.",
+    "progressFeedback.complete": "Terminé",
+    "progressFeedback.error": "Arrêté en raison d’erreurs"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "L’Entraînement Ultime utilise un ancien correctif de niveau qui conserve le seuil de N.100 pour les icônes de l’équipe et des boîtes. Appliquez à nouveau cet éditeur pour mettre à jour le sélecteur.",
@@ -9583,6 +9594,8 @@
     "Hyper Training IV getter used by IV Screen": "Fonction des IV après Entraînement Ultime utilisée par Écran des IV",
     "Set traded Pokemon obedience level limits for each badge count independently of Catch Cap.": "Définissez le niveau d’obéissance des Pokémon échangés pour chaque nombre de Badges, indépendamment de la limite de capture.",
     "Obedience Level": "Niveau d’obéissance",
-    "Party and box icons use the minimum level at {offset}.": "Les icônes de l’équipe et des boîtes utilisent le niveau minimum défini à {offset}."
+    "Party and box icons use the minimum level at {offset}.": "Les icônes de l’équipe et des boîtes utilisent le niveau minimum défini à {offset}.",
+    "This Pokemon has no ability supported by Sword and Shield in its source data.": "Les données sources de ce Pokémon ne contiennent aucun talent compatible avec Épée et Bouclier.",
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Certaines ressources du Pokémon supprimé n’ont pas pu être effacées. Actualisez pour réessayer."
   }
 }

@@ -1652,18 +1652,13 @@ assert.ok(workProgressModal, 'The shared work progress modal must exist.');
 const workProgressModalText = workProgressModal.getText(appSourceFile);
 assert.match(
   workProgressModalText,
-  /<LoadingProgress[\s\S]*?label=\{progress\.detail\}/u,
-  'Long-running output must use KM Editor\'s shared accessible progress presentation.'
+  /<LoadingProgress[\s\S]*?detail=\{translateLiteral\(progress\.detail\)\}/u,
+  'Long-running output must use the shared accessible progress presentation with current work.'
 );
 assert.match(
   workProgressModalText,
-  /status-pill status-pill-info[\s\S]*?t\('editorText\.progress\.phase', \{ step: progress\.step, total: progress\.totalSteps \}\)/u,
-  'Long-running output must expose its current phase in the established status pill.'
-);
-assert.match(
-  workProgressModalText,
-  /changes-progress work-progress-phases/u,
-  'Long-running output phases must use the established KM progress-step cards.'
+  /status=\{progress\.status \?\? 'running'\}[\s\S]*?steps=\{progress\.steps\?\.map/u,
+  'Output progress must retain the actual outcome and workflow stages.'
 );
 const publishedInlineEditorError = findFunctionLike(appSourceFile, 'PublishedInlineEditorError');
 assert.ok(
@@ -2008,7 +2003,9 @@ assert.match(
 );
 
 const inlineAlertPublishingExemptions = new Set([
-  'src/components/ReportableErrorScreen.tsx'
+  'src/components/ReportableErrorScreen.tsx',
+  // Progress presents an operation's outcome; the owning controller publishes its diagnostics.
+  'src/components/LoadingProgress.tsx'
 ]);
 for (const path of sourceFilesUnder(sourceRoot)) {
   const relativePath = relative(desktopRoot, path).replaceAll('\\', '/');

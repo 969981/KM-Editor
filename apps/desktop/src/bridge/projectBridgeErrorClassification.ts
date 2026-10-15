@@ -41,6 +41,7 @@ const expectedProjectBridgeRejectionCodes = new Set<KmErrorCode>([
   projectBridgeErrorCodes.outputReviewStateUnverifiable,
   projectBridgeErrorCodes.outputStateRevisionChanged,
   projectBridgeErrorCodes.outputMetadataUnavailable,
+  projectBridgeErrorCodes.restorationCleanupPending,
 
   ...Object.values(gameplaySettingsErrorCodes),
   ...Object.values(mergeWorkspaceErrorCodes).filter(code => code !== mergeWorkspaceErrorCodes.exportFailed && code !== mergeWorkspaceErrorCodes.outputRecovery),

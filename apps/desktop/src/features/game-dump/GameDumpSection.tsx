@@ -15,6 +15,7 @@ import {
 } from '../../bridge/gameDumpContracts';
 import { type ProjectBridge } from '../../bridge/projectBridge';
 import type { DesktopServices } from '../../desktopServices';
+import { LoadingProgress } from '../../components/LoadingProgress';
 import { FieldLabel } from '../../components/FieldLabel';
 import { reconcileSourceBackedDraft } from '../../components/localEditorDraftState';
 import { SearchableOptionInput } from '../../components/SearchableOptionInput';
@@ -43,8 +44,7 @@ type GameDumpSelectionState = Record<
 type GameDumpProgress = {
   detail: string;
   label: string;
-  mode: 'determinate' | 'indeterminate';
-  percent?: number;
+  status: 'running' | 'complete' | 'error';
   selectedCategoryCount?: number;
   writtenFileCount?: number;
 };
@@ -301,7 +301,7 @@ export function GameDumpSection({
     setProgress({
       detail: 'Reading available dump categories.',
       label: 'Loading Game Dump',
-      mode: 'indeterminate'
+      status: 'running'
     });
     try {
       const response = await bridge.loadGameDumpWorkflow({ paths });
@@ -366,8 +366,7 @@ export function GameDumpSection({
       setProgress({
         detail: 'Review diagnostics before using these dump files.',
         label: 'Game Dump failed.',
-        mode: 'determinate',
-        percent: 100
+        status: 'error'
       });
     } finally {
       if (loadWorkflowOperationRef.current === operation) {
@@ -497,16 +496,14 @@ export function GameDumpSection({
       setProgress({
         detail: 'Preparing selected categories.',
         label: 'Generating Dump Files',
-        mode: 'determinate',
-        percent: 10,
+        status: 'running',
         selectedCategoryCount: selections.length
       });
       await Promise.resolve();
       setProgress({
         detail: 'Writing selected dump files.',
         label: 'Generating Dump Files',
-        mode: 'indeterminate',
-        percent: 45,
+        status: 'running',
         selectedCategoryCount: selections.length
       });
       const response = await bridge.runGameDump({
@@ -525,8 +522,7 @@ export function GameDumpSection({
           ? 'Dump files are ready in the selected destination.'
           : 'Review diagnostics before using these dump files.',
         label: response.result.succeeded ? 'Dump files generated' : 'Dump completed with issues',
-        mode: 'determinate',
-        percent: 100,
+        status: response.result.succeeded ? 'complete' : 'error',
         selectedCategoryCount: selections.length,
         writtenFileCount: response.result.writtenFiles.length
       });
@@ -539,6 +535,7 @@ export function GameDumpSection({
         'Game Dump generation failed.'
       );
       if (failureDiagnostics.length === 0) {
+        setProgress(null);
         return;
       }
 
@@ -546,8 +543,7 @@ export function GameDumpSection({
       setProgress({
         detail: 'Review diagnostics before using these dump files.',
         label: 'Game Dump failed.',
-        mode: 'determinate',
-        percent: 100
+        status: 'error'
       });
     } finally {
       if (activeGenerationRef.current === operation) {
@@ -1045,25 +1041,9 @@ function GameDumpProgressPanel({
   progress: GameDumpProgress;
   translateLiteral: (literal: string) => string;
 }) {
-  const percent = Math.max(0, Math.min(100, progress.percent ?? 0));
-  const isDeterminate = progress.mode === 'determinate';
-
   return (
-    <div className="game-dump-progress-panel" role="status">
-      <div className="game-dump-progress-header">
-        <strong>{translateLiteral(progress.label)}</strong>
-        <span>{isDeterminate ? `${percent}%` : translateLiteral('Working')}</span>
-      </div>
-      <div
-        aria-label={translateLiteral('Game Dump progress')}
-        aria-valuemax={100}
-        aria-valuemin={0}
-        aria-valuenow={isDeterminate ? percent : undefined}
-        className={`work-progress-track${isDeterminate ? '' : ' work-progress-track-indeterminate'}`}
-        role="progressbar"
-      >
-        <div className="work-progress-fill" style={{ width: isDeterminate ? `${percent}%` : undefined }} />
-      </div>
+    <LoadingProgress className="game-dump-progress-panel" label={translateLiteral(progress.label)}
+      detail={translateLiteral(progress.detail)} status={progress.status}>
       <dl className="work-progress-detail">
         <div>
           <dt>{translateLiteral('Status')}</dt>
@@ -1082,7 +1062,7 @@ function GameDumpProgressPanel({
           </div>
         ) : null}
       </dl>
-    </div>
+    </LoadingProgress>
   );
 }
 
