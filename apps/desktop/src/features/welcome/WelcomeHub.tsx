@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ArrowRight, BookOpen, ChevronRight, FileText, GitFork, Play, Settings, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronRight, FileText, GitFork, MessageCircle, Play, Settings, TriangleAlert, type LucideIcon } from 'lucide-react';
 import type { ProjectGame } from '../../bridge/contracts';
 import { useLocalization } from '../../localization';
 import { usePublishCommonEditorError } from '../../components/CommonEditorDiagnostics';
@@ -73,6 +73,7 @@ export default function WelcomeHub({ games, definitions, logo, version, configur
       <nav className="welcome-resources" aria-label={t('welcome.resources')}>
         {resource(t('welcome.documentation'), 'https://github.com/KotMatrosk1n/KM-Editor/wiki', BookOpen)}
         {resource('GitHub', 'https://github.com/KotMatrosk1n/KM-Editor', GitFork)}
+        {resource('Discord', 'https://discord.gg/ess4reb5eB', MessageCircle)}
         {resource(t('welcome.report'), githubIssuesUrl, TriangleAlert)}
         <button type="button" aria-pressed={showSettings}
           aria-label={hasAvailableUpdate ? `${t('welcome.settings')}: ${translateLiteral('Update Available')}` : t('welcome.settings')}
