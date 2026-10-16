@@ -68,8 +68,10 @@ const vite = await createServer({
   appType: 'custom',
   configFile: false,
   logLevel: 'error',
+  optimizeDeps: { noDiscovery: true },
   root: desktopRoot,
-  server: { middlewareMode: true }
+  // This check loads a fixed source snapshot without watching files or opening sockets.
+  server: { middlewareMode: true, watch: null, ws: false }
 });
 
 try {
