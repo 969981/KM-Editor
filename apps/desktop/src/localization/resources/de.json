@@ -5139,7 +5139,30 @@
     "progressFeedback.paused": "Pausiert",
     "restoration.removeHelp": "Deaktivieren behält vorbereitete Assets und Anpassungen zur Wiederverwendung. Assets entfernen merkt die Löschung der verwalteten Ausgabedateien und vorbereiteten Assets dieses Pokémon samt Modelländerungen vor. Entferne Verweise, bevor du die Entfernung anwendest.",
     "progressFeedback.complete": "Abgeschlossen",
-    "progressFeedback.error": "Wegen Fehlern angehalten"
+    "progressFeedback.error": "Wegen Fehlern angehalten",
+    "summaryStats.title": "DV- und FP-Anzeige",
+    "summaryStats.intro": "Zeigt die ursprünglichen DV und numerischen FP im Pokémon-Bericht.",
+    "summaryStats.enable": "DV- und FP-Ansichten aktivieren",
+    "summaryStats.restore": "Original wiederherstellen",
+    "summaryStats.controls": "Mit der Diagrammsteuerung auf der Statusseite des Berichts wechselst du zwischen vier Ansichten.",
+    "summaryStats.cycle": "Berichtsansichten",
+    "summaryStats.mode.stats": "Statuswerte",
+    "summaryStats.mode.stats.help": "Die ursprünglichen berechneten Statuswerte.",
+    "summaryStats.mode.ivs": "Ursprüngliche DV",
+    "summaryStats.mode.ivs.help": "Alle sechs gespeicherten DV ohne Anpassungen durch das Super-Spezialtraining.",
+    "summaryStats.mode.evs": "FP",
+    "summaryStats.mode.evs.help": "Alle sechs aktuellen FP-Werte.",
+    "summaryStats.mode.graph": "FP-Diagramm",
+    "summaryStats.mode.graph.help": "Das ursprüngliche FP-Diagramm.",
+    "summaryStats.preservation": "Nur die Anzeige ändert sich. Pokémon, Attacken, Fähigkeiten und Speicherdaten bleiben erhalten.",
+    "summaryStats.package": "Merke die Einstellung vor, prüfe die Änderungen und wende sie an. Erstelle ein installiertes Spieleinstellungen-Paket erneut, um diese Einstellung und ihre Beschriftungen einzuschließen.",
+    "summaryStats.stale": "Die Quellen haben sich geändert. Lade sie neu und wähle die Einstellung erneut.",
+    "summaryStats.failed": "Die Einstellung wurde nicht vorgemerkt. Prüfe die Diagnose und versuche es erneut.",
+    "summaryStats.enabled": "DV- und FP-Ansichten aktiviert",
+    "summaryStats.original": "Ursprüngliche Berichtsansichten",
+    "summaryStats.open": "DV- und FP-Anzeige öffnen",
+    "workbench.section.summary-stats.label": "DV- und FP-Anzeige",
+    "workbench.section.summary-stats.description": "Zeigt die ursprünglichen DV und numerischen FP im Pokémon-Bericht."
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Das Super-Spezialtraining verwendet einen älteren Levelpatch, der für die Symbole im Team und in den Boxen weiterhin Lv.100 voraussetzt. Wende diesen Editor erneut an, um die Auswahl zu aktualisieren.",
@@ -9596,6 +9619,8 @@
     "Obedience Level": "Gehorsamslevel",
     "Party and box icons use the minimum level at {offset}.": "Die Symbole im Team und in den Boxen verwenden den Mindestlevel bei {offset}.",
     "This Pokemon has no ability supported by Sword and Shield in its source data.": "Die Quelldaten dieses Pokémon enthalten keine Fähigkeit, die von Schwert und Schild unterstützt wird.",
-    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Die Assets des entfernten Pokémon konnten nicht vollständig gelöscht werden. Aktualisiere, um es erneut zu versuchen."
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Die Assets des entfernten Pokémon konnten nicht vollständig gelöscht werden. Aktualisiere, um es erneut zu versuchen.",
+    "IV and EV Screen": "DV- und FP-Anzeige",
+    "Show raw IVs and numeric EVs on the Pokemon Summary screen.": "Zeigt die ursprünglichen DV und numerischen FP im Pokémon-Bericht."
   }
 }

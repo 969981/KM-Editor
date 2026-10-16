@@ -15,6 +15,7 @@ export const workbenchSections = [
   'snacksworth',
   'starmobiles',
   'titanSwapper',
+  'summaryStats',
   'trainerPools',
   'fashionCatalog',
   'giftPokemon',

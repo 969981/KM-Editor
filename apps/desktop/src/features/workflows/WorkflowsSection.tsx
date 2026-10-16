@@ -54,6 +54,7 @@ export function WorkflowsSection({
   isGymUniformRemovalLoading,
   isHyperspaceBypassLoading,
   isIvScreenLoading,
+  isSummaryStatsLoading,
   isTypeChartLoading,
   isAngeFightLoading,
   isRoyalCandyLoading,
@@ -80,6 +81,7 @@ export function WorkflowsSection({
   onOpenGymUniformRemovalWorkflow,
   onOpenHyperspaceBypassWorkflow,
   onOpenIvScreenWorkflow,
+  onOpenSummaryStatsWorkflow,
   onOpenTypeChartWorkflow,
   onOpenAngeFightWorkflow,
   onOpenItemsWorkflow,
@@ -144,6 +146,7 @@ export function WorkflowsSection({
   isGymUniformRemovalLoading: boolean;
   isHyperspaceBypassLoading: boolean;
   isIvScreenLoading: boolean;
+  isSummaryStatsLoading: boolean;
   isTypeChartLoading: boolean;
   isAngeFightLoading: boolean;
   isRoyalCandyLoading: boolean;
@@ -170,6 +173,7 @@ export function WorkflowsSection({
   onOpenGymUniformRemovalWorkflow: () => void;
   onOpenHyperspaceBypassWorkflow: () => void;
   onOpenIvScreenWorkflow: () => void;
+  onOpenSummaryStatsWorkflow: () => void;
   onOpenTypeChartWorkflow: () => void;
   onOpenAngeFightWorkflow: () => void;
   onOpenItemsWorkflow: () => void;
@@ -268,6 +272,7 @@ export function WorkflowsSection({
     hyperspaceBypass: action('Open Hyperspace', isHyperspaceBypassLoading, onOpenHyperspaceBypassWorkflow),
     items: action('Open Items', isItemsLoading, onOpenItemsWorkflow),
     ivScreen: action('Open IV Screen', isIvScreenLoading, onOpenIvScreenWorkflow),
+    summaryStats: action(t('summaryStats.open'), isSummaryStatsLoading, onOpenSummaryStatsWorkflow),
     modMerger: action('Open Merger', isModMergerLoading, onOpenModMergerWorkflow),
     moves: action('Open Moves', isMovesLoading, onOpenMovesWorkflow),
     npcItemGift: action('Open NPC Gifts', isNpcItemGiftLoading, onOpenNpcItemGiftWorkflow),

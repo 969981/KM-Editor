@@ -5139,7 +5139,30 @@
     "progressFeedback.paused": "En pause",
     "restoration.removeHelp": "La désactivation conserve les ressources préparées et les personnalisations. Supprimer les ressources prépare la suppression des fichiers gérés de ce Pokémon et de ses ressources préparées, y compris les modifications du modèle. Retirez les références avant d’appliquer la suppression.",
     "progressFeedback.complete": "Terminé",
-    "progressFeedback.error": "Arrêté en raison d’erreurs"
+    "progressFeedback.error": "Arrêté en raison d’erreurs",
+    "summaryStats.title": "Écran des IV et EV",
+    "summaryStats.intro": "Affiche les IV bruts et les EV numériques dans le résumé du Pokémon.",
+    "summaryStats.enable": "Activer les vues des IV et EV",
+    "summaryStats.restore": "Restaurer la version d’origine",
+    "summaryStats.controls": "Utilisez la commande du graphique sur la page des statistiques du résumé pour parcourir les quatre vues.",
+    "summaryStats.cycle": "Vues du résumé",
+    "summaryStats.mode.stats": "Statistiques",
+    "summaryStats.mode.stats.help": "Les statistiques calculées d’origine.",
+    "summaryStats.mode.ivs": "IV bruts",
+    "summaryStats.mode.ivs.help": "Les six IV enregistrés, sans les ajustements de l’Entraînement Ultime.",
+    "summaryStats.mode.evs": "EV",
+    "summaryStats.mode.evs.help": "Les six valeurs actuelles des EV.",
+    "summaryStats.mode.graph": "Graphique des EV",
+    "summaryStats.mode.graph.help": "Le graphique des EV d’origine.",
+    "summaryStats.preservation": "Seul l’affichage change. Les Pokémon, capacités, talents et données de sauvegarde sont conservés.",
+    "summaryStats.package": "Préparez le réglage, examinez les modifications, puis appliquez-le. Régénérez le paquet de paramètres de jeu installé pour inclure ce réglage et ses libellés.",
+    "summaryStats.stale": "Les sources ont changé. Rechargez et sélectionnez à nouveau le réglage.",
+    "summaryStats.failed": "Le réglage n’a pas été préparé. Consultez les diagnostics et réessayez.",
+    "summaryStats.enabled": "Vues des IV et EV activées",
+    "summaryStats.original": "Vues du résumé d’origine",
+    "summaryStats.open": "Ouvrir l’écran des IV et EV",
+    "workbench.section.summary-stats.label": "Écran des IV et EV",
+    "workbench.section.summary-stats.description": "Affiche les IV bruts et les EV numériques dans le résumé du Pokémon."
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "L’Entraînement Ultime utilise un ancien correctif de niveau qui conserve le seuil de N.100 pour les icônes de l’équipe et des boîtes. Appliquez à nouveau cet éditeur pour mettre à jour le sélecteur.",
@@ -9596,6 +9619,8 @@
     "Obedience Level": "Niveau d’obéissance",
     "Party and box icons use the minimum level at {offset}.": "Les icônes de l’équipe et des boîtes utilisent le niveau minimum défini à {offset}.",
     "This Pokemon has no ability supported by Sword and Shield in its source data.": "Les données sources de ce Pokémon ne contiennent aucun talent compatible avec Épée et Bouclier.",
-    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Certaines ressources du Pokémon supprimé n’ont pas pu être effacées. Actualisez pour réessayer."
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Certaines ressources du Pokémon supprimé n’ont pas pu être effacées. Actualisez pour réessayer.",
+    "IV and EV Screen": "Écran des IV et EV",
+    "Show raw IVs and numeric EVs on the Pokemon Summary screen.": "Affiche les IV bruts et les EV numériques dans le résumé du Pokémon."
   }
 }

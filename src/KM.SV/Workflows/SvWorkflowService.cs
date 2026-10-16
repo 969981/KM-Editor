@@ -34,6 +34,7 @@ using KM.SV.Blueberry;
 using KM.Formats.SV.Blueberry;
 using KM.SV.Starmobiles;
 using KM.SV.TitanSwapper;
+using KM.SV.SummaryStats;
 using KM.SV.TypeChart;
 using System.Globalization;
 using System.Security.Cryptography;
@@ -63,6 +64,7 @@ public sealed partial class SvWorkflowService
     private readonly SvMovesWorkflowService movesWorkflowService;
     private readonly SvStarmobilesService starmobilesService;
     private readonly SvTitanSwapperService titanSwapperService;
+    private readonly SvSummaryStatsService summaryStatsService;
     private readonly SvTextWorkflowService textWorkflowService;
     private readonly SvTmMachineControlsWorkflowService tmMachineControlsWorkflowService;
     private readonly SvHabitatCoordinatesWorkflowService habitatCoordinatesWorkflowService;
@@ -107,6 +109,7 @@ public sealed partial class SvWorkflowService
         this.cacheManager = cacheManager ?? new SvCacheManager();
         starmobilesService = new SvStarmobilesService(this.projectWorkspaceService);
         titanSwapperService = new SvTitanSwapperService(this.projectWorkspaceService);
+        summaryStatsService = new SvSummaryStatsService(this.projectWorkspaceService);
         fileSource = new SvWorkflowFileSource(this.cacheManager);
         var habitatFileSource = new SvWorkflowFileSource(
             this.cacheManager,
@@ -1036,6 +1039,7 @@ public sealed partial class SvWorkflowService
             Blueberry(SvBlueberryKind.Snacksworth).CreateSummary(project),
             starmobilesService.CreateSummary(project),
             titanSwapperService.CreateSummary(project),
+            summaryStatsService.CreateSummary(project),
             giftPokemonWorkflowService.CreateSummary(project),
             tradePokemonWorkflowService.CreateSummary(project),
             placementWorkflowService.CreateSummary(project),
@@ -1142,6 +1146,11 @@ public sealed partial class SvWorkflowService
         using var freshReads = SvWorkflowFileSource.BeginFreshReadScope(paths);
         return starmobilesService.Stage(paths, session, revision, updates);
     }
+
+    public SvSummaryStatsWorkflow LoadSummaryStats(ProjectPaths paths, EditSession? session = null)
+        => summaryStatsService.Load(paths, session);
+    public SvSummaryStatsEditResult StageSummaryStats(ProjectPaths paths, EditSession? session, string revision, bool enabled)
+        => summaryStatsService.Stage(paths, session, revision, enabled);
 
     public SvTitanSwapperWorkflow LoadTitanSwapper(ProjectPaths paths, EditSession? session = null)
         => titanSwapperService.Load(paths, session);
@@ -1741,6 +1750,7 @@ public sealed partial class SvWorkflowService
             SvEditSessionDomain.Snacksworth => Blueberry(SvBlueberryKind.Snacksworth).Validate(paths, session),
             SvEditSessionDomain.Starmobiles => starmobilesService.Validate(paths, session),
             SvEditSessionDomain.TitanSwapper => titanSwapperService.Validate(paths, session),
+            SvEditSessionDomain.SummaryStats => summaryStatsService.Validate(paths, session),
             SvEditSessionDomain.GiftPokemon => giftPokemonEditSessionService.Validate(paths, session),
             SvEditSessionDomain.TradePokemon => tradePokemonEditSessionService.Validate(paths, session),
             SvEditSessionDomain.Placement => placementEditSessionService.Validate(paths, session),
@@ -1777,6 +1787,7 @@ public sealed partial class SvWorkflowService
             SvEditSessionDomain.Snacksworth => Blueberry(SvBlueberryKind.Snacksworth).CreateChangePlan(paths, session, outputMode),
             SvEditSessionDomain.Starmobiles => starmobilesService.CreateChangePlan(paths, session, outputMode),
             SvEditSessionDomain.TitanSwapper => titanSwapperService.CreateChangePlan(paths, session, outputMode),
+            SvEditSessionDomain.SummaryStats => summaryStatsService.CreateChangePlan(paths, session, outputMode),
             SvEditSessionDomain.GiftPokemon => giftPokemonEditSessionService.CreateChangePlan(paths, session, outputMode),
             SvEditSessionDomain.TradePokemon => tradePokemonEditSessionService.CreateChangePlan(paths, session, outputMode),
             SvEditSessionDomain.Placement => placementEditSessionService.CreateChangePlan(paths, session, outputMode),
@@ -1814,6 +1825,7 @@ public sealed partial class SvWorkflowService
             SvEditSessionDomain.Snacksworth => Blueberry(SvBlueberryKind.Snacksworth).ApplyChangePlan(paths, session, changePlan, outputMode),
             SvEditSessionDomain.Starmobiles => starmobilesService.ApplyChangePlan(paths, session, changePlan, outputMode),
             SvEditSessionDomain.TitanSwapper => titanSwapperService.ApplyChangePlan(paths, session, changePlan, outputMode),
+            SvEditSessionDomain.SummaryStats => summaryStatsService.ApplyChangePlan(paths, session, changePlan, outputMode),
             SvEditSessionDomain.GiftPokemon => giftPokemonEditSessionService.ApplyChangePlan(paths, session, changePlan, outputMode),
             SvEditSessionDomain.TradePokemon => tradePokemonEditSessionService.ApplyChangePlan(paths, session, changePlan, outputMode),
             SvEditSessionDomain.Placement => placementEditSessionService.ApplyChangePlan(paths, session, changePlan, outputMode),
@@ -2103,6 +2115,8 @@ public sealed partial class SvWorkflowService
                 var domainSession = SliceSession(currentSnapshot.EffectiveSession, domain);
                 if (domain == SvEditSessionDomain.TitanSwapper)
                     domainSession = titanSwapperService.RebindVerifiedBatch(paths, domainSession);
+                if (domain == SvEditSessionDomain.SummaryStats)
+                    domainSession = summaryStatsService.RebindVerifiedBatch(paths, domainSession);
                 // Earlier domains in this verified atomic batch may have created an
                 // output preimage (especially the shared standalone descriptor).
                 // Review the domain against that intentional in-batch state while
@@ -2191,6 +2205,7 @@ public sealed partial class SvWorkflowService
             ["workflow.snacksworth"] => SvEditSessionDomain.Snacksworth,
             [SvStarmobilesService.Domain] => SvEditSessionDomain.Starmobiles,
             [SvTitanSwapperService.Domain] => SvEditSessionDomain.TitanSwapper,
+            [SvSummaryStatsService.Domain] => SvEditSessionDomain.SummaryStats,
             [SvEditSessionSupport.GiftPokemonDomain] => SvEditSessionDomain.GiftPokemon,
             [SvEditSessionSupport.TradePokemonDomain] => SvEditSessionDomain.TradePokemon,
             [SvEditSessionSupport.PlacementDomain] => SvEditSessionDomain.Placement,
@@ -2260,6 +2275,7 @@ public sealed partial class SvWorkflowService
             "workflow.snacksworth" => SvEditSessionDomain.Snacksworth,
             SvStarmobilesService.Domain => SvEditSessionDomain.Starmobiles,
             SvTitanSwapperService.Domain => SvEditSessionDomain.TitanSwapper,
+            SvSummaryStatsService.Domain => SvEditSessionDomain.SummaryStats,
             SvEditSessionSupport.GiftPokemonDomain => SvEditSessionDomain.GiftPokemon,
             SvEditSessionSupport.TradePokemonDomain => SvEditSessionDomain.TradePokemon,
             SvEditSessionSupport.PlacementDomain => SvEditSessionDomain.Placement,
@@ -2291,6 +2307,7 @@ public sealed partial class SvWorkflowService
             SvEditSessionDomain.Snacksworth or
             SvEditSessionDomain.Starmobiles or
             SvEditSessionDomain.TitanSwapper or
+            SvEditSessionDomain.SummaryStats or
             SvEditSessionDomain.GiftPokemon or
             SvEditSessionDomain.TradePokemon or
             SvEditSessionDomain.Placement;
@@ -2398,6 +2415,7 @@ public sealed partial class SvWorkflowService
             SvEditSessionDomain.Snacksworth => "workflow.snacksworth",
             SvEditSessionDomain.Starmobiles => SvStarmobilesService.Domain,
             SvEditSessionDomain.TitanSwapper => SvTitanSwapperService.Domain,
+            SvEditSessionDomain.SummaryStats => SvSummaryStatsService.Domain,
             SvEditSessionDomain.GiftPokemon => SvEditSessionSupport.GiftPokemonDomain,
             SvEditSessionDomain.TradePokemon => SvEditSessionSupport.TradePokemonDomain,
             SvEditSessionDomain.Placement => SvEditSessionSupport.PlacementDomain,
@@ -2571,6 +2589,7 @@ public sealed partial class SvWorkflowService
         Snacksworth,
         Starmobiles,
         TitanSwapper,
+        SummaryStats,
         GiftPokemon,
         TradePokemon,
         Placement,

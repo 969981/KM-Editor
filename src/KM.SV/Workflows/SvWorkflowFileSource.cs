@@ -1314,7 +1314,7 @@ internal sealed class SvWorkflowFileSource
                         ToOutputRelativePath(TmMachine.SvTmMachineControlsWorkflowService.MaterialTrackingScriptPath, outputMode),
                         StringComparison.OrdinalIgnoreCase));
             var isSharedDialogueWrite = mutation.Bytes is not null
-                && Blueberry.SvSnacksworthDialogue.VirtualPaths.Any(path => string.Equals(
+                && Blueberry.SvSnacksworthDialogue.VirtualPaths.Concat(SummaryStats.SvSummaryStatsMessages.VirtualPaths).Any(path => string.Equals(
                     relativePath.Value,
                     ToOutputRelativePath(path, outputMode),
                     StringComparison.OrdinalIgnoreCase));
@@ -1636,9 +1636,12 @@ internal sealed class SvWorkflowFileSource
         OutputFileState expectedPreimage,
         RelativeOutputPath relativePath)
     {
+        var sameRomFsLayout = relativePath.Value.StartsWith("romfs/", StringComparison.OrdinalIgnoreCase)
+            && owned.OutputMode is "sv.standalone" or "sv.trinity-bypass"
+            && outputMode is "sv.standalone" or "sv.trinity-bypass";
         if (!coordinator.OwnershipScopeMatches(owned, projectId, gameFamily)
             || owned.CurrentState != expectedPreimage
-            || !string.Equals(owned.OutputMode, outputMode, StringComparison.Ordinal))
+            || !string.Equals(owned.OutputMode, outputMode, StringComparison.Ordinal) && !sameRomFsLayout)
         {
             throw new OutputOwnershipConflictException(relativePath);
         }

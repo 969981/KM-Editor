@@ -5139,7 +5139,30 @@
     "progressFeedback.paused": "En pausa",
     "restoration.removeHelp": "Desactivar conserva los recursos preparados y las personalizaciones. Eliminar recursos prepara la eliminación de los archivos propios de este Pokémon y sus recursos preparados, incluidas las ediciones del modelo. Borra las referencias antes de aplicar la eliminación.",
     "progressFeedback.complete": "Completado",
-    "progressFeedback.error": "Detenido por errores"
+    "progressFeedback.error": "Detenido por errores",
+    "summaryStats.title": "Pantalla de IV y EV",
+    "summaryStats.intro": "Muestra los IV originales y los EV numéricos en el resumen del Pokémon.",
+    "summaryStats.enable": "Activar vistas de IV y EV",
+    "summaryStats.restore": "Restaurar original",
+    "summaryStats.controls": "Usa el control del gráfico en la página de estadísticas del resumen para alternar entre cuatro vistas.",
+    "summaryStats.cycle": "Vistas del resumen",
+    "summaryStats.mode.stats": "Estadísticas",
+    "summaryStats.mode.stats.help": "Las estadísticas calculadas originales.",
+    "summaryStats.mode.ivs": "IV originales",
+    "summaryStats.mode.ivs.help": "Los seis IV almacenados, sin ajustes del entrenamiento extremo.",
+    "summaryStats.mode.evs": "EV",
+    "summaryStats.mode.evs.help": "Los seis valores actuales de EV.",
+    "summaryStats.mode.graph": "Gráfico de EV",
+    "summaryStats.mode.graph.help": "El gráfico original de EV.",
+    "summaryStats.preservation": "Solo cambia la visualización. Se conservan los Pokémon, movimientos, habilidades y datos guardados.",
+    "summaryStats.package": "Prepara el ajuste, revisa Cambios y aplícalo. Vuelve a generar el paquete de ajustes de juego instalado para incluir este ajuste y sus textos.",
+    "summaryStats.stale": "Las fuentes han cambiado. Recarga y selecciona el ajuste de nuevo.",
+    "summaryStats.failed": "No se preparó el ajuste. Revisa Diagnósticos e inténtalo de nuevo.",
+    "summaryStats.enabled": "Vistas de IV y EV activadas",
+    "summaryStats.original": "Vistas originales del resumen",
+    "summaryStats.open": "Abrir pantalla de IV y EV",
+    "workbench.section.summary-stats.label": "Pantalla de IV y EV",
+    "workbench.section.summary-stats.description": "Muestra los IV originales y los EV numéricos en el resumen del Pokémon."
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "El Entrenamiento Extremo usa un parche de nivel anterior que mantiene el requisito de Nv.100 para los iconos del equipo y de las cajas. Vuelve a aplicar este editor para actualizar el selector.",
@@ -9596,6 +9619,8 @@
     "Obedience Level": "Nivel de obediencia",
     "Party and box icons use the minimum level at {offset}.": "Los iconos del equipo y de las cajas usan el nivel mínimo de {offset}.",
     "This Pokemon has no ability supported by Sword and Shield in its source data.": "Este Pokémon no tiene ninguna habilidad compatible con Espada y Escudo en sus datos de origen.",
-    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "No se pudieron borrar todos los recursos del Pokémon eliminado. Actualiza para reintentar."
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "No se pudieron borrar todos los recursos del Pokémon eliminado. Actualiza para reintentar.",
+    "IV and EV Screen": "Pantalla de IV y EV",
+    "Show raw IVs and numeric EVs on the Pokemon Summary screen.": "Muestra los IV originales y los EV numéricos en el resumen del Pokémon."
   }
 }
