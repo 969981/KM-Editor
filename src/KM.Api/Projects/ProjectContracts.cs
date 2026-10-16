@@ -12,6 +12,7 @@ public enum ProjectGameDto
     Scarlet,
     Violet,
     ZA,
+    PLA,
 }
 
 public sealed record ProjectPathsDto

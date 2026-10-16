@@ -527,6 +527,8 @@ function formatTypeChartGame(game: ProjectGame | null) {
       return 'Pokemon Violet';
     case 'za':
       return 'Pokemon Legends Z-A';
+    case 'pla':
+      return 'Pokemon Legends Arceus';
     case null:
       return 'Unknown';
   }

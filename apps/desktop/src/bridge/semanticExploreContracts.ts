@@ -54,7 +54,8 @@ const pageLimitSchema = z.number().int().min(1).max(semanticExploreMaximumPageSi
 export const semanticExploreGameFamilySchema = z.enum([
   'swordShield',
   'scarletViolet',
-  'legendsZA'
+  'legendsZA',
+  'legendsArceus'
 ]);
 
 export const semanticExploreRecordRefSchema = z.strictObject({
@@ -452,5 +453,7 @@ export function semanticExploreProjectGameFamily(
       return 'scarletViolet';
     case 'za':
       return 'legendsZA';
+    case 'pla':
+      return 'legendsArceus';
   }
 }

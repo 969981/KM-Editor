@@ -572,9 +572,10 @@ export const guidedDesignImportResponseSchema = z
   });
 
 function guidedDesignExpectedFields(
-  family: 'swordShield' | 'scarletViolet' | 'legendsZA',
+  family: 'swordShield' | 'scarletViolet' | 'legendsZA' | 'legendsArceus',
   kind: z.infer<typeof guidedDesignProposalKindSchema>
 ): readonly string[] | null {
+  if (family === 'legendsArceus') return null;
   switch (kind) {
     case 'trainerLevelAdjustment':
       return family === 'swordShield' ? null : ['level'];

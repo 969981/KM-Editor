@@ -449,6 +449,16 @@ public sealed class ProjectValidator
         }
 
         var gameInfo = ProjectGameMetadata.Get(selectedGame);
+        if (selectedGame == ProjectGame.PLA)
+        {
+            var required = new[] { "bin/pml/personal/personal_data_total.perbin", "bin/pml/waza_oboe/waza_oboe_total.wazaoboe", "bin/pml/evolution/evolution_data_total.evobin", "bin/appli/wazaremember/bin/wazashop_table.bin" };
+            if (required.Any(relative => !File.Exists(Path.Combine(baseRomFs.Path!, relative))))
+            {
+                baseRomFs.Status = ProjectPathStatus.Unsafe;
+                baseRomFs.AddDiagnostic(DiagnosticSeverity.Error, "Base RomFS is missing required PLA loose tables.", expected: "A complete PLA RomFS dump");
+            }
+            return;
+        }
         if (!gameInfo.UsesTrinityRomFs)
         {
             return;
@@ -524,6 +534,24 @@ public sealed class ProjectValidator
                     $"Selected {FormatGame(selectedGame)}, but Base ExeFS contains {FormatGame(detectedGame.Value)} title id 0x{titleId!.Value:X16}.",
                     expected: $"0x{GetTitleId(selectedGame):X16} for {FormatGame(selectedGame)}");
                 return;
+            }
+
+            if (selectedGame == ProjectGame.PLA)
+            {
+                if (!PlaProjectProfile.MatchesMetadata(npdm))
+                {
+                    baseExeFs.Status = ProjectPathStatus.Unsafe;
+                    baseExeFs.AddDiagnostic(DiagnosticSeverity.Error, "The PLA executable metadata is invalid.", expected: "PLA main.npdm with matching program identity");
+                    return;
+                }
+                using var main = File.OpenRead(Path.Combine(baseExeFs.Path!, "main"));
+                Span<byte> header = stackalloc byte[0x60];
+                if (main.ReadAtLeast(header, header.Length, throwOnEndOfStream: false) != header.Length || !PlaProjectProfile.Matches(header))
+                {
+                    baseExeFs.Status = ProjectPathStatus.Unsafe;
+                    baseExeFs.AddDiagnostic(DiagnosticSeverity.Error, "This PLA executable build is not supported.", expected: "PLA " + PlaProjectProfile.SupportedVersion);
+                    return;
+                }
             }
 
             baseExeFs.AddDiagnostic(

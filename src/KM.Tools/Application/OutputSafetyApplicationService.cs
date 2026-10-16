@@ -1508,6 +1508,7 @@ public sealed class OutputSafetyApplicationService
         GameFamily.SwordShield => "swordShield",
         GameFamily.ScarletViolet => "scarletViolet",
         GameFamily.LegendsZA => "pokemonLegendsZA",
+        GameFamily.LegendsArceus => "pokemonLegendsArceus",
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, null),
     };
 

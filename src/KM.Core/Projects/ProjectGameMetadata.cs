@@ -17,6 +17,7 @@ public static class ProjectGameMetadata
         new(ProjectGame.Scarlet, "Pokemon Scarlet", 0x0100A3D008C5C000, UsesTrinityRomFs: true),
         new(ProjectGame.Violet, "Pokemon Violet", 0x01008F6008C5E000, UsesTrinityRomFs: true),
         new(ProjectGame.ZA, "Pokemon Legends Z-A", 0x0100F43008C44000, UsesTrinityRomFs: true),
+        new(ProjectGame.PLA, "Pokemon Legends Arceus", 0x01001F5010DFA000, UsesTrinityRomFs: false),
     ];
 
     public static IReadOnlyList<ProjectGameInfo> All => GameInfos;

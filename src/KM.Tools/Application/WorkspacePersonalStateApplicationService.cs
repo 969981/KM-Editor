@@ -919,6 +919,7 @@ public sealed class WorkspacePersonalStateApplicationService
 
     private static bool IsSectionAvailable(string section, ProjectGameDto game)
     {
+        if (game == ProjectGameDto.PLA) return section is "health" or "workbench" or "workflows" or "pokemon" or "moves" or "text" or "changes" or "history" or "diagnostics" or "settings";
         if (string.IsNullOrEmpty(section) || section.Length > MaximumIdentifierLength)
         {
             return false;
@@ -945,6 +946,7 @@ public sealed class WorkspacePersonalStateApplicationService
             ProjectGameDto.Sword or ProjectGameDto.Shield => "swordShield",
             ProjectGameDto.Scarlet or ProjectGameDto.Violet => "scarletViolet",
             ProjectGameDto.ZA => "legendsZA",
+            ProjectGameDto.PLA => "legendsArceus",
             _ => throw Invalid("A workspace game is invalid."),
         };
     }

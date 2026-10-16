@@ -111,6 +111,7 @@ export type WorkbenchCapabilityRegistration = {
 };
 
 const allGames = ['sword', 'shield', 'scarlet', 'violet', 'za'] as const;
+const plaGames = [...allGames, 'pla'] as const;
 const swordShieldGames = ['sword', 'shield'] as const;
 const scarletVioletGames = ['scarlet', 'violet'] as const;
 function workflow(
@@ -156,7 +157,7 @@ export const workbenchCapabilityRegistry = [
     capabilityKinds: ['navigation', 'command'],
     description: 'Configure, validate, and inspect the active project.',
     domain: 'project',
-    games: allGames,
+    games: plaGames,
     icon: Activity,
     id: 'health',
     label: 'Project Setup',
@@ -169,7 +170,7 @@ export const workbenchCapabilityRegistry = [
     capabilityKinds: ['navigation', 'command'],
     description: 'Open workspace tools, recent targets, and project capabilities.',
     domain: 'workspace.home',
-    games: allGames,
+    games: plaGames,
     icon: LayoutDashboard,
     id: 'workbench',
     label: 'Workbench',
@@ -182,7 +183,7 @@ export const workbenchCapabilityRegistry = [
     capabilityKinds: ['navigation', 'command'],
     description: 'Browse the workflows available for the active project.',
     domain: 'workspace.workflows',
-    games: allGames,
+    games: plaGames,
     icon: ListChecks,
     id: 'workflows',
     label: 'Workflows',
@@ -200,7 +201,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Pokemon personal stats, forms, evolutions, learnsets, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: Dna,
     id: 'pokemon',
     label: 'Pokemon'
@@ -215,7 +216,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Move stats, target behavior, secondary effects, flags, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: Zap,
     id: 'moves',
     label: 'Moves'
@@ -353,7 +354,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Text entries, dialogue references, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: TextCursorInput,
     id: 'text',
     label: 'Text',
@@ -657,7 +658,7 @@ export const workbenchCapabilityRegistry = [
     capabilityKinds: ['navigation', 'command'],
     description: 'Review staged changes and apply a verified plan.',
     domain: 'workspace.changes',
-    games: allGames,
+    games: plaGames,
     icon: ClipboardCheck,
     id: 'changes',
     label: 'Changes',
@@ -670,7 +671,7 @@ export const workbenchCapabilityRegistry = [
     capabilityKinds: ['navigation', 'command'],
     description: 'Browse dated output transactions and their recorded changes.',
     domain: 'workspace.history',
-    games: allGames,
+    games: plaGames,
     icon: History,
     id: 'history',
     label: 'History',
@@ -683,7 +684,7 @@ export const workbenchCapabilityRegistry = [
     capabilityKinds: ['navigation', 'command'],
     description: 'Configure interface, cache, language, and update preferences.',
     domain: 'workspace.settings',
-    games: allGames,
+    games: plaGames,
     icon: Settings,
     id: 'settings',
     label: 'Settings',

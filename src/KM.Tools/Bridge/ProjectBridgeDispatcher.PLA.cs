@@ -1,0 +1,65 @@
+// SPDX-License-Identifier: GPL-3.0-only
+
+using KM.Api.Bridge;
+using KM.Api.Editing;
+using KM.Api.PLA;
+using KM.Api.Workflows;
+using KM.Core.Editing;
+using KM.Core.Projects;
+using KM.PLA;
+
+namespace KM.Tools.Bridge;
+
+public sealed partial class ProjectBridgeDispatcher
+{
+    private readonly PlaWorkflowService plaWorkflowService = new();
+
+    private static bool IsPlaAllowedCommand(string command) => command is KmCommandNames.LoadPla or KmCommandNames.StagePla
+        or KmCommandNames.ListWorkflows or KmCommandNames.StartEditSession or KmCommandNames.ValidateEditSession
+        or KmCommandNames.CreateChangePlan or KmCommandNames.ApplyChangePlan
+        || command.StartsWith("project.", StringComparison.Ordinal)
+        || command.StartsWith("workspace.", StringComparison.Ordinal)
+        || IsOutputSafetyCommand(command) || IsChangeSetCommand(command);
+
+    private static ListWorkflowsResponse ListPlaWorkflows() => new([
+        new("pokemon", "Pokemon", "PLA personal data, learnsets, mastery, evolutions, and move tutoring.", WorkflowAvailabilityDto.Available, []),
+        new("moves", "Moves", "Verified PLA move and style values.", WorkflowAvailabilityDto.Available, []),
+        new("text", "Text", "PLA message text with preserved keys and control tokens.", WorkflowAvailabilityDto.Available, []),
+    ]);
+
+    private string DispatchLoadPla(string requestJson)
+    {
+        var request = DeserializeRequest<LoadPlaRequest>(requestJson);
+        var payload = request.Payload;
+        var page = plaWorkflowService.Load(ProjectBridgeMapper.ToCore(payload.Paths),
+            payload.Session is null ? EditSession.Start() : EditSessionBridgeMapper.ToCore(payload.Session),
+            payload.Kind, payload.TextFile, payload.Query, payload.Offset, payload.MessageLanguage);
+        return SerializeSuccess(new LoadPlaResponse(new PlaPageDto(page.Kind, page.Revision,
+            page.Fields.Select(ToPlaFieldDto).ToArray(), page.RowFields.Select(ToPlaFieldDto).ToArray(),
+            page.Records.Select(record => new PlaRecordDto(record.Id, record.Label, record.Values, record.ReadOnlyFields)).ToArray(),
+            page.Total, page.TextFiles, page.TextFile, page.Notices)), request.RequestId);
+    }
+
+    private static PlaFieldDto ToPlaFieldDto(PlaField field) => new(field.Key, field.Label, field.Kind, field.Minimum, field.Maximum,
+        field.Choices?.Select(choice => new PlaChoiceDto(choice.Value, choice.Label)).ToArray(), field.ReadOnly,
+        field.ChoicesByMethod?.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<PlaChoiceDto>)pair.Value.Select(choice => new PlaChoiceDto(choice.Value, choice.Label)).ToArray()));
+
+    private string DispatchStagePla(string requestJson)
+    {
+        var request = DeserializeRequest<StagePlaRequest>(requestJson);
+        var payload = request.Payload;
+        var paths = ProjectBridgeMapper.ToCore(payload.Paths);
+        var session = payload.Session is null ? EditSession.Start() : EditSessionBridgeMapper.ToCore(payload.Session);
+        return changeSetApplicationService.ExecuteWithAuthoringBindingAsync(session, paths, GetBoundOutputMode(session),
+            (candidate, mode) => CreateChangePlanForSession(paths, candidate, mode),
+            () => SerializeSuccess(new StagePlaResponse(EditSessionBridgeMapper.ToDto(plaWorkflowService.Stage(paths, session,
+                payload.Kind, payload.Id, payload.Values, payload.Revision, payload.RestoreBase))), request.RequestId)).GetAwaiter().GetResult();
+    }
+
+    private ChangePlan CreatePlaChangePlan(ProjectPaths paths, EditSession session, ChangePlanOutputModeDto? mode)
+    {
+        if (mode is not (null or ChangePlanOutputModeDto.Standalone))
+            return new(session.Id, [], [new(KM.Core.Diagnostics.DiagnosticSeverity.Error, "PLA supports standalone loose output.", Domain: "pla") { Code = "KM-PLA-INVALID-DATA" }]);
+        return plaWorkflowService.CreateChangePlan(paths, session);
+    }
+}

@@ -258,6 +258,7 @@ public static class ProjectBridgeMapper
             ProjectGame.Scarlet => ProjectGameDto.Scarlet,
             ProjectGame.Violet => ProjectGameDto.Violet,
             ProjectGame.ZA => ProjectGameDto.ZA,
+            ProjectGame.PLA => ProjectGameDto.PLA,
             _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
         };
     }
@@ -283,6 +284,7 @@ public static class ProjectBridgeMapper
             ProjectGameDto.Scarlet => ProjectGame.Scarlet,
             ProjectGameDto.Violet => ProjectGame.Violet,
             ProjectGameDto.ZA => ProjectGame.ZA,
+            ProjectGameDto.PLA => ProjectGame.PLA,
             null => null,
             _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
         };

@@ -12,6 +12,7 @@ public enum GameFamily
     SwordShield = 1,
     ScarletViolet = 2,
     LegendsZA = 3,
+    LegendsArceus = 4,
 }
 
 public static class GameFamilyExtensions
@@ -23,6 +24,7 @@ public static class GameFamilyExtensions
             ProjectGame.Sword or ProjectGame.Shield => GameFamily.SwordShield,
             ProjectGame.Scarlet or ProjectGame.Violet => GameFamily.ScarletViolet,
             ProjectGame.ZA => GameFamily.LegendsZA,
+            ProjectGame.PLA => GameFamily.LegendsArceus,
             _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
         };
     }

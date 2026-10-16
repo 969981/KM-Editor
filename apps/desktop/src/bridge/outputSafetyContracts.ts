@@ -467,7 +467,7 @@ export const outputSupportReportSchema = z.strictObject({
   checkpointCount: z.number().int().nonnegative(),
   createdAtUtc: dateTimeOffsetSchema,
   diagnosticCodes: z.array(kmErrorCodeSchema).max(256),
-  gameFamily: z.enum(['swordShield', 'scarletViolet', 'pokemonLegendsZA']),
+  gameFamily: z.enum(['swordShield', 'scarletViolet', 'pokemonLegendsZA', 'pokemonLegendsArceus']),
   historyReceiptCount: z.number().int().nonnegative(),
   integrityCounts: z
     .array(

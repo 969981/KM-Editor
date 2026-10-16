@@ -20,6 +20,7 @@ public enum SemanticGameFamilyDto
     SwordShield,
     ScarletViolet,
     LegendsZA,
+    LegendsArceus,
 }
 
 public enum SemanticSourceLayerKindDto

@@ -16,6 +16,9 @@ export const kmErrorCodeSchema = z
   );
 
 export const projectBridgeErrorCodes = {
+  plaInvalidData: "KM-PLA-INVALID-DATA",
+  plaStaleReview: "KM-PLA-STALE-REVIEW",
+  plaApplyFailed: "KM-PLA-APPLY-FAILED",
   staticPresentationSourceInvalid: "KM-SWSH-STATIC-PRESENTATION-SOURCE-INVALID",
   staticPresentationTextPreserved: "KM-SWSH-STATIC-PRESENTATION-TEXT-PRESERVED",
   tradePresentationSourceInvalid: "KM-SWSH-TRADE-PRESENTATION-SOURCE-INVALID",

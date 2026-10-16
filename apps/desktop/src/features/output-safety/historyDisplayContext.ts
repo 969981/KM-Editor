@@ -50,6 +50,7 @@ export async function loadHistoryDisplayContext(
 ): Promise<PendingEditContext> {
   if (!paths.selectedGame) throw new Error('Select a game to resolve history labels.');
   const context = createHistoryDisplayContext(paths.selectedGame);
+  if (paths.selectedGame === 'pla') return context;
   switch (domain) {
     case 'workflow.items':
       context.itemsWorkflow = (await bridge.loadItemsWorkflow({ paths })).workflow;
