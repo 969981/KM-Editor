@@ -194,6 +194,7 @@ const editorSurfaceInventory = {
  * makes an unclassified input-bearing TSX file a test failure.
  */
 const embeddedEditableSurfaceInventory = {
+  plaEditor: ['src/features/pla/PlaEditorSection.tsx', 'PlaEditorSection', 'raw-local-draft'],
   restorationSources: ['src/features/restore-missing-pokemon/RestorationSourceFolders.tsx', 'RestorationSourceFolders', 'utility-input'],
   wildHeldItems: ['src/features/held-item-chance/WildHeldItems.tsx', 'WildHeldItems', 'choice-local-draft'],
   mergePackages: ['src/features/mod-merger/MergePackageDialog.tsx', 'MergePackageDialog', 'choice-local-draft'],
@@ -260,6 +261,7 @@ const allowedPolicies = new Set([
  * cannot be added under a generic policy without choosing its state contract.
  */
 const editorDraftContractInventory = {
+  plaEditor: 'keyed-exact-submit',
   shakingTrees: 'source-reconciled-exact-submit',
   restoreMissingPokemon: 'source-reconciled-exact-submit',
   heldItemChance: 'source-reconciled-exact-submit',

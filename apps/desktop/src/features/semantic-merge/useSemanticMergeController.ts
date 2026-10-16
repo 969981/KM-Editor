@@ -958,6 +958,8 @@ function projectGameFamily(game: KmRecipeValidateResponse['game']) {
       return 'scarletViolet' as const;
     case 'za':
       return 'legendsZA' as const;
+    case 'pla':
+      return 'legendsArceus' as const;
   }
 }
 

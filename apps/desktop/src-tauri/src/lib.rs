@@ -254,6 +254,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "output.integrity.scan",
     "output.recovery.reconcile",
     "output.recovery.status",
+    "pla.load",
+    "pla.stage",
     "placement.catalog.open",
     "placement.catalog.query",
     "placement.load",
@@ -2856,6 +2858,7 @@ fn is_project_bridge_workflow_load_command(command: &str) -> bool {
             | "npcItemGift.load"
             | "obedience.load"
             | "placement.load"
+            | "pla.load"
             | "placement.object.load"
             | "pokemon.load"
             | "profanityFilter.load"
@@ -2985,7 +2988,8 @@ fn project_bridge_command_recycles_read_workers(command: &str) -> bool {
 fn is_replay_safe_edit_session_command(command: &str) -> bool {
     matches!(
         command,
-        "angeFight.stage"
+        "pla.stage"
+            | "angeFight.stage"
             | "angeFight.uninstall.stage"
             | "bagHook.install.stage"
             | "bagHook.uninstall.stage"

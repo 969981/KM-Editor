@@ -610,6 +610,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             using var speciesView = OpenRestorationReadView(requestJson, command, selectedGame);
             var response = command switch
             {
+                KmCommandNames.LoadPla => DispatchLoadPla(requestJson),
+                KmCommandNames.StagePla => DispatchStagePla(requestJson),
                 KmCommandNames.OpenProject => DispatchOpenProject(requestJson),
                 KmCommandNames.ValidateProject => DispatchValidateProject(requestJson),
                 KmCommandNames.RefreshFileGraph => DispatchRefreshFileGraph(requestJson),
@@ -1284,6 +1286,11 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                     command,
                     selectedGame),
                 RequiresDispatcherReset: false);
+        }
+        catch (Exception exception) when (selectedGame == ProjectGame.PLA && command is KmCommandNames.LoadPla or KmCommandNames.StagePla
+            && exception is InvalidDataException or IOException or ArgumentException or OverflowException or JsonException or UnauthorizedAccessException)
+        {
+            return (SerializeFailure("KM-PLA-INVALID-DATA", exception.Message, requestId), RequiresDispatcherReset: false);
         }
         catch (Exception exception) when (!IsFatal(exception))
         {
@@ -2176,6 +2183,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         {
             ProjectGame.Scarlet or ProjectGame.Violet => SvBridgeMapper.ToDto(svWorkflowService.List(paths)),
             ProjectGame.ZA => ZaBridgeMapper.ToDto(zaWorkflowService.List(paths)),
+            ProjectGame.PLA => ListPlaWorkflows(),
             _ => SwShBridgeMapper.ToDto(swShWorkflowService.List(paths)),
         };
 
@@ -5984,6 +5992,12 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                     outputMode),
                 () =>
                 {
+                    if (paths.SelectedGame == ProjectGame.PLA)
+                    {
+                        var plan = plaWorkflowService.CreateChangePlan(paths, session);
+                        return SerializeSuccess(new ValidateEditSessionResponse(EditSessionBridgeMapper.ToDto(session), plan.CanApply,
+                            plan.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), request.RequestId);
+                    }
                     if (IsPokemonLegendsZA(paths))
                     {
                         var zaValidation = zaWorkflowService.ValidateEditSession(paths, session);
@@ -6031,6 +6045,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         EditSession session,
         ChangePlanOutputModeDto? outputMode)
     {
+        if (paths.SelectedGame == ProjectGame.PLA) return CreatePlaChangePlan(paths, session, outputMode);
         if (session.PendingEdits.Count > 0
             && session.PendingEdits.All(edit => GeneratedChangeSetOwners.IsSupported(edit.Owner))
             && session.PendingEdits.Select(edit => edit.Owner).Distinct(StringComparer.Ordinal).Count() == 1
@@ -6234,6 +6249,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         var paths = ProjectBridgeMapper.ToCore(request.Payload.Paths);
         var session = EditSessionBridgeMapper.ToCore(request.Payload.Session);
         var changePlan = EditSessionBridgeMapper.ToCore(request.Payload.ChangePlan);
+        if (paths.SelectedGame == ProjectGame.PLA && request.Payload.OutputMode is not (null or ChangePlanOutputModeDto.Standalone))
+            return SerializeFailure("KM-PLA-INVALID-DATA", "PLA supports standalone loose output.", request.RequestId);
         var isPokemonLegendsZA = IsPokemonLegendsZA(paths);
         var isScarletViolet = IsScarletViolet(paths);
         var applyResult = changeSetApplicationService
@@ -6246,7 +6263,9 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                     paths,
                     candidate,
                     outputMode),
-                () => isPokemonLegendsZA
+                () => paths.SelectedGame == ProjectGame.PLA
+                    ? plaWorkflowService.ApplyChangePlan(paths, session, changePlan)
+                    : isPokemonLegendsZA
                     ? zaWorkflowService.ApplyChangePlan(
                         paths,
                         session,
@@ -7061,6 +7080,10 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             return null;
         }
 
+        if (selectedGame == ProjectGame.PLA && !IsPlaAllowedCommand(command)
+            || command is KmCommandNames.LoadPla or KmCommandNames.StagePla && selectedGame != ProjectGame.PLA)
+            return SerializeFailure(BridgeErrorCodes.GameMismatch, $"Bridge command '{command}' is unavailable for the selected game.", envelope.RequestId);
+
         if (IsSwordShieldOnlyCommand(command)
             && !IsSwordShield(selectedGame.Value)
             && !(command is KmCommandNames.LoadBehaviorWorkflow or KmCommandNames.UpdateBehaviorEntryField
@@ -7195,6 +7218,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             ProjectGameDto.Scarlet => ProjectGame.Scarlet,
             ProjectGameDto.Violet => ProjectGame.Violet,
             ProjectGameDto.ZA => ProjectGame.ZA,
+            ProjectGameDto.PLA => ProjectGame.PLA,
             _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
         };
     }
@@ -7520,6 +7544,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         ProjectGame.Sword or ProjectGame.Shield => SemanticGameFamilyDto.SwordShield,
         ProjectGame.Scarlet or ProjectGame.Violet => SemanticGameFamilyDto.ScarletViolet,
         ProjectGame.ZA => SemanticGameFamilyDto.LegendsZA,
+        ProjectGame.PLA => SemanticGameFamilyDto.LegendsArceus,
         _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
     };
 

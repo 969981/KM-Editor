@@ -9,4 +9,5 @@ public enum ProjectGame
     Scarlet,
     Violet,
     ZA,
+    PLA,
 }

@@ -7,8 +7,8 @@ export { welcomeContentSchema, type WelcomeContent, type WelcomeText } from './w
 export function contentText(value: WelcomeText, language: string): string {
   return value[language as keyof WelcomeText] ?? value.en;
 }
-export function gameFamily(game: ProjectGame): 'swsh' | 'sv' | 'za' {
-  return game === 'sword' || game === 'shield' ? 'swsh' : game === 'za' ? 'za' : 'sv';
+export function gameFamily(game: ProjectGame): 'swsh' | 'sv' | 'za' | 'pla' {
+  return game === 'sword' || game === 'shield' ? 'swsh' : game === 'za' ? 'za' : game === 'pla' ? 'pla' : 'sv';
 }
 export function appliesToGame(audiences: readonly string[], game: ProjectGame): boolean {
   return audiences.includes('all') || audiences.includes(game) || audiences.includes(gameFamily(game));
@@ -20,7 +20,7 @@ export const lastWelcomeGameKey = 'km-editor.welcome.game.v1';
 export function readWelcomeGame(): ProjectGame {
   try {
     const saved = localStorage.getItem(lastWelcomeGameKey);
-    if (saved === 'sword' || saved === 'shield' || saved === 'scarlet' || saved === 'violet' || saved === 'za') return saved;
+    if (saved === 'sword' || saved === 'shield' || saved === 'scarlet' || saved === 'violet' || saved === 'za' || saved === 'pla') return saved;
   } catch { /* Selection remains usable without browser storage. */ }
   return 'sword';
 }

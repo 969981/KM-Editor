@@ -2,6 +2,8 @@ import { InteractiveTableRow, VirtualTableBody } from './components/VirtualTable
 import { PokemonSearchBox, PokemonTable, filterPokemonRecords, formatPokemonTypes, type PokemonSelectionRecord } from './components/PokemonSelection';
 import { stageModelAsset, stageModelTexture } from './features/model-viewer/modelTextureBridge';
 /* SPDX-License-Identifier: GPL-3.0-only */
+import { PlaEditorSection, type PlaDrafts } from './features/pla/PlaEditorSection';
+import type { StagePlaRequest } from './bridge/plaProjectBridge';
 
 import { ZaBehaviorSection } from './features/behavior/ZaBehaviorSection';
 import MergeWorkspace from './features/mod-merger/MergeWorkspace';
@@ -953,6 +955,7 @@ function createRenderErrorReport(error: unknown, componentStack?: string) {
 }
 
 const gameDefinitions = {
+  pla: { icon: Dna, label: 'Pokemon Legends Arceus', title: 'Pokemon Legends Arceus Editor', titleId: '01001F5010DFA000' },
   sword: {
     icon: Swords,
     label: 'Pokemon Sword',
@@ -993,7 +996,7 @@ const gameDefinitions = {
   }
 >;
 
-const visibleGameSelectionGames = ['sword', 'shield', 'scarlet', 'violet', 'za'] as const satisfies readonly ProjectGame[];
+const visibleGameSelectionGames = ['sword', 'shield', 'scarlet', 'violet', 'za', 'pla'] as const satisfies readonly ProjectGame[];
 const textWorkflowPageLimit = 500;
 const maximumTextStableLocationPageCount = 256;
 
@@ -3160,6 +3163,7 @@ export function App({
     [setActiveSection]
   );
   const isScarletVioletProject = isScarletVioletGame(selectedGame);
+  const [plaDrafts, setPlaDrafts] = useState<PlaDrafts>({});
   const isPokemonLegendsZAProject = isPokemonLegendsZAGame(selectedGame);
   const isSwordShieldProject = selectedGame === 'sword' || selectedGame === 'shield';
   const supportsTrinityOutput = isScarletVioletProject || isPokemonLegendsZAProject;
@@ -4891,6 +4895,7 @@ export function App({
   };
 
   const clearPendingEditState = useCallback(() => {
+    setPlaDrafts({});
     spreadsheetImportBrowseOperationRef.current = null;
     spreadsheetImportPreviewRunRef.current += 1;
     setIsSpreadsheetImportPreviewing(false);
@@ -10146,6 +10151,7 @@ export function App({
   };
 
   const handleOpenPokemonWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     const paths = createProjectPaths(draftPaths);
     await runRetainedWorkflowLoad(
       'pokemon',
@@ -10157,6 +10163,7 @@ export function App({
   };
 
   const handleOpenMovesWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     await runRetainedWorkflowLoad(
       'moves',
       setIsMovesLoading,
@@ -10213,6 +10220,7 @@ export function App({
   );
 
   const handleOpenTextWorkflow = async (searchTextOverride = textSearchText) => {
+    if (selectedGame === 'pla') return;
     const queryRevision = textQueryRevisionRef.current;
     await runRetainedWorkflowLoad(
       'text',
@@ -14740,6 +14748,26 @@ export function App({
   };
 
   const advancedAuthoringBinding = changeSetWorkspace.effective?.session?.authoringBinding ?? null;
+  const handleStagePla = async (request: Omit<StagePlaRequest, 'paths' | 'session'>) => {
+    const required = editSessionRef.current;
+    if (!required || selectedGame !== 'pla') return false;
+    let accepted = false;
+    try {
+      await runEditSessionMutation(
+        session => bridge.stagePla({ ...request, paths: createProjectPaths(draftPathsRef.current), session }),
+        () => {
+          accepted = true;
+          invalidateEditSessionReview();
+          clearVisibleChangePlanRefs();
+          setChangePlan(null);
+          setApplyResult(null);
+          setEditValidationDiagnostics([]);
+          setValidatedEditSessionSignature(null);
+          setChangePlanSessionSignature(null);
+        }, required);
+    } catch (error) { setBridgeDiagnostics(toBridgeDiagnostics(error)); }
+    return accepted;
+  };
   const advancedAuthoringScope = useMemo(
     () => activeProjectId && selectedGame && activeChangeSetId && advancedAuthoringBinding
       ? {
@@ -20836,7 +20864,14 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'pokemon' ? (
+          {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text') ? (
+            <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
+              session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
+              isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
+              onStage={handleStagePla} onCancel={requestCancelEditSession}
+              onDirtyChange={dirty => registerEditorDraftDirty(activeSection, dirty)} />
+          ) : null}
+          {activeSection === 'pokemon' && selectedGame !== 'pla' ? (
             isPokemonLoading && !pokemonWorkflow ? (
               <WorkflowLoadingPanel label="Pokemon" />
             ) : isPokemonLegendsZAProject ? (
@@ -20935,7 +20970,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'moves' ? (
+          {activeSection === 'moves' && selectedGame !== 'pla' ? (
             isMovesLoading && !movesWorkflow ? (
               <WorkflowLoadingPanel label="Moves" />
             ) : (
@@ -20963,7 +20998,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'text' ? (
+          {activeSection === 'text' && selectedGame !== 'pla' ? (
             isTextLoading && !textWorkflow ? (
               <WorkflowLoadingPanel label="Text and Dialogue Map" />
             ) : (
@@ -35933,6 +35968,13 @@ function getPendingEditDisplayDetails(
   context: PendingEditContext
 ): PendingEditDisplayDetails {
   const editorLabel = getPendingEditEditorLabel(edit);
+  if (edit.owner === 'pla.loose.v1') {
+    return createPendingEditDisplayDetails(edit, {
+      editorLabel,
+      fieldLocalizationKey: edit.field?.startsWith('tutor.') ? undefined : `pla.field.${edit.field}`,
+      recordLabel: edit.summary.startsWith('PLA ') ? edit.summary.slice(4, edit.summary.lastIndexOf(': ')) : edit.recordId ?? undefined
+    });
+  }
 
   switch (edit.domain) {
     case 'workflow.items': {

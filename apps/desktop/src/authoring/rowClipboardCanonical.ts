@@ -292,6 +292,8 @@ export function rowClipboardGameFamily(game: ProjectGame): RowClipboardGameFamil
       return 'scarletViolet';
     case 'za':
       return 'legendsZA';
+    case 'pla':
+      throw new RowClipboardError('invalid-scope');
   }
 }
 
@@ -674,7 +676,7 @@ function requirePasteMode(value: unknown): RowClipboardPasteMode {
 }
 
 function requireProjectGame(value: unknown): ProjectGame {
-  if (!projectGames.includes(value as ProjectGame)) {
+  if (!projectGames.some(game => game === value)) {
     throw new RowClipboardError('invalid-scope');
   }
   return value as ProjectGame;

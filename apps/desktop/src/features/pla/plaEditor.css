@@ -1,0 +1,16 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+.pla-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
+.pla-controls > label, .pla-control, .pla-field { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.pla-record-layout { display: grid; grid-template-columns: minmax(13rem, 22rem) minmax(0, 1fr); gap: 1.25rem; }
+.pla-record-list { display: flex; flex-direction: column; gap: .25rem; max-height: 28rem; overflow-y: auto; margin-block: .5rem; }
+.pla-record-list button { text-align: start; justify-content: start; }
+.pla-pagination { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.pla-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem; align-content: start; min-width: 0; }
+.pla-fields input, .pla-fields select, .pla-fields textarea { max-width: 100%; min-width: 0; }
+.pla-text-field, .pla-rows { grid-column: 1 / -1; }
+.pla-rows { overflow-x: auto; }
+.pla-rows td { min-width: 6rem; }
+.pla-rows td input, .pla-rows td select { width: 100%; }
+.pla-rows table { width: 100%; margin-bottom: .75rem; }
+.pla-text-field textarea { resize: vertical; }
+@container (max-width: 52rem) { .pla-record-layout { grid-template-columns: minmax(0, 1fr); } }

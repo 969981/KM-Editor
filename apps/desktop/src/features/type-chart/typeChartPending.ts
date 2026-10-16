@@ -22,7 +22,7 @@ export type CanonicalTypeChartPendingState =
 const typeChartMainPath = 'exefs/main';
 const typeChartValueCount = 18 * 18;
 
-const chartRecordIdByGame: Record<ProjectGame, string> = {
+const chartRecordIdByGame: Partial<Record<ProjectGame, string>> = {
   scarlet: 'sv-type-chart',
   shield: 'type-chart',
   sword: 'type-chart',

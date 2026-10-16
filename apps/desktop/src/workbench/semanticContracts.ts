@@ -11,7 +11,7 @@ export type JsonValue = JsonPrimitive | JsonValue[] | { [key: string]: JsonValue
 // strings to avoid JavaScript precision loss. Any bridge exposure must add an
 // explicit, validated mapper between KM.Core value objects and these shapes.
 
-export type GameFamily = 'swordShield' | 'scarletViolet' | 'legendsZA';
+export type GameFamily = 'swordShield' | 'scarletViolet' | 'legendsZA' | 'legendsArceus';
 
 const semanticContractMaximumKeyLength = 128;
 const semanticContractMaximumStableIdLength = 1024;
@@ -19,7 +19,8 @@ const semanticContractMaximumSchemaVersion = 2_147_483_647;
 const semanticGameFamilies = new Set<GameFamily>([
   'swordShield',
   'scarletViolet',
-  'legendsZA'
+  'legendsZA',
+  'legendsArceus'
 ]);
 
 export function projectGameToFamily(game: ProjectGame): GameFamily {
@@ -32,6 +33,8 @@ export function projectGameToFamily(game: ProjectGame): GameFamily {
       return 'scarletViolet';
     case 'za':
       return 'legendsZA';
+    case 'pla':
+      return 'legendsArceus';
   }
 }
 

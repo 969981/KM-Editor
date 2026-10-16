@@ -2,6 +2,8 @@
 import { z, type ZodTypeAny } from "zod";
 import { diagnosticErrorCodes, kmErrorCodeSchema } from "../errorCodes";
 export const kmCommandNameValues = [
+  "pla.load",
+  "pla.stage",
   "modMerger.packages.scan",
   "modMerger.workspace.analyze",
   "modMerger.workspace.export",
@@ -286,6 +288,8 @@ export const kmCommandNameSchema = z.enum(kmCommandNameValues);
 export type KmCommandName = z.infer<typeof kmCommandNameSchema>;
 
 export const kmCommandNames = {
+  loadPla: "pla.load",
+  stagePla: "pla.stage",
   analyzeMergeWorkspace: "modMerger.workspace.analyze",
   scanMergePackages: "modMerger.packages.scan",
   exportMergeWorkspace: "modMerger.workspace.export",
@@ -591,6 +595,7 @@ export const projectGameSchema = z.enum([
   "scarlet",
   "violet",
   "za",
+  "pla",
 ]);
 export type ProjectGame = z.infer<typeof projectGameSchema>;
 export const projectPathsSchema = z.strictObject({
@@ -5609,6 +5614,10 @@ export const typeChartWorkflowSchema = z
       return;
     }
 
+    if (workflow.detectedGame === 'pla') {
+      context.addIssue({ code: 'custom', message: 'Type Chart is unavailable for PLA.', path: ['detectedGame'] });
+      return;
+    }
     const expectedIdentity = typeChartIdentityByGame[workflow.detectedGame];
     if (workflow.buildId !== expectedIdentity.buildId) {
       context.addIssue({

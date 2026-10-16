@@ -129,7 +129,7 @@ export const workspaceSemanticRecordKindSchema = z.strictObject({
 
 export const workspaceSemanticRecordRefSchema = z.strictObject({
   domain: semanticContractKeySchema,
-  gameFamily: z.enum(['swordShield', 'scarletViolet', 'legendsZA']),
+  gameFamily: z.enum(['swordShield', 'scarletViolet', 'legendsZA', 'legendsArceus']),
   recordId: stableIdSchema.max(4096),
   recordKind: workspaceSemanticRecordKindSchema,
   subrecordId: stableIdSchema.max(4096).nullable()
@@ -510,6 +510,7 @@ export type DeleteWorkspaceProjectStateRequest = z.infer<typeof deleteWorkspaceP
 export type DeleteWorkspaceProjectStateResponse = z.infer<typeof deleteWorkspaceProjectStateResponseSchema>;
 
 function projectGameFamily(game: z.infer<typeof projectGameSchema>) {
+  if (game === 'pla') return 'legendsArceus';
   if (game === 'sword' || game === 'shield') return 'swordShield';
   if (game === 'scarlet' || game === 'violet') return 'scarletViolet';
   return 'legendsZA';

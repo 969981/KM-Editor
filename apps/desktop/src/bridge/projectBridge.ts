@@ -31,6 +31,7 @@ import { type LoadFixAiFlagsRequest, type LoadFixAiFlagsResponse, type StageFixA
 import { type LoadTrainerWhiteoutRequest, type LoadTrainerWhiteoutResponse, type StageTrainerWhiteoutRequest, type StageTrainerWhiteoutResponse,
   loadTrainerWhiteoutRequestSchema, loadTrainerWhiteoutResponseSchema, stageTrainerWhiteoutRequestSchema, stageTrainerWhiteoutResponseSchema } from './trainerWhiteoutContracts';
 import { invoke } from "@tauri-apps/api/core";
+import { createPlaProjectBridge, type PlaProjectBridgeApi } from './plaProjectBridge';
 import {
   type ApplyChangePlanRequest,
   type ApplyChangePlanResponse,
@@ -986,7 +987,7 @@ export type ProjectBridge = {
   validateProject: (
     request: ValidateProjectRequest,
   ) => Promise<ValidateProjectResponse>;
-} & RestorationProjectBridgeApi & SvBatchFieldProjectBridgeApi &
+} & PlaProjectBridgeApi & RestorationProjectBridgeApi & SvBatchFieldProjectBridgeApi &
   SvCacheProjectBridgeApi &
   ZaCacheProjectBridgeApi &
   GameDumpProjectBridgeApi &
@@ -2079,6 +2080,7 @@ export function createProjectBridge(
         updateTrainerFieldResponseSchema,
       ),
     ...createGameDumpProjectBridgeApi(transport),
+    ...createPlaProjectBridge(transport),
     ...createSvBatchFieldProjectBridgeApi(transport),
     ...createSvCacheProjectBridgeApi(transport),
     ...createZaCacheProjectBridgeApi(transport),

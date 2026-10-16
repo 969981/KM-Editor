@@ -7,6 +7,8 @@ namespace KM.Api.Bridge;
 /// </summary>
 public static class KmCommandNames
 {
+    public const string LoadPla = "pla.load";
+    public const string StagePla = "pla.stage";
     public const string AnalyzeMergeWorkspace = "modMerger.workspace.analyze";
     public const string ScanMergePackages = "modMerger.packages.scan";
     public const string ExportMergeWorkspace = "modMerger.workspace.export";
