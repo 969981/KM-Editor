@@ -11,4 +11,7 @@ public sealed record PlaRecord(string Id, string Label, IReadOnlyDictionary<stri
     public IReadOnlyList<string> ReadOnlyFields { get; init; } = [];
 }
 public sealed record PlaPage(string Kind, string Revision, IReadOnlyList<PlaField> Fields, IReadOnlyList<PlaField> RowFields,
-    IReadOnlyList<PlaRecord> Records, int Total, IReadOnlyList<string> TextFiles, string? TextFile, IReadOnlyList<string> Notices);
+    IReadOnlyList<PlaRecord> Records, int Total, IReadOnlyList<string> TextFiles, string? TextFile, IReadOnlyList<string> Notices)
+{
+    public IReadOnlyDictionary<string, string> PokemonSpriteNames { get; init; } = new Dictionary<string, string>();
+}

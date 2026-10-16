@@ -43,6 +43,7 @@ internal sealed class PlaCatalog
         [22] = "Species in party", [23] = "Level, male", [24] = "Level, female",
     };
     internal PlaSourceScope Scope { get; }
+    internal PlaBattleCatalog Battles { get; }
     internal PlaFlatBuffer Personal { get; }
     internal Dictionary<string, int> Pokemon { get; } = new(StringComparer.Ordinal);
     internal Dictionary<int, (string Path, PlaFlatBuffer Buffer)> Moves { get; } = [];
@@ -56,6 +57,7 @@ internal sealed class PlaCatalog
     internal PlaCatalog(PlaSourceScope scope)
     {
         Scope = scope;
+        Battles = new(this);
         Personal = new(scope.Read(PlaSourceScope.PersonalPath));
         var allIdentities = new HashSet<string>(StringComparer.Ordinal);
         foreach (var reference in Personal.VectorReferences(Personal.Root, 0, 4096))
@@ -101,6 +103,14 @@ internal sealed class PlaCatalog
         return $"{species:D3} {Name(names, species)}" + (parts[1] == "0" ? "" : $" ({parts[1]})");
     }
     internal string MoveLabel(int id) => $"{id:D3} {Name(moveNames, id)}";
+    internal IReadOnlyDictionary<string, string> PokemonSpriteNames()
+    {
+        const string path = "bin/message/English/common/monsname";
+        // Sprite identities use original English names independently of edited display text.
+        return new PlaMessageFile(Scope.Base(path + ".dat"), Scope.Base(path + ".tbl")).Lines
+            .Select((line, id) => (Id: id.ToString(CultureInfo.InvariantCulture), line.Text))
+            .ToDictionary(pair => pair.Id, pair => pair.Text, StringComparer.Ordinal);
+    }
     private static string Name(string[] labels, int id) => id >= 0 && id < labels.Length ? labels[id] : id.ToString(CultureInfo.InvariantCulture);
     internal IReadOnlyList<PlaChoice> MoveChoices => Moves.Keys.Order().Select(id => new PlaChoice(id.ToString(CultureInfo.InvariantCulture), MoveLabel(id))).ToArray();
     internal void RefreshTutorLabels(IReadOnlyDictionary<string, byte[]> edited)
@@ -148,6 +158,7 @@ internal sealed class PlaCatalog
         "tutors" => [new("move", "move", Choices: MoveChoices), new("price", "price", Minimum: 0, Maximum: 999999)],
         "learnsets" or "evolutions" => [new("entries", "entries", "rows")],
         "text" => [new("text", "text", "text")],
+        "trainers" or "gifts" or "static" => Battles.Fields(kind),
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
     };
 
@@ -176,6 +187,7 @@ internal sealed class PlaCatalog
 
     internal (string Path, PlaFlatBuffer Buffer, int Reference) Locate(string kind, string id)
     {
+        if (PlaBattleCatalog.Supports(kind)) return Battles.Locate(kind, id);
         if (kind == "moves")
         {
             if (!int.TryParse(id, CultureInfo.InvariantCulture, out var move) || !Moves.TryGetValue(move, out var value))
@@ -210,6 +222,7 @@ internal sealed class PlaCatalog
 
     internal PlaRecord Record(string kind, string id, byte[]? edited = null)
     {
+        if (PlaBattleCatalog.Supports(kind)) return Battles.Record(kind, id, edited);
         var resource = Locate(kind, id);
         var table = edited is null ? resource.Buffer : new PlaFlatBuffer(edited);
         var reference = resource.Reference;

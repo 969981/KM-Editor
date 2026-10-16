@@ -10413,6 +10413,7 @@ export function App({
   ]);
 
   const handleOpenTrainersWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     const paths = createProjectPaths(draftPaths);
     await runRetainedWorkflowLoad(
       'trainers',
@@ -10499,6 +10500,7 @@ export function App({
   };
 
   const handleOpenGiftPokemonWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     await runRetainedWorkflowLoad(
       'giftPokemon',
       setIsGiftPokemonLoading,
@@ -10517,6 +10519,7 @@ export function App({
   };
 
   const handleOpenStaticEncountersWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     await runRetainedWorkflowLoad(
       'staticEncounters',
       setIsStaticEncountersLoading,
@@ -20864,11 +20867,13 @@ export function App({
               />
             )
           ) : null}
-          {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text') ? (
+          {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text' || activeSection === 'trainers' || activeSection === 'giftPokemon' || activeSection === 'staticEncounters') ? (
             <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
               session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
               isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
               onStage={handleStagePla} onCancel={requestCancelEditSession}
+              renderPokemon={(values, name, spriteName, className) => <PokemonSprite className={className} editorFamily="sv"
+                speciesId={Number(values.species)} form={Number(values.form)} name={name} spriteName={spriteName} />}
               onDirtyChange={dirty => registerEditorDraftDirty(activeSection, dirty)} />
           ) : null}
           {activeSection === 'pokemon' && selectedGame !== 'pla' ? (
@@ -21025,7 +21030,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'trainers' ? (
+          {activeSection === 'trainers' && selectedGame !== 'pla' ? (
             isTrainersLoading && !trainersWorkflow ? (
               <WorkflowLoadingPanel label="Trainers" />
             ) : isPokemonLegendsZAProject ? (
@@ -21201,7 +21206,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'giftPokemon' ? (
+          {activeSection === 'giftPokemon' && selectedGame !== 'pla' ? (
             isGiftPokemonLoading && !giftPokemonWorkflow ? (
               <WorkflowLoadingPanel label="Gift Pokemon" />
             ) : (
@@ -21244,7 +21249,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'staticEncounters' ? (
+          {activeSection === 'staticEncounters' && selectedGame !== 'pla' ? (
             isStaticEncountersLoading && !staticEncountersWorkflow ? (
               <WorkflowLoadingPanel label="Static Encounters" />
             ) : (

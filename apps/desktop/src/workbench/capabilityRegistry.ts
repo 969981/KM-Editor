@@ -223,7 +223,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Trainer parties, classes, battle types, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: UsersRound,
     id: 'trainers',
     label: 'Trainers'
@@ -246,7 +246,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Scripted gift Pokemon records, IV modes, items, moves, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: Gift,
     id: 'giftPokemon',
     label: 'Gift Pokemon'
@@ -260,7 +260,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Scripted overworld and story encounter records, IV modes, moves, rules, and source provenance.',
-    games: ['sword', 'shield', 'scarlet', 'violet'],
+    games: ['sword', 'shield', 'scarlet', 'violet', 'pla'],
     icon: MapPin,
     id: 'staticEncounters',
     label: 'Static Encounters'

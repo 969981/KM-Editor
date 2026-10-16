@@ -19,6 +19,7 @@ public sealed class PlaWorkflowService
     private static string Domain(string kind) => kind switch
     {
         "moves" => "workflow.moves", "text" => "workflow.text",
+        "trainers" => "workflow.trainers", "gifts" => "workflow.giftPokemon", "static" => "workflow.staticEncounters",
         "personal" or "learnsets" or "evolutions" or "compatibility" or "tutors" => "workflow.pokemon",
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
     };
@@ -41,17 +42,30 @@ public sealed class PlaWorkflowService
         var catalog = new PlaCatalog(scope);
         var files = BuildFiles(catalog, session);
         var records = Records(catalog, kind, textFile, files, out var textFiles, out var selectedFile);
-        var matching = records.Where(record => string.IsNullOrEmpty(query) || record.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || record.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || kind == "text" && record.Values["text"].Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+        bool Matches(PlaRecord record) => string.IsNullOrEmpty(query) || record.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || record.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || kind == "text" && record.Values["text"].Contains(query, StringComparison.OrdinalIgnoreCase);
+        var matching = records.Where(Matches).ToArray();
+        var total = matching.Length;
+        var visible = matching.Skip(offset).Take(100).ToArray();
+        if (kind == "trainers")
+        {
+            // Keep complete parties together while bounding the response to 96 slots.
+            var parties = records.GroupBy(record => record.Id[..record.Id.LastIndexOf(':')]).Where(party => party.Any(Matches)).ToArray();
+            total = parties.Length;
+            visible = parties.Skip(offset).Take(16).SelectMany(party => party).ToArray();
+        }
         var notices = new List<string>();
         if (kind == "moves") notices.Add("Special signature move values controlled by separate battle configuration are protected.");
         if (kind == "evolutions") notices.Add("Unqualified evolution conditions are preserved. Argument meanings depend on the selected method; form 65535 preserves the source form.");
         if (kind == "learnsets") notices.Add("Edits affect the PLA learnset and mastery levels. The separate Mainline learnset is preserved.");
         if (kind is "tutors" or "compatibility") notices.Add("Tutor identities are fixed. Changing a tutor move affects every Pokemon compatible with that slot.");
+        if (PlaBattleCatalog.Supports(kind)) notices.Add("Existing party slots and event links are preserved. Starter, legendary, boss, and unqualified event records are protected. Fixed challenge and quest identities cannot be replaced. Move 0 is an unspecified move slot.");
         var fields = catalog.Fields(kind);
         var rowFields = catalog.RowFields(kind);
-        return new(kind, scope.Fingerprint(), fields, rowFields, matching.Skip(offset).Take(100).ToArray(), matching.Length,
-            textFiles, selectedFile, notices);
+        return new(kind, scope.Fingerprint(), fields, rowFields, visible, total,
+            textFiles, selectedFile, notices)
+        { PokemonSpriteNames = PlaBattleCatalog.Supports(kind) || kind is "personal" or "learnsets" or "evolutions" or "compatibility"
+            ? catalog.PokemonSpriteNames() : new Dictionary<string, string>() };
     }
 
     private static IReadOnlyList<PlaRecord> Records(PlaCatalog catalog, string kind, string? textFile, Dictionary<string, byte[]> edited,
@@ -75,6 +89,7 @@ public sealed class PlaWorkflowService
         {
             "moves" => catalog.Moves.Keys.Order().Select(id => id.ToString(CultureInfo.InvariantCulture)),
             "tutors" => catalog.Tutors.Keys.Order().Select(id => id.ToString(CultureInfo.InvariantCulture)),
+            "trainers" or "gifts" or "static" => catalog.Battles.Ids(kind),
             _ => catalog.Pokemon.Keys,
         };
         return ids.Select(id => catalog.Record(kind, id, edited.GetValueOrDefault(catalog.Locate(kind, id).Path))).ToArray();
@@ -176,6 +191,7 @@ public sealed class PlaWorkflowService
     {
         if (session.PendingEdits.Count > 10000) throw new InvalidDataException("The PLA edit session is too large.");
         var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        var battles = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var edit in session.PendingEdits.OrderBy(edit => edit.RecordId, StringComparer.Ordinal).ThenBy(edit => edit.Field, StringComparer.Ordinal))
         {
@@ -188,6 +204,13 @@ public sealed class PlaWorkflowService
             if (edit.Domain != Domain(kind)) throw new InvalidDataException("The PLA edit domain is invalid.");
             var field = catalog.Fields(kind).SingleOrDefault(field => field.Key == edit.Field) ?? throw new InvalidDataException("The PLA field is unsupported.");
             var value = Normalize(field, edit.NewValue);
+            if (PlaBattleCatalog.Supports(kind))
+            {
+                var key = (kind, id);
+                if (!battles.TryGetValue(key, out var values)) battles[key] = values = new(StringComparer.Ordinal);
+                values.Add(field.Key, value);
+                continue;
+            }
             if (kind == "text")
             {
                 var (file, index) = SplitTextId(id);
@@ -231,6 +254,11 @@ public sealed class PlaWorkflowService
                 buffer.SetScalars(source.Reference, widths, new Dictionary<int, long> { [index] = number });
             }
             files[source.Path] = buffer.ToArray();
+        }
+        foreach (var (key, values) in battles)
+        {
+            var source = catalog.Locate(key.Kind, key.Id);
+            files[source.Path] = catalog.Battles.Edit(key.Kind, key.Id, files.GetValueOrDefault(source.Path) ?? catalog.Scope.Read(source.Path), values);
         }
         ValidateComposition(catalog, files);
         // A no-op never creates output or claims ownership.

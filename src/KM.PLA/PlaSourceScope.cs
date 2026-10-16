@@ -131,6 +131,10 @@ internal sealed class PlaSourceScope : IDisposable
         .Select(path => "bin/pml/waza/" + Path.GetFileName(path)).Order(StringComparer.Ordinal).Take(2049).ToArray() is var files && files.Length is > 0 and <= 2048
             ? files : throw new InvalidDataException("The PLA move catalog is invalid."));
 
+    internal string[] TrainerFiles() => Catalog("trainers", Directory.EnumerateFiles(Resolve(Paths.BaseRomFsPath!, "bin/trainer"), "trdata_*.bin", SearchOption.TopDirectoryOnly)
+        .Select(path => "bin/trainer/" + Path.GetFileName(path)).Order(StringComparer.Ordinal).Take(1025).ToArray() is var files && files.Length is > 0 and <= 1024
+            ? files : throw new InvalidDataException("The PLA trainer catalog is invalid."));
+
     private string[] Catalog(string key, string[] files)
     {
         if (catalogs.TryGetValue(key, out var previous) && !previous.SequenceEqual(files))

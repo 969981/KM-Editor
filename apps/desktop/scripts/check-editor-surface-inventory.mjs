@@ -195,6 +195,9 @@ const editorSurfaceInventory = {
  */
 const embeddedEditableSurfaceInventory = {
   plaEditor: ['src/features/pla/PlaEditorSection.tsx', 'PlaEditorSection', 'raw-local-draft'],
+  plaBattleWorkspace: ['src/features/pla/PlaBattleWorkspace.tsx', 'PlaBattleWorkspace', 'raw-local-draft'],
+  plaDataWorkspace: ['src/features/pla/PlaDataWorkspace.tsx', 'PlaDataWorkspace', 'raw-local-draft'],
+  plaPokemonRows: ['src/features/pla/PlaPokemonRows.tsx', 'PlaPokemonRows', 'raw-local-draft'],
   restorationSources: ['src/features/restore-missing-pokemon/RestorationSourceFolders.tsx', 'RestorationSourceFolders', 'utility-input'],
   wildHeldItems: ['src/features/held-item-chance/WildHeldItems.tsx', 'WildHeldItems', 'choice-local-draft'],
   mergePackages: ['src/features/mod-merger/MergePackageDialog.tsx', 'MergePackageDialog', 'choice-local-draft'],
@@ -262,6 +265,9 @@ const allowedPolicies = new Set([
  */
 const editorDraftContractInventory = {
   plaEditor: 'keyed-exact-submit',
+  plaBattleWorkspace: 'keyed-exact-submit',
+  plaDataWorkspace: 'keyed-exact-submit',
+  plaPokemonRows: 'keyed-exact-submit',
   shakingTrees: 'source-reconciled-exact-submit',
   restoreMissingPokemon: 'source-reconciled-exact-submit',
   heldItemChance: 'source-reconciled-exact-submit',

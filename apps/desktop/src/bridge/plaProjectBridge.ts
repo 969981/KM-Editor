@@ -8,10 +8,11 @@ const field = z.strictObject({ key: z.string(), label: z.string(), kind: z.enum(
   minimum: z.number().nullable(), maximum: z.number().nullable(), choices: z.array(choice).nullable(), readOnly: z.boolean(),
   choicesByMethod: z.record(z.string(), z.array(choice)).nullable() });
 const record = z.strictObject({ id: z.string(), label: z.string(), values: z.record(z.string(), z.string()), readOnlyFields: z.array(z.string()) });
-export const plaKindSchema = z.enum(['personal', 'moves', 'learnsets', 'evolutions', 'compatibility', 'tutors', 'text']);
+export const plaKindSchema = z.enum(['personal', 'moves', 'learnsets', 'evolutions', 'compatibility', 'tutors', 'text', 'trainers', 'gifts', 'static']);
 export const plaPageSchema = z.strictObject({ kind: plaKindSchema, revision: z.string().regex(/^[A-F0-9]{64}$/u),
   fields: z.array(field), rowFields: z.array(field), records: z.array(record).max(100), total: z.number().int().nonnegative(),
-  textFiles: z.array(z.string()).max(1024), textFile: z.string().nullable(), notices: z.array(z.string()) });
+  textFiles: z.array(z.string()).max(1024), textFile: z.string().nullable(), notices: z.array(z.string()),
+  pokemonSpriteNames: z.record(z.string(), z.string()).default({}) });
 export type PlaKind = z.infer<typeof plaKindSchema>;
 export type PlaPage = z.infer<typeof plaPageSchema>;
 export type PlaField = z.infer<typeof field>;
