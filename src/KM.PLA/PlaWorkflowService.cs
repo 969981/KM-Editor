@@ -20,6 +20,8 @@ public sealed class PlaWorkflowService
     {
         "moves" => "workflow.moves", "text" => "workflow.text",
         "trainers" => "workflow.trainers", "gifts" => "workflow.giftPokemon", "static" => "workflow.staticEncounters",
+        "items" => "workflow.items", "crafting" => "workflow.crafting", "shops" or "ginkgo" => "workflow.shops",
+        "drops" => "workflow.pokemonDrops", "research" or "ranks" => "workflow.research",
         "personal" or "learnsets" or "evolutions" or "compatibility" or "tutors" => "workflow.pokemon",
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
     };
@@ -43,7 +45,8 @@ public sealed class PlaWorkflowService
         var files = BuildFiles(catalog, session);
         var records = Records(catalog, kind, textFile, files, out var textFiles, out var selectedFile);
         bool Matches(PlaRecord record) => string.IsNullOrEmpty(query) || record.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
-            || record.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || kind == "text" && record.Values["text"].Contains(query, StringComparison.OrdinalIgnoreCase);
+            || record.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || kind == "text" && record.Values["text"].Contains(query, StringComparison.OrdinalIgnoreCase)
+            || record.RelatedRecords.Any(related => related.Label.Contains(query, StringComparison.OrdinalIgnoreCase));
         var matching = records.Where(Matches).ToArray();
         var total = matching.Length;
         var visible = matching.Skip(offset).Take(100).ToArray();
@@ -54,12 +57,20 @@ public sealed class PlaWorkflowService
             total = parties.Length;
             visible = parties.Skip(offset).Take(16).SelectMany(party => party).ToArray();
         }
+        if (kind == "shops")
+        {
+            var inventories = records.GroupBy(record => record.Metadata["inventory"]).Where(group => group.Any(Matches)).ToArray();
+            if (inventories.Any(group => group.Count() > 32)) throw new InvalidDataException("The PLA shop inventory exceeds the supported size.");
+            total = inventories.Length;
+            visible = inventories.Skip(offset).Take(3).SelectMany(group => group).ToArray();
+        }
         var notices = new List<string>();
         if (kind == "moves") notices.Add("Special signature move values controlled by separate battle configuration are protected.");
         if (kind == "evolutions") notices.Add("Unqualified evolution conditions are preserved. Argument meanings depend on the selected method; form 65535 preserves the source form.");
         if (kind == "learnsets") notices.Add("Edits affect the PLA learnset and mastery levels. The separate Mainline learnset is preserved.");
         if (kind is "tutors" or "compatibility") notices.Add("Tutor identities are fixed. Changing a tutor move affects every Pokemon compatible with that slot.");
         if (PlaBattleCatalog.Supports(kind)) notices.Add("Existing party slots and event links are preserved. Starter, legendary, boss, and unqualified event records are protected. Fixed challenge and quest identities cannot be replaced. Move 0 is an unspecified move slot.");
+        if (PlaEconomyCatalog.Supports(kind)) notices.Add("Existing identities, unlock conditions, and protected records are preserved. Research edits change game rules, not saved progress.");
         var fields = catalog.Fields(kind);
         var rowFields = catalog.RowFields(kind);
         return new(kind, scope.Fingerprint(), fields, rowFields, visible, total,
@@ -74,6 +85,7 @@ public sealed class PlaWorkflowService
         textFiles = [];
         selectedFile = null;
         catalog.RefreshTutorLabels(edited);
+        if (PlaEconomyCatalog.Supports(kind)) return catalog.Economy.Records(kind, edited);
         if (kind == "text")
         {
             textFiles = catalog.Scope.TextFiles();
@@ -119,13 +131,13 @@ public sealed class PlaWorkflowService
         var edits = session.PendingEdits.ToList();
         foreach (var (key, requested) in values)
         {
-            if (!fields.TryGetValue(key, out var field) || current.ReadOnlyFields.Contains(key)) throw new InvalidDataException("This PLA field is protected or unsupported.");
+            if (!fields.TryGetValue(key, out var field) || field.ReadOnly || current.ReadOnlyFields.Contains(key)) throw new InvalidDataException("This PLA field is protected or unsupported.");
             var value = restoreBase ? BaseValue(catalog, kind, id, key) : requested;
             value = Normalize(field, value);
             edits.RemoveAll(edit => edit.Owner == Owner && edit.RecordId == kind + "/" + id && edit.Field == key);
             var actual = kind == "text" ? TextRecord(catalog, id).Values[key] : catalog.Record(kind, id).Values[key];
             if (value == actual) continue;
-            var path = kind == "text" ? TextPath(scope, SplitTextId(id).File) : catalog.Locate(kind, id).Path;
+            var path = kind == "text" ? TextPath(scope, SplitTextId(id).File) : catalog.ResourcePath(kind, id);
             edits.Add(new PendingEdit(Domain(kind), $"PLA {current.Label}: {key}", [new(ProjectFileLayer.Base, "romfs/" + path)], kind + "/" + id, key, value, Owner));
         }
         var result = session with { PendingEdits = edits };
@@ -143,8 +155,7 @@ public sealed class PlaWorkflowService
             if (index < 0 || index >= text.Lines.Count) throw new InvalidDataException("The PLA text line is invalid.");
             return text.Lines[index].Text;
         }
-        var source = catalog.Locate(kind, id);
-        return catalog.Record(kind, id, catalog.Scope.Base(source.Path)).Values[key];
+        return catalog.Record(kind, id, catalog.Scope.Base(catalog.ResourcePath(kind, id))).Values[key];
     }
 
     private static string Normalize(PlaField field, string value)
@@ -192,6 +203,7 @@ public sealed class PlaWorkflowService
         if (session.PendingEdits.Count > 10000) throw new InvalidDataException("The PLA edit session is too large.");
         var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         var battles = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
+        var economy = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var edit in session.PendingEdits.OrderBy(edit => edit.RecordId, StringComparer.Ordinal).ThenBy(edit => edit.Field, StringComparer.Ordinal))
         {
@@ -204,6 +216,13 @@ public sealed class PlaWorkflowService
             if (edit.Domain != Domain(kind)) throw new InvalidDataException("The PLA edit domain is invalid.");
             var field = catalog.Fields(kind).SingleOrDefault(field => field.Key == edit.Field) ?? throw new InvalidDataException("The PLA field is unsupported.");
             var value = Normalize(field, edit.NewValue);
+            if (PlaEconomyCatalog.Supports(kind))
+            {
+                var key = (kind, id);
+                if (!economy.TryGetValue(key, out var values)) economy[key] = values = new(StringComparer.Ordinal);
+                values.Add(field.Key, value);
+                continue;
+            }
             if (PlaBattleCatalog.Supports(kind))
             {
                 var key = (kind, id);
@@ -260,6 +279,12 @@ public sealed class PlaWorkflowService
             var source = catalog.Locate(key.Kind, key.Id);
             files[source.Path] = catalog.Battles.Edit(key.Kind, key.Id, files.GetValueOrDefault(source.Path) ?? catalog.Scope.Read(source.Path), values);
         }
+        foreach (var (key, values) in economy)
+        {
+            var path = catalog.ResourcePath(key.Kind, key.Id);
+            files[path] = catalog.Economy.Edit(key.Kind, key.Id, files.GetValueOrDefault(path) ?? catalog.Scope.Read(path), values);
+        }
+        if (economy.Count > 0) catalog.Economy.ValidateComposition(files);
         ValidateComposition(catalog, files);
         // A no-op never creates output or claims ownership.
         foreach (var path in files.Keys.ToArray())

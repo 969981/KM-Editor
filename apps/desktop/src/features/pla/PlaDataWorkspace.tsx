@@ -10,7 +10,7 @@ import { useLocalization } from '../../localization';
 import { getWorkbenchCapabilityRegistration } from '../../workbench/capabilityRegistry';
 import type { PlaPokemonPreview } from './PlaBattleWorkspace';
 
-type DataKind = Exclude<PlaKind, 'trainers' | 'gifts' | 'static'>;
+type DataKind = Exclude<PlaKind, 'trainers' | 'gifts' | 'static' | 'items' | 'crafting' | 'shops' | 'ginkgo' | 'drops' | 'research' | 'ranks'>;
 type Props = {
   kind: DataKind; page: PlaPage | null; selected: PlaRecord | null; query: string; offset: number; loading: boolean;
   controls: ReactNode; sessionBar: ReactNode; actions: ReactNode; refresh: ReactNode; rowEditor: ReactNode;

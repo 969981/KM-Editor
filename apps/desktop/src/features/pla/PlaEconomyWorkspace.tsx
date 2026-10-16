@@ -1,0 +1,120 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+import type { ReactNode } from 'react';
+import { Search, ShieldCheck } from 'lucide-react';
+import type { PlaField, PlaKind, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
+import { FieldLabel } from '../../components/FieldLabel';
+import { InteractiveTableRow, VirtualTableBody } from '../../components/VirtualTable';
+import { Metric } from '../../components/workflowPanels';
+import { useLocalization } from '../../localization';
+import { getWorkbenchCapabilityRegistration } from '../../workbench/capabilityRegistry';
+import { workbenchSectionLocalization } from '../../workbench/sectionLocalization';
+
+export type PlaEconomyKind = 'items' | 'crafting' | 'shops' | 'ginkgo' | 'drops' | 'research' | 'ranks';
+export const isPlaEconomyKind = (kind: PlaKind): kind is PlaEconomyKind => ['items', 'crafting', 'shops', 'ginkgo', 'drops', 'research', 'ranks'].includes(kind);
+type Props = {
+  kind: PlaEconomyKind; page: PlaPage | null; selected: PlaRecord | null; query: string; offset: number; loading: boolean;
+  controls: ReactNode; sessionBar: ReactNode; actions: ReactNode; refresh: ReactNode;
+  onQuery: (query: string) => void; onOffset: (offset: number) => void; onSelect: (id: string) => void;
+  valuesFor: (record: PlaRecord) => Record<string, string>; hasDraft: (record: PlaRecord) => boolean;
+  pendingIds: ReadonlySet<string>; fieldLabel: (field: PlaField) => string; renderInput: (field: PlaField) => ReactNode;
+};
+
+export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loading, controls, sessionBar, actions, refresh,
+  onQuery, onOffset, onSelect, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput }: Props) {
+  const { t, translateLiteral } = useLocalization();
+  const section = kind === 'ginkgo' ? 'shops' : kind === 'drops' ? 'pokemonDrops' : kind === 'ranks' ? 'research' : kind;
+  const registration = getWorkbenchCapabilityRegistration(section);
+  const Icon = registration.icon;
+  const isShop = kind === 'shops';
+  const step = isShop ? 3 : 100;
+  const records = page?.records ?? [];
+  const groups = new Map<string, PlaRecord[]>();
+  for (const record of records) {
+    const key = isShop ? record.metadata.inventory : record.id;
+    groups.set(key, [...(groups.get(key) ?? []), record]);
+  }
+  const browserRecords = [...groups.values()].map(group => group[0]);
+  const fields = page?.fields ?? [];
+  const isProtected = (record: PlaRecord) => fields.every(field => field.readOnly || record.readOnlyFields.includes(field.key));
+  const status = (record: PlaRecord) => translateLiteral(hasDraft(record) ? 'Draft' : pendingIds.has(record.id) ? 'Pending changes' : isProtected(record) ? 'Read-only' : 'Editable');
+  const choice = (key: string, value: string) => value === '0' && /[Ii]tem|ingredient/u.test(key) ? translateLiteral('None')
+    : fields.find(field => field.key === key)?.choices?.find(option => option.value === value)?.label ?? value;
+  const name = (record: PlaRecord) => kind === 'ranks' ? t('pla.rankLabel', { rank: record.id }) : record.label;
+  const summary = (record: PlaRecord) => {
+    const values = valuesFor(record);
+    if (isShop) return String(groups.get(record.metadata.inventory)?.length ?? 0);
+    if (kind === 'items' || kind === 'ginkgo') return values.price;
+    if (kind === 'crafting') return `${choice('resultItem', values.resultItem)} × ${values.resultQuantity}`;
+    if (kind === 'research') return t([0, 1, 2, 3, 4, 5, 13, 14, 15, 18, 19].includes(Number(record.metadata.task)) ? `pla.task.${record.metadata.task}` : 'pla.protectedTask');
+    if (kind === 'ranks') return values.requiredPoints;
+    return String(record.relatedRecords.length);
+  };
+  const groupFields = kind === 'crafting' ? [
+    { title: t('pla.group.result'), fields: fields.filter(field => field.key.startsWith('result')) },
+    ...[1, 2, 3, 4].map(slot => ({ title: t('pla.ingredientSlot', { slot }), fields: fields.filter(field => field.key === `ingredient${slot}` || field.key === `quantity${slot}`) }))
+  ] : kind === 'research' ? [
+    { title: t('pla.group.thresholds'), fields: fields.filter(field => field.key.startsWith('threshold')) },
+    { title: t('pla.group.points'), fields: fields.filter(field => !field.key.startsWith('threshold')) }
+  ] : kind === 'drops' ? [
+    { title: t('pla.group.regularDrop'), fields: fields.filter(field => field.key.startsWith('regular')) },
+    { title: t('pla.group.rareDrop'), fields: fields.filter(field => field.key.startsWith('rare')) }
+  ] : [{ title: t(`pla.kind.${kind}`), fields }];
+  const selectedGroup = selected && isShop ? groups.get(selected.metadata.inventory) ?? [] : [];
+  return <section className={`panel wide-panel pla-editor pla-economy-editor pla-economy-${kind}`} aria-labelledby="pla-editor-title">
+    <div className="panel-heading"><Icon size={18} aria-hidden="true" /><h2 id="pla-editor-title">{t(workbenchSectionLocalization[section].label)}</h2>{refresh}</div>
+    {controls}
+    <div className="items-toolbar"><label className="search-box items-search"><Search size={18} aria-hidden="true" />
+      <input type="search" aria-label={translateLiteral('Search')} placeholder={translateLiteral('Search')} value={query} onChange={event => onQuery(event.target.value)} /></label>
+      <Metric label={translateLiteral('Loaded records')} value={String(page?.total ?? 0)} />
+      <Metric label={translateLiteral('Pending changes')} value={String(pendingIds.size)} /></div>
+    {sessionBar}{actions}
+    <p className="field-note">{t(`pla.notice.${kind}`)}</p>
+    {loading ? <p role="status">{translateLiteral('Loading')}</p> : null}
+    <div className={isShop ? 'shops-layout swsh-shops-layout' : 'items-layout'}>
+      <div className={isShop ? 'shops-table' : 'items-table'} role="table" aria-label={t(`pla.kind.${kind}`)} aria-colcount={4} aria-rowcount={browserRecords.length + 1}>
+        <div className="items-row items-row-heading pla-economy-row" role="row">{['ID', 'Name', isShop ? 'Inventory' : 'Summary', 'Status'].map(column => <span role="columnheader" key={column}>{translateLiteral(column)}</span>)}</div>
+        <VirtualTableBody items={browserRecords} getKey={record => record.id} resetKey={`${kind}:${offset}:${query}`}
+          renderRow={record => <InteractiveTableRow aria-selected={isShop ? selected?.metadata.inventory === record.metadata.inventory : selected?.id === record.id}
+            className={`items-row pla-economy-row ${(isShop ? selected?.metadata.inventory === record.metadata.inventory : selected?.id === record.id) ? 'items-row-selected' : ''}`}
+            onClick={() => onSelect(record.id)}>
+            <span role="cell" data-localization-ignore="true" title={record.id}>{isShop ? record.metadata.inventory : record.id}</span>
+            <span role="cell" data-localization-ignore="true">{isShop ? t('pla.shopLabel', { id: record.metadata.inventory }) : name(record)}</span>
+            <span role="cell" data-localization-ignore="true">{summary(record)}</span><span role="cell">{isShop ? translateLiteral('Inventory') : status(record)}</span>
+          </InteractiveTableRow>} />
+      </div>
+      <aside className={isShop ? 'shop-inspector' : 'item-inspector'} aria-label={t('pla.selectedRecord')}>
+        <div className="panel-heading"><ShieldCheck size={18} aria-hidden="true" /><h3>{isShop ? translateLiteral('Selected Shop') : t('pla.selectedRecord')}</h3></div>
+        {selected ? <>
+          <dl className="item-provenance-list"><div><dt>{translateLiteral('Name')}</dt><dd data-localization-ignore="true">{name(selected)}</dd></div>
+            <div><dt>{translateLiteral('Status')}</dt><dd>{status(selected)}</dd></div>
+            {Object.entries(selected.metadata).map(([key, value]) => <div key={key}><dt>{t(`pla.meta.${key}`)}</dt><dd data-localization-ignore="true">{key === 'task' ? summary(selected) : value}</dd></div>)}
+          </dl>
+          {isShop ? <div className="shop-inventory-editor-grid" role="table" aria-label={translateLiteral('Inventory')}>
+            <div className="items-row items-row-heading pla-shop-slot-row" role="row"><span role="columnheader">{translateLiteral('Slot')}</span><span role="columnheader">{translateLiteral('Item')}</span><span role="columnheader">{translateLiteral('Status')}</span></div>
+            {selectedGroup.map((record, index) => <InteractiveTableRow key={record.id} aria-selected={record.id === selected.id} onClick={() => onSelect(record.id)}
+              className={`items-row pla-shop-slot-row ${record.id === selected.id ? 'items-row-selected' : ''}`}>
+              <span role="cell">{index + 1}</span><span role="cell" data-localization-ignore="true">{choice('item', valuesFor(record).item)}</span><span role="cell">{status(record)}</span>
+            </InteractiveTableRow>)}
+          </div> : null}
+          <div className={isShop ? 'shop-edit-form' : 'item-edit-form'}><div className="editable-field-groups">
+            {groupFields.map(group => <fieldset className="editable-field-group" key={group.title}><legend>{group.title}</legend><div className="editable-field-grid">
+              {group.fields.map(field => <div className={`path-field editable-field-control ${selected.readOnlyFields.includes(field.key) ? 'editable-field-disabled' : ''}`} key={field.key}>
+                <FieldLabel htmlFor={`pla-field-${field.key}`} label={fieldLabel(field)} />{renderInput(field)}
+                {selected.readOnlyFields.includes(field.key) ? <small className="editable-field-status">{translateLiteral('Read-only')}</small> : null}
+              </div>)}
+            </div></fieldset>)}
+          </div></div>
+          {selected.relatedRecords.length ? <div className="pla-related-records"><h4>{t('pla.sharedUses', { count: selected.relatedRecords.length })}</h4>
+            <ul>{selected.relatedRecords.map((related, index) => <li key={`${related.kind}:${related.id}:${index}`}><span>{t(`pla.related.${related.kind}`)}</span>: <span data-localization-ignore="true">{related.label}</span></li>)}</ul>
+          </div> : null}
+        </> : <p className="empty-copy">{t('pla.empty')}</p>}
+      </aside>
+    </div>
+    <nav className="text-page-bar pla-pagination" aria-label={t('text.pagination.ariaLabel')}>
+      <span>{page ? `${Math.min(offset + 1, page.total)} - ${Math.min(offset + step, page.total)} / ${page.total}` : ''}</span><div>
+        <button type="button" className="secondary-button compact-button" disabled={offset === 0 || loading} onClick={() => onOffset(Math.max(0, offset - step))}>{translateLiteral('Previous')}</button>
+        <button type="button" className="secondary-button compact-button" disabled={!page || offset + step >= page.total || loading} onClick={() => onOffset(offset + step)}>{translateLiteral('Next')}</button>
+      </div>
+    </nav>
+  </section>;
+}

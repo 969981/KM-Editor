@@ -110,7 +110,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
   {
     id: 'economy',
     label: 'Economy',
-    sectionIds: ['bbqRewards', 'supportBoard', 'shops', 'battleCafeRewards', 'tmMachineControls', 'raidRewards', 'raidBonusRewards']
+    sectionIds: ['bbqRewards', 'supportBoard', 'shops', 'crafting', 'pokemonDrops', 'research', 'battleCafeRewards', 'tmMachineControls', 'raidRewards', 'raidBonusRewards']
   },
   { id: 'tools', label: 'Tools', sectionIds: ['modelViewer', 'soundStudio', 'fashionCatalog', 'fpsPatch', 'profanityFilter', 'raidDens', 'fixAiFlags', 'randomizer', 'gameDump', 'spreadsheetImport', 'modMerger'] },
   { id: 'hooks', label: 'Hooks', sectionIds: ['bagHook', 'cameraHook'] },
@@ -217,6 +217,9 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
   'rentalPokemon',
   'raidBattles',
   'shops',
+  'crafting',
+  'pokemonDrops',
+  'research',
   'tmMachineControls',
   'raidRewards',
   'raidBonusRewards',

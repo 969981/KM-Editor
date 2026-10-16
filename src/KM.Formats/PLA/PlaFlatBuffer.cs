@@ -81,6 +81,12 @@ public sealed class PlaFlatBuffer
         };
     }
 
+    public ulong Hash(int table, int index)
+    {
+        var offset = Field(table, index, 8);
+        return offset == 0 ? 0 : BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(offset));
+    }
+
     public int[] VectorReferences(int table, int field, int maximum = 100_000)
     {
         var pointer = Field(table, field, 4);
@@ -125,19 +131,26 @@ public sealed class PlaFlatBuffer
 
     /// <summary>Copy a known object subtree before editing, preserving strings and scalar child tables.</summary>
     public void SetObjectScalars(int reference, IReadOnlyList<int> widths, IReadOnlyDictionary<int, long> values,
-        IReadOnlyList<int> stringFields, IReadOnlyDictionary<int, int[]> scalarChildren)
+        IReadOnlyList<int> stringFields, IReadOnlyDictionary<int, int[]> scalarChildren,
+        IReadOnlyDictionary<int, int[]>? scalarVectors = null)
     {
+        scalarVectors ??= new Dictionary<int, int[]>();
         var original = TableAtReference(reference);
         RequireKnownFields(original, widths);
-        if (values.Keys.Any(key => key < 0 || key >= widths.Count || stringFields.Contains(key) || scalarChildren.ContainsKey(key))
-            || stringFields.Concat(scalarChildren.Keys).Any(key => key < 0 || key >= widths.Count || widths[key] != 4)
-            || stringFields.Distinct().Count() != stringFields.Count || stringFields.Any(scalarChildren.ContainsKey))
+        var references = stringFields.Concat(scalarChildren.Keys).Concat(scalarVectors.Keys).ToArray();
+        if (values.Keys.Any(key => key < 0 || key >= widths.Count || references.Contains(key))
+            || references.Any(key => key < 0 || key >= widths.Count || widths[key] != 4)
+            || references.Distinct().Count() != references.Length)
             throw new InvalidDataException("The PLA object schema is invalid.");
         var strings = stringFields.Where(key => Field(original, key, 4) != 0)
             .ToDictionary(key => key, key => StringRange(Field(original, key, 4), MaximumLength - 5));
         var children = scalarChildren.Where(pair => Field(original, pair.Key, 4) != 0)
             .ToDictionary(pair => pair.Key, pair => TableAtReference(Field(original, pair.Key, 4)));
         foreach (var child in children) RequireKnownFields(child.Value, scalarChildren[child.Key]);
+        var vectors = scalarVectors.Where(pair => Field(original, pair.Key, 4) != 0)
+            .ToDictionary(pair => pair.Key, pair => VectorReferences(original, pair.Key, 1024).Select(TableAtReference).ToArray());
+        foreach (var vector in vectors)
+            foreach (var child in vector.Value) RequireKnownFields(child, scalarVectors[vector.Key]);
 
         // References are forward offsets. Every referenced value must follow the
         // copied parent, even when the original objects shared their storage.
@@ -155,6 +168,19 @@ public sealed class PlaFlatBuffer
             var target = CopyObject(pair.Value, scalarChildren[pair.Key], new Dictionary<int, long>());
             var pointer = Field(copy, pair.Key, 4);
             W32(pointer, target - pointer);
+        }
+        foreach (var pair in vectors)
+        {
+            var vector = Allocate(4 + pair.Value.Length * 4);
+            W32(vector, pair.Value.Length);
+            var pointer = Field(copy, pair.Key, 4);
+            W32(pointer, vector - pointer);
+            for (var i = 0; i < pair.Value.Length; i++)
+            {
+                var target = CopyObject(pair.Value[i], scalarVectors[pair.Key], new Dictionary<int, long>());
+                var entry = vector + 4 + i * 4;
+                W32(entry, target - entry);
+            }
         }
         W32(reference, copy - reference);
         SetScalars(reference, widths, values);

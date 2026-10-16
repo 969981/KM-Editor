@@ -1,6 +1,15 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 .pla-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
 .pla-control { display: flex; flex: 1 1 16rem; flex-direction: column; gap: .35rem; min-width: 0; }
+.pla-economy-editor .pla-economy-row { grid-template-columns: minmax(60px, .7fr) minmax(120px, 1.5fr) minmax(100px, 1fr) minmax(85px, .7fr); }
+.pla-economy-editor .pla-shop-slot-row { grid-template-columns: 42px minmax(100px, 1fr) minmax(85px, .5fr); }
+.pla-economy-editor .shop-inventory-editor-grid { grid-column: 1 / -1; max-height: 20rem; overflow: auto; }
+.pla-economy-editor .pla-related-records { grid-column: 1 / -1; }
+.pla-economy-editor .pla-related-records ul { max-height: 16rem; overflow: auto; padding-inline-start: 1.5rem; }
+.pla-economy-editor .pla-related-records li { overflow-wrap: anywhere; }
+@container (max-width: 68rem) {
+  .pla-economy-editor .items-layout, .pla-economy-editor .shops-layout { grid-template-columns: minmax(0, 1fr); }
+}
 .pla-pagination { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
 .pla-battle-editor .pla-battle-row { grid-template-columns: 52px minmax(140px, 1.4fr) 64px minmax(110px, 1fr) minmax(88px, .8fr); }
 .pla-battle-editor .pla-pagination { margin-top: 1rem; }
