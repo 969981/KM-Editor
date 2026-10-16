@@ -28,6 +28,11 @@ public sealed partial class ProjectBridgeDispatcher
         new("trainers", "Trainers", "Existing PLA parties, levels, effort levels, and moves with protected event roles.", WorkflowAvailabilityDto.Available, []),
         new("giftPokemon", "Gift Pokemon", "Supported existing PLA gifts with protected story identities.", WorkflowAvailabilityDto.Available, []),
         new("staticEncounters", "Static Encounters", "Supported existing PLA battles with protected event identities.", WorkflowAvailabilityDto.Available, []),
+        new("items", "Items", "Supported PLA inventory item prices and stack limits.", WorkflowAvailabilityDto.Available, []),
+        new("crafting", "Crafting", "Existing PLA recipes, ingredients, and result quantities.", WorkflowAvailabilityDto.Available, []),
+        new("shops", "Shops", "Existing PLA shop slots and ordinary Ginkgo offers with preserved unlock conditions.", WorkflowAvailabilityDto.Available, []),
+        new("pokemonDrops", "Pokemon Drops", "Shared PLA field and Alpha drop items and chances.", WorkflowAvailabilityDto.Available, []),
+        new("research", "Research", "Supported PLA task thresholds, research points, and rank requirements.", WorkflowAvailabilityDto.Available, []),
     ]);
 
     private string DispatchLoadPla(string requestJson)
@@ -39,8 +44,9 @@ public sealed partial class ProjectBridgeDispatcher
             payload.Kind, payload.TextFile, payload.Query, payload.Offset, payload.MessageLanguage);
         return SerializeSuccess(new LoadPlaResponse(new PlaPageDto(page.Kind, page.Revision,
             page.Fields.Select(ToPlaFieldDto).ToArray(), page.RowFields.Select(ToPlaFieldDto).ToArray(),
-            page.Records.Select(record => new PlaRecordDto(record.Id, record.Label, record.Values, record.ReadOnlyFields)).ToArray(),
-            page.Total, page.TextFiles, page.TextFile, page.Notices)), request.RequestId);
+            page.Records.Select(record => new PlaRecordDto(record.Id, record.Label, record.Values, record.ReadOnlyFields, record.Metadata,
+                record.RelatedRecords.Select(related => new PlaRelatedRecordDto(related.Kind, related.Id, related.Label)).ToArray())).ToArray(),
+            page.Total, page.TextFiles, page.TextFile, page.Notices, page.PokemonSpriteNames)), request.RequestId);
     }
 
     private static PlaFieldDto ToPlaFieldDto(PlaField field) => new(field.Key, field.Label, field.Kind, field.Minimum, field.Maximum,

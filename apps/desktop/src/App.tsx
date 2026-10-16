@@ -10142,6 +10142,7 @@ export function App({
   }, [activeWikiUrl, desktopServices.isAvailable, desktopServices.openExternalUrl]);
 
   const handleOpenItemsWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     await runRetainedWorkflowLoad(
       'items',
       setIsItemsLoading,
@@ -10554,6 +10555,7 @@ export function App({
   };
 
   const handleOpenShopsWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     await runRetainedWorkflowLoad(
       'shops',
       setIsShopsLoading,
@@ -20801,7 +20803,7 @@ export function App({
             />
             </CommonEditorDiagnosticsPublishingScope>
           </div>
-          {activeSection === 'items' ? (
+          {activeSection === 'items' && selectedGame !== 'pla' ? (
             isItemsLoading && !itemsWorkflow ? (
               <WorkflowLoadingPanel label="Items" />
             ) : isPokemonLegendsZAProject ? (
@@ -20867,7 +20869,8 @@ export function App({
               />
             )
           ) : null}
-          {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text' || activeSection === 'trainers' || activeSection === 'giftPokemon' || activeSection === 'staticEncounters') ? (
+          {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text' || activeSection === 'trainers' || activeSection === 'giftPokemon' || activeSection === 'staticEncounters'
+            || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research') ? (
             <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
               session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
               isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
@@ -21351,7 +21354,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'shops' ? (
+          {activeSection === 'shops' && selectedGame !== 'pla' ? (
             isShopsLoading && !shopsWorkflow ? (
               <WorkflowLoadingPanel label="Shops" />
             ) : (

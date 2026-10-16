@@ -34,6 +34,7 @@ import {
   Gift,
   GitMerge,
   HandCoins,
+  Hammer,
   History,
   ListChecks,
   ListOrdered,
@@ -45,8 +46,10 @@ import {
   MessageSquareOff,
   Mountain,
   Music,
+  NotebookPen,
   Orbit,
   Package,
+  PackageOpen,
   PackagePlus,
   Bird,
   Palette,
@@ -194,7 +197,7 @@ export const workbenchCapabilityRegistry = [
   },
   workflow({
     description: 'Item records, names, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: Package,
     id: 'items',
     label: 'Items'
@@ -282,11 +285,17 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Shop inventories, item metadata, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: Store,
     id: 'shops',
     label: 'Shops'
   }),
+  workflow({ id: 'crafting', label: 'Crafting', games: ['pla'], icon: Hammer,
+    description: 'Edit existing recipes, ingredients, and result quantities.' }),
+  workflow({ id: 'pokemonDrops', label: 'Pokemon Drops', games: ['pla'], icon: PackageOpen,
+    description: 'Edit shared field and Alpha drop items and chances.' }),
+  workflow({ id: 'research', label: 'Research', games: ['pla'], icon: NotebookPen,
+    description: 'Edit supported research task thresholds, points, and rank requirements.' }),
   workflow({
     description:
       'Control TM recipe availability and tracking-window material visibility independently.',

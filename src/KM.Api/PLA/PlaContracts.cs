@@ -13,7 +13,10 @@ public sealed record StagePlaResponse(EditSessionDto Session);
 public sealed record PlaChoiceDto(string Value, string Label);
 public sealed record PlaFieldDto(string Key, string Label, string Kind, long? Minimum, long? Maximum, IReadOnlyList<PlaChoiceDto>? Choices, bool ReadOnly,
     IReadOnlyDictionary<string, IReadOnlyList<PlaChoiceDto>>? ChoicesByMethod);
-public sealed record PlaRecordDto(string Id, string Label, IReadOnlyDictionary<string, string> Values, IReadOnlyList<string> ReadOnlyFields);
+public sealed record PlaRelatedRecordDto(string Kind, string Id, string Label);
+public sealed record PlaRecordDto(string Id, string Label, IReadOnlyDictionary<string, string> Values, IReadOnlyList<string> ReadOnlyFields,
+    IReadOnlyDictionary<string, string> Metadata, IReadOnlyList<PlaRelatedRecordDto> RelatedRecords);
 public sealed record PlaPageDto(string Kind, string Revision, IReadOnlyList<PlaFieldDto> Fields, IReadOnlyList<PlaFieldDto> RowFields,
-    IReadOnlyList<PlaRecordDto> Records, int Total, IReadOnlyList<string> TextFiles, string? TextFile, IReadOnlyList<string> Notices);
+    IReadOnlyList<PlaRecordDto> Records, int Total, IReadOnlyList<string> TextFiles, string? TextFile, IReadOnlyList<string> Notices,
+    IReadOnlyDictionary<string, string> PokemonSpriteNames);
 public sealed record LoadPlaResponse(PlaPageDto Page);

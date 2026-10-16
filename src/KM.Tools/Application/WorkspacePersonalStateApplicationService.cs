@@ -919,7 +919,7 @@ public sealed class WorkspacePersonalStateApplicationService
 
     private static bool IsSectionAvailable(string section, ProjectGameDto game)
     {
-        if (game == ProjectGameDto.PLA) return section is "health" or "workbench" or "workflows" or "pokemon" or "moves" or "text" or "trainers" or "giftPokemon" or "staticEncounters" or "changes" or "history" or "diagnostics" or "settings";
+        if (game == ProjectGameDto.PLA) return section is "health" or "workbench" or "workflows" or "pokemon" or "moves" or "text" or "trainers" or "giftPokemon" or "staticEncounters" or "items" or "crafting" or "shops" or "pokemonDrops" or "research" or "changes" or "history" or "diagnostics" or "settings";
         if (string.IsNullOrEmpty(section) || section.Length > MaximumIdentifierLength)
         {
             return false;
