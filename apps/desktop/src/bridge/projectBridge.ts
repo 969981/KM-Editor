@@ -11,6 +11,8 @@ import { type LoadStarmobilesRequest, type LoadStarmobilesResponse, type StageSt
   loadStarmobilesRequestSchema, loadStarmobilesResponseSchema, stageStarmobilesRequestSchema, stageStarmobilesResponseSchema } from './starmobilesContracts';
 import { type LoadTitanSwapperRequest, type LoadTitanSwapperResponse, type StageTitanSwapperRequest, type StageTitanSwapperResponse,
   loadTitanSwapperRequestSchema, loadTitanSwapperResponseSchema, stageTitanSwapperRequestSchema, stageTitanSwapperResponseSchema } from './titanSwapperContracts';
+import { type LoadSummaryStatsRequest, type LoadSummaryStatsResponse, type StageSummaryStatsRequest, type StageSummaryStatsResponse,
+  loadSummaryStatsRequestSchema, loadSummaryStatsResponseSchema, stageSummaryStatsRequestSchema, stageSummaryStatsResponseSchema } from './summaryStatsContracts';
 import { type LoadMarnieBoostsRequest, type LoadMarnieBoostsResponse, type StageMarnieBoostsRequest, type StageMarnieBoostsResponse,
   loadMarnieBoostsRequestSchema, loadMarnieBoostsResponseSchema, stageMarnieBoostsRequestSchema, stageMarnieBoostsResponseSchema } from './marnieBoostsContracts';
 import { createRestorationProjectBridge, type RestorationProjectBridgeApi } from './restorationProjectBridge';
@@ -857,6 +859,7 @@ export type ProjectBridge = {
   loadBlueberry: (request: LoadBlueberryRequest) => Promise<LoadBlueberryResponse>;
   loadStarmobiles: (request: LoadStarmobilesRequest) => Promise<LoadStarmobilesResponse>;
   loadTitanSwapper: (request: LoadTitanSwapperRequest) => Promise<LoadTitanSwapperResponse>;
+  loadSummaryStats: (request: LoadSummaryStatsRequest) => Promise<LoadSummaryStatsResponse>;
   loadMarnieBoosts: (request: LoadMarnieBoostsRequest) => Promise<LoadMarnieBoostsResponse>;
   loadShakingTrees: (request: LoadShakingTreesRequest) => Promise<LoadShakingTreesResponse>;
   loadHeldItemChance: (request: LoadHeldItemChanceRequest) => Promise<LoadHeldItemChanceResponse>;
@@ -869,6 +872,7 @@ export type ProjectBridge = {
   stageBlueberry: (request: StageBlueberryRequest) => Promise<StageBlueberryResponse>;
   stageStarmobiles: (request: StageStarmobilesRequest) => Promise<StageStarmobilesResponse>;
   stageTitanSwapper: (request: StageTitanSwapperRequest) => Promise<StageTitanSwapperResponse>;
+  stageSummaryStats: (request: StageSummaryStatsRequest) => Promise<StageSummaryStatsResponse>;
   stageMarnieBoosts: (request: StageMarnieBoostsRequest) => Promise<StageMarnieBoostsResponse>;
   stageShakingTrees: (request: StageShakingTreesRequest) => Promise<StageShakingTreesResponse>;
   stageHeldItemChance: (request: StageHeldItemChanceRequest) => Promise<StageHeldItemChanceResponse>;
@@ -1706,6 +1710,8 @@ export function createProjectBridge(
       loadStarmobilesRequestSchema.parse(request), loadStarmobilesResponseSchema),
     loadTitanSwapper: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadTitanSwapper,
       loadTitanSwapperRequestSchema.parse(request), loadTitanSwapperResponseSchema),
+    loadSummaryStats: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadSummaryStats,
+      loadSummaryStatsRequestSchema.parse(request), loadSummaryStatsResponseSchema),
     loadMarnieBoosts: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadMarnieBoosts,
       loadMarnieBoostsRequestSchema.parse(request), loadMarnieBoostsResponseSchema),
     loadShakingTrees: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadShakingTrees,
@@ -1730,6 +1736,8 @@ export function createProjectBridge(
       stageStarmobilesRequestSchema.parse(request), stageStarmobilesResponseSchema),
     stageTitanSwapper: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageTitanSwapper,
       stageTitanSwapperRequestSchema.parse(request), stageTitanSwapperResponseSchema),
+    stageSummaryStats: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageSummaryStats,
+      stageSummaryStatsRequestSchema.parse(request), stageSummaryStatsResponseSchema),
     stageMarnieBoosts: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageMarnieBoosts,
       stageMarnieBoostsRequestSchema.parse(request), stageMarnieBoostsResponseSchema),
     stageShakingTrees: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageShakingTrees,

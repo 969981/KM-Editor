@@ -24,6 +24,7 @@ using KM.Api.GymUniformRemoval;
 using KM.Api.GuidedDesign;
 using KM.Api.HabitatCoordinates;
 using KM.Api.Blueberry;
+using KM.Api.SummaryStats;
 using KM.Formats.SV.Blueberry;
 using KM.Api.Starmobiles;
 using KM.Api.TitanSwapper;
@@ -669,6 +670,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.LoadTmMachineControls => DispatchLoadTmMachineControls(requestJson),
                 KmCommandNames.StageTmRecipeAvailability => DispatchStageTmRecipeAvailability(requestJson),
                 KmCommandNames.StageTmMaterialVisibility => DispatchStageTmMaterialVisibility(requestJson),
+                KmCommandNames.LoadSummaryStats => DispatchSummaryStats(requestJson, false),
+                KmCommandNames.StageSummaryStats => DispatchSummaryStats(requestJson, true),
                 KmCommandNames.LoadBlueberry => DispatchBlueberry(requestJson, false),
                 KmCommandNames.StageBlueberry => DispatchBlueberry(requestJson, true),
                 KmCommandNames.LoadStarmobiles => DispatchStarmobiles(requestJson, false),
@@ -3773,6 +3776,29 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 session,
                 request.Payload.AlwaysVisible));
         return SerializeSuccess(response, request.RequestId);
+    }
+
+    private string DispatchSummaryStats(string requestJson, bool stage)
+    {
+        if (stage)
+        {
+            var request = DeserializeRequest<StageSummaryStatsRequest>(requestJson);
+            var paths = ProjectBridgeMapper.ToCore(request.Payload.Paths);
+            if (!IsScarletViolet(paths)) return SerializeFailure(BridgeErrorCodes.GameMismatch, "IV and EV Screen requires a Scarlet or Violet project.", request.RequestId);
+            var session = request.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(request.Payload.Session);
+            var result = svWorkflowService.StageSummaryStats(paths, session, request.Payload.SourceRevision, request.Payload.Enabled);
+            return SerializeSuccess(new StageSummaryStatsResponse(SvSummaryStatsBridgeMapper.ToDto(result.Workflow),
+                EditSessionBridgeMapper.ToDto(result.Session), result.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), request.RequestId);
+        }
+        else
+        {
+            var request = DeserializeRequest<LoadSummaryStatsRequest>(requestJson);
+            var paths = ProjectBridgeMapper.ToCore(request.Payload.Paths);
+            if (!IsScarletViolet(paths)) return SerializeFailure(BridgeErrorCodes.GameMismatch, "IV and EV Screen requires a Scarlet or Violet project.", request.RequestId);
+            var session = request.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(request.Payload.Session);
+            return SerializeSuccess(new LoadSummaryStatsResponse(SvSummaryStatsBridgeMapper.ToDto(
+                svWorkflowService.LoadSummaryStats(paths, session))), request.RequestId);
+        }
     }
 
     private string DispatchBlueberry(string requestJson, bool stage)
@@ -8552,6 +8578,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.LoadTmMachineControls or
             KmCommandNames.StageTmRecipeAvailability or
             KmCommandNames.StageTmMaterialVisibility or
+            KmCommandNames.LoadSummaryStats or
+            KmCommandNames.StageSummaryStats or
             KmCommandNames.LoadBlueberry or
             KmCommandNames.StageBlueberry or
             KmCommandNames.LoadStarmobiles or

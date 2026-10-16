@@ -350,6 +350,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "staticEncounters.field.update",
     "staticEncounters.fields.update",
     "staticEncounters.load",
+    "summary-stats.load",
+    "summary-stats.setting.stage",
     "support.report.build",
     "svCache.clear",
     "svCache.settings.update",
@@ -2874,6 +2876,7 @@ fn is_project_bridge_workflow_load_command(command: &str) -> bool {
             | "shops.load"
             | "spreadsheetImport.load"
             | "startingItems.load"
+            | "summary-stats.load"
             | "staticEncounters.load"
             | "svModMerger.load"
             | "teraRaids.load"
@@ -3069,6 +3072,7 @@ fn is_replay_safe_edit_session_command(command: &str) -> bool {
             | "shops.inventory.update"
             | "spreadsheetImport.preview"
             | "startingItems.stage"
+            | "summary-stats.setting.stage"
             | "staticEncounters.field.update"
             | "staticEncounters.fields.update"
             | "teraRaids.field.update"

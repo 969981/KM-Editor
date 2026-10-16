@@ -5139,7 +5139,30 @@
     "progressFeedback.paused": "已暂停",
     "restoration.removeHelp": "禁用会保留已准备的资源和自定义内容，以便再次使用。“移除资源”会暂存删除此宝可梦的受管理输出文件和已准备资源，包括模型编辑。应用移除前，请先清除对它的引用。",
     "progressFeedback.complete": "已完成",
-    "progressFeedback.error": "因错误停止"
+    "progressFeedback.error": "因错误停止",
+    "summaryStats.title": "个体值与努力值界面",
+    "summaryStats.intro": "在宝可梦能力页面显示原始个体值和努力值数值。",
+    "summaryStats.enable": "启用个体值与努力值视图",
+    "summaryStats.restore": "恢复原版",
+    "summaryStats.controls": "使用能力页面现有的图表切换操作，在四种视图之间切换。",
+    "summaryStats.cycle": "能力视图",
+    "summaryStats.mode.stats": "能力值",
+    "summaryStats.mode.stats.help": "原版计算后的能力值。",
+    "summaryStats.mode.ivs": "原始个体值",
+    "summaryStats.mode.ivs.help": "六项原始个体值，不包含极限特训的调整。",
+    "summaryStats.mode.evs": "努力值",
+    "summaryStats.mode.evs.help": "六项当前努力值。",
+    "summaryStats.mode.graph": "努力值图表",
+    "summaryStats.mode.graph.help": "原版努力值图表。",
+    "summaryStats.preservation": "仅改变显示方式。宝可梦、招式、特性和存档数据均保持不变。",
+    "summaryStats.package": "暂存设置，检查更改后应用。重新生成已安装的游戏设置包，以包含此设置及其标签。",
+    "summaryStats.stale": "源文件已更改。请重新加载并再次选择设置。",
+    "summaryStats.failed": "未能暂存设置。请查看诊断后重试。",
+    "summaryStats.enabled": "已启用个体值与努力值视图",
+    "summaryStats.original": "原版能力视图",
+    "summaryStats.open": "打开个体值与努力值界面",
+    "workbench.section.summary-stats.label": "个体值与努力值界面",
+    "workbench.section.summary-stats.description": "在宝可梦能力页面显示原始个体值和努力值数值。"
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "极限特训正在使用旧版等级补丁，队伍和盒子中的图标仍要求 100 级。请重新应用此编辑器以更新选择界面。",
@@ -9596,6 +9619,8 @@
     "Obedience Level": "听话等级",
     "Party and box icons use the minimum level at {offset}.": "队伍和盒子中的图标使用 {offset} 处设置的最低等级。",
     "This Pokemon has no ability supported by Sword and Shield in its source data.": "此宝可梦的来源数据中没有《剑／盾》支持的特性。",
-    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "未能完全清除已移除宝可梦的资源。请刷新以重试。"
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "未能完全清除已移除宝可梦的资源。请刷新以重试。",
+    "IV and EV Screen": "个体值与努力值界面",
+    "Show raw IVs and numeric EVs on the Pokemon Summary screen.": "在宝可梦能力页面显示原始个体值和努力值数值。"
   }
 }

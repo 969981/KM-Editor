@@ -41,6 +41,7 @@ import { type GymUniformRemovalWorkflow } from './bridge/gymUniformRemovalContra
 import { type BlueberryWorkflow } from './bridge/blueberryContracts';
 import { type StarmobilesWorkflow } from './bridge/starmobilesContracts';
 import { type TitanSwapperWorkflow } from './bridge/titanSwapperContracts';
+import { type SummaryStatsWorkflow } from './bridge/summaryStatsContracts';
 import { type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
 import type { RestorationWorkflow } from './bridge/restorationContracts';
 import { type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
@@ -144,7 +145,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
     id: 'betaEditors',
     label: 'Beta Editors',
     labelKey: 'workbench.navigation.betaEditors',
-    sectionIds: ['gameplaySettings', 'cameraControl', 'battleItems', 'trainerWhiteout', 'trainerDynamax', 'titanSwapper']
+    sectionIds: ['gameplaySettings', 'cameraControl', 'battleItems', 'trainerWhiteout', 'trainerDynamax', 'titanSwapper', 'summaryStats']
   }
 ];
 
@@ -194,6 +195,7 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
   'snacksworth',
   'starmobiles',
   'titanSwapper',
+  'summaryStats',
   'marnieBoosts',
   'shakingTrees',
   'restoreMissingPokemon',
@@ -231,6 +233,7 @@ export const sharedStagedEditorDomains = new Set([
   'workflow.snacksworth',
   'workflow.starmobiles',
   'workflow.titan-swapper',
+  'workflow.summaryStats',
   'workflow.marnieBoosts',
   'workflow.shakingTrees',
   'workflow.restoreMissingPokemon',
@@ -325,6 +328,7 @@ export type LoadedWorkflowStateBySection = {
   snacksworthWorkflow: BlueberryWorkflow | null;
   starmobilesWorkflow: StarmobilesWorkflow | null;
   titanSwapperWorkflow: TitanSwapperWorkflow | null;
+  summaryStatsWorkflow: SummaryStatsWorkflow | null;
   marnieBoostsWorkflow: MarnieBoostsWorkflow | null;
   shakingTreesWorkflow: ShakingTreesWorkflow | null;
   restoreMissingPokemonWorkflow: RestorationWorkflow | null;
@@ -471,6 +475,8 @@ export function getLoadedWorkflowStateForSection(
       return state.starmobilesWorkflow !== null;
     case 'titanSwapper':
       return state.titanSwapperWorkflow !== null;
+    case 'summaryStats':
+      return state.summaryStatsWorkflow !== null;
     case 'restoreMissingPokemon':
       return state.restoreMissingPokemonWorkflow !== null;
     case 'shakingTrees':

@@ -230,7 +230,27 @@ internal static class SvGameplayOptionsRomFsMaterializer
             result.Add(TablePath(messageSource.Language), messageSource.Keys);
         }
 
-        if (result.Count != 1 + (Locales.Length * 2)
+        var hasSummaryStats = SummaryStats.SvSummaryStatsScript.IsEnabled(transformedMain);
+        if (hasSummaryStats)
+        {
+            foreach (var language in Data.SvGameTextLanguage.SupportedMessageLanguages)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var stem = $"romfs/message/dat/{language}/common/status";
+                var data = source.Read(stem + ".dat", MaximumMessageSourceBytes);
+                var keys = source.Read(stem + ".tbl", MaximumMessageSourceBytes);
+                SummaryStats.SvSummaryStatsMessages.ValidateBaseKeys(keys);
+                var currentData = resolveCurrent?.Invoke(stem + ".dat", data) ?? data;
+                var currentKeys = resolveCurrent?.Invoke(stem + ".tbl", keys) ?? keys;
+                var paired = SummaryStats.SvSummaryStatsMessages.RepairMissingCompanion(language,
+                    currentData, currentKeys, keys, currentData.AsSpan().SequenceEqual(data), currentKeys.AsSpan().SequenceEqual(keys));
+                var captions = SummaryStats.SvSummaryStatsMessages.Transform(language, paired.Data, paired.Keys, true);
+                result.Add(stem + ".dat", captions.Data);
+                result.Add(stem + ".tbl", captions.Keys);
+            }
+        }
+
+        if (result.Count != 1 + (Locales.Length * 2) + (hasSummaryStats ? 20 : 0)
             || result.Keys.Any(path =>
                 !path.StartsWith("romfs/", StringComparison.Ordinal)
                 || path.Contains('\\')

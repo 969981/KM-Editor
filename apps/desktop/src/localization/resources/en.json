@@ -5139,7 +5139,30 @@
     "progressFeedback.paused": "Paused",
     "restoration.removeHelp": "Disabling keeps prepared assets and customizations for reuse. Remove Assets stages deletion of this Pokémon’s owned output and prepared assets, including model edits. Clear references before applying removal.",
     "progressFeedback.complete": "Completed",
-    "progressFeedback.error": "Stopped with errors"
+    "progressFeedback.error": "Stopped with errors",
+    "summaryStats.title": "IV and EV Screen",
+    "summaryStats.intro": "Show raw IVs and numeric EVs on the Pokemon Summary screen.",
+    "summaryStats.enable": "Enable IV and EV views",
+    "summaryStats.restore": "Restore Vanilla",
+    "summaryStats.controls": "Use the existing graph control on the Summary stats page to cycle through four views.",
+    "summaryStats.cycle": "Summary views",
+    "summaryStats.mode.stats": "Stats",
+    "summaryStats.mode.stats.help": "The original calculated stats.",
+    "summaryStats.mode.ivs": "Raw IVs",
+    "summaryStats.mode.ivs.help": "All six stored IVs, without Hyper Training adjustments.",
+    "summaryStats.mode.evs": "EVs",
+    "summaryStats.mode.evs.help": "All six current EV values.",
+    "summaryStats.mode.graph": "EV Graph",
+    "summaryStats.mode.graph.help": "The original EV graph.",
+    "summaryStats.preservation": "This changes the display only. Pokemon, moves, abilities, and save data remain unchanged.",
+    "summaryStats.package": "Stage the setting, review Changes, and apply it. Rebuild an installed Gameplay Settings package to include this setting and its captions.",
+    "summaryStats.stale": "Sources changed. Reload and select the setting again.",
+    "summaryStats.failed": "The setting was not staged. Review Diagnostics and try again.",
+    "summaryStats.enabled": "IV and EV views enabled",
+    "summaryStats.original": "Original Summary views",
+    "summaryStats.open": "Open IV and EV Screen",
+    "workbench.section.summary-stats.label": "IV and EV Screen",
+    "workbench.section.summary-stats.description": "Show raw IVs and numeric EVs on the Pokemon Summary screen."
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.",
@@ -9596,6 +9619,8 @@
     "Obedience Level": "Obedience Level",
     "Party and box icons use the minimum level at {offset}.": "Party and box icons use the minimum level at {offset}.",
     "This Pokemon has no ability supported by Sword and Shield in its source data.": "This Pokemon has no ability supported by Sword and Shield in its source data.",
-    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Removed Pokemon assets could not be fully cleared. Refresh to retry."
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Removed Pokemon assets could not be fully cleared. Refresh to retry.",
+    "IV and EV Screen": "IV and EV Screen",
+    "Show raw IVs and numeric EVs on the Pokemon Summary screen.": "Show raw IVs and numeric EVs on the Pokemon Summary screen."
   }
 }

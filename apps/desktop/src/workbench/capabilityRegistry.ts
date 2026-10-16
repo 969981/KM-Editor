@@ -13,6 +13,7 @@ import {
   Candy,
   Camera,
   Cctv,
+  ChartNoAxesCombined,
   ClipboardCheck,
   ClipboardList,
   Coffee,
@@ -142,6 +143,8 @@ function toContractSegment(section: WorkbenchSection) {
 }
 
 export const workbenchCapabilityRegistry = [
+  workflow({ id: 'summaryStats', label: 'IV and EV Screen', games: scarletVioletGames, icon: ChartNoAxesCombined,
+    description: 'Show raw IVs and numeric EVs on the Pokemon Summary screen.' }),
   workflow({ id: 'bbqRewards', label: 'BBQ Rewards', games: scarletVioletGames, icon: Coins, description: 'Edit Blueberry Quest BP rewards.' }),
   workflow({ id: 'supportBoard', label: 'Support Board', games: scarletVioletGames, icon: ClipboardList, description: 'Edit Support Board BP prices.' }),
   workflow({ id: 'snacksworth', label: 'Snacksworth', domain: 'workflow.snacksworth', games: scarletVioletGames, icon: Cookie, description: 'Choose solo and group quest eligibility for legendary treats.' }),

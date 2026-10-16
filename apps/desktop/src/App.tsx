@@ -487,8 +487,10 @@ import { BlueberrySection } from './features/blueberry/BlueberrySection';
 import { type BlueberryUpdate, type BlueberryWorkflow } from './bridge/blueberryContracts';
 import { StarmobilesSection } from './features/starmobiles/StarmobilesSection';
 import { TitanSwapperSection } from './features/titan-swapper/TitanSwapperSection';
+import { SummaryStatsSection } from './features/summary-stats/SummaryStatsSection';
 import { type StarmobileUpdate, type StarmobilesWorkflow } from './bridge/starmobilesContracts';
 import { type TitanSwapperUpdate, type TitanSwapperWorkflow } from './bridge/titanSwapperContracts';
+import { type SummaryStatsWorkflow } from './bridge/summaryStatsContracts';
 import { pokemonTypeOptions } from './pokemonTypeOptions';
 import {
   HabitatCoordinatesSection,
@@ -3237,6 +3239,7 @@ export function App({
   const snacksworthWorkflow = useWorkbenchStore(state => state.snacksworthWorkflow);
   const starmobilesWorkflow = useWorkbenchStore(state => state.starmobilesWorkflow);
   const titanSwapperWorkflow = useWorkbenchStore(state => state.titanSwapperWorkflow);
+  const summaryStatsWorkflow = useWorkbenchStore(state => state.summaryStatsWorkflow);
   const marnieBoostsWorkflow = useWorkbenchStore(state => state.marnieBoostsWorkflow);
   const restoreMissingPokemonWorkflow = useWorkbenchStore(state => state.restoreMissingPokemonWorkflow);
   const setRestorationWorkflow = useWorkbenchStore(state => state.setRestorationWorkflow);
@@ -3256,6 +3259,7 @@ export function App({
   const setSnacksworthWorkflow = useWorkbenchStore(state => state.setSnacksworthWorkflow);
   const setStarmobilesWorkflow = useWorkbenchStore(state => state.setStarmobilesWorkflow);
   const setTitanSwapperWorkflow = useWorkbenchStore(state => state.setTitanSwapperWorkflow);
+  const setSummaryStatsWorkflow = useWorkbenchStore(state => state.setSummaryStatsWorkflow);
   const setMarnieBoostsWorkflow = useWorkbenchStore(state => state.setMarnieBoostsWorkflow);
   const setShakingTreesWorkflow = useWorkbenchStore(state => state.setShakingTreesWorkflow);
   const setHeldItemChanceWorkflow = useWorkbenchStore(state => state.setHeldItemChanceWorkflow);
@@ -3269,6 +3273,7 @@ export function App({
   const [isSnacksworthLoading, setIsSnacksworthLoading] = useState(false);
   const [isStarmobilesLoading, setIsStarmobilesLoading] = useState(false);
   const [isTitanSwapperLoading, setIsTitanSwapperLoading] = useState(false);
+  const [isSummaryStatsLoading, setIsSummaryStatsLoading] = useState(false);
   const [isMarnieBoostsLoading, setIsMarnieBoostsLoading] = useState(false);
   const [isShakingTreesLoading, setIsShakingTreesLoading] = useState(false);
   const [isHeldItemChanceLoading, setIsHeldItemChanceLoading] = useState(false);
@@ -3282,6 +3287,7 @@ export function App({
   const [isSnacksworthStaging, setIsSnacksworthStaging] = useState(false);
   const [isStarmobilesStaging, setIsStarmobilesStaging] = useState(false);
   const [isTitanSwapperStaging, setIsTitanSwapperStaging] = useState(false);
+  const [isSummaryStatsStaging, setIsSummaryStatsStaging] = useState(false);
   const [isMarnieBoostsStaging, setIsMarnieBoostsStaging] = useState(false);
   const [isShakingTreesStaging, setIsShakingTreesStaging] = useState(false);
   const [isHeldItemChanceStaging, setIsHeldItemChanceStaging] = useState(false);
@@ -3295,6 +3301,7 @@ export function App({
   const snacksworthGenerationRef = useRef(0);
   const starmobilesGenerationRef = useRef(0);
   const titanSwapperGenerationRef = useRef(0);
+  const summaryStatsGenerationRef = useRef(0);
   const marnieBoostsGenerationRef = useRef(0);
   const shakingTreesGenerationRef = useRef(0);
   const heldItemChanceGenerationRef = useRef(0);
@@ -4218,6 +4225,7 @@ export function App({
           snacksworthWorkflow,
           starmobilesWorkflow,
           titanSwapperWorkflow,
+          summaryStatsWorkflow,
           marnieBoostsWorkflow,
           restoreMissingPokemonWorkflow,
           shakingTreesWorkflow,
@@ -4275,6 +4283,7 @@ export function App({
       snacksworthWorkflow,
       starmobilesWorkflow,
       titanSwapperWorkflow,
+      summaryStatsWorkflow,
       marnieBoostsWorkflow,
       restoreMissingPokemonWorkflow,
       shakingTreesWorkflow,
@@ -4399,6 +4408,7 @@ export function App({
     snacksworthWorkflow,
     starmobilesWorkflow,
     titanSwapperWorkflow,
+    summaryStatsWorkflow,
     marnieBoostsWorkflow,
     restoreMissingPokemonWorkflow,
     shakingTreesWorkflow,
@@ -4570,6 +4580,8 @@ export function App({
     (dirty: boolean) => registerEditorDraftDirty('starmobiles', dirty), [registerEditorDraftDirty]);
   const handleTitanSwapperDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('titanSwapper', dirty), [registerEditorDraftDirty]);
+  const handleSummaryStatsDirtyChange = useCallback(
+    (dirty: boolean) => registerEditorDraftDirty('summaryStats', dirty), [registerEditorDraftDirty]);
   const handleHabitatCoordinatesDirtyChange = useCallback(
     (isDirty: boolean) => registerEditorDraftDirty('habitatCoordinates', isDirty),
     [registerEditorDraftDirty]
@@ -11148,6 +11160,51 @@ export function App({
     return accepted;
   };
 
+  const handleOpenSummaryStatsWorkflow = async () => {
+    const session = getEditSessionForSection('summaryStats');
+    const signature = getEditSessionSignature(editSessionRef.current);
+    const generation = summaryStatsGenerationRef.current;
+    await runRetainedWorkflowLoad('summaryStats', setIsSummaryStatsLoading,
+      () => bridge.loadSummaryStats({ paths: createProjectPaths(draftPaths), session }),
+      response => setSummaryStatsWorkflow(response.workflow),
+      () => generation === summaryStatsGenerationRef.current && signature === getEditSessionSignature(editSessionRef.current));
+  };
+
+  const handleStageSummaryStats = async (sourceRevision: string, enabled: boolean) => {
+    const activeSession = getEditSessionForSection('summaryStats');
+    if (!activeSession) return false;
+    let accepted = false;
+    summaryStatsGenerationRef.current += 1;
+    setIsSummaryStatsStaging(true);
+    prepareScopedEditorPanelAction('summaryStats');
+    try {
+      await runEditSessionMutation(async session => {
+        const response = await bridge.stageSummaryStats({ paths: createProjectPaths(draftPaths), session, sourceRevision, enabled });
+        const matches = response.workflow.sourceRevision === sourceRevision &&
+          response.workflow.summary.availability === 'available' &&
+          (session === null || response.session.sessionId === session.sessionId) &&
+          response.workflow.enabled === enabled;
+        const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
+        if (!matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error')) {
+          diagnostics.push({ severity: 'error', domain: 'workflow.summaryStats',
+            code: 'KM-SV-SUMMARY-STATS-EDIT-INVALID', message: t('summaryStats.failed') });
+        }
+        const didSucceed = matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error');
+        return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
+      }, response => {
+        setScopedEditorPanelDiagnostics('summaryStats', response.diagnostics);
+        if (response.didSucceed) {
+          accepted = true;
+          setSummaryStatsWorkflow(response.workflow);
+          setEditSessionSection('summaryStats');
+        }
+      }, activeSession);
+    } catch (error) {
+      setScopedEditorPanelDiagnostics('summaryStats', toBridgeDiagnostics(error));
+    } finally { setIsSummaryStatsStaging(false); }
+    return accepted;
+  };
+
   const handleOpenTmMachineControlsWorkflow = async () => {
     await runRetainedWorkflowLoad(
       'tmMachineControls',
@@ -12913,6 +12970,9 @@ export function App({
         case 'titanSwapper':
           if (!currentState.titanSwapperWorkflow) await handleOpenTitanSwapperWorkflow();
           break;
+        case 'summaryStats':
+          if (!currentState.summaryStatsWorkflow) await handleOpenSummaryStatsWorkflow();
+          break;
         case 'habitatCoordinates':
           if (!currentState.habitatCoordinatesWorkflow) {
             await handleOpenHabitatCoordinatesWorkflow();
@@ -13325,6 +13385,9 @@ export function App({
       case 'titanSwapper':
         if (!titanSwapperWorkflow && !isTitanSwapperLoading) { markLazyLoadStarted(); void handleOpenTitanSwapperWorkflow(); }
         break;
+      case 'summaryStats':
+        if (!summaryStatsWorkflow && !isSummaryStatsLoading) { markLazyLoadStarted(); void handleOpenSummaryStatsWorkflow(); }
+        break;
       case 'habitatCoordinates':
         if (!habitatCoordinatesWorkflow && !isHabitatCoordinatesLoading) {
           markLazyLoadStarted();
@@ -13584,6 +13647,7 @@ export function App({
     snacksworthWorkflow,
     starmobilesWorkflow,
     titanSwapperWorkflow,
+    summaryStatsWorkflow,
     marnieBoostsWorkflow,
     restoreMissingPokemonWorkflow,
     shakingTreesWorkflow,
@@ -13624,6 +13688,7 @@ export function App({
     isSnacksworthLoading,
     isStarmobilesLoading,
     isTitanSwapperLoading,
+    isSummaryStatsLoading,
     isMarnieBoostsLoading,
     isRestorationLoading,
     isShakingTreesLoading,
@@ -18921,6 +18986,7 @@ export function App({
       'snacksworth',
       'starmobiles',
       'titanSwapper',
+      'summaryStats',
       'marnieBoosts',
       'shakingTrees',
       'restoreMissingPokemon',
@@ -18983,6 +19049,7 @@ export function App({
       snacksworth: setIsSnacksworthLoading,
       starmobiles: setIsStarmobilesLoading,
       titanSwapper: setIsTitanSwapperLoading,
+      summaryStats: setIsSummaryStatsLoading,
       marnieBoosts: setIsMarnieBoostsLoading,
       shakingTrees: setIsShakingTreesLoading,
       restoreMissingPokemon: setIsRestorationLoading,
@@ -19276,6 +19343,12 @@ export function App({
       reloadTasks.push(async () => {
         const response = await bridge.loadTitanSwapper({ paths, session: getEditSessionForSection('titanSwapper') });
         if (canCommitRefresh()) setTitanSwapperWorkflow(response.workflow);
+      });
+    }
+    if (summaryStatsWorkflow && refreshSections.has('summaryStats')) {
+      reloadTasks.push(async () => {
+        const response = await bridge.loadSummaryStats({ paths, session: getEditSessionForSection('summaryStats') });
+        if (canCommitRefresh()) setSummaryStatsWorkflow(response.workflow);
       });
     }
     if (habitatCoordinatesWorkflow && refreshSections.has('habitatCoordinates')) {
@@ -20610,6 +20683,7 @@ export function App({
               isGymUniformRemovalLoading={isGymUniformRemovalLoading}
               isHyperspaceBypassLoading={isHyperspaceBypassLoading}
               isIvScreenLoading={isIvScreenLoading}
+              isSummaryStatsLoading={isSummaryStatsLoading}
               isTypeChartLoading={isTypeChartLoading}
               isAngeFightLoading={isAngeFightLoading}
               isExeFsPatchLoading={isExeFsPatchLoading}
@@ -20655,6 +20729,7 @@ export function App({
                 void handleNavigateSection('hyperspaceBypass')
               }
               onOpenIvScreenWorkflow={() => void handleNavigateSection('ivScreen')}
+              onOpenSummaryStatsWorkflow={() => void handleNavigateSection('summaryStats')}
               onOpenTypeChartWorkflow={() => void handleNavigateSection('typeChart')}
               onOpenAngeFightWorkflow={() => void handleNavigateSection('angeFight')}
               onOpenItemsWorkflow={() => void handleNavigateSection('items')}
@@ -21062,6 +21137,15 @@ export function App({
                 onStartEditSession={handleStartEditSession} onCancelEditSession={requestCancelEditSession}
                 onStage={handleStageTitanSwapper} onDirtyStateChange={handleTitanSwapperDirtyChange}
                 panelOutput={getOutputSafeScopedEditorPanelOutput('titanSwapper')} />
+          ) : null}
+          {activeSection === 'summaryStats' ? (
+            isSummaryStatsLoading && !summaryStatsWorkflow ? <WorkflowLoadingPanel label={t('summaryStats.title')} /> :
+              <SummaryStatsSection workflow={summaryStatsWorkflow} isStaging={isSummaryStatsStaging}
+                key={getEditSessionForSection('summaryStats')?.sessionId ?? 'viewing'}
+                isEditing={getEditSessionForSection('summaryStats') !== null} isEditStarting={isEditStarting}
+                onStartEditSession={handleStartEditSession} onCancelEditSession={requestCancelEditSession}
+                onStage={handleStageSummaryStats} onDirtyStateChange={handleSummaryStatsDirtyChange}
+                panelOutput={getOutputSafeScopedEditorPanelOutput('summaryStats')} />
           ) : null}
           {activeSection === 'habitatCoordinates' ? (
             isHabitatCoordinatesLoading && !habitatCoordinatesWorkflow ? (
@@ -22154,6 +22238,7 @@ export function App({
                 snacksworthWorkflow,
                 starmobilesWorkflow,
                 titanSwapperWorkflow,
+                summaryStatsWorkflow,
                 marnieBoostsWorkflow,
                 shakingTreesWorkflow,
                 heldItemChanceWorkflow,
@@ -35777,6 +35862,7 @@ function getPendingEditSection(edit: PendingEdit): WorkbenchSection | null {
     'workflow.snacksworth': 'snacksworth',
     'workflow.starmobiles': 'starmobiles',
     'workflow.titan-swapper': 'titanSwapper',
+    'workflow.summaryStats': 'summaryStats',
     'workflow.fashionUnlock': 'fashionUnlock',
     'workflow.giftPokemon': 'giftPokemon',
     'workflow.gymUniformRemoval': 'gymUniformRemoval',
@@ -36251,6 +36337,15 @@ function getPendingEditDisplayDetails(
       return getTrainerPoolsPendingEditDisplayDetails(edit, context, editorLabel);
     case 'workflow.habitatCoordinates':
       return getHabitatPendingEditDisplayDetails(edit, editorLabel);
+    case 'workflow.summaryStats': {
+      let enabled: boolean | undefined;
+      try { const value = JSON.parse(edit.newValue ?? '{}').Enabled; if (typeof value === 'boolean') enabled = value; }
+      catch { /* Invalid values remain available for diagnostics. */ }
+      return createPendingEditDisplayDetails(edit, { editorLabel, recordLabel: '',
+        recordLocalizationKey: 'summaryStats.title', fieldLocalizationKey: 'summaryStats.enable',
+        newValueLocalizationKey: enabled === undefined ? undefined : enabled ? 'summaryStats.enabled' : 'summaryStats.original',
+        newValueLabel: enabled === undefined ? edit.newValue ?? '' : '' });
+    }
     case 'workflow.titan-swapper': {
       let value = '';
       try { value = String((JSON.parse(edit.newValue ?? '{}') as { Value?: number }).Value ?? ''); } catch { /* Invalid drafts remain reviewable. */ }
@@ -57793,6 +57888,7 @@ export type PendingEditContext = {
   snacksworthWorkflow?: BlueberryWorkflow | null;
   starmobilesWorkflow?: StarmobilesWorkflow | null;
   titanSwapperWorkflow?: TitanSwapperWorkflow | null;
+  summaryStatsWorkflow?: SummaryStatsWorkflow | null;
   angeFightWorkflow: AngeFightWorkflow | null;
   bagHookWorkflow: BagHookWorkflow | null;
   catchCapWorkflow: CatchCapWorkflow | null;
@@ -59296,13 +59392,7 @@ function ExitPromptModal({
                   : 'Review and apply the pending changes inside this advanced editor, or discard them before leaving.'
               : isCancelPrompt
               ? 'Canceling will discard every pending edit in this edit session. Are you sure you want to discard all changes?'
-              : allowGoToChanges
-                ? 'This editor has pending changes or an active edit session. Exiting will discard those pending edits.'
-                : stageOnlyDexLayout
-                  ? translateLiteral(
-                      'Finish or reset any local Dex Layout draft here. Review and output staged changes from Changes, or discard them before leaving.'
-                    )
-                  : 'Review and apply the pending changes inside this advanced editor, or discard them before leaving.'
+              : 'This editor has pending changes or an active edit session. Exiting will discard those pending edits.'
             : 'You can stay on this editor or go to Changes to validate and save the pending edits.'}
         </p>
         <div className="modal-actions">

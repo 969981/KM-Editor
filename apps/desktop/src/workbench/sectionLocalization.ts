@@ -29,6 +29,7 @@ export const workbenchSectionLocalization = {
   snacksworth: { label: 'workbench.section.snacksworth.label', description: 'workbench.section.snacksworth.description' },
   starmobiles: { label: 'workbench.section.starmobiles.label', description: 'workbench.section.starmobiles.description' },
   titanSwapper: { label: 'workbench.section.titan-swapper.label', description: 'workbench.section.titan-swapper.description' },
+  summaryStats: { label: 'workbench.section.summary-stats.label', description: 'workbench.section.summary-stats.description' },
   trainerPools: { label: 'workbench.section.trainer-pools.label', description: 'workbench.section.trainer-pools.description' },
   fashionCatalog: { label: 'workbench.section.fashion-catalog.label', description: 'workbench.section.fashion-catalog.description' },
   giftPokemon: { label: 'workbench.section.gift-pokemon.label', description: 'workbench.section.gift-pokemon.description' },

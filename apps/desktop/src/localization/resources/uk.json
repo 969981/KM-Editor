@@ -5139,7 +5139,30 @@
     "progressFeedback.paused": "Призупинено",
     "restoration.removeHelp": "Вимкнення зберігає підготовлені ресурси й налаштування для повторного використання. Видалення ресурсів готує видалення керованих вихідних файлів і підготовлених ресурсів цього покемона, зокрема змін моделі. Видаліть посилання на нього перед застосуванням.",
     "progressFeedback.complete": "Завершено",
-    "progressFeedback.error": "Зупинено через помилки"
+    "progressFeedback.error": "Зупинено через помилки",
+    "summaryStats.title": "Екран IV та EV",
+    "summaryStats.intro": "Показує початкові IV та числові EV на екрані зведення покемона.",
+    "summaryStats.enable": "Увімкнути режими IV та EV",
+    "summaryStats.restore": "Відновити оригінал",
+    "summaryStats.controls": "Використовуйте перемикання графіка на сторінці характеристик, щоб переходити між чотирма режимами.",
+    "summaryStats.cycle": "Режими зведення",
+    "summaryStats.mode.stats": "Характеристики",
+    "summaryStats.mode.stats.help": "Початкові розраховані характеристики.",
+    "summaryStats.mode.ivs": "Початкові IV",
+    "summaryStats.mode.ivs.help": "Усі шість збережених IV без поправок гіпертренування.",
+    "summaryStats.mode.evs": "EV",
+    "summaryStats.mode.evs.help": "Усі шість поточних значень EV.",
+    "summaryStats.mode.graph": "Графік EV",
+    "summaryStats.mode.graph.help": "Початковий графік EV.",
+    "summaryStats.preservation": "Змінюється лише відображення. Покемони, прийоми, здібності та збереження залишаються незмінними.",
+    "summaryStats.package": "Підготуйте налаштування, перевірте зміни та застосуйте їх. Перезберіть установлений пакет ігрових налаштувань, щоб додати це налаштування та його підписи.",
+    "summaryStats.stale": "Джерела змінилися. Перезавантажте їх і виберіть налаштування знову.",
+    "summaryStats.failed": "Налаштування не підготовлено. Перевірте діагностику та спробуйте ще раз.",
+    "summaryStats.enabled": "Режими IV та EV увімкнено",
+    "summaryStats.original": "Початкові режими зведення",
+    "summaryStats.open": "Відкрити екран IV та EV",
+    "workbench.section.summary-stats.label": "Екран IV та EV",
+    "workbench.section.summary-stats.description": "Показує початкові IV та числові EV на екрані зведення покемона."
   },
   "literals": {
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Гіпертренування використовує стару зміну рівня, за якої значки в команді та боксах усе ще вимагають рів.100. Застосуйте цей редактор повторно, щоб оновити вибір покемонів.",
@@ -9596,6 +9619,8 @@
     "Obedience Level": "Рівень слухняності",
     "Party and box icons use the minimum level at {offset}.": "Значки в команді та боксах використовують мінімальний рівень за адресою {offset}.",
     "This Pokemon has no ability supported by Sword and Shield in its source data.": "У вихідних даних цього покемона немає здібностей, які підтримуються Sword і Shield.",
-    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Не вдалося повністю очистити ресурси видаленого покемона. Оновіть список, щоб повторити спробу."
+    "Removed Pokemon assets could not be fully cleared. Refresh to retry.": "Не вдалося повністю очистити ресурси видаленого покемона. Оновіть список, щоб повторити спробу.",
+    "IV and EV Screen": "Екран IV та EV",
+    "Show raw IVs and numeric EVs on the Pokemon Summary screen.": "Показує початкові IV та числові EV на екрані зведення покемона."
   }
 }
