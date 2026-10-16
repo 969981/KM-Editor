@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 using System.Buffers.Binary;
+using System.Text;
 
 namespace KM.Formats.PLA;
 
@@ -98,6 +99,89 @@ public sealed class PlaFlatBuffer
             _ = TableAtReference(references[i]);
         }
         return references;
+    }
+
+    private (int Offset, int Length) StringRange(int pointer, int maximum)
+    {
+        var displacement = U32(pointer);
+        if (displacement < 4 || displacement > int.MaxValue)
+            throw new InvalidDataException("The PLA string offset is invalid.");
+        var start = checked(pointer + (int)displacement);
+        var length = U32(start);
+        if (length > maximum) throw new InvalidDataException("The PLA string is too large.");
+        Bounds(start, checked(5 + (int)length));
+        if (data[start + 4 + (int)length] != 0) throw new InvalidDataException("The PLA string terminator is invalid.");
+        return (start, (int)length);
+    }
+
+    public string String(int table, int field, int maximum = 4096)
+    {
+        var pointer = Field(table, field, 4);
+        if (pointer == 0) return "";
+        var range = StringRange(pointer, maximum);
+        try { return new UTF8Encoding(false, true).GetString(data, range.Offset + 4, range.Length); }
+        catch (DecoderFallbackException exception) { throw new InvalidDataException("The PLA string is not valid UTF-8.", exception); }
+    }
+
+    /// <summary>Copy a known object subtree before editing, preserving strings and scalar child tables.</summary>
+    public void SetObjectScalars(int reference, IReadOnlyList<int> widths, IReadOnlyDictionary<int, long> values,
+        IReadOnlyList<int> stringFields, IReadOnlyDictionary<int, int[]> scalarChildren)
+    {
+        var original = TableAtReference(reference);
+        RequireKnownFields(original, widths);
+        if (values.Keys.Any(key => key < 0 || key >= widths.Count || stringFields.Contains(key) || scalarChildren.ContainsKey(key))
+            || stringFields.Concat(scalarChildren.Keys).Any(key => key < 0 || key >= widths.Count || widths[key] != 4)
+            || stringFields.Distinct().Count() != stringFields.Count || stringFields.Any(scalarChildren.ContainsKey))
+            throw new InvalidDataException("The PLA object schema is invalid.");
+        var strings = stringFields.Where(key => Field(original, key, 4) != 0)
+            .ToDictionary(key => key, key => StringRange(Field(original, key, 4), MaximumLength - 5));
+        var children = scalarChildren.Where(pair => Field(original, pair.Key, 4) != 0)
+            .ToDictionary(pair => pair.Key, pair => TableAtReference(Field(original, pair.Key, 4)));
+        foreach (var child in children) RequireKnownFields(child.Value, scalarChildren[child.Key]);
+
+        // References are forward offsets. Every referenced value must follow the
+        // copied parent, even when the original objects shared their storage.
+        var copy = CopyObject(original, widths, values);
+        foreach (var pair in strings)
+        {
+            var range = pair.Value;
+            var target = Allocate(5 + range.Length);
+            data.AsSpan(range.Offset, 5 + range.Length).CopyTo(data.AsSpan(target));
+            var pointer = Field(copy, pair.Key, 4);
+            W32(pointer, target - pointer);
+        }
+        foreach (var pair in children)
+        {
+            var target = CopyObject(pair.Value, scalarChildren[pair.Key], new Dictionary<int, long>());
+            var pointer = Field(copy, pair.Key, 4);
+            W32(pointer, target - pointer);
+        }
+        W32(reference, copy - reference);
+        SetScalars(reference, widths, values);
+    }
+
+    private int CopyObject(int original, IReadOnlyList<int> widths, IReadOnlyDictionary<int, long> values)
+    {
+        var info = Table(original);
+        var offsets = Enumerable.Range(0, widths.Count).Select(i => Field(original, i, widths[i]) is var f && f != 0 ? f - original : 0).ToArray();
+        var size = info.Size;
+        foreach (var pair in values.Where(pair => pair.Value != 0 && offsets[pair.Key] == 0))
+        {
+            var width = widths[pair.Key];
+            size = (size + width - 1) / width * width;
+            offsets[pair.Key] = size;
+            size += width;
+        }
+        if (size > ushort.MaxValue) throw new InvalidDataException("The PLA object is too large.");
+        var vtable = Allocate(4 + widths.Count * 2, 2);
+        var alignmentOffset = original % 8;
+        var copy = Allocate(size + alignmentOffset, 8) + alignmentOffset;
+        data.AsSpan(original, info.Size).CopyTo(data.AsSpan(copy));
+        W16(vtable, checked((ushort)(4 + widths.Count * 2)));
+        W16(vtable + 2, (ushort)size);
+        for (var i = 0; i < offsets.Length; i++) W16(vtable + 4 + i * 2, (ushort)offsets[i]);
+        W32(copy, copy - vtable);
+        return copy;
     }
 
     private int Allocate(int count, int alignment = 4)

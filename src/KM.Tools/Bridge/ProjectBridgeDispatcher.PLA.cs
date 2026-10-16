@@ -25,6 +25,9 @@ public sealed partial class ProjectBridgeDispatcher
         new("pokemon", "Pokemon", "PLA personal data, learnsets, mastery, evolutions, and move tutoring.", WorkflowAvailabilityDto.Available, []),
         new("moves", "Moves", "Verified PLA move and style values.", WorkflowAvailabilityDto.Available, []),
         new("text", "Text", "PLA message text with preserved keys and control tokens.", WorkflowAvailabilityDto.Available, []),
+        new("trainers", "Trainers", "Existing PLA parties, levels, effort levels, and moves with protected event roles.", WorkflowAvailabilityDto.Available, []),
+        new("giftPokemon", "Gift Pokemon", "Supported existing PLA gifts with protected story identities.", WorkflowAvailabilityDto.Available, []),
+        new("staticEncounters", "Static Encounters", "Supported existing PLA battles with protected event identities.", WorkflowAvailabilityDto.Available, []),
     ]);
 
     private string DispatchLoadPla(string requestJson)

@@ -1,16 +1,35 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 .pla-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
-.pla-controls > label, .pla-control, .pla-field { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
-.pla-record-layout { display: grid; grid-template-columns: minmax(13rem, 22rem) minmax(0, 1fr); gap: 1.25rem; }
-.pla-record-list { display: flex; flex-direction: column; gap: .25rem; max-height: 28rem; overflow-y: auto; margin-block: .5rem; }
-.pla-record-list button { text-align: start; justify-content: start; }
-.pla-pagination { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
-.pla-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 1rem; align-content: start; min-width: 0; }
-.pla-fields input, .pla-fields select, .pla-fields textarea { max-width: 100%; min-width: 0; }
-.pla-text-field, .pla-rows { grid-column: 1 / -1; }
-.pla-rows { overflow-x: auto; }
-.pla-rows td { min-width: 6rem; }
-.pla-rows td input, .pla-rows td select { width: 100%; }
-.pla-rows table { width: 100%; margin-bottom: .75rem; }
-.pla-text-field textarea { resize: vertical; }
-@container (max-width: 52rem) { .pla-record-layout { grid-template-columns: minmax(0, 1fr); } }
+.pla-control { display: flex; flex: 1 1 16rem; flex-direction: column; gap: .35rem; min-width: 0; }
+.pla-pagination { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
+.pla-battle-editor .pla-battle-row { grid-template-columns: 52px minmax(140px, 1.4fr) 64px minmax(110px, 1fr) minmax(88px, .8fr); }
+.pla-battle-editor .pla-pagination { margin-top: 1rem; }
+.pla-battle-editor .trainer-party-card-grid { margin-bottom: 1rem; }
+.pla-battle-editor .technical-tool-notice p { margin: 0; }
+.pla-data-editor .items-row { grid-template-columns: 72px minmax(160px, 1fr) minmax(110px, .7fr); }
+.pla-data-editor .moves-row { grid-template-columns: 52px minmax(140px, 1fr) 90px 90px 64px 72px 52px minmax(96px, .8fr); }
+.pla-data-tutors .moves-row { grid-template-columns: 52px minmax(160px, 1fr) 80px minmax(96px, .8fr); }
+.pla-data-editor .text-row { grid-template-columns: minmax(160px, 1fr) minmax(140px, .8fr) 52px minmax(180px, 1.4fr) minmax(96px, .7fr); }
+.pla-data-editor .item-inspector > .pokemon-summary-card { display: grid; grid-column: 1 / -1; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; align-items: center; padding: 10px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; }
+.pla-data-editor .pokemon-summary-main { display: flex; flex-direction: column; gap: .25rem; min-width: 0; }
+.pla-data-editor .pokemon-summary-title { overflow-wrap: anywhere; }
+.pla-data-editor .text-edit-form textarea { width: 100%; min-height: 12rem; resize: vertical; }
+.pla-data-editor .pla-pokemon-detail-row { grid-template-columns: 42px minmax(100px, 1fr) minmax(90px, .8fr) minmax(90px, .8fr); }
+.pla-data-editor .pla-pokemon-detail-row > span:last-child { white-space: normal; }
+.pla-data-editor .pla-learnset-inline-row { grid-template-areas: "slot level metadata move actions"; grid-template-columns: 42px minmax(80px, .7fr) minmax(90px, .8fr) minmax(150px, 1.4fr) max-content; }
+.pla-data-editor .pla-learnset-inline-row .learnset-inline-metadata { align-self: end; overflow: visible; }
+.pla-data-editor .compatibility-search { width: auto; }
+.pla-data-editor .item-edit-form > .learnset-editor h4,
+.pla-data-editor .compatibility-editor h4 { margin-top: 0; }
+@container (max-width: 68rem) {
+  .pla-data-editor .items-layout, .pla-data-editor .text-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@container (max-width: 36rem) {
+  .pla-data-editor .pla-pokemon-detail-row { grid-template-columns: 36px minmax(0, 1fr); }
+}
+@container (max-width: 820px) {
+  .pla-data-editor .pla-learnset-inline-row { grid-template-areas: "slot level metadata" "move move actions"; grid-template-columns: 42px minmax(80px, 1fr) minmax(100px, 1fr); }
+}
+@container (max-width: 480px) {
+  .pla-data-editor .pla-learnset-inline-row { grid-template-areas: "slot level metadata" "move move move" "actions actions actions"; grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr); }
+}
