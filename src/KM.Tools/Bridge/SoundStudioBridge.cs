@@ -5,6 +5,7 @@ using KM.Core.Concurrency;
 using KM.Core.Projects;
 using KM.Formats.Audio;
 using KM.Formats.SwSh;
+using KM.PLA.Audio;
 using KM.SwSh.Audio;
 using KM.SwSh.Restoration;
 using System.Text.RegularExpressions;
@@ -14,7 +15,7 @@ namespace KM.Tools.Bridge;
 internal static class SoundStudioBridge
 {
     private sealed record Asset(SoundBankItem Item, string Path, long FileSize, long Stamp, string? InferredCategory = null,
-        string? SourceDirectory = null, int SpeciesId = 0, string? VoiceState = null);
+        string? SourceDirectory = null, int SpeciesId = 0, string? VoiceState = null, string? PlaFile = null, string? PlaBank = null);
     private sealed class Catalog(string token, ProjectPaths paths)
     {
         public string Token { get; } = token;
@@ -28,6 +29,7 @@ internal static class SoundStudioBridge
         public volatile string? Error;
         public DateTime LastAccess = DateTime.UtcNow;
         public Task Worker = Task.CompletedTask;
+        public PlaSoundSource? PlaSource;
     }
     private static readonly object Gate = new();
     private static Catalog? current;
@@ -38,7 +40,7 @@ internal static class SoundStudioBridge
     {
         if (request.Token is not { Length: 32 } || !request.Token.All(char.IsAsciiHexDigit)) throw new InvalidDataException("Audio catalog token is invalid.");
         var paths = ProjectBridgeMapper.ToCore(request.Paths);
-        if (paths.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield or ProjectGame.Scarlet or ProjectGame.Violet or ProjectGame.ZA))
+        if (paths.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield or ProjectGame.Scarlet or ProjectGame.Violet or ProjectGame.ZA or ProjectGame.PLA))
             throw new InvalidDataException("Select a supported game.");
         lock (Gate)
         {
@@ -65,10 +67,25 @@ internal static class SoundStudioBridge
                         : DisplayName(asset.Item, state.SpeciesNames)
                 }).ToArray();
             }
-            if (request.Action != "media" || request.Index < 0 || request.Index >= state.Assets.Length) throw new InvalidDataException("Audio selection is invalid.");
+            if (request.Index < 0 || request.Index >= state.Assets.Length) throw new InvalidDataException("Audio selection is invalid.");
             var selected = state.Assets[request.Index]; var item = selected.Item;
+            if (request.Action == "releaseMedia" && state.PlaSource is { } transfer)
+            {
+                transfer.ReleaseMedia(selected.PlaFile!, selected.PlaBank!, item.Offset, item.Length);
+                return new { Ready = true };
+            }
+            if (request.Action != "media") throw new InvalidDataException("Audio selection is invalid.");
             if (item.Status != "sample" || item.Length > 64L * 1024 * 1024 || request.Offset < 0 || request.Offset >= item.Length)
                 throw new InvalidDataException("This audio entry is not playable.");
+            if (state.PlaSource is { } pla)
+            {
+                try
+                {
+                    VerifySource(selected);
+                    return new { Data = Convert.ToBase64String(pla.ReadMedia(selected.PlaFile!, selected.PlaBank!, item.Offset, item.Length, request.Offset, state.Cancel.Token)) };
+                }
+                catch { pla.Dispose(); throw; }
+            }
             VerifySource(selected);
             using var stream = new FileStream(selected.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
             if (stream.Length != selected.FileSize) throw new InvalidDataException("Audio source changed.");
@@ -86,7 +103,7 @@ internal static class SoundStudioBridge
     private static async Task ReleaseAsync(Catalog state)
     {
         try { await state.Worker.ConfigureAwait(false); }
-        finally { state.Cancel.Dispose(); }
+        finally { state.PlaSource?.Dispose(); state.Cancel.Dispose(); }
     }
     private static async Task BuildAsync(Catalog state)
     {
@@ -113,6 +130,7 @@ internal static class SoundStudioBridge
         {
             var token = state.Cancel.Token;
             if (state.Paths.BaseRomFsPath is not { } root || !Directory.Exists(root)) throw new InvalidDataException("Audio source is missing.");
+            if (state.Paths.SelectedGame == ProjectGame.PLA) state.PlaSource = new(state.Paths);
             // Use the same source graph and overlay precedence as the other asset browsers.
             var graph = new ProjectFileGraphBuilder().Build(state.Paths with { BaseExeFsPath = null }, token);
             if (state.Paths.SelectedGame is ProjectGame.Sword or ProjectGame.Shield)
@@ -124,7 +142,8 @@ internal static class SoundStudioBridge
                     catch (InvalidDataException) { }
             }
             var files = graph.Entries.Where(entry => entry.RelativePath.StartsWith("romfs/", StringComparison.OrdinalIgnoreCase)
-                && Path.GetExtension(entry.RelativePath).ToLowerInvariant() is ".bnk" or ".pck" or ".wem" or ".wav" or ".ogg" or ".opus" or ".bfsar" or ".bfstm").ToArray();
+                && Path.GetExtension(entry.RelativePath).ToLowerInvariant() is ".bnk" or ".pck" or ".wem" or ".wav" or ".ogg" or ".opus" or ".bfsar" or ".bfstm"
+                && (state.PlaSource is null || PlaSoundSource.Owns(entry.RelativePath))).ToArray();
             state.Total = files.Length; var assets = new List<Asset>();
             var restoredVoices = new Dictionary<uint, (int Species, string State)>();
             if (state.Paths.SelectedGame is ProjectGame.Sword or ProjectGame.Shield)
@@ -150,11 +169,14 @@ internal static class SoundStudioBridge
                 try
                 {
                     using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 16384, FileOptions.RandomAccess);
-                    foreach (var item in new SoundBankReader(stream, token).Read(entry.RelativePath[6..]))
+                    var items = new SoundBankReader(stream, token, state.PlaSource is null ? null : 135u).Read(entry.RelativePath[6..]);
+                    state.PlaSource?.Observe(entry.RelativePath, path, stream, token);
+                    foreach (var item in items)
                     {
                         var voice = entry.RelativePath == SwShRestorationComposer.VoicesPath && uint.TryParse(item.Identifier, out var mediaId)
                             && restoredVoices.TryGetValue(mediaId, out var restored) ? restored : default;
-                        assets.Add(new(item, path, size, stamp, SourceDirectory: Path.GetDirectoryName(entry.RelativePath), SpeciesId: voice.Species, VoiceState: voice.State));
+                        assets.Add(new(item, path, size, stamp, SourceDirectory: Path.GetDirectoryName(entry.RelativePath), SpeciesId: voice.Species, VoiceState: voice.State,
+                            PlaFile: state.PlaSource is null ? null : entry.RelativePath, PlaBank: state.PlaSource is null ? null : entry.RelativePath));
                     }
                 }
                 catch (Exception e) when (e is InvalidDataException or EndOfStreamException or OverflowException)
@@ -171,7 +193,7 @@ internal static class SoundStudioBridge
                 token.ThrowIfCancellationRequested(); var asset = assets[i];
                 if (asset.Item.Status is not ("missing" or "prefetch") || !complete.TryGetValue(asset.Item.Identifier, out var candidates)) continue;
                 var related = candidates.Where(c => string.Equals(c.SourceDirectory, asset.SourceDirectory, StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (related.Length == 1) assets[i] = related[0] with { Item = related[0].Item with { Bank = asset.Item.Bank, IsMusic = asset.Item.IsMusic } };
+                if (related.Length == 1) assets[i] = related[0] with { Item = related[0].Item with { Bank = asset.Item.Bank, IsMusic = asset.Item.IsMusic }, PlaBank = asset.PlaBank };
             }
             // Shared package recordings inherit a category only when their resolved bank uses agree.
             var categories = assets.Where(a => a.Item.Status == "sample" && AssetCategory(a) != "other")

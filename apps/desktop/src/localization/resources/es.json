@@ -549,6 +549,7 @@
     "soundStudio.explain.procedural": "Audio procedural. Las grabaciones son muestras individuales. No se reconstruyen eventos interactivos, elecciones aleatorias, capas, efectos ni tiempos del juego. Se conservan los identificadores originales.",
     "soundStudio.title": "Sound Studio",
     "soundStudio.description": "Explora y escucha el audio del juego.",
+    "soundStudio.plaScope": "Sound Studio de PLA permite escuchar grabaciones individuales. No permite reemplazar audio ni editar eventos. No reproduce música interactiva, secuencias de eventos ni efectos espaciales.",
     "soundStudio.reload": "Recargar",
     "soundStudio.loading": "Cargando catálogo de audio…",
     "soundStudio.cancel": "Cancelar",

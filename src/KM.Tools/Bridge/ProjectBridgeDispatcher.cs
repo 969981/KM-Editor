@@ -1462,7 +1462,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
     {
         var request = DeserializeRequest<KM.Api.Audio.SoundStudioRequest>(requestJson);
         try { return SerializeSuccess(SoundStudioBridge.Dispatch(request.Payload), request.RequestId); }
-        catch (Exception exception) when (exception is IOException or ArgumentException or InvalidOperationException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is InvalidDataException or IOException or ArgumentException or InvalidOperationException or UnauthorizedAccessException)
         { throw new BridgeRequestException("Audio sources are unavailable or changed. Reload Sound Studio and check the project sources.", exception, BridgeErrorCodes.AudioSourceUnavailable); }
     }
 

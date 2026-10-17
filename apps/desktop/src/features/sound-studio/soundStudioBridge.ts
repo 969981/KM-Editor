@@ -32,12 +32,16 @@ export async function loadSoundCatalog(paths: ProjectPaths, token: string, signa
   throw new DOMException('Cancelled', 'AbortError');
 }
 export async function loadSoundMedia(paths: ProjectPaths, token: string, entry: SoundEntry, signal: AbortSignal, worker: Worker) {
-  for (let offset = 0; offset < entry.size;) {
-    signal.throwIfAborted();
-    const part = await soundRequest(paths, token, 'media', z.object({ data: z.string().max(710000) }), entry.id, offset);
-    signal.throwIfAborted(); worker.postMessage({ type: 'input', data: part.data });
-    offset += 512 * 1024;
+  try {
+    for (let offset = 0; offset < entry.size;) {
+      signal.throwIfAborted();
+      const part = await soundRequest(paths, token, 'media', z.object({ data: z.string().max(710000) }), entry.id, offset);
+      signal.throwIfAborted(); worker.postMessage({ type: 'input', data: part.data });
+      offset += 512 * 1024;
+    }
+    signal.throwIfAborted(); worker.postMessage({ type: 'open' });
+  } finally {
+    if (paths.selectedGame === 'pla') await soundRequest(paths, token, 'releaseMedia', z.object({ ready: z.boolean() }), entry.id).catch(() => {});
   }
-  signal.throwIfAborted(); worker.postMessage({ type: 'open' });
 }
 export const closeSoundCatalog = (paths: ProjectPaths, token: string) => soundRequest(paths, token, 'close', z.object({ ready: z.boolean() }));

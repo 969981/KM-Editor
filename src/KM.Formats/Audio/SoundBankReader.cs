@@ -8,7 +8,7 @@ public sealed record SoundBankItem(string Identifier, string Kind, long Offset, 
     bool IsMusic = false);
 
 /// <summary>Reads bounded bank indexes and media headers without decoding audio.</summary>
-public sealed class SoundBankReader(Stream stream, CancellationToken cancellationToken)
+public sealed class SoundBankReader(Stream stream, CancellationToken cancellationToken, uint? expectedBankVersion = null)
 {
     private readonly BinaryReader reader = new(stream, Encoding.UTF8, leaveOpen: true);
     private const int MaxItems = 200_000;
@@ -88,7 +88,9 @@ public sealed class SoundBankReader(Stream stream, CancellationToken cancellatio
         }
         var media = new HashSet<uint>();
         var music = new HashSet<uint>();
-        if (version is 128 or 140 or 145)
+        var supported = version is 128 or 135 or 140 or 145 && (expectedBankVersion is null || version == expectedBankVersion);
+        if (version == 135 && p != hEnd) throw new InvalidDataException("Audio object stream has trailing data.");
+        if (supported)
             foreach (var obj in objects.Where(o => o.Type is 2 or 11))
             {
                 var sourceEnd = obj.Offset + obj.Size;
@@ -129,7 +131,7 @@ public sealed class SoundBankReader(Stream stream, CancellationToken cancellatio
                 items.Add(new(source.ToString(), "reference", 0, 0, name, Status: "missing", IsMusic: music.Contains(source)));
         foreach (var obj in objects.Where(o => o.Type is 4 or 15))
             items.Add(new(obj.Id.ToString(), "event", 0, 0, name, Status: "event"));
-        if (version is not (128 or 140 or 145))
+        if (!supported)
             items.Add(new($"bank:{version}", "bank", 0, 0, name, Status: "bankVersion"));
     }
     private SoundBankItem Media(long offset, long length, string id, string bank)
