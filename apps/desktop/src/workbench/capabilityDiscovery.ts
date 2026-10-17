@@ -73,7 +73,7 @@ export function createCapabilityDiscoveryViewModels(options: {
             };
       return {
         capabilityKinds: registration.capabilityKinds,
-        descriptionKey: getWorkbenchSectionDescriptionKey(registration.id),
+        descriptionKey: getWorkbenchSectionDescriptionKey(registration.id, options.game),
         id: registration.id,
         labelKey: getWorkbenchSectionLabelKey(registration.id),
         ...resolved

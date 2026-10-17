@@ -52,6 +52,8 @@ internal sealed class PlaCatalog
     internal PlaEventCatalog Events => events ??= new(this);
     private PlaScriptCatalog? scripts;
     internal PlaScriptCatalog Scripts => scripts ??= new(this);
+    private PlaExecutableCatalog? executable;
+    internal PlaExecutableCatalog Executable => executable ??= new(this);
     private PlaSettingsCatalog? settings;
     internal PlaSettingsCatalog Settings => settings ??= new(this);
     private PlaWeatherCatalog? weather;
@@ -145,10 +147,11 @@ internal sealed class PlaCatalog
     }
     internal IReadOnlyList<PlaChoice> SpeciesChoices => Pokemon.Keys.Select(id => int.Parse(id.Split(':')[0], CultureInfo.InvariantCulture)).Distinct().Order()
         .Select(id => new PlaChoice(id.ToString(CultureInfo.InvariantCulture), Name(names, id))).ToArray();
-    private IReadOnlyList<PlaChoice> TypeChoices => Enumerable.Range(0, 18).Select(id => new PlaChoice(id.ToString(CultureInfo.InvariantCulture), Name(typeNames, id))).ToArray();
+    internal IReadOnlyList<PlaChoice> TypeChoices => Enumerable.Range(0, 18).Select(id => new PlaChoice(id.ToString(CultureInfo.InvariantCulture), Name(typeNames, id))).ToArray();
 
     internal PlaField[] Fields(string kind) => kind switch
     {
+        _ when PlaExecutableCatalog.Supports(kind) => PlaExecutableCatalog.Fields,
         _ when PlaScriptCatalog.Supports(kind) => Scripts.Fields(kind),
         _ when PlaSettingsCatalog.Supports(kind) => Settings.Fields(kind),
         "weather" => Weather.Fields(),
@@ -236,6 +239,7 @@ internal sealed class PlaCatalog
     }
 
     internal string ResourcePath(string kind, string id) => PlaWildCatalog.Supports(kind) ? Wild.PathFor(kind, id)
+        : PlaExecutableCatalog.Supports(kind) ? PlaExecutableCatalog.PathFor(kind, id)
         : PlaScriptCatalog.Supports(kind) ? Scripts.PathFor(kind, id)
         : PlaSettingsCatalog.Supports(kind) ? Settings.PathFor(kind, id)
         : kind == "weather" ? Weather.PathFor(id)
@@ -247,6 +251,7 @@ internal sealed class PlaCatalog
 
     internal PlaRecord Record(string kind, string id, byte[]? edited = null)
     {
+        if (PlaExecutableCatalog.Supports(kind)) return Executable.Record(kind, id, edited);
         if (PlaScriptCatalog.Supports(kind)) return Scripts.Record(kind, id, edited);
         if (PlaSettingsCatalog.Supports(kind)) return Settings.Record(kind, id, edited);
         if (kind == "weather") return Weather.Record(id, edited);

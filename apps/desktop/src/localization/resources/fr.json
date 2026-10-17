@@ -1,5 +1,7 @@
 {
   "keys": {
+    "pla.typeChart.description": "Modifiez les affinités de types de PLA en conservant ses règles de dégâts combinés.",
+    "pla.notice.typeChart": "Modifiez chaque affinité de types. PLA conserve ses règles de dégâts combinés : deux faiblesses donnent des dégâts de 2,5× et deux résistances, de 0,4×. La restauration depuis Base ne modifie que cette table.",
     "pla.kind.bagPrices": "Prix des agrandissements de sac",
     "pla.kind.charmPrices": "Prix des amulettes",
     "pla.notice.bagPrices": "Prix de chaque emplacement supplémentaire du sac, dans l’ordre d’achat. Les conditions de déblocage et la limite de 39 agrandissements restent inchangées.",

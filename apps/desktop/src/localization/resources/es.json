@@ -1,5 +1,7 @@
 {
   "keys": {
+    "pla.typeChart.description": "Edita las afinidades de tipos de PLA conservando sus reglas de daño combinado.",
+    "pla.notice.typeChart": "Edita las afinidades individuales de tipos. PLA conserva sus reglas de daño combinado: dos debilidades producen un daño de 2,5× y dos resistencias, de 0,4×. Restaurar desde Base solo modifica esta tabla.",
     "pla.kind.bagPrices": "Precios de ampliación del zurrón",
     "pla.kind.charmPrices": "Precios de amuletos",
     "pla.notice.bagPrices": "Precios de cada espacio adicional del zurrón, por orden de compra. Se conservan las condiciones de desbloqueo y el límite de 39 ampliaciones.",

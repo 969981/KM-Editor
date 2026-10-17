@@ -356,7 +356,7 @@ import {
   resolveMoveTimingEditableField
 } from './movesEditor';
 import { hasTeraBlastEdits, localizeTeraBlastField, teraBlastDefaultFields } from './teraBlastEditor';
-import { canAccessWorkflowSectionForHealth, getGameScopedWorkflowSummaries, getLoadedWorkflowStateForSection, isPokemonLegendsZAAdvancedEditorSection, isPokemonLegendsZAGame, isScarletVioletAdvancedEditorSection, isScarletVioletGame, isSharedStagedEditorSection, isTrinityCacheGame, isWorkflowNavigationVisibleForGame, isWorkflowSection, isWorkflowSupportedForGame, pokemonLegendsZAAdvancedEditorDomains, resolveWorkflowDataSection, scarletVioletAdvancedEditorDomains, sharedStagedEditorDomains, standaloneWorkflowSectionIds, workflowNavigationGroups } from './workflowGameSupport';
+import { canAccessWorkflowSectionForHealth, getGameScopedWorkflowSummaries, getLoadedWorkflowStateForSection, isPokemonLegendsZAAdvancedEditorSection, isPokemonLegendsZAGame, isScarletVioletAdvancedEditorSection, isScarletVioletGame, isSharedStagedEditorSection, isTrinityCacheGame, isWorkflowNavigationVisibleForGame, isWorkflowSection, isWorkflowSupportedForGame, pokemonLegendsZAAdvancedEditorDomains, resolveWorkflowDataSection, scarletVioletAdvancedEditorDomains, isSharedStagedEditorDomain, standaloneWorkflowSectionIds, workflowNavigationGroups } from './workflowGameSupport';
 import {
   WorkflowLoadGeneration,
   getEditSessionOwnerSections,
@@ -4450,7 +4450,7 @@ export function App({
     editSession !== null &&
     (editSessionSection === null ||
       isSharedStagedEditorSection(editSessionSection, selectedGame)) &&
-    editSession.pendingEdits.every((edit) => sharedStagedEditorDomains.has(edit.domain));
+    editSession.pendingEdits.every((edit) => isSharedStagedEditorDomain(edit.domain, selectedGame));
   const activeSectionOwnsEditSession =
     editSession !== null &&
     (editSessionSection === activeSection ||
@@ -11946,6 +11946,7 @@ export function App({
   };
 
   const handleOpenTypeChartWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     await runRetainedWorkflowLoad(
       'typeChart',
       setIsTypeChartLoading,
@@ -20877,7 +20878,7 @@ export function App({
             )
           ) : null}
           {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text' || activeSection === 'trainers' || activeSection === 'giftPokemon' || activeSection === 'staticEncounters'
-            || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research' || activeSection === 'encounters' || activeSection === 'outbreaks' || activeSection === 'distortions' || activeSection === 'weather' || activeSection === 'gameplayRules') ? (
+            || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research' || activeSection === 'encounters' || activeSection === 'outbreaks' || activeSection === 'distortions' || activeSection === 'weather' || activeSection === 'gameplayRules' || activeSection === 'typeChart') ? (
             <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
               session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
               isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
@@ -21758,7 +21759,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'typeChart' ? (
+          {activeSection === 'typeChart' && selectedGame !== 'pla' ? (
             isTypeChartLoading && !typeChartWorkflow ? (
               <WorkflowLoadingPanel label="Type Chart" />
             ) : (
@@ -36018,6 +36019,8 @@ function getPendingEditDisplayDetails(
     return createPendingEditDisplayDetails(edit, {
       editorLabel,
       fieldLocalizationKey: edit.field?.startsWith('tutor.') ? undefined : `pla.field.${edit.field}`,
+      newValueLocalizationKey: edit.recordId === 'typeChart/typeChart' && edit.field === 'entries' ? 'history.matchupValues' : undefined,
+      newValueLocalizationParams: edit.recordId === 'typeChart/typeChart' && edit.field === 'entries' ? { count: 324 } : undefined,
       recordLabel: edit.summary.startsWith('PLA ') ? edit.summary.slice(4, edit.summary.lastIndexOf(': ')) : edit.recordId ?? undefined
     });
   }

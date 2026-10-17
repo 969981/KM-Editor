@@ -1,5 +1,7 @@
 {
   "keys": {
+    "pla.typeChart.description": "Bearbeite die Typenwechselwirkungen von PLA unter Beibehaltung seiner kombinierten Schadensregeln.",
+    "pla.notice.typeChart": "Bearbeite einzelne Typenwechselwirkungen. PLA behält seine kombinierten Schadensregeln bei: Zwei Schwächen ergeben 2,5× Schaden, zwei Resistenzen 0,4× Schaden. Wiederherstellen aus Base ändert nur diese Tabelle.",
     "pla.kind.bagPrices": "Taschenerweiterungspreise",
     "pla.kind.charmPrices": "Talismanpreise",
     "pla.notice.bagPrices": "Preise für jeden zusätzlichen Taschenplatz in Kaufreihenfolge. Freischaltbedingungen und das Limit von 39 Erweiterungen bleiben unverändert.",

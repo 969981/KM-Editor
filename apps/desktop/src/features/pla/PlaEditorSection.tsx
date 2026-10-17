@@ -17,11 +17,12 @@ import { PlaPokemonRows } from './PlaPokemonRows';
 import { PlaEconomyWorkspace, isPlaEconomyKind } from './PlaEconomyWorkspace';
 import { PlaWildWorkspace, isPlaWildKind } from './PlaWildWorkspace';
 import { PlaRulesWorkspace } from './PlaRulesWorkspace';
+import { PlaTypeChartWorkspace } from './PlaTypeChartWorkspace';
 import './plaEditor.css';
 
 export type PlaDrafts = Record<string, { revision: string; values: Record<string, string>; baseline: Record<string, string> }>;
 type Props = {
-  section: 'pokemon' | 'moves' | 'text' | 'trainers' | 'giftPokemon' | 'staticEncounters' | 'items' | 'crafting' | 'shops' | 'pokemonDrops' | 'research' | 'encounters' | 'outbreaks' | 'distortions' | 'weather' | 'gameplayRules'; paths: ProjectPaths; session: EditSession | null; bridge: ProjectBridge;
+  section: 'pokemon' | 'moves' | 'text' | 'trainers' | 'giftPokemon' | 'staticEncounters' | 'items' | 'crafting' | 'shops' | 'pokemonDrops' | 'research' | 'encounters' | 'outbreaks' | 'distortions' | 'weather' | 'gameplayRules' | 'typeChart'; paths: ProjectPaths; session: EditSession | null; bridge: ProjectBridge;
   drafts: PlaDrafts; setDrafts: Dispatch<SetStateAction<PlaDrafts>>;
   isStarting: boolean; isBusy: boolean; onStart: () => void;
   onStage: (request: Omit<StagePlaRequest, 'paths' | 'session'>) => Promise<boolean>;
@@ -171,6 +172,10 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
   const refreshButton = <button type="button" className="secondary-button compact-button" disabled={loading || staging} onClick={() => setRefresh(value => value + 1)}>
     <RefreshCw size={16} aria-hidden="true" />{translateLiteral('Refresh')}
   </button>;
+  if (kind === 'typeChart') return <FocusedEditorWorkspace><PlaTypeChartWorkspace page={visiblePage} rows={rows} enabled={enabled}
+    onChange={changeRows} actions={actions} refresh={refreshButton} loading={loading}
+    sessionBar={<EditorSessionBar canEdit={visiblePage !== null && !loading} isEditing={session !== null} isStarting={isStarting}
+      label={translateLiteral('Type Chart')} onStart={onStart} />} /></FocusedEditorWorkspace>;
   if (kind === 'trainers' || kind === 'gifts' || kind === 'static') {
     return <FocusedEditorWorkspace><PlaBattleWorkspace kind={kind} page={page} selected={selected} query={query} offset={offset} loading={loading}
       onQuery={value => { setQuery(value); setOffset(0); }} onOffset={setOffset} onSelect={setSelectedId} refresh={refreshButton}
