@@ -96,9 +96,11 @@ public sealed class PlaFlatBuffer
     // Clone the entire known subtree so editing one slot never changes shared children.
     // Edit keys are reference positions, not object positions: aliases remain independent.
     public void EditObjectTree(int reference, ObjectLayout layout,
-        IReadOnlyDictionary<int, IReadOnlyDictionary<int, long>> edits)
+        IReadOnlyDictionary<int, IReadOnlyDictionary<int, long>> edits,
+        IReadOnlyDictionary<(int Reference, int Field), string[]>? stringEdits = null)
     {
         var applied = new HashSet<int>();
+        var appliedStrings = new HashSet<(int, int)>();
         int Copy(int sourceReference, ObjectLayout schema, int depth)
         {
             if (depth > 8) throw new InvalidDataException("The PLA object tree is too deep.");
@@ -157,12 +159,23 @@ public sealed class PlaFlatBuffer
             }
             foreach (var (key, entries) in stringVectors)
             {
+                var replacement = stringEdits?.GetValueOrDefault((sourceReference, key));
+                if (replacement is not null)
+                {
+                    if (replacement.Length != entries.Length || replacement.Any(value => value is null || Encoding.UTF8.GetByteCount(value) > 4096 || value.Contains('\0')))
+                        throw new InvalidDataException("The PLA string vector edit is invalid.");
+                    appliedStrings.Add((sourceReference, key));
+                }
                 var vector = Allocate(4 + entries.Length * 4); W32(vector, entries.Length);
                 var pointer = Field(copy, key, 4); W32(pointer, vector - pointer);
                 for (var i = 0; i < entries.Length; i++)
                 {
-                    var range = entries[i]; var target = Allocate(5 + range.Length);
-                    data.AsSpan(range.Offset, 5 + range.Length).CopyTo(data.AsSpan(target));
+                    var range = entries[i];
+                    var bytes = replacement is null ? null : Encoding.UTF8.GetBytes(replacement[i]);
+                    var length = bytes?.Length ?? range.Length;
+                    var target = Allocate(5 + length);
+                    if (bytes is null) data.AsSpan(range.Offset, 5 + length).CopyTo(data.AsSpan(target));
+                    else { W32(target, length); bytes.CopyTo(data, target + 4); }
                     var entry = vector + 4 + i * 4; W32(entry, target - entry);
                 }
             }
@@ -175,7 +188,8 @@ public sealed class PlaFlatBuffer
             return copy;
         }
         var result = Copy(reference, layout, 0);
-        if (applied.Count != edits.Count) throw new InvalidDataException("A PLA object edit does not belong to the selected tree.");
+        if (applied.Count != edits.Count || appliedStrings.Count != (stringEdits?.Count ?? 0))
+            throw new InvalidDataException("A PLA object edit does not belong to the selected tree.");
         W32(reference, result - reference);
     }
 
@@ -356,7 +370,7 @@ public sealed class PlaFlatBuffer
         return start;
     }
 
-    private void RequireKnownFields(int table, IReadOnlyList<int> widths)
+    public void RequireKnownFields(int table, IReadOnlyList<int> widths)
     {
         var info = Table(table);
         for (var i = 0; i < info.Count; i++)

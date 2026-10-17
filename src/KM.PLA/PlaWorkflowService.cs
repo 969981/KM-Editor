@@ -25,6 +25,8 @@ public sealed class PlaWorkflowService
         "encounters" or "spawns" => "workflow.encounters",
         "outbreaks" or "massiveOutbreaks" or "outbreakGroups" or "outbreakWaves" or "outbreakDurations" or "outbreakEncounters" => "workflow.outbreaks",
         "distortionEncounters" or "distortionSpawns" or "distortionItems" => "workflow.distortions",
+        "capture" or "friendship" or "shiny" => "workflow.gameplayRules",
+        "weather" => "workflow.weather",
         "personal" or "learnsets" or "evolutions" or "compatibility" or "tutors" => "workflow.pokemon",
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
     };
@@ -96,6 +98,8 @@ public sealed class PlaWorkflowService
         textFiles = [];
         selectedFile = null;
         catalog.RefreshTutorLabels(edited);
+        if (PlaSettingsCatalog.Supports(kind)) return catalog.Settings.Records(kind, edited);
+        if (kind == "weather") return catalog.Weather.Records(edited);
         if (PlaWildCatalog.Supports(kind))
         {
             if (kind is not ("encounters" or "spawns")) _ = catalog.Events;
@@ -181,6 +185,13 @@ public sealed class PlaWorkflowService
         if (value is null || value.Length > 131072) throw new InvalidDataException("The PLA field value is too large.");
         if (field.Kind == "text") return value;
         if (field.Kind == "rows") return JsonSerializer.Serialize(JsonSerializer.Deserialize<ushort[][]>(value) ?? throw new InvalidDataException("The PLA rows are invalid."));
+        if (field.Kind == "factor")
+        {
+            if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var factor) || !float.IsFinite(factor)
+                || factor < field.Minimum || factor > field.Maximum)
+                throw new InvalidDataException("The PLA factor is outside its supported range.");
+            return factor.ToString("R", CultureInfo.InvariantCulture);
+        }
         if (field.Kind == "decimal")
         {
             if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var multiplier)
@@ -231,6 +242,8 @@ public sealed class PlaWorkflowService
         var economy = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var wild = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var events = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
+        var settings = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
+        var weather = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var edit in session.PendingEdits.OrderBy(edit => edit.RecordId, StringComparer.Ordinal).ThenBy(edit => edit.Field, StringComparer.Ordinal))
         {
@@ -243,6 +256,19 @@ public sealed class PlaWorkflowService
             if (edit.Domain != Domain(kind)) throw new InvalidDataException("The PLA edit domain is invalid.");
             var field = catalog.Fields(kind).SingleOrDefault(field => field.Key == edit.Field) ?? throw new InvalidDataException("The PLA field is unsupported.");
             var value = Normalize(field, edit.NewValue);
+            if (kind == "weather")
+            {
+                if (!weather.TryGetValue(id, out var values)) weather[id] = values = new(StringComparer.Ordinal);
+                values.Add(field.Key, value);
+                continue;
+            }
+            if (PlaSettingsCatalog.Supports(kind))
+            {
+                var key = (kind, id);
+                if (!settings.TryGetValue(key, out var values)) settings[key] = values = new(StringComparer.Ordinal);
+                values.Add(field.Key, value);
+                continue;
+            }
             if (PlaEventCatalog.Supports(kind))
             {
                 var key = (kind, id);
@@ -327,7 +353,9 @@ public sealed class PlaWorkflowService
             files[path] = catalog.Economy.Edit(key.Kind, key.Id, files.GetValueOrDefault(path) ?? catalog.Scope.Read(path), values);
         }
         var members = wild.Count > 0 ? catalog.Wild.EditMembers(wild) : new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (var (key, values) in settings) files[catalog.Settings.PathFor(key.Kind, key.Id)] = catalog.Settings.Edit(key.Kind, key.Id, values);
         if (events.Count > 0) catalog.Events.Edit(events, files, members);
+        if (weather.Count > 0) members.Add(PlaWeatherCatalog.MemberPath, catalog.Weather.Edit(weather));
         if (members.Count > 0) files[PlaWildCatalog.ArchivePath] = catalog.Wild.Compose(members);
         if (economy.Count > 0) catalog.Economy.ValidateComposition(files);
         ValidateComposition(catalog, files);

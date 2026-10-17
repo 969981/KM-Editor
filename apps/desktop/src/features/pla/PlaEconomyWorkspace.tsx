@@ -10,9 +10,9 @@ import { getWorkbenchCapabilityRegistration } from '../../workbench/capabilityRe
 import { workbenchSectionLocalization } from '../../workbench/sectionLocalization';
 
 export type PlaEconomyKind = 'items' | 'crafting' | 'shops' | 'ginkgo' | 'drops' | 'research' | 'ranks'
-  | 'outbreaks' | 'massiveOutbreaks' | 'outbreakGroups' | 'outbreakWaves' | 'outbreakDurations' | 'distortionItems';
+  | 'outbreaks' | 'massiveOutbreaks' | 'outbreakGroups' | 'outbreakWaves' | 'outbreakDurations' | 'distortionItems' | 'weather';
 export const isPlaEconomyKind = (kind: PlaKind): kind is PlaEconomyKind => ['items', 'crafting', 'shops', 'ginkgo', 'drops', 'research', 'ranks',
-  'outbreaks', 'massiveOutbreaks', 'outbreakGroups', 'outbreakWaves', 'outbreakDurations', 'distortionItems'].includes(kind);
+  'outbreaks', 'massiveOutbreaks', 'outbreakGroups', 'outbreakWaves', 'outbreakDurations', 'distortionItems', 'weather'].includes(kind);
 type Props = {
   kind: PlaEconomyKind; page: PlaPage | null; selected: PlaRecord | null; query: string; offset: number; loading: boolean;
   controls: ReactNode; sessionBar: ReactNode; actions: ReactNode; refresh: ReactNode;
@@ -44,10 +44,12 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
   const choice = (key: string, value: string) => value === '0' && /[Ii]tem|ingredient/u.test(key) ? translateLiteral('None')
     : fields.find(field => field.key === key)?.choices?.find(option => option.value === value)?.label ?? value;
   const name = (record: PlaRecord) => kind === 'ranks' ? t('pla.rankLabel', { rank: record.id })
+    : kind === 'weather' ? t('pla.area.' + record.id)
     : kind === 'outbreakDurations' ? t('pla.event.durationLabel', { seconds: valuesFor(record).durationSeconds })
       : record.metadata.empty === '1' ? t('pla.event.emptySelection') : record.label;
   const summary = (record: PlaRecord) => {
     const values = valuesFor(record);
+    if (kind === 'weather') return t('pla.weather.total', { count: Object.values(values).reduce((sum, value) => sum + (Number(value) || 0), 0) });
     if (isShop) return String(groups.get(record.metadata.inventory)?.length ?? 0);
     if (kind === 'items' || kind === 'ginkgo') return values.price;
     if (kind === 'crafting') return `${choice('resultItem', values.resultItem)} × ${values.resultQuantity}`;

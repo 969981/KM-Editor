@@ -20877,7 +20877,7 @@ export function App({
             )
           ) : null}
           {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text' || activeSection === 'trainers' || activeSection === 'giftPokemon' || activeSection === 'staticEncounters'
-            || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research' || activeSection === 'encounters' || activeSection === 'outbreaks' || activeSection === 'distortions') ? (
+            || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research' || activeSection === 'encounters' || activeSection === 'outbreaks' || activeSection === 'distortions' || activeSection === 'weather' || activeSection === 'gameplayRules') ? (
             <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
               session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
               isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
@@ -35848,6 +35848,8 @@ function formatPendingEditDomain(domain: string) {
     'workflow.encounters': 'Wild Encounters',
     'workflow.outbreaks': 'Outbreaks',
     'workflow.distortions': 'Space Time Distortions',
+    'workflow.weather': 'Weather',
+    'workflow.gameplayRules': 'Gameplay Rules',
     'workflow.exefs': 'ExeFS Patches',
     'workflow.exefsPatches': 'ExeFS Patches',
     'workflow.fairyGymBoosts': 'Fairy Gym Boosts',
@@ -35921,6 +35923,8 @@ function getPendingEditSection(edit: PendingEdit): WorkbenchSection | null {
     'workflow.encounters': 'encounters',
     'workflow.outbreaks': 'outbreaks',
     'workflow.distortions': 'distortions',
+    'workflow.weather': 'weather',
+    'workflow.gameplayRules': 'gameplayRules',
     'workflow.exefs': 'exefsPatches',
     'workflow.exefsPatches': 'exefsPatches',
     'workflow.fairyGymBoosts': 'fairyGymBoosts',
