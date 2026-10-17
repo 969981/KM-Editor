@@ -29,6 +29,7 @@ public sealed class PlaWorkflowService
         "distortionEncounters" or "distortionSpawns" or "distortionItems" => "workflow.distortions",
         "capture" or "friendship" or "shiny" or "bagPrices" or "charmPrices" => "workflow.gameplayRules",
         "weather" => "workflow.weather",
+        "typeChart" => "workflow.typeChart",
         "personal" or "learnsets" or "evolutions" or "compatibility" or "tutors" => "workflow.pokemon",
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
     };
@@ -100,6 +101,7 @@ public sealed class PlaWorkflowService
         textFiles = [];
         selectedFile = null;
         catalog.RefreshTutorLabels(edited);
+        if (PlaExecutableCatalog.Supports(kind)) return catalog.Executable.Records(kind, edited);
         if (PlaScriptCatalog.Supports(kind)) return catalog.Scripts.Records(kind, edited);
         if (PlaSettingsCatalog.Supports(kind)) return catalog.Settings.Records(kind, edited);
         if (kind == "weather") return catalog.Weather.Records(edited);
@@ -163,7 +165,7 @@ public sealed class PlaWorkflowService
             var actual = kind == "text" ? TextRecord(catalog, id).Values[key] : catalog.Record(kind, id).Values[key];
             if (value == actual) continue;
             var path = kind == "text" ? TextPath(scope, SplitTextId(id).File) : catalog.ResourcePath(kind, id);
-            edits.Add(new PendingEdit(Domain(kind), $"PLA {current.Label}: {key}", [new(ProjectFileLayer.Base, "romfs/" + path)], kind + "/" + id, key, value, Owner));
+            edits.Add(new PendingEdit(Domain(kind), $"PLA {current.Label}: {key}", [new(ProjectFileLayer.Base, PlaSourceScope.OutputPath(path))], kind + "/" + id, key, value, Owner));
         }
         var result = session with { PendingEdits = edits };
         _ = BuildFiles(catalog, result);
@@ -261,6 +263,13 @@ public sealed class PlaWorkflowService
             if (edit.Domain != Domain(kind)) throw new InvalidDataException("The PLA edit domain is invalid.");
             var field = catalog.Fields(kind).SingleOrDefault(field => field.Key == edit.Field) ?? throw new InvalidDataException("The PLA field is unsupported.");
             var value = Normalize(field, edit.NewValue);
+            if (PlaExecutableCatalog.Supports(kind))
+            {
+                var path = PlaExecutableCatalog.PathFor(kind, id);
+                files[path] = catalog.Executable.Edit(kind, id, files.GetValueOrDefault(path) ?? catalog.Scope.Read(path),
+                    new Dictionary<string, string> { [field.Key] = value });
+                continue;
+            }
             if (kind == "weather")
             {
                 if (!weather.TryGetValue(id, out var values)) weather[id] = values = new(StringComparer.Ordinal);
@@ -448,8 +457,8 @@ public sealed class PlaWorkflowService
         var catalog = new PlaCatalog(scope);
         var files = BuildFiles(catalog, session);
         var sourceFingerprint = scope.Fingerprint();
-        var writes = files.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new PlannedFileWrite("romfs/" + pair.Key,
-            [new(scope.OutputState(pair.Key).Exists ? ProjectFileLayer.Layered : ProjectFileLayer.Base, "romfs/" + pair.Key)], scope.OutputState(pair.Key).Exists,
+        var writes = files.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new PlannedFileWrite(PlaSourceScope.OutputPath(pair.Key),
+            [new(scope.OutputState(pair.Key).Exists ? ProjectFileLayer.Layered : ProjectFileLayer.Base, PlaSourceScope.OutputPath(pair.Key))], scope.OutputState(pair.Key).Exists,
             "PLA data edits", PlaSourceScope.Hash(Encoding.UTF8.GetBytes(sourceFingerprint + ":" + pair.Key + ":" + PlaSourceScope.Hash(pair.Value)))))
             .ToArray();
         return new(new ChangePlan(session.Id, writes, []), files);
@@ -482,8 +491,9 @@ public sealed class PlaWorkflowService
             var inventory = coordinator.GetOwnershipInventorySnapshotAsync().GetAwaiter().GetResult();
             var mutations = prepared.Files.Select(pair =>
             {
-                var path = new RelativeOutputPath("romfs/" + pair.Key);
-                var claim = new OwnedTarget(GameFamily.LegendsArceus, new OwnedTargetAddress(path), new OwnershipOwnerId(Owner), new PreservationRuleDescriptor("pla.loose-preserve", 1, true, true));
+                var path = new RelativeOutputPath(PlaSourceScope.OutputPath(pair.Key));
+                var claim = new OwnedTarget(GameFamily.LegendsArceus, new OwnedTargetAddress(path), new OwnershipOwnerId(Owner),
+                    new PreservationRuleDescriptor(pair.Key == PlaSourceScope.ExecutablePath ? "pla.executable-preserve" : "pla.loose-preserve", 1, true, true));
                 var existing = inventory.Inventory.Files.SingleOrDefault(file => file.Path.CanonicalKey == path.CanonicalKey);
                 var claims = existing is not null && existing.CurrentState == scope.OutputState(pair.Key) ? existing.Claims.Append(claim).Distinct().ToArray() : [claim];
                 return OutputMutation.Write(path, pair.Value, scope.OutputState(pair.Key), claims);

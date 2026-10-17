@@ -41,6 +41,7 @@ public sealed partial class ProjectBridgeDispatcher
         new("distortions", "Space Time Distortions", "Supported PLA distortion encounters, spawn counts, and item selections.", WorkflowAvailabilityDto.Available, []),
         new("weather", "Weather", "PLA area weather selection weights with preserved story conditions.", WorkflowAvailabilityDto.Available, []),
         new("gameplayRules", "Gameplay Rules", "Supported PLA capture factors, friendship changes, and shiny bonuses.", WorkflowAvailabilityDto.Available, []),
+        new("typeChart", "Type Chart", "PLA type matchups with preserved combined damage rules.", WorkflowAvailabilityDto.Available, []),
         new("modelViewer", "3D Model Editor", "PLA Pokemon models, animations, materials, and texture colors.", WorkflowAvailabilityDto.Available, []),
         new("soundStudio", "Sound Studio", "Browse PLA recordings and listen without changing audio files or events.", WorkflowAvailabilityDto.Available, []),
     ]);

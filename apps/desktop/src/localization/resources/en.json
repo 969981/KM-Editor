@@ -1,5 +1,7 @@
 {
   "keys": {
+    "pla.typeChart.description": "Edit PLA type matchups while preserving its combined damage rules.",
+    "pla.notice.typeChart": "Edit individual type matchups. PLA keeps its combined damage rules: two weaknesses give 2.5× damage, and two resistances give 0.4× damage. Restore from Base changes only this table.",
     "pla.kind.bagPrices": "Bag expansion prices",
     "pla.kind.charmPrices": "Charm prices",
     "pla.notice.bagPrices": "Prices for each additional bag slot, in purchase order. Unlock conditions and the 39 expansion limit stay unchanged.",

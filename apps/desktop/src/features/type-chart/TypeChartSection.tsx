@@ -359,7 +359,7 @@ export function TypeChartSection({
   );
 }
 
-function TypeChartTypeBadge({
+export function TypeChartTypeBadge({
   isRowHeader = false,
   type
 }: {
@@ -385,7 +385,7 @@ function TypeChartTypeBadge({
   );
 }
 
-function TypeChartCellControl({
+export function TypeChartCellControl({
   attackTypeLabel,
   defenseTypeLabel,
   disabled,

@@ -469,7 +469,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Advanced editor for the Sword/Shield type-effectiveness table in exefs/main.',
-    games: allGames,
+    games: plaGames,
     icon: Table2,
     id: 'typeChart',
     label: 'Type Chart'
@@ -768,7 +768,8 @@ export function getWorkbenchSectionLabelKey(section: WorkbenchSection) {
   return workbenchSectionLocalization[section].label;
 }
 
-export function getWorkbenchSectionDescriptionKey(section: WorkbenchSection) {
+export function getWorkbenchSectionDescriptionKey(section: WorkbenchSection, game?: ProjectGame) {
+  if (game === 'pla' && section === 'typeChart') return 'pla.typeChart.description';
   return workbenchSectionLocalization[section].description;
 }
 

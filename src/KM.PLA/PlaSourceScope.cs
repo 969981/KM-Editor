@@ -10,6 +10,8 @@ namespace KM.PLA;
 
 internal sealed class PlaSourceScope : IDisposable
 {
+    internal const string ExecutablePath = "exefs/main";
+    internal static string OutputPath(string relative) => relative == ExecutablePath ? relative : "romfs/" + relative;
     internal const string PersonalPath = "bin/pml/personal/personal_data_total.perbin";
     internal const string LearnsetsPath = "bin/pml/waza_oboe/waza_oboe_total.wazaoboe";
     internal const string EvolutionsPath = "bin/pml/evolution/evolution_data_total.evobin";
@@ -113,7 +115,8 @@ internal sealed class PlaSourceScope : IDisposable
     internal byte[] Base(string relative)
     {
         if (!vanilla.TryGetValue(relative, out var bytes))
-            vanilla[relative] = bytes = ReadBounded(OpenBase(Resolve(Paths.BaseRomFsPath!, relative)));
+            vanilla[relative] = bytes = ReadBounded(OpenBase(relative == ExecutablePath
+                ? Resolve(Paths.BaseExeFsPath!, "main") : Resolve(Paths.BaseRomFsPath!, relative)));
         return bytes;
     }
 
@@ -121,7 +124,7 @@ internal sealed class PlaSourceScope : IDisposable
     {
         if (sources.TryGetValue(relative, out var bytes)) return bytes;
         var original = Base(relative);
-        var output = string.IsNullOrWhiteSpace(Paths.OutputRootPath) ? null : Resolve(Paths.OutputRootPath, "romfs/" + relative);
+        var output = string.IsNullOrWhiteSpace(Paths.OutputRootPath) ? null : Resolve(Paths.OutputRootPath, OutputPath(relative));
         if (output is not null && File.Exists(output))
         {
             // The transaction coordinator rechecks this exact output preimage.
@@ -178,7 +181,7 @@ internal sealed class PlaSourceScope : IDisposable
         if (string.IsNullOrWhiteSpace(Paths.OutputRootPath)) return;
         foreach (var (relative, expected) in outputStates)
         {
-            var path = Resolve(Paths.OutputRootPath, "romfs/" + relative);
+            var path = Resolve(Paths.OutputRootPath, OutputPath(relative));
             var actual = OutputFileState.Missing;
             if (File.Exists(path))
             {
@@ -189,7 +192,7 @@ internal sealed class PlaSourceScope : IDisposable
         }
     }
     internal IEnumerable<OutputReadDependency> Dependencies => outputStates.OrderBy(p => p.Key, StringComparer.Ordinal)
-        .Select(pair => new OutputReadDependency(new RelativeOutputPath("romfs/" + pair.Key), pair.Value));
+        .Select(pair => new OutputReadDependency(new RelativeOutputPath(OutputPath(pair.Key)), pair.Value));
     internal static string Hash(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes));
     internal static OutputFileState State(byte[] bytes) => OutputFileState.Existing(Hash(bytes), bytes.Length);
 

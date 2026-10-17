@@ -279,7 +279,12 @@ export function isSharedStagedEditorSection(
   section: WorkbenchSection,
   game: ProjectGame | null | undefined
 ) {
-  return sharedStagedEditorSectionIds.has(section) && isWorkflowSupportedForGame(section, game);
+  return (sharedStagedEditorSectionIds.has(section) || game === 'pla' && section === 'typeChart')
+    && isWorkflowSupportedForGame(section, game);
+}
+
+export function isSharedStagedEditorDomain(domain: string, game: ProjectGame | null | undefined) {
+  return sharedStagedEditorDomains.has(domain) || game === 'pla' && domain === 'workflow.typeChart';
 }
 
 export function isScarletVioletAdvancedEditorSection(
