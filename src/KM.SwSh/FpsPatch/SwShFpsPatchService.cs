@@ -1761,7 +1761,8 @@ public sealed class SwShFpsPatchService
             return "battleInterface";
         }
 
-        if (normalized.StartsWith(BattleModelAnimationRootRelativePath + "/", StringComparison.OrdinalIgnoreCase))
+        if (normalized.StartsWith(BattleModelAnimationRootRelativePath + "/", StringComparison.OrdinalIgnoreCase)
+            || SwShFpsStadiumAudiencePatcher.IsManagedPath(normalized))
         {
             return "battleModels";
         }
@@ -1972,6 +1973,8 @@ public sealed class SwShFpsPatchService
             {
                 AddRequiredManagedRomFsFile(baseRomFsPath, relativePath, files, diagnostics);
             }
+            foreach (var relativePath in SwShFpsStadiumAudiencePatcher.RelativePaths)
+                AddRequiredManagedRomFsFile(baseRomFsPath, relativePath, files, diagnostics);
         }
 
         if (Includes(SwShFpsPatchAnimationTimingComponents.OpeningAndDemos))
@@ -2447,6 +2450,8 @@ public sealed class SwShFpsPatchService
     private static byte[] ConvertManagedRomFsFile(string relativePath, byte[] sourceBytes)
     {
         var normalized = NormalizeRelativePath(relativePath);
+        if (SwShFpsStadiumAudiencePatcher.IsManagedPath(normalized))
+            return SwShFpsStadiumAudiencePatcher.ConvertArchive(normalized, sourceBytes);
         if (string.Equals(normalized, SwShFpsFieldAnimationPatcher.RelativePath, StringComparison.OrdinalIgnoreCase))
             return SwShFpsFieldAnimationPatcher.ConvertScript(sourceBytes);
         if (ManagedBseqTimelineScales.TryGetValue(normalized, out var scale))
@@ -2542,6 +2547,7 @@ public sealed class SwShFpsPatchService
     private static bool IsSpecialManagedRomFsPath(string normalizedRelativePath)
     {
         return string.Equals(normalizedRelativePath, OpeningDemoBseqRelativePath, StringComparison.OrdinalIgnoreCase)
+            || SwShFpsStadiumAudiencePatcher.IsManagedPath(normalizedRelativePath)
             || ManagedBseqTimelineScales.ContainsKey(normalizedRelativePath)
             || IsManagedBattleModelAnimationPath(normalizedRelativePath)
             || string.Equals(
