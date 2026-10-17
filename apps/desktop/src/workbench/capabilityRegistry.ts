@@ -651,7 +651,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Browse game audio and listen in Sound Studio.',
-    games: allGames,
+    games: plaGames,
     icon: Music,
     id: 'soundStudio',
     label: 'Sound Studio',

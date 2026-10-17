@@ -70,6 +70,7 @@ export default function SoundStudioSection({ paths, catalogRevision = '' }: { pa
   return <section className="panel wide-panel sound-studio" aria-labelledby="sound-studio-title">
     <header className="sound-studio__header"><Music size={24} aria-hidden="true" /><div><h2 id="sound-studio-title">{t('soundStudio.title')}</h2><p>{t('soundStudio.description')}</p></div>
       <button type="button" onClick={() => { player?.stop(); setSelected(null); setRevision(value => value + 1); }}>{t('soundStudio.reload')}</button></header>
+    {paths.selectedGame === 'pla' ? <p>{t('soundStudio.plaScope')}</p> : null}
     {!isTauri() ? <p>{t('soundStudio.desktopRequired')}</p> : null}
     {loading ? <div className="sound-studio__loading"><LoadingProgress operationKey={revision} label={t('soundStudio.loading')} completed={progress[0]} total={progress[1] || undefined} onCancel={stopCatalog} cancelLabel={t('soundStudio.cancel')} /></div> : null}
     <div className="sound-studio__workspace">

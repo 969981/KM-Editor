@@ -549,6 +549,7 @@
     "soundStudio.explain.procedural": "Prozedurales Audio. Aufnahmen sind einzelne Samples. Interaktive Ereignisse, Zufallsauswahl, Ebenen, Effekte und Spielabläufe werden nicht rekonstruiert. Originale Bankkennungen und Medienkennungen bleiben erhalten.",
     "soundStudio.title": "Sound Studio",
     "soundStudio.description": "Spielaudio durchsuchen und anhören.",
+    "soundStudio.plaScope": "Sound Studio für PLA spielt einzelne Aufnahmen ab. Audioersetzung und Ereignisbearbeitung sind nicht verfügbar. Interaktive Musik, Ereignisabläufe und räumliche Effekte werden nicht nachgebildet.",
     "soundStudio.reload": "Neu laden",
     "soundStudio.loading": "Audiokatalog wird geladen…",
     "soundStudio.cancel": "Abbrechen",

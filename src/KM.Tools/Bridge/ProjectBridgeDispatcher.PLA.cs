@@ -19,6 +19,7 @@ public sealed partial class ProjectBridgeDispatcher
         or KmCommandNames.CreateChangePlan or KmCommandNames.ApplyChangePlan
         or KmCommandNames.ModelCatalog or KmCommandNames.ModelPrepare or KmCommandNames.ModelTextures
         or KmCommandNames.ModelTextureStage or KmCommandNames.ModelProperties or KmCommandNames.ModelAssetStage
+        or KmCommandNames.SoundStudio
         || command.StartsWith("project.", StringComparison.Ordinal)
         || command.StartsWith("workspace.", StringComparison.Ordinal)
         || IsOutputSafetyCommand(command) || IsChangeSetCommand(command);
@@ -41,6 +42,7 @@ public sealed partial class ProjectBridgeDispatcher
         new("weather", "Weather", "PLA area weather selection weights with preserved story conditions.", WorkflowAvailabilityDto.Available, []),
         new("gameplayRules", "Gameplay Rules", "Supported PLA capture factors, friendship changes, and shiny bonuses.", WorkflowAvailabilityDto.Available, []),
         new("modelViewer", "3D Model Editor", "PLA Pokemon models, animations, materials, and texture colors.", WorkflowAvailabilityDto.Available, []),
+        new("soundStudio", "Sound Studio", "Browse PLA recordings and listen without changing audio files or events.", WorkflowAvailabilityDto.Available, []),
     ]);
 
     private string DispatchLoadPla(string requestJson)

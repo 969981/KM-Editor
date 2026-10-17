@@ -549,6 +549,7 @@
     "soundStudio.explain.procedural": "Procedural audio. Recordings are individual samples. Interactive events, random choices, layers, effects and game timing are not reconstructed. Original bank and media identifiers are preserved.",
     "soundStudio.title": "Sound Studio",
     "soundStudio.description": "Browse and listen to game audio.",
+    "soundStudio.plaScope": "PLA Sound Studio previews individual recordings. Audio replacement and event editing are unavailable. Interactive music, event sequencing, and spatial effects are not reproduced.",
     "soundStudio.reload": "Reload",
     "soundStudio.loading": "Loading sound catalog…",
     "soundStudio.cancel": "Cancel",

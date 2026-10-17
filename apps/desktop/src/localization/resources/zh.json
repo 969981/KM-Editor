@@ -549,6 +549,7 @@
     "soundStudio.explain.procedural": "程序生成的音频. 录音为单独的采样。不还原交互事件、随机选择、音频层、效果或游戏时序。保留原始音频库和媒体标识符。",
     "soundStudio.title": "Sound Studio",
     "soundStudio.description": "浏览并收听游戏音频。",
+    "soundStudio.plaScope": "PLA 的 Sound Studio 可试听单独的录音。目前不支持替换音频或编辑事件，也不会重现交互式音乐、事件序列或空间效果。",
     "soundStudio.reload": "重新加载",
     "soundStudio.loading": "正在加载音频目录…",
     "soundStudio.cancel": "取消",
