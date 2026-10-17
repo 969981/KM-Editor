@@ -511,12 +511,13 @@ public sealed class SwShRentalPokemonWorkflowService
         int speciesId,
         int form,
         int level,
-        IReadOnlyList<SwShRentalPokemonMoveRecord> moves)
+        IReadOnlyList<SwShRentalPokemonMoveRecord> moves,
+        int maximumMoveCount = 2)
     {
         var speciesLabel = SwShSpeciesFormLabels.FormatSpeciesFormLabel(species, speciesId, form);
         var moveSummary = string.Join(", ", moves
             .Where(move => !string.IsNullOrWhiteSpace(move.Move))
-            .Take(2)
+            .Take(maximumMoveCount)
             .Select(move => move.Move));
         var suffix = string.IsNullOrWhiteSpace(moveSummary) ? string.Empty : $" | {moveSummary}";
 

@@ -383,7 +383,7 @@ public static class GameDumpWriter
                 properties.Select(property => EncodeDelimitedCell(FormatCellValue(property.GetValue(row)), format))));
         }
 
-        File.WriteAllText(fullPath, builder.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+        File.WriteAllText(fullPath, builder.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
         return new GameDumpWrittenFile(categoryId, relativePath, new FileInfo(fullPath).Length);
     }
 
@@ -398,7 +398,7 @@ public static class GameDumpWriter
         File.WriteAllLines(
             fullPath,
             rows.Select(row => FormatTextRow(row, includeLanguage)),
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
 
         return new GameDumpWrittenFile(categoryId, relativePath, new FileInfo(fullPath).Length);
     }
