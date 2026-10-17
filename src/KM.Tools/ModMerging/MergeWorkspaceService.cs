@@ -15,6 +15,7 @@ namespace KM.Tools.ModMerging;
 
 public sealed class MergeWorkspaceService
 {
+    private const int MaximumOutputFiles = 2_048;
     private const string PackedData = "romfs/arc/data.trpfs";
     private const string Descriptor = "romfs/arc/data.trpfd";
     private static readonly OwnershipOwnerId Owner = new("workflow.mod-merger");
@@ -32,7 +33,7 @@ public sealed class MergeWorkspaceService
         var paths = prepared.Paths!;
         var coordinator = OutputTransactionCoordinator.ForProject(paths, new OutputTransactionCoordinatorOptions
         {
-            MaximumMutationsPerApply = OutputLimits.MaximumMutationsPerApply,
+            MaximumMutationsPerApply = MaximumOutputFiles,
             MaximumWriteBytesPerMutation = OutputLimits.MaximumWriteBytesPerMutation,
             MaximumWriteBytesPerApply = OutputLimits.MaximumWriteBytesPerApply,
             MaximumBackupBytesPerApply = OutputLimits.MaximumBackupBytesPerApply,
@@ -301,7 +302,7 @@ public sealed class MergeWorkspaceService
                 mutations.Add(OutputMutation.Write(relative, pair.Value, preimage, [claim]));
             }
         }
-        if (mutations.Count > OutputLimits.MaximumMutationsPerApply || output.Values.Sum(value => (long)value.Length) > OutputLimits.MaximumWriteBytesPerApply)
+        if (mutations.Count > MaximumOutputFiles || output.Values.Sum(value => (long)value.Length) > OutputLimits.MaximumWriteBytesPerApply)
             issues.Add(new(MergeWorkspaceErrorCodes.LimitExceeded, "error", "This output exceeds the supported transaction size. Split the package into smaller groups."));
         var token = Convert.ToHexStringLower(fingerprint.GetHashAndReset());
         var ready = paths is not null && (output.Count != 0 || mutations.Count != 0) && !issues.Any(issue => issue.Severity == "error") && conflicts.All(conflict => conflict.Resolution is not null);
