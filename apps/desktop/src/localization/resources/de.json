@@ -1,5 +1,6 @@
 {
   "keys": {
+    "restoration.soundMemoryHelp": "Beim Wiederherstellen von Pokémon wird auch die Korrektur für den Audiospeicher angewendet. Dafür ist Basis-ExeFS 1.3.2 erforderlich. Entferne bei einer älteren Installation die Ressourcen eines Pokémon und wende die Änderungen an. Bereite seine Ressourcen erneut vor, merke die Änderungen vor und wende sie an. Deaktiviere ältere separat installierte Audiospeicher-Patches.",
     "trinityOutput.svManagerHelp": "Wenn trinity-mod-manager-romfs/ vorhanden ist, füge diesen Ordner zu Trinity Mod Manager hinzu, andernfalls den RomFS-Quellordner. Installiere das erzeugte romfs/ neben exefs/ im Ausgabeordner, falls ausführbare Dateien ausgegeben wurden. Füge exefs/ nicht zu Trinity Mod Manager hinzu.",
     "moves.teraBlast.heading": "Terakristall",
     "moves.teraBlast.typeBehavior": "Typ nach der Terakristallisierung",
@@ -5396,6 +5397,17 @@
     "pla.field.baseExperience": "Basis-Erfahrung"
   },
   "literals": {
+    "Restored sounds require the selected game's supported 1.3.2 executable.": "Wiederhergestellte Sounds erfordern die unterstützte ausführbare Datei der Version 1.3.2 des ausgewählten Spiels.",
+    "The sound memory executable has an invalid segment checksum.": "Die ausführbare Datei für den Audiospeicher hat eine ungültige Segmentprüfsumme.",
+    "The sound memory budgets contain incompatible changes. Restore a supported executable before adding restored sounds.": "Die Audiospeichergrenzen enthalten inkompatible Änderungen. Stelle eine unterstützte ausführbare Datei wieder her, bevor du wiederhergestellte Sounds hinzufügst.",
+    "The sound memory initialization contains incompatible changes.": "Die Initialisierung des Audiospeichers enthält inkompatible Änderungen.",
+    "Base ExeFS must contain the original sound memory budgets.": "Basis-ExeFS muss die ursprünglichen Audiospeichergrenzen enthalten.",
+    "Sound memory output failed preservation verification.": "Die Prüfung auf Erhaltung der Daten ist bei der Audiospeicherausgabe fehlgeschlagen.",
+    "Select the game's Base ExeFS folder to apply the sound memory required by restored Pokemon.": "Wähle den Basis-ExeFS-Ordner des Spiels aus, um den für wiederhergestellte Pokémon benötigten Audiospeicher anzuwenden.",
+    "Restoration Sound Memory": "Audiospeicher für Wiederherstellungen",
+    "Shared sound memory global budget": "Gemeinsame globale Grenze für den Audiospeicher",
+    "Shared sound memory parent budget": "Gemeinsame übergeordnete Grenze für den Audiospeicher",
+    "Shared sound pool budget": "Gemeinsame Grenze des Audiopools",
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Das Super-Spezialtraining verwendet einen älteren Levelpatch, der für die Symbole im Team und in den Boxen weiterhin Lv.100 voraussetzt. Wende diesen Editor erneut an, um die Auswahl zu aktualisieren.",
     "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "Das Super-Spezialtraining zeigt ebenfalls IVs an, mit einer Diagrammskala von 0 bis 31.",
     "League Staff Isaac": "Liga-Mitarbeiter Isaac",

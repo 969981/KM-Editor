@@ -1,5 +1,6 @@
 {
   "keys": {
+    "restoration.soundMemoryHelp": "Restoring Pokémon also applies the sound memory fix and requires Base ExeFS 1.3.2. For an older installation, remove one Pokémon’s assets and Apply, prepare its assets again, then Stage and Apply. Disable any older standalone sound memory patch.",
     "trinityOutput.svManagerHelp": "Add trinity-mod-manager-romfs/ to Trinity Mod Manager when that folder is present; otherwise add the RomFS source folder. Install the generated romfs/ alongside Output Root exefs/ when executable output is present. Do not add exefs/ to Trinity Mod Manager.",
     "moves.teraBlast.heading": "Tera Blast",
     "moves.teraBlast.typeBehavior": "Type while Terastallized",
@@ -5396,6 +5397,17 @@
     "pla.field.baseExperience": "Base experience"
   },
   "literals": {
+    "Restored sounds require the selected game's supported 1.3.2 executable.": "Restored sounds require the selected game's supported 1.3.2 executable.",
+    "The sound memory executable has an invalid segment checksum.": "The sound memory executable has an invalid segment checksum.",
+    "The sound memory budgets contain incompatible changes. Restore a supported executable before adding restored sounds.": "The sound memory budgets contain incompatible changes. Restore a supported executable before adding restored sounds.",
+    "The sound memory initialization contains incompatible changes.": "The sound memory initialization contains incompatible changes.",
+    "Base ExeFS must contain the original sound memory budgets.": "Base ExeFS must contain the original sound memory budgets.",
+    "Sound memory output failed preservation verification.": "Sound memory output failed preservation verification.",
+    "Select the game's Base ExeFS folder to apply the sound memory required by restored Pokemon.": "Select the game's Base ExeFS folder to apply the sound memory required by restored Pokemon.",
+    "Restoration Sound Memory": "Restoration Sound Memory",
+    "Shared sound memory global budget": "Shared sound memory global budget",
+    "Shared sound memory parent budget": "Shared sound memory parent budget",
+    "Shared sound pool budget": "Shared sound pool budget",
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.",
     "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "Hyper Training also displays IVs, with the graph scaled from 0 to 31.",
     "League Staff Isaac": "League Staff Isaac",

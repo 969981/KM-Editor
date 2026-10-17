@@ -172,18 +172,15 @@ internal static class MergeExecutableEdits
             var baseSegment = baseline.Segments[index];
             var data = images.Select(image => image.Segments[index].DecompressedData).ToArray();
             var covered = new bool[(result[index].Length + 3) / 4];
-            if (index is 0 or 1)
+            foreach (var group in MergeExecutableGroups.Read(Convert.ToHexString(baseline.BuildId), index))
             {
-                foreach (var group in MergeExecutableGroups.Read(Convert.ToHexString(baseline.BuildId), ro: index == 1))
-                {
-                    // Reservations for expanded images may lie beyond an unexpanded image.
-                    // Layout compatibility was already checked before composing any bytes.
-                    var ranges = group.Ranges.Where(r => r.Offset >= 0 && r.Offset <= result[index].Length - r.Length).ToArray();
-                    if (ranges.Length == 0) continue;
-                    Select(group.Label, ranges);
-                    foreach (var range in ranges)
-                        for (var offset = range.Offset; offset < range.Offset + range.Length; offset += 4) covered[offset / 4] = true;
-                }
+                // Reservations for expanded images may lie beyond an unexpanded image.
+                // Layout compatibility was already checked before composing any bytes.
+                var ranges = group.Ranges.Where(r => r.Offset >= 0 && r.Offset <= result[index].Length - r.Length).ToArray();
+                if (ranges.Length == 0) continue;
+                Select(group.Label, ranges);
+                foreach (var range in ranges)
+                    for (var offset = range.Offset; offset < range.Offset + range.Length; offset += 4) covered[offset / 4] = true;
             }
             for (var offset = 0; offset < result[index].Length; offset += 4)
             {

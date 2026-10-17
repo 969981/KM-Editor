@@ -20,6 +20,7 @@ internal static class SwShIndependentExeFsHookDetector
         var ivScreenKind = SwShIvScreenMainPatcher.Analyze(mainBytes).Kind;
         var fpsPatchKind = SwShFpsMainPatcher.Analyze(mainBytes).Kind;
         return SwShCatchCapMainPatcher.Analyze(mainBytes).Kind == SwShCatchCapInstallKind.InstalledV1
+            || KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.HasInstalledPatch(mainBytes)
             || KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.HasInstalledHook(mainBytes)
             || SwShFashionUnlockMainPatcher.HasInstalledHook(mainBytes)
             || SwShGymUniformRemovalMainPatcher.HasInstalledHook(mainBytes)

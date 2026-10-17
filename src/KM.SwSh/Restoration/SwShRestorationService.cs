@@ -85,7 +85,7 @@ public sealed class SwShRestorationService
             var sources = preview.Sources.Concat(references.Sources).Distinct().ToArray();
             var writes = preview.Files.Keys.Order(StringComparer.Ordinal).Select(path => new PlannedFileWrite(path,
                 path == SwShRestorationComposer.PersonalPath ? sources : [],
-                System.IO.File.Exists(Output(paths, path)), "Update restored Pokemon while retaining unrelated resources and project customizations.")).ToArray();
+                System.IO.File.Exists(Output(paths, path, includeExecutable: true)), "Update restored Pokemon while retaining unrelated resources and project customizations.")).ToArray();
             return SwShChangePlanSourceGuard.Capture(paths, new(session.Id, writes, []) { EffectivePendingEdits = session.PendingEdits }, preserveExplicitSourceLayers: true);
         }
         catch (Exception exception) when (SourceError(exception)) { return new(session.Id, [], [Error(SourceCode, exception.Message)]); }
@@ -138,6 +138,7 @@ public sealed class SwShRestorationService
         var snapshot = SwShRestorationStateStore.Read(paths); var selections = snapshot.State.Selections.ToDictionary(s => s.DefinitionId, StringComparer.Ordinal);
         var owned = SwShRestorationOwnership.ExactFiles(paths);
         var outputs = new Dictionary<string, byte[]?>(StringComparer.Ordinal); var sources = new HashSet<ProjectFileReference>(); var removed = new HashSet<int>();
+        var needsSoundMemory = false;
         byte[]? Current(string path)
         {
             if (outputs.TryGetValue(path, out var value)) return value;
@@ -153,6 +154,7 @@ public sealed class SwShRestorationService
             foreach (var source in expected.Sources) sources.Add(source);
             var bundle = SwShRestorationStateStore.ReadPrepared(paths, intent.PreparedHash);
             if (bundle.DefinitionId != intent.DefinitionId) throw new InvalidDataException("Prepared restoration definition does not match the selection.");
+            needsSoundMemory |= intent.Enabled && bundle.Contributions.Any(c => c.Writer == SwShRestorationWriter.Voices);
             selections.TryGetValue(intent.DefinitionId, out var installed);
             if (installed?.RemovalId is not null && intent.Enabled) installed = null;
             if (intent.RemovalId is not null && installed?.Enabled != true)
@@ -211,10 +213,25 @@ public sealed class SwShRestorationService
         }
         var state = new SwShRestorationState(1, selections.Values.OrderBy(s => s.DefinitionId, StringComparer.Ordinal).ToArray());
         foreach (var file in SwShRestorationDependencies.Reconcile(paths, snapshot.State, state, Current)) outputs[file.Key] = file.Value;
+        if (needsSoundMemory) AddSoundMemory(paths, outputs, sources);
         var storedState = SwShRestorationStateStore.Store(paths, state); using (storedState.Lease) { }
         if (!outputs.ContainsKey(SwShRestorationComposer.PersonalPath)) outputs.Add(SwShRestorationComposer.PersonalPath, Current(SwShRestorationComposer.PersonalPath)
             ?? throw new InvalidDataException("Restoration state requires a personal data anchor."));
         return new(outputs, storedState.Hash, snapshot.Hash, state, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(), removed.Order().ToArray());
+    }
+
+    private static void AddSoundMemory(ProjectPaths paths, IDictionary<string, byte[]?> outputs, ISet<ProjectFileReference> sources)
+    {
+        if (string.IsNullOrWhiteSpace(paths.BaseExeFsPath))
+            throw new InvalidDataException("Select the game's Base ExeFS folder to apply the sound memory required by restored Pokemon.");
+        const string relative = SwShRestorationSoundMemoryPatcher.MainPath;
+        var baseline = BoundedRead(Path.Combine(paths.BaseExeFsPath, "main"));
+        sources.Add(new(ProjectFileLayer.Base, relative));
+        var output = Output(paths, relative, includeExecutable: true);
+        var current = baseline;
+        if (System.IO.File.Exists(output)) { current = BoundedRead(output); sources.Add(new(ProjectFileLayer.Layered, relative)); }
+        var patched = SwShRestorationSoundMemoryPatcher.Apply(baseline, current, paths.SelectedGame!.Value);
+        if (!patched.AsSpan().SequenceEqual(current)) outputs[relative] = patched;
     }
 
     public static IReadOnlyList<ProjectFileReference> WritePreview(ProjectPaths paths, SwShRestorationPreview preview)

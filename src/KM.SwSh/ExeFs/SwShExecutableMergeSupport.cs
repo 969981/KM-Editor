@@ -60,6 +60,10 @@ public static class SwShExecutableMergeSupport
         [new("Held Item Chance", SwShHeldItemChancePatcher.RateOffset, 6),
          new("Game Options", SwShGameOptionsPatcher.DescriptorsOffset, 16 * 56)];
 
+    public static IReadOnlyList<SwShExecutableMergeRegion> DataRegions(string build) => GameForBuild(build) is null ? [] :
+        KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.Reservations().Where(r => r.Area == "main.data")
+            .Select(r => new SwShExecutableMergeRegion(r.Owner, r.StartOffset!.Value, r.Length!.Value)).ToArray();
+
     public static int? HyperLevel(string path, byte[] bytes)
     {
         if (path.Equals("exefs/main", StringComparison.OrdinalIgnoreCase))
@@ -93,6 +97,18 @@ public static class SwShExecutableMergeSupport
         if (GameForBuild(Convert.ToHexString(NsoFile.Parse(original).BuildId)) is not { } game) return true;
         var beforeOptions = NsoFile.Parse(original);
         var afterOptions = NsoFile.Parse(merged);
+        if (KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.Reservations().Any(region =>
+            !(region.Area == "main.data" ? beforeOptions.Data : beforeOptions.Text).DecompressedData
+                .AsSpan(region.StartOffset!.Value, region.Length!.Value).SequenceEqual(
+                    (region.Area == "main.data" ? afterOptions.Data : afterOptions.Text).DecompressedData.AsSpan(region.StartOffset.Value, region.Length.Value))))
+        {
+            try
+            {
+                if (KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.Read(merged, game).State
+                    == KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.Kind.Legacy256) return false;
+            }
+            catch (InvalidDataException) { return false; }
+        }
         if (SwShGameOptionsPatcher.CreateReservations().Where(region =>
                 !region.FeatureId.Contains(game == ProjectGame.Sword ? "-shield-" : "-sword-", StringComparison.Ordinal))
             .Any(region => !(region.Area == "main.ro" ? beforeOptions.Ro : beforeOptions.Text).DecompressedData
