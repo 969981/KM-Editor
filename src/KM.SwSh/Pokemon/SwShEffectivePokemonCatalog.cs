@@ -4,6 +4,7 @@ using KM.Core.Projects;
 using KM.Formats.SwSh;
 using KM.Formats.Models;
 using KM.SwSh.Restoration;
+using KM.Core.Files;
 
 namespace KM.SwSh.Pokemon;
 
@@ -19,6 +20,7 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
 {
     public const int MaximumSpecies = 898;
     public const string ModelCatalogPath = "romfs/bin/pokemon/table/poke_resource_table.gfbpmcatalog";
+    internal IReadOnlyList<ProjectFileReference> Sources { get; init; } = [];
     public bool Available => UnavailableReason is null;
     public IReadOnlySet<int> SpeciesFor(SwShPokemonCapability capability) => Entries
         .Where(e => (e.Capabilities & capability) == capability).Select(e => e.Identity.Species).ToHashSet();
@@ -27,9 +29,10 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
     {
         try
         {
-            var nativeBytes = Read(paths, SwShPersonalTable.PersonalDataRelativePath, native: true);
-            var currentBytes = Read(paths, SwShPersonalTable.PersonalDataRelativePath);
-            var catalogBytes = Read(paths, ModelCatalogPath);
+            var sources = new HashSet<ProjectFileReference>();
+            var nativeBytes = Read(paths, SwShPersonalTable.PersonalDataRelativePath, native: true, sources: sources);
+            var currentBytes = Read(paths, SwShPersonalTable.PersonalDataRelativePath, sources: sources);
+            var catalogBytes = Read(paths, ModelCatalogPath, sources: sources);
             var native = SwShPersonalTable.Parse(nativeBytes, 4096).Records;
             var current = SwShPersonalTable.Parse(currentBytes, 4096).Records;
             if (native.Count <= MaximumSpecies || current.Count != native.Count)
@@ -41,7 +44,7 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
             byte[] ReadResource(string path)
             {
                 if (observed.TryGetValue(path, out var cached)) return cached;
-                var bytes = Read(paths, path); observedBytes += bytes.Length;
+                var bytes = Read(paths, path, sources: sources); observedBytes += bytes.Length;
                 if (observedBytes > 384L * 1024 * 1024) throw new InvalidDataException("Restoration catalog exceeds its resource budget.");
                 observed.Add(path, bytes); hash.AppendData(System.Text.Encoding.UTF8.GetBytes(path)); hash.AppendData(bytes); return bytes;
             }
@@ -81,7 +84,7 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
             }).ToArray();
             hash.AppendData(nativeBytes); hash.AppendData(currentBytes); hash.AppendData(catalogBytes);
             hash.AppendData(System.Text.Encoding.UTF8.GetBytes(state.Hash ?? ""));
-            return new(Convert.ToHexStringLower(hash.GetHashAndReset()), entries, null);
+            return new(Convert.ToHexStringLower(hash.GetHashAndReset()), entries, null) { Sources = sources.ToArray() };
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or OverflowException
             or System.Text.Json.JsonException or KM.Core.Output.OutputCoordinatorException)
@@ -139,15 +142,23 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
         }
     }
 
-    internal static byte[] Read(ProjectPaths paths, string relativePath, bool native = false)
+    internal static byte[] Read(ProjectPaths paths, string relativePath, bool native = false,
+        ISet<ProjectFileReference>? sources = null)
     {
         if (!relativePath.StartsWith("romfs/", StringComparison.Ordinal) || relativePath.Contains("..", StringComparison.Ordinal))
             throw new InvalidDataException("Pokemon source path is invalid.");
         var path = !native && !string.IsNullOrWhiteSpace(paths.OutputRootPath)
             ? Path.Combine(paths.OutputRootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)) : null;
-        if (path is null || !File.Exists(path)) path = Path.Combine(paths.BaseRomFsPath ?? throw new InvalidDataException("Target RomFS is not configured."), relativePath[6..].Replace('/', Path.DirectorySeparatorChar));
+        var layer = ProjectFileLayer.Layered;
+        if (path is null || !File.Exists(path))
+        {
+            path = Path.Combine(paths.BaseRomFsPath ?? throw new InvalidDataException("Target RomFS is not configured."), relativePath[6..].Replace('/', Path.DirectorySeparatorChar));
+            layer = ProjectFileLayer.Base;
+        }
         var info = new FileInfo(path);
         if (!info.Exists || info.Length is < 1 or > 64 * 1024 * 1024) throw new InvalidDataException("Pokemon source is missing or exceeds its read budget.");
-        return File.ReadAllBytes(path);
+        var bytes = File.ReadAllBytes(path);
+        sources?.Add(new(layer, relativePath));
+        return bytes;
     }
 }
