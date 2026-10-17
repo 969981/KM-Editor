@@ -46,6 +46,8 @@ internal sealed class PlaCatalog
     internal PlaBattleCatalog Battles { get; }
     private PlaEconomyCatalog? economy;
     internal PlaEconomyCatalog Economy => economy ??= new(this);
+    private PlaWildCatalog? wild;
+    internal PlaWildCatalog Wild => wild ??= new(this);
     internal PlaFlatBuffer Personal { get; }
     internal Dictionary<string, int> Pokemon { get; } = new(StringComparer.Ordinal);
     internal Dictionary<int, (string Path, PlaFlatBuffer Buffer)> Moves { get; } = [];
@@ -139,6 +141,7 @@ internal sealed class PlaCatalog
 
     internal PlaField[] Fields(string kind) => kind switch
     {
+        _ when PlaWildCatalog.Supports(kind) => Wild.Fields(kind),
         _ when PlaEconomyCatalog.Supports(kind) => Economy.Fields(kind),
         "personal" => PersonalFields.Keys.Select(key => key switch
         {
@@ -220,13 +223,15 @@ internal sealed class PlaCatalog
         return (path, cached.Buffer, target);
     }
 
-    internal string ResourcePath(string kind, string id) => PlaEconomyCatalog.Supports(kind) ? Economy.PathFor(kind, id) : Locate(kind, id).Path;
+    internal string ResourcePath(string kind, string id) => PlaWildCatalog.Supports(kind) ? Wild.PathFor(kind, id)
+        : PlaEconomyCatalog.Supports(kind) ? Economy.PathFor(kind, id) : Locate(kind, id).Path;
 
     internal static ushort[][] Rows(PlaFlatBuffer table, int reference, int field, int columns) => table.VectorReferences(table.TableAtReference(reference), field, 1024)
         .Select(r => Enumerable.Range(0, columns).Select(i => checked((ushort)table.Scalar(table.TableAtReference(r), i))).ToArray()).ToArray();
 
     internal PlaRecord Record(string kind, string id, byte[]? edited = null)
     {
+        if (PlaWildCatalog.Supports(kind)) return Wild.Record(kind, id, edited);
         if (PlaEconomyCatalog.Supports(kind)) return Economy.Record(kind, id, edited);
         if (PlaBattleCatalog.Supports(kind)) return Battles.Record(kind, id, edited);
         var resource = Locate(kind, id);

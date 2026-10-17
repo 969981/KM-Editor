@@ -22,6 +22,7 @@ public sealed class PlaWorkflowService
         "trainers" => "workflow.trainers", "gifts" => "workflow.giftPokemon", "static" => "workflow.staticEncounters",
         "items" => "workflow.items", "crafting" => "workflow.crafting", "shops" or "ginkgo" => "workflow.shops",
         "drops" => "workflow.pokemonDrops", "research" or "ranks" => "workflow.research",
+        "encounters" or "spawns" => "workflow.encounters",
         "personal" or "learnsets" or "evolutions" or "compatibility" or "tutors" => "workflow.pokemon",
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
     };
@@ -50,6 +51,7 @@ public sealed class PlaWorkflowService
         var matching = records.Where(Matches).ToArray();
         var total = matching.Length;
         var visible = matching.Skip(offset).Take(100).ToArray();
+        PlaChoice[] groupChoices = [];
         if (kind == "trainers")
         {
             // Keep complete parties together while bounding the response to 96 slots.
@@ -64,6 +66,13 @@ public sealed class PlaWorkflowService
             total = inventories.Length;
             visible = inventories.Skip(offset).Take(3).SelectMany(group => group).ToArray();
         }
+        if (kind == "encounters")
+        {
+            var groups = records.GroupBy(record => record.Metadata["area"] + "/" + record.Metadata["table"]).Where(group => group.Any(Matches)).ToArray();
+            groupChoices = groups.Select((group, index) => new PlaChoice(index.ToString(CultureInfo.InvariantCulture), group.Key)).ToArray();
+            total = groups.Length;
+            visible = groups.Skip(offset).Take(1).SelectMany(group => group).ToArray();
+        }
         var notices = new List<string>();
         if (kind == "moves") notices.Add("Special signature move values controlled by separate battle configuration are protected.");
         if (kind == "evolutions") notices.Add("Unqualified evolution conditions are preserved. Argument meanings depend on the selected method; form 65535 preserves the source form.");
@@ -75,7 +84,7 @@ public sealed class PlaWorkflowService
         var rowFields = catalog.RowFields(kind);
         return new(kind, scope.Fingerprint(), fields, rowFields, visible, total,
             textFiles, selectedFile, notices)
-        { PokemonSpriteNames = PlaBattleCatalog.Supports(kind) || kind is "personal" or "learnsets" or "evolutions" or "compatibility"
+        { Groups = groupChoices, PokemonSpriteNames = PlaBattleCatalog.Supports(kind) || kind is "personal" or "learnsets" or "evolutions" or "compatibility" or "encounters"
             ? catalog.PokemonSpriteNames() : new Dictionary<string, string>() };
     }
 
@@ -85,6 +94,7 @@ public sealed class PlaWorkflowService
         textFiles = [];
         selectedFile = null;
         catalog.RefreshTutorLabels(edited);
+        if (PlaWildCatalog.Supports(kind)) return catalog.Wild.Records(kind, edited);
         if (PlaEconomyCatalog.Supports(kind)) return catalog.Economy.Records(kind, edited);
         if (kind == "text")
         {
@@ -163,6 +173,13 @@ public sealed class PlaWorkflowService
         if (value is null || value.Length > 131072) throw new InvalidDataException("The PLA field value is too large.");
         if (field.Kind == "text") return value;
         if (field.Kind == "rows") return JsonSerializer.Serialize(JsonSerializer.Deserialize<ushort[][]>(value) ?? throw new InvalidDataException("The PLA rows are invalid."));
+        if (field.Kind == "decimal")
+        {
+            if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var multiplier)
+                || !float.IsFinite(multiplier) || multiplier != -1 && multiplier < 0 || multiplier > 100)
+                throw new InvalidDataException("PLA eligibility multipliers must be -1 for inherited values or between 0 and 100.");
+            return multiplier.ToString("R", CultureInfo.InvariantCulture);
+        }
         if (!long.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var number)
             || field.Minimum is { } min && number < min || field.Maximum is { } max && number > max
             || field.Choices is { } choices && !choices.Any(choice => choice.Value == number.ToString(CultureInfo.InvariantCulture)))
@@ -204,6 +221,7 @@ public sealed class PlaWorkflowService
         var files = new Dictionary<string, byte[]>(StringComparer.Ordinal);
         var battles = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var economy = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
+        var wild = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var edit in session.PendingEdits.OrderBy(edit => edit.RecordId, StringComparer.Ordinal).ThenBy(edit => edit.Field, StringComparer.Ordinal))
         {
@@ -216,6 +234,13 @@ public sealed class PlaWorkflowService
             if (edit.Domain != Domain(kind)) throw new InvalidDataException("The PLA edit domain is invalid.");
             var field = catalog.Fields(kind).SingleOrDefault(field => field.Key == edit.Field) ?? throw new InvalidDataException("The PLA field is unsupported.");
             var value = Normalize(field, edit.NewValue);
+            if (PlaWildCatalog.Supports(kind))
+            {
+                var key = (kind, id);
+                if (!wild.TryGetValue(key, out var values)) wild[key] = values = new(StringComparer.Ordinal);
+                values.Add(field.Key, value);
+                continue;
+            }
             if (PlaEconomyCatalog.Supports(kind))
             {
                 var key = (kind, id);
@@ -284,6 +309,7 @@ public sealed class PlaWorkflowService
             var path = catalog.ResourcePath(key.Kind, key.Id);
             files[path] = catalog.Economy.Edit(key.Kind, key.Id, files.GetValueOrDefault(path) ?? catalog.Scope.Read(path), values);
         }
+        if (wild.Count > 0) files[PlaWildCatalog.ArchivePath] = catalog.Wild.Edit(wild);
         if (economy.Count > 0) catalog.Economy.ValidateComposition(files);
         ValidateComposition(catalog, files);
         // A no-op never creates output or claims ownership.
@@ -362,7 +388,7 @@ public sealed class PlaWorkflowService
         var sourceFingerprint = scope.Fingerprint();
         var writes = files.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new PlannedFileWrite("romfs/" + pair.Key,
             [new(scope.OutputState(pair.Key).Exists ? ProjectFileLayer.Layered : ProjectFileLayer.Base, "romfs/" + pair.Key)], scope.OutputState(pair.Key).Exists,
-            "PLA loose table edits", PlaSourceScope.Hash(Encoding.UTF8.GetBytes(sourceFingerprint + ":" + pair.Key + ":" + PlaSourceScope.Hash(pair.Value)))))
+            "PLA data edits", PlaSourceScope.Hash(Encoding.UTF8.GetBytes(sourceFingerprint + ":" + pair.Key + ":" + PlaSourceScope.Hash(pair.Value)))))
             .ToArray();
         return new(new ChangePlan(session.Id, writes, []), files);
     }

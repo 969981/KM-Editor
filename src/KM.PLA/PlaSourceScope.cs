@@ -21,6 +21,23 @@ internal sealed class PlaSourceScope : IDisposable
     private readonly Dictionary<string, OutputFileState> outputStates = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string[]> catalogs = new(StringComparer.Ordinal);
     private readonly string executableFingerprint;
+    private KM.Formats.PLA.PlaCompressionRuntime? compression;
+    private string? compressionFingerprint;
+    internal KM.Formats.PLA.PlaCompressionRuntime Compression
+    {
+        get
+        {
+            if (compression is not null) return compression;
+            var folder = Paths.PokemonLegendsArceusSupportFolderPath;
+            if (string.IsNullOrWhiteSpace(folder))
+                throw new InvalidDataException("Set the PLA compression support folder in Project Setup before opening Wild Encounters.");
+            var path = Resolve(folder, KM.Formats.PLA.PlaCompressionRuntime.RequiredFileName);
+            if (!File.Exists(path)) throw new InvalidDataException("The PLA support folder must contain oo2core_8_win64.dll.");
+            using var hash = SHA256.Create();
+            compressionFingerprint = Convert.ToHexString(hash.ComputeHash(OpenBase(path)));
+            return compression = new(folder);
+        }
+    }
     internal ProjectPaths Paths { get; }
     internal string Language { get; }
 
@@ -152,6 +169,7 @@ internal sealed class PlaSourceScope : IDisposable
     internal string Fingerprint()
     {
         var text = new StringBuilder(executableFingerprint);
+        if (compressionFingerprint is not null) text.Append("\ncompression:").Append(compressionFingerprint);
         foreach (var pair in catalogs.OrderBy(p => p.Key, StringComparer.Ordinal))
             text.Append('\n').Append(pair.Key).Append(':').AppendJoin('|', pair.Value);
         foreach (var pair in sources.OrderBy(p => p.Key, StringComparer.Ordinal))
@@ -160,5 +178,5 @@ internal sealed class PlaSourceScope : IDisposable
         return Hash(Encoding.UTF8.GetBytes(text.ToString()));
     }
 
-    public void Dispose() { foreach (var lease in leases) lease.Dispose(); leases.Clear(); }
+    public void Dispose() { compression?.Dispose(); foreach (var lease in leases) lease.Dispose(); leases.Clear(); }
 }

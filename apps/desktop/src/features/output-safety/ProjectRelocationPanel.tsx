@@ -28,7 +28,7 @@ const relocationFields: ReadonlyArray<{
   field: CandidatePathField;
   kind: 'directory' | 'file';
   labelKey: string;
-  scope?: 'scarletViolet' | 'za';
+  scope?: 'scarletViolet' | 'za' | 'pla';
 }> = [
   { field: 'baseRomFsPath', kind: 'directory', labelKey: 'outputSafety.relocation.path.baseRomFs' },
   { field: 'baseExeFsPath', kind: 'directory', labelKey: 'outputSafety.relocation.path.baseExeFs' },
@@ -45,7 +45,8 @@ const relocationFields: ReadonlyArray<{
     kind: 'directory',
     labelKey: 'outputSafety.relocation.path.supportFolder',
     scope: 'za'
-  }
+  },
+  { field: 'pokemonLegendsArceusSupportFolderPath', kind: 'directory', labelKey: 'outputSafety.relocation.path.supportFolder', scope: 'pla' }
 ];
 
 export function ProjectRelocationPanel({
@@ -178,7 +179,7 @@ export function ProjectRelocationPanel({
     }
     return entry.scope === 'scarletViolet'
       ? candidatePaths.selectedGame === 'scarlet' || candidatePaths.selectedGame === 'violet'
-      : candidatePaths.selectedGame === 'za';
+      : candidatePaths.selectedGame === entry.scope;
   });
   const canApplyPreview =
     preview?.canApply === true &&
@@ -480,6 +481,7 @@ const projectPathRoleLabelKeys: Record<ProjectPathRole, string> = {
   baseRomFs: 'outputSafety.relocation.path.baseRomFs',
   outputRoot: 'outputSafety.relocation.path.outputRoot',
   pokemonLegendsZASupportFolder: 'outputSafety.relocation.path.supportFolder',
+  pokemonLegendsArceusSupportFolder: 'outputSafety.relocation.path.supportFolder',
   saveFile: 'outputSafety.relocation.path.saveFile',
   scarletVioletSupportFolder: 'outputSafety.relocation.path.supportFolder'
 };

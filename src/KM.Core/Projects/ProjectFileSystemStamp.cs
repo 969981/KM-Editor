@@ -19,6 +19,7 @@ internal static class ProjectFileSystemStamp
             AddRoot(paths.BaseExeFsPath);
             AddRoot(paths.ScarletVioletSupportFolderPath);
             AddRoot(paths.PokemonLegendsZASupportFolderPath);
+            if (paths.SelectedGame == ProjectGame.PLA) AddRoot(paths.PokemonLegendsArceusSupportFolderPath);
             if (!string.IsNullOrWhiteSpace(paths.SaveFilePath)) Add(new FileInfo(paths.SaveFilePath));
             if (!string.IsNullOrWhiteSpace(paths.BaseExeFsPath))
             {

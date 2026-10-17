@@ -2702,6 +2702,7 @@ public sealed class SemanticExploreApplicationService
         {
             GameTextLanguage = paths.GameTextLanguage,
             PokemonLegendsZASupportFolderPath = paths.PokemonLegendsZASupportFolderPath,
+            PokemonLegendsArceusSupportFolderPath = paths.PokemonLegendsArceusSupportFolderPath,
         };
     }
 

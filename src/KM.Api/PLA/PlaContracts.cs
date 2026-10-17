@@ -18,5 +18,5 @@ public sealed record PlaRecordDto(string Id, string Label, IReadOnlyDictionary<s
     IReadOnlyDictionary<string, string> Metadata, IReadOnlyList<PlaRelatedRecordDto> RelatedRecords);
 public sealed record PlaPageDto(string Kind, string Revision, IReadOnlyList<PlaFieldDto> Fields, IReadOnlyList<PlaFieldDto> RowFields,
     IReadOnlyList<PlaRecordDto> Records, int Total, IReadOnlyList<string> TextFiles, string? TextFile, IReadOnlyList<string> Notices,
-    IReadOnlyDictionary<string, string> PokemonSpriteNames);
+    IReadOnlyDictionary<string, string> PokemonSpriteNames, IReadOnlyList<PlaChoiceDto> Groups);
 public sealed record LoadPlaResponse(PlaPageDto Page);

@@ -604,6 +604,7 @@ export const projectPathsSchema = z.strictObject({
   gameTextLanguage: z.string().nullable().optional(),
   outputRootPath: z.string().nullable(),
   pokemonLegendsZASupportFolderPath: z.string().nullable().optional(),
+  pokemonLegendsArceusSupportFolderPath: z.string().nullable().optional(),
   saveFilePath: z.string().nullable(),
   scarletVioletSupportFolderPath: z.string().nullable().optional(),
   selectedGame: projectGameSchema.nullable().default(null),
@@ -862,6 +863,7 @@ export const projectPathRoleSchema = z.enum([
   "saveFile",
   "scarletVioletSupportFolder",
   "pokemonLegendsZASupportFolder",
+  "pokemonLegendsArceusSupportFolder",
 ]);
 
 export const projectPathStatusSchema = z.enum([

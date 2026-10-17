@@ -5,7 +5,7 @@ using System.Text;
 
 namespace KM.Formats.PLA;
 
-/// <summary>Bounded access and preservation edits for PLA's loose scalar tables.</summary>
+/// <summary>Bounded access and preservation edits for PLA tables.</summary>
 public sealed class PlaFlatBuffer
 {
     public const int MaximumLength = 64 * 1024 * 1024;
@@ -87,6 +87,94 @@ public sealed class PlaFlatBuffer
         return offset == 0 ? 0 : BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(offset));
     }
 
+    public float Float(int table, int index) => BitConverter.Int32BitsToSingle(unchecked((int)Scalar(table, index, 4)));
+
+    public sealed record ObjectLayout(int[] Widths, int[] Strings,
+        IReadOnlyDictionary<int, ObjectLayout> Children, IReadOnlyDictionary<int, ObjectLayout> Vectors);
+
+    // Clone the entire known subtree so editing one slot never changes shared children.
+    // Edit keys are reference positions, not object positions: aliases remain independent.
+    public void EditObjectTree(int reference, ObjectLayout layout,
+        IReadOnlyDictionary<int, IReadOnlyDictionary<int, long>> edits)
+    {
+        var applied = new HashSet<int>();
+        int Copy(int sourceReference, ObjectLayout schema, int depth)
+        {
+            if (depth > 8) throw new InvalidDataException("The PLA object tree is too deep.");
+            var original = TableAtReference(sourceReference);
+            RequireKnownFields(original, schema.Widths);
+            var pointers = schema.Strings.Concat(schema.Children.Keys).Concat(schema.Vectors.Keys).ToArray();
+            var values = edits.GetValueOrDefault(sourceReference) ?? new Dictionary<int, long>();
+            if (pointers.Distinct().Count() != pointers.Length || pointers.Any(key => key < 0 || key >= schema.Widths.Length || schema.Widths[key] != 4)
+                || values.Keys.Any(key => key < 0 || key >= schema.Widths.Length || pointers.Contains(key)))
+                throw new InvalidDataException("The PLA object edit is invalid.");
+            if (edits.ContainsKey(sourceReference)) applied.Add(sourceReference);
+            var strings = schema.Strings.Where(key => Field(original, key, 4) != 0)
+                .ToDictionary(key => key, key => StringRange(Field(original, key, 4), 4096));
+            var children = schema.Children.Where(pair => Field(original, pair.Key, 4) != 0)
+                .ToDictionary(pair => pair.Key, pair => Field(original, pair.Key, 4));
+            var vectors = schema.Vectors.Where(pair => Field(original, pair.Key, 4) != 0)
+                .ToDictionary(pair => pair.Key, pair => VectorReferences(original, pair.Key, 4096));
+            var copy = CopyObject(original, schema.Widths, values);
+            foreach (var (key, value) in values)
+            {
+                var field = Field(copy, key, schema.Widths[key]);
+                if (field == 0) continue;
+                switch (schema.Widths[key])
+                {
+                    case 1 when value is >= sbyte.MinValue and <= byte.MaxValue: data[field] = unchecked((byte)value); break;
+                    case 2 when value is >= short.MinValue and <= ushort.MaxValue: W16(field, unchecked((ushort)value)); break;
+                    case 4 when value is >= int.MinValue and <= uint.MaxValue: W32(field, unchecked((int)value)); break;
+                    default: throw new InvalidDataException("The PLA scalar is outside its storage range.");
+                }
+            }
+            foreach (var (key, range) in strings)
+            {
+                var target = Allocate(5 + range.Length);
+                data.AsSpan(range.Offset, 5 + range.Length).CopyTo(data.AsSpan(target));
+                var pointer = Field(copy, key, 4); W32(pointer, target - pointer);
+            }
+            foreach (var (key, child) in children)
+            {
+                var target = Copy(child, schema.Children[key], depth + 1);
+                var pointer = Field(copy, key, 4); W32(pointer, target - pointer);
+            }
+            foreach (var (key, entries) in vectors)
+            {
+                var vector = Allocate(4 + entries.Length * 4); W32(vector, entries.Length);
+                var pointer = Field(copy, key, 4); W32(pointer, vector - pointer);
+                for (var i = 0; i < entries.Length; i++)
+                {
+                    var target = Copy(entries[i], schema.Vectors[key], depth + 1);
+                    var entry = vector + 4 + i * 4; W32(entry, target - entry);
+                }
+            }
+            return copy;
+        }
+        var result = Copy(reference, layout, 0);
+        if (applied.Count != edits.Count) throw new InvalidDataException("A PLA object edit does not belong to the selected tree.");
+        W32(reference, result - reference);
+    }
+
+    // For qualified fixed records with opaque children, change only an existing scalar.
+    public void SetExistingInt32(int reference, IReadOnlyList<int> widths, int index, int value)
+    {
+        var table = TableAtReference(reference);
+        RequireKnownFields(table, widths);
+        if (index < 0 || index >= widths.Count || widths[index] != 4) throw new InvalidDataException("The PLA integer field is unsupported.");
+        var field = Field(table, index, 4);
+        if (field == 0) throw new InvalidDataException("The PLA field is absent in this record.");
+        var info = Table(table);
+        for (var i = 0; i < info.Count; i++)
+        {
+            if (i == index) continue;
+            var offset = U16(info.Vtable + 4 + i * 2);
+            if (offset != 0 && table + offset >= field && table + offset < field + 4)
+                throw new InvalidDataException("PLA scalar fields overlap.");
+        }
+        W32(field, value);
+    }
+
     public int[] VectorReferences(int table, int field, int maximum = 100_000)
     {
         var pointer = Field(table, field, 4);
@@ -127,6 +215,24 @@ public sealed class PlaFlatBuffer
         var range = StringRange(pointer, maximum);
         try { return new UTF8Encoding(false, true).GetString(data, range.Offset + 4, range.Length); }
         catch (DecoderFallbackException exception) { throw new InvalidDataException("The PLA string is not valid UTF-8.", exception); }
+    }
+
+    public string[] StringVector(int table, int field, int maximum = 64)
+    {
+        var pointer = Field(table, field, 4);
+        if (pointer == 0) return [];
+        var displacement = U32(pointer);
+        if (displacement < 4 || displacement > int.MaxValue) throw new InvalidDataException("The PLA string vector offset is invalid.");
+        var vector = checked(pointer + (int)displacement);
+        var count = U32(vector);
+        if (count > maximum) throw new InvalidDataException("The PLA string vector is too large.");
+        Bounds(vector + 4, checked((int)count * 4));
+        return Enumerable.Range(0, (int)count).Select(i =>
+        {
+            var range = StringRange(vector + 4 + i * 4, 4096);
+            try { return new UTF8Encoding(false, true).GetString(data, range.Offset + 4, range.Length); }
+            catch (DecoderFallbackException exception) { throw new InvalidDataException("The PLA string is not valid UTF-8.", exception); }
+        }).ToArray();
     }
 
     /// <summary>Copy a known object subtree before editing, preserving strings and scalar child tables.</summary>

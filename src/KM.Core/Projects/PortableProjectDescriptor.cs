@@ -76,6 +76,8 @@ public sealed class PortableProjectDescriptor
         IReadOnlySet<ProjectPathRole> roles,
         string parameterName)
     {
+        if (selectedGame is not ProjectGame.PLA && roles.Contains(ProjectPathRole.PokemonLegendsArceusSupportFolder))
+            throw new ArgumentException("The Legends Arceus support role does not apply to the selected game.", parameterName);
         if (selectedGame is not ProjectGame.Scarlet and not ProjectGame.Violet
             && roles.Contains(ProjectPathRole.ScarletVioletSupportFolder))
         {

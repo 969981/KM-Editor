@@ -57,6 +57,7 @@ export function createProjectCacheScopeKey(projectId: string, paths: ProjectPath
     supportFolderPath:
       selectedGame === 'za'
         ? normalizeCacheScopePath(paths.pokemonLegendsZASupportFolderPath)
+        : selectedGame === 'pla' ? normalizeCacheScopePath(paths.pokemonLegendsArceusSupportFolderPath)
         : selectedGame === 'scarlet' || selectedGame === 'violet'
           ? normalizeCacheScopePath(paths.scarletVioletSupportFolderPath)
           : null,

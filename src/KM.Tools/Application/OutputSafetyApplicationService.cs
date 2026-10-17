@@ -904,6 +904,7 @@ public sealed class OutputSafetyApplicationService
             && IsBoundedOptionalString(
                 paths.PokemonLegendsZASupportFolderPath,
                 ProjectRelocationService.MaximumCandidatePathLength)
+            && IsBoundedOptionalString(paths.PokemonLegendsArceusSupportFolderPath, ProjectRelocationService.MaximumCandidatePathLength)
             && IsBoundedOptionalString(
                 paths.GameTextLanguage,
                 ProjectRelocationService.MaximumGameTextLanguageLength);

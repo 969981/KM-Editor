@@ -129,7 +129,8 @@ export function createProjectScopeKey(paths: ProjectScopePaths) {
     outputRootPath: paths.outputRootPath,
     saveFilePath: paths.saveFilePath,
     scarletVioletSupportFolderPath: paths.scarletVioletSupportFolderPath ?? null,
-    pokemonLegendsZASupportFolderPath: paths.pokemonLegendsZASupportFolderPath ?? null
+    pokemonLegendsZASupportFolderPath: paths.pokemonLegendsZASupportFolderPath ?? null,
+    ...(paths.selectedGame === 'pla' ? { pokemonLegendsArceusSupportFolderPath: paths.pokemonLegendsArceusSupportFolderPath ?? null } : {})
   });
 }
 

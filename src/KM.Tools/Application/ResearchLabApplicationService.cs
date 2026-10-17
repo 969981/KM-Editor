@@ -1604,6 +1604,8 @@ public sealed class ResearchLabApplicationService : IDisposable
             yield return paths.ScarletVioletSupportFolderPath;
         if (!string.IsNullOrWhiteSpace(paths.PokemonLegendsZASupportFolderPath))
             yield return paths.PokemonLegendsZASupportFolderPath;
+        if (!string.IsNullOrWhiteSpace(paths.PokemonLegendsArceusSupportFolderPath))
+            yield return paths.PokemonLegendsArceusSupportFolderPath;
         yield return GetPrivateAppDataRoot();
     }
 

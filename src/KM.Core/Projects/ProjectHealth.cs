@@ -21,6 +21,7 @@ public enum ProjectPathRole
     SaveFile,
     ScarletVioletSupportFolder,
     PokemonLegendsZASupportFolder,
+    PokemonLegendsArceusSupportFolder,
 }
 
 public enum ProjectPathStatus

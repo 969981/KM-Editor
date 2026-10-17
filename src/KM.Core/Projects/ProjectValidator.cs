@@ -114,7 +114,7 @@ public sealed class ProjectValidator
             saveFile.ToResult(),
             scarletVioletSupportFolder.ToResult(),
             pokemonLegendsZASupportFolder.ToResult(),
-        };
+        }.Concat(paths.SelectedGame == ProjectGame.PLA ? new[] { ValidatePlaSupport(paths.PokemonLegendsArceusSupportFolderPath).ToResult() } : []).ToArray();
         var diagnostics = pathResults.SelectMany(result => result.Diagnostics).ToArray();
         var state = ResolveHealthState(baseRomFs, baseExeFs, outputRoot, scarletVioletSupportFolder, pokemonLegendsZASupportFolder);
         var graph = CreateFileGraphSummary(
@@ -321,6 +321,19 @@ public sealed class ProjectValidator
         }
 
         draft.Status = ProjectPathStatus.Valid;
+        return draft;
+    }
+
+    private static PathValidationDraft ValidatePlaSupport(string? path)
+    {
+        var draft = new PathValidationDraft(ProjectPathRole.PokemonLegendsArceusSupportFolder, path, isRequired: false);
+        draft.Status = string.IsNullOrWhiteSpace(path) ? ProjectPathStatus.NotSet
+            : File.Exists(path) ? ProjectPathStatus.WrongKind
+            : !Directory.Exists(path) || !File.Exists(Path.Combine(path, CreateScarletVioletSupportFileName())) ? ProjectPathStatus.Missing
+            : ProjectPathStatus.Valid;
+        if (draft.Status is ProjectPathStatus.Missing or ProjectPathStatus.WrongKind)
+            draft.AddDiagnostic(DiagnosticSeverity.Warning, "Wild Encounters requires a support folder containing oo2core_8_win64.dll. Other PLA editors remain available.",
+                expected: "Folder containing oo2core_8_win64.dll", field: "pokemonLegendsArceusSupportFolderPath", code: SupportFileMissingDiagnosticCode);
         return draft;
     }
 

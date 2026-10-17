@@ -193,7 +193,8 @@ public sealed class ProjectRelocationService
                 MaximumCandidatePathLength)
             || !IsBoundedOptionalString(
                 paths.PokemonLegendsZASupportFolderPath,
-                MaximumCandidatePathLength))
+                MaximumCandidatePathLength)
+            || !IsBoundedOptionalString(paths.PokemonLegendsArceusSupportFolderPath, MaximumCandidatePathLength))
         {
             return false;
         }
@@ -213,6 +214,7 @@ public sealed class ProjectRelocationService
         {
             pathValues.Add(paths.PokemonLegendsZASupportFolderPath);
         }
+        else if (selectedGame is ProjectGame.PLA) pathValues.Add(paths.PokemonLegendsArceusSupportFolderPath);
 
         if (pathValues.Any(path => !IsValidCandidatePath(path)))
         {
@@ -285,6 +287,7 @@ public sealed class ProjectRelocationService
         {
             directoryPaths.Add(paths.PokemonLegendsZASupportFolderPath);
         }
+        else if (selectedGame is ProjectGame.PLA) directoryPaths.Add(paths.PokemonLegendsArceusSupportFolderPath);
 
         return directoryPaths.Any(path => HasLinkTarget(path, isDirectory: true))
             || HasLinkTarget(paths.SaveFilePath, isDirectory: false);
@@ -329,5 +332,7 @@ public sealed class ProjectRelocationService
         {
             yield return ProjectPathRole.PokemonLegendsZASupportFolder;
         }
+        if (selectedGame is ProjectGame.PLA && !string.IsNullOrWhiteSpace(paths.PokemonLegendsArceusSupportFolderPath))
+            yield return ProjectPathRole.PokemonLegendsArceusSupportFolder;
     }
 }

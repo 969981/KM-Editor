@@ -33,6 +33,7 @@ public static class ProjectBridgeMapper
         {
             GameTextLanguage = paths.GameTextLanguage,
             PokemonLegendsZASupportFolderPath = paths.PokemonLegendsZASupportFolderPath,
+            PokemonLegendsArceusSupportFolderPath = paths.PokemonLegendsArceusSupportFolderPath,
         };
         return ProspectivePaths.Value is { } prospective && prospective.Source == result ? prospective.Target : result;
     }
@@ -300,6 +301,7 @@ public static class ProjectBridgeMapper
             ProjectPathRole.SaveFile => ProjectPathRoleDto.SaveFile,
             ProjectPathRole.ScarletVioletSupportFolder => ProjectPathRoleDto.ScarletVioletSupportFolder,
             ProjectPathRole.PokemonLegendsZASupportFolder => ProjectPathRoleDto.PokemonLegendsZASupportFolder,
+            ProjectPathRole.PokemonLegendsArceusSupportFolder => ProjectPathRoleDto.PokemonLegendsArceusSupportFolder,
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
     }
