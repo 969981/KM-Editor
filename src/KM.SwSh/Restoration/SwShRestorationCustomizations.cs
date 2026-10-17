@@ -2,6 +2,7 @@
 using KM.Core.Editing;
 using KM.Core.Files;
 using KM.Core.Projects;
+using KM.SwSh.Pokemon;
 
 namespace KM.SwSh.Restoration;
 
@@ -10,6 +11,15 @@ internal static class SwShRestorationCustomizations
     internal static ChangePlan AddAnchor(ProjectPaths paths, ChangePlan plan)
     {
         if (plan.Writes.Count == 0 || plan.EffectivePendingEdits?.Any(e => e.Domain == SwShRestorationDefinitions.Domain) == true) return plan;
+        // External restorations have no installation record. Their model sources
+        // must still accompany personal data into verified apply snapshots.
+        if (plan.Writes.Any(w => w.Sources.Any(s => s.RelativePath == SwShRestorationComposer.PersonalPath)))
+        {
+            var catalog = SwShEffectivePokemonCatalog.Load(paths);
+            if (catalog.Available)
+                plan = plan with { Writes = plan.Writes.Select((write, index) => index == 0
+                    ? write with { Sources = write.Sources.Concat(catalog.Sources).Distinct().ToArray() } : write).ToArray() };
+        }
         var state = SwShRestorationStateStore.Read(paths);
         if (!state.State.Selections.Any(s => s.Enabled)) return plan;
         var definitions = SwShRestorationStateStore.ReadPreparedMany(paths, state.State.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash)).Values.ToArray();
