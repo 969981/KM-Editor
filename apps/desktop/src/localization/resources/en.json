@@ -1,5 +1,17 @@
 {
   "keys": {
+    "pla.kind.bagPrices": "Bag expansion prices",
+    "pla.kind.charmPrices": "Charm prices",
+    "pla.notice.bagPrices": "Prices for each additional bag slot, in purchase order. Unlock conditions and the 39 expansion limit stay unchanged.",
+    "pla.notice.charmPrices": "Prices depend on how many charms of the selected type are currently owned. The first Survival Charm and first Tempting Charm share a price and must be edited together. Charm identities and purchase conditions stay unchanged.",
+    "pla.rules.expansion": "Expansion {number}",
+    "pla.rules.expansions": "Expansions {first} to {last}",
+    "pla.rules.ownedCharms": "Price with {count} owned",
+    "pla.rules.sharedCharms": "Shared first charm price",
+    "pla.rules.warding": "Warding Charms",
+    "pla.rules.survival": "Survival Charms",
+    "pla.rules.tempting": "Tempting Charms",
+    "pla.field.sharedCharmPrice": "First Survival and Tempting Charm",
     "workbench.section.weather.label": "Weather",
     "workbench.section.gameplayRules.label": "Gameplay Rules",
     "workbench.section.weather.description": "Edit area weather selection weights with preserved story conditions.",

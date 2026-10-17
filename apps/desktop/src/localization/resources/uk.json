@@ -1,5 +1,17 @@
 {
   "keys": {
+    "pla.kind.bagPrices": "Ціни розширення сумки",
+    "pla.kind.charmPrices": "Ціни амулетів",
+    "pla.notice.bagPrices": "Ціни кожної додаткової комірки сумки в порядку придбання. Умови відкриття та межа в 39 розширень зберігаються.",
+    "pla.notice.charmPrices": "Ціни залежать від кількості наявних амулетів вибраного типу. Перший амулет виживання та перший амулет принади мають спільну ціну й редагуються разом. Ідентифікатори амулетів та умови придбання зберігаються.",
+    "pla.rules.expansion": "Розширення {number}",
+    "pla.rules.expansions": "Розширення від {first} до {last}",
+    "pla.rules.ownedCharms": "Ціна за наявності {count}",
+    "pla.rules.sharedCharms": "Спільна ціна першого амулета",
+    "pla.rules.warding": "Захисні амулети",
+    "pla.rules.survival": "Амулети виживання",
+    "pla.rules.tempting": "Амулети принади",
+    "pla.field.sharedCharmPrice": "Перший амулет виживання та принади",
     "workbench.section.weather.label": "Погода",
     "workbench.section.gameplayRules.label": "Правила гри",
     "workbench.section.weather.description": "Зміна ваг погоди в областях зі збереженням сюжетних умов.",

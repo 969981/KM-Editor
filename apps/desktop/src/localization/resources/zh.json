@@ -1,5 +1,17 @@
 {
   "keys": {
+    "pla.kind.bagPrices": "背包扩充价格",
+    "pla.kind.charmPrices": "护符价格",
+    "pla.notice.bagPrices": "按购买顺序设置每个额外背包格子的价格。解锁条件和最多扩充39次的限制保持不变。",
+    "pla.notice.charmPrices": "价格取决于当前持有的所选类型护符数量。第一个生存护符和第一个诱惑护符共用价格，必须一起修改。护符标识和购买条件保持不变。",
+    "pla.rules.expansion": "第{number}次扩充",
+    "pla.rules.expansions": "第{first}至{last}次扩充",
+    "pla.rules.ownedCharms": "持有{count}个时的价格",
+    "pla.rules.sharedCharms": "首个护符的共用价格",
+    "pla.rules.warding": "防护护符",
+    "pla.rules.survival": "生存护符",
+    "pla.rules.tempting": "诱惑护符",
+    "pla.field.sharedCharmPrice": "首个生存护符和诱惑护符",
     "workbench.section.weather.label": "天气",
     "workbench.section.gameplayRules.label": "游戏规则",
     "workbench.section.weather.description": "编辑各区域的天气选择权重，保留剧情条件。",

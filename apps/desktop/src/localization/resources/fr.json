@@ -1,5 +1,17 @@
 {
   "keys": {
+    "pla.kind.bagPrices": "Prix des agrandissements de sac",
+    "pla.kind.charmPrices": "Prix des amulettes",
+    "pla.notice.bagPrices": "Prix de chaque emplacement supplémentaire du sac, dans l’ordre d’achat. Les conditions de déblocage et la limite de 39 agrandissements restent inchangées.",
+    "pla.notice.charmPrices": "Les prix dépendent du nombre d’amulettes du type choisi déjà possédées. La première amulette de survie et la première amulette de tentation partagent un prix et se modifient ensemble. Leurs identités et les conditions d’achat restent inchangées.",
+    "pla.rules.expansion": "Agrandissement {number}",
+    "pla.rules.expansions": "Agrandissements de {first} à {last}",
+    "pla.rules.ownedCharms": "Prix avec {count} en possession",
+    "pla.rules.sharedCharms": "Prix commun de la première amulette",
+    "pla.rules.warding": "Amulettes de protection",
+    "pla.rules.survival": "Amulettes de survie",
+    "pla.rules.tempting": "Amulettes de tentation",
+    "pla.field.sharedCharmPrice": "Première amulette de survie et de tentation",
     "workbench.section.weather.label": "Météo",
     "workbench.section.gameplayRules.label": "Règles de jeu",
     "workbench.section.weather.description": "Modifiez les poids météo par zone en conservant les conditions du scénario.",

@@ -6,7 +6,7 @@ import { FieldLabel } from '../../components/FieldLabel';
 import { useLocalization } from '../../localization';
 
 export function PlaRulesWorkspace({ kind, page, controls, sessionBar, actions, refresh, loading, fieldLabel, renderInput }: {
-  kind: 'capture' | 'friendship' | 'shiny'; page: PlaPage | null; controls: ReactNode; sessionBar: ReactNode;
+  kind: 'capture' | 'friendship' | 'shiny' | 'bagPrices' | 'charmPrices'; page: PlaPage | null; controls: ReactNode; sessionBar: ReactNode;
   actions: ReactNode; refresh: ReactNode; loading: boolean; fieldLabel: (field: PlaField) => string; renderInput: (field: PlaField) => ReactNode;
 }) {
   const { t, translateLiteral } = useLocalization();
@@ -17,6 +17,12 @@ export function PlaRulesWorkspace({ kind, page, controls, sessionBar, actions, r
   ] : kind === 'friendship' ? [
     ...['Low', 'Mid', 'High'].map(band => ({ title: t('pla.rules.band' + band), fields: fields.filter(field => field.key.endsWith(band)) })),
     { title: t('pla.rules.experience'), fields: fields.filter(field => field.key === 'friendshipExpChance') }
+  ] : kind === 'bagPrices' ? [0, 1, 2, 3].map(group => ({
+    title: t('pla.rules.expansions', { first: group * 10 + 1, last: Math.min(group * 10 + 10, 39) }),
+    fields: fields.slice(group * 10, group * 10 + 10)
+  })) : kind === 'charmPrices' ? [
+    { title: t('pla.rules.sharedCharms'), fields: fields.filter(field => field.key === 'sharedCharmPrice') },
+    ...['warding', 'survival', 'tempting'].map(charm => ({ title: t('pla.rules.' + charm), fields: fields.filter(field => field.key.startsWith(charm + 'Price.')) }))
   ] : [{ title: t('pla.kind.shiny'), fields }];
   return <section className="panel wide-panel pla-editor" aria-labelledby="pla-editor-title">
     <div className="panel-heading"><SlidersVertical size={18} aria-hidden="true" /><h2 id="pla-editor-title">{t('workbench.section.gameplayRules.label')}</h2>{refresh}</div>

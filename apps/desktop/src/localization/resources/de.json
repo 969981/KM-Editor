@@ -1,5 +1,17 @@
 {
   "keys": {
+    "pla.kind.bagPrices": "Taschenerweiterungspreise",
+    "pla.kind.charmPrices": "Talismanpreise",
+    "pla.notice.bagPrices": "Preise für jeden zusätzlichen Taschenplatz in Kaufreihenfolge. Freischaltbedingungen und das Limit von 39 Erweiterungen bleiben unverändert.",
+    "pla.notice.charmPrices": "Die Preise hängen davon ab, wie viele Talismane des gewählten Typs bereits im Besitz sind. Der erste Überlebenstalisman und der erste Locktalisman teilen sich einen Preis und werden gemeinsam bearbeitet. Talismanidentitäten und Kaufbedingungen bleiben unverändert.",
+    "pla.rules.expansion": "Erweiterung {number}",
+    "pla.rules.expansions": "Erweiterungen {first} bis {last}",
+    "pla.rules.ownedCharms": "Preis bei {count} im Besitz",
+    "pla.rules.sharedCharms": "Gemeinsamer Preis des ersten Talismans",
+    "pla.rules.warding": "Schutztalismane",
+    "pla.rules.survival": "Überlebenstalismane",
+    "pla.rules.tempting": "Locktalismane",
+    "pla.field.sharedCharmPrice": "Erster Überlebens- und Locktalisman",
     "workbench.section.weather.label": "Wetter",
     "workbench.section.gameplayRules.label": "Spielregeln",
     "workbench.section.weather.description": "Gewichtungen der Gebietswetterwahl mit unveränderten Storybedingungen bearbeiten.",
