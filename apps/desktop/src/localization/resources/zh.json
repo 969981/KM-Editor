@@ -1,5 +1,6 @@
 {
   "keys": {
+    "restoration.soundMemoryHelp": "恢复宝可梦时也会应用音频内存修复，需要 1.3.2 版本的基础 ExeFS。如果此前已安装宝可梦，请移除一只宝可梦的资源并应用更改，重新准备它的资源，然后暂存并应用更改。请禁用以前单独安装的音频内存补丁。",
     "trinityOutput.svManagerHelp": "如果存在 trinity-mod-manager-romfs/ 文件夹，请将其添加到 Trinity Mod Manager；否则请添加 RomFS 源文件夹。如果输出中包含可执行文件，请将生成的 romfs/ 与输出目录中的 exefs/ 放在一起安装。不要将 exefs/ 添加到 Trinity Mod Manager。",
     "moves.teraBlast.heading": "太晶爆发",
     "moves.teraBlast.typeBehavior": "太晶化后的属性",
@@ -5396,6 +5397,17 @@
     "pla.field.baseExperience": "基础经验值"
   },
   "literals": {
+    "Restored sounds require the selected game's supported 1.3.2 executable.": "恢复的音效需要所选游戏受支持的 1.3.2 版本可执行文件。",
+    "The sound memory executable has an invalid segment checksum.": "音频内存可执行文件的区段校验和无效。",
+    "The sound memory budgets contain incompatible changes. Restore a supported executable before adding restored sounds.": "音频内存容量设置中存在不兼容的更改。请先恢复受支持的可执行文件，再添加恢复的音效。",
+    "The sound memory initialization contains incompatible changes.": "音频内存初始化代码中存在不兼容的更改。",
+    "Base ExeFS must contain the original sound memory budgets.": "基础 ExeFS 必须包含原始音频内存容量设置。",
+    "Sound memory output failed preservation verification.": "音频内存输出未通过数据保留验证。",
+    "Select the game's Base ExeFS folder to apply the sound memory required by restored Pokemon.": "请选择游戏的基础 ExeFS 文件夹，以分配恢复的宝可梦所需的音频内存。",
+    "Restoration Sound Memory": "宝可梦恢复音频内存",
+    "Shared sound memory global budget": "音频内存共享全局容量",
+    "Shared sound memory parent budget": "音频内存共享上级容量",
+    "Shared sound pool budget": "音频内存池共享容量",
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "极限特训正在使用旧版等级补丁，队伍和盒子中的图标仍要求 100 级。请重新应用此编辑器以更新选择界面。",
     "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "极限特训也会显示个体值，图表范围为 0 到 31。",
     "League Staff Isaac": "联盟工作人员 Isaac",

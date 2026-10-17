@@ -167,6 +167,7 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
     </EditorSessionBarActions> : null}
     <p>{t('restoration.familyHelp')}</p>
     <p>{t('restoration.removeHelp')}</p>
+    <p>{t('restoration.soundMemoryHelp')}</p>
     <RestorationSourceFolders sources={sources} desktop={desktopServices} paths={paths} bridge={bridge} onChange={next => {
       setSources(next); if (!rememberRestorationSources(projectKey, next)) setError(t('restoration.sourcesSaveFailed'));
     }} />

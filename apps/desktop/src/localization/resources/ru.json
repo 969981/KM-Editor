@@ -1,5 +1,6 @@
 {
   "keys": {
+    "restoration.soundMemoryHelp": "Восстановление покемонов также применяет исправление памяти звука и требует базовый ExeFS версии 1.3.2. Если покемоны уже установлены, удалите ресурсы одного покемона и примените изменения, подготовьте его ресурсы заново, затем добавьте и примените изменения. Отключите ранее установленные отдельные патчи памяти звука.",
     "trinityOutput.svManagerHelp": "Если папка trinity-mod-manager-romfs/ существует, добавьте её в Trinity Mod Manager; иначе добавьте папку исходных файлов RomFS. Установите созданную romfs/ рядом с exefs/ в папке вывода, если есть исполняемые файлы. Не добавляйте exefs/ в Trinity Mod Manager.",
     "moves.teraBlast.heading": "Тера-взрыв",
     "moves.teraBlast.typeBehavior": "Тип при терасталлизации",
@@ -5396,6 +5397,17 @@
     "pla.field.baseExperience": "Базовый опыт"
   },
   "literals": {
+    "Restored sounds require the selected game's supported 1.3.2 executable.": "Для восстановленных звуков нужен поддерживаемый исполняемый файл версии 1.3.2 выбранной игры.",
+    "The sound memory executable has an invalid segment checksum.": "В исполняемом файле для памяти звука неверна контрольная сумма сегмента.",
+    "The sound memory budgets contain incompatible changes. Restore a supported executable before adding restored sounds.": "В лимитах памяти звука есть несовместимые изменения. Восстановите поддерживаемый исполняемый файл перед добавлением восстановленных звуков.",
+    "The sound memory initialization contains incompatible changes.": "Инициализация памяти звука содержит несовместимые изменения.",
+    "Base ExeFS must contain the original sound memory budgets.": "Базовый ExeFS должен содержать исходные лимиты памяти звука.",
+    "Sound memory output failed preservation verification.": "Проверка сохранности данных при создании выходного файла памяти звука завершилась неудачей.",
+    "Select the game's Base ExeFS folder to apply the sound memory required by restored Pokemon.": "Выберите папку базового ExeFS игры, чтобы выделить память звука, необходимую восстановленным покемонам.",
+    "Restoration Sound Memory": "Память звука для восстановления",
+    "Shared sound memory global budget": "Общий глобальный лимит памяти звука",
+    "Shared sound memory parent budget": "Общий лимит родительской памяти для звука",
+    "Shared sound pool budget": "Общий лимит пула звука",
     "Hyper Training uses an older level patch that leaves party and box icons at Lv.100. Apply this editor again to update the picker.": "Гипертренировка использует старое изменение уровня, при котором значки в команде и боксах по-прежнему требуют ур.100. Примените этот редактор повторно, чтобы обновить выбор покемонов.",
     "Hyper Training also displays IVs, with the graph scaled from 0 to 31.": "Гипертренировка также показывает IV на графике со шкалой от 0 до 31.",
     "League Staff Isaac": "Сотрудник Лиги Isaac",
