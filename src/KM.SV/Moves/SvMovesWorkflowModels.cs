@@ -68,7 +68,12 @@ public sealed record SvMoveRecord(
     int RawHealing,
     IReadOnlyList<SvMoveStatChangeRecord> StatChanges,
     IReadOnlyList<SvMoveFlagRecord> Flags,
-    SvMoveProvenance Provenance);
+    SvMoveProvenance Provenance)
+{
+    public SvTeraBlastSettings? TeraBlast { get; init; }
+    public string? TeraBlastBlockedReason { get; init; }
+    public SvMoveProvenance? TeraBlastProvenance { get; init; }
+}
 
 public sealed record SvMovesWorkflowStats(
     int TotalMoveCount,

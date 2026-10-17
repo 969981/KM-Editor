@@ -6,6 +6,8 @@ import { useModalDialog } from '../../components/useModalDialog';
 import { useLocalization } from '../../localization';
 
 type TrinityOutputConfirmationModalProps = {
+  allowsNewBypassExecutable?: boolean;
+  usesScarletVioletLayout?: boolean;
   includesExeFsOutput: boolean;
   isApplying: boolean;
   mode: ChangePlanOutputMode;
@@ -15,6 +17,8 @@ type TrinityOutputConfirmationModalProps = {
 };
 
 export function TrinityOutputConfirmationModal({
+  allowsNewBypassExecutable = false,
+  usesScarletVioletLayout = false,
   includesExeFsOutput,
   isApplying,
   mode,
@@ -22,7 +26,7 @@ export function TrinityOutputConfirmationModal({
   onConfirm,
   outputRootPath
 }: TrinityOutputConfirmationModalProps) {
-  const { translateLiteral } = useLocalization();
+  const { t, translateLiteral } = useLocalization();
   const isStandalone = mode === 'standalone';
   const isTrinityBypass = mode === 'trinityBypass';
   const headingId = 'trinity-output-confirmation-heading';
@@ -89,7 +93,7 @@ export function TrinityOutputConfirmationModal({
               {translateLiteral('as loose LayeredFS RomFS files for Trinity Bypass.')}
             </p>
             <p className="modal-copy modal-copy-muted">
-              {includesExeFsOutput
+              {includesExeFsOutput && !allowsNewBypassExecutable
                 ? translateLiteral(
                     'This writes or replaces files under romfs/ without patching the Trinity file index, and updates the existing exefs/main in Output Root. Both parts are required.'
                   )
@@ -105,7 +109,13 @@ export function TrinityOutputConfirmationModal({
                     </>
                   )}
             </p>
-            {includesExeFsOutput ? (
+            {includesExeFsOutput && allowsNewBypassExecutable ? (
+              <p className="modal-copy modal-copy-muted">
+                {translateLiteral(
+                  'The reviewed plan may create or replace standard exefs/main, or remove that loose override when the executable returns to vanilla.'
+                )}
+              </p>
+            ) : includesExeFsOutput ? (
               <p className="modal-copy modal-copy-muted">
                 {translateLiteral(
                   'Use this only when the compatible Trinity Bypass exefs/main is already installed in this Output Root.'
@@ -127,7 +137,9 @@ export function TrinityOutputConfirmationModal({
               )}
             </p>
             <p className="modal-copy modal-copy-muted">
-              {includesExeFsOutput
+              {usesScarletVioletLayout
+                ? t('trinityOutput.svManagerHelp')
+                : includesExeFsOutput
                 ? translateLiteral(
                     'The RomFS source is in trinity-mod-manager-romfs/. Add only that inner folder to Trinity Mod Manager. Then install its generated romfs/ beside Output Root exefs/ when that folder contains output. Do not add the whole Output Root to Trinity Mod Manager.'
                   )

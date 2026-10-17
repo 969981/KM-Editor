@@ -142,6 +142,10 @@ internal sealed partial class SvMovesEditSessionService
 
         ValidatePendingPairs(loadedWorkflow, updatedSession.PendingEdits, diagnostics);
 
+        if (updates.Any(update => SvTeraBlastSettings.IsField(update.Field))
+            && diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            return new SvMovesEditResult(workflow, currentSession, diagnostics);
+
         return new SvMovesEditResult(
             OverlayPendingEdits(loadedWorkflow, updatedSession.PendingEdits),
             updatedSession,
@@ -194,18 +198,32 @@ internal sealed partial class SvMovesEditSessionService
         ArgumentNullException.ThrowIfNull(session);
 
         var validation = Validate(paths, session);
-        return SvChangePlanSourceGuard.Capture(
-            paths,
-            session,
-            SvEditSessionSupport.CreateSingleFileChangePlan(
+        var nativeEdits = session.PendingEdits.Where(edit => SvTeraBlastSettings.IsField(edit.Field)).ToArray();
+        var ordinarySession = session with
+        {
+            PendingEdits = session.PendingEdits.Where(edit => !SvTeraBlastSettings.IsField(edit.Field)).ToArray(),
+        };
+        var diagnostics = validation.Diagnostics.ToList();
+        var plan = ordinarySession.PendingEdits.Count > 0 || session.PendingEdits.Count == 0
+            ? SvEditSessionSupport.CreateSingleFileChangePlan(
                 paths,
-                session,
+                ordinarySession,
                 SvEditSessionSupport.MovesDomain,
                 SvDataPaths.MoveDataArray,
                 "Moves",
-                validation.Diagnostics,
-                outputMode),
-            outputMode);
+                diagnostics,
+                outputMode)
+            : new ChangePlan(session.Id, [], diagnostics);
+        if (nativeEdits.Length > 0 && plan.CanApply)
+        {
+            try { plan = plan with { Writes = [.. plan.Writes, SvTeraBlastWorkflow.Plan(paths, session)] }; }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
+            {
+                plan = plan with { Diagnostics = [.. plan.Diagnostics,
+                    SvTeraBlastWorkflow.Diagnostic(SvTeraBlastWorkflow.UnavailableCode, exception.Message)] };
+            }
+        }
+        return SvChangePlanSourceGuard.Capture(paths, session, plan, outputMode);
     }
 
     public ApplyResult ApplyChangePlan(
@@ -241,23 +259,25 @@ internal sealed partial class SvMovesEditSessionService
         try
         {
             var project = projectWorkspaceService.Open(paths);
-            var source = fileSource.Read(project, SvDataPaths.MoveDataArray);
-            var rows = ReadRows(source.Bytes);
-            foreach (var edit in session.PendingEdits)
+            var ordinaryEdits = session.PendingEdits.Where(edit => !SvTeraBlastSettings.IsField(edit.Field)).ToArray();
+            if (ordinaryEdits.Length > 0)
             {
-                ApplyEdit(rows, edit, diagnostics);
-            }
+                var source = fileSource.Read(project, SvDataPaths.MoveDataArray);
+                var rows = ReadRows(source.Bytes);
+                foreach (var edit in ordinaryEdits) ApplyEdit(rows, edit, diagnostics);
 
-            if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
-            {
-                return SvEditSessionSupport.CreateApplyResult(applyId, appliedAt, currentPlan, writtenFiles, diagnostics);
-            }
+                if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+                    return SvEditSessionSupport.CreateApplyResult(applyId, appliedAt, currentPlan, writtenFiles, diagnostics);
 
-            SvWorkflowFileSource.Write(paths, SvDataPaths.MoveDataArray, WriteRows(rows), outputMode);
-            writtenFiles.Add(SvEditSessionSupport.GeneratedReference(SvDataPaths.MoveDataArray, outputMode));
-            if (outputMode == SvOutputMode.Standalone)
+                SvWorkflowFileSource.Write(paths, SvDataPaths.MoveDataArray, WriteRows(rows), outputMode);
+                writtenFiles.Add(SvEditSessionSupport.GeneratedReference(SvDataPaths.MoveDataArray, outputMode));
+                if (outputMode == SvOutputMode.Standalone)
+                    writtenFiles.Add(SvEditSessionSupport.GeneratedDescriptorReference());
+            }
+            if (session.PendingEdits.Any(edit => SvTeraBlastSettings.IsField(edit.Field)))
             {
-                writtenFiles.Add(SvEditSessionSupport.GeneratedDescriptorReference());
+                SvTeraBlastWorkflow.Apply(paths, project, session, currentPlan, outputMode);
+                writtenFiles.Add(new(ProjectFileLayer.Generated, SvTeraBlastWorkflow.MainPath));
             }
 
             diagnostics.Add(SvEditSessionSupport.CreateDiagnostic(
@@ -285,6 +305,7 @@ internal sealed partial class SvMovesEditSessionService
         ICollection<ValidationDiagnostic> diagnostics)
     {
         var normalizedField = field.Trim();
+        if (!SvTeraBlastWorkflow.CanEdit(move, normalizedField, diagnostics)) return null;
         var parsedValue = TryParseEditableValue(normalizedField, value, diagnostics);
         if (parsedValue is null)
         {
@@ -300,7 +321,9 @@ internal sealed partial class SvMovesEditSessionService
         return SvEditSessionSupport.CreatePendingEdit(
             SvEditSessionSupport.MovesDomain,
             $"Set {move.Name} {editableField.Label.ToLowerInvariant()} to {parsedValue.Value}.",
-            new ProjectFileReference(move.Provenance.SourceLayer, move.Provenance.SourceFile),
+            SvTeraBlastSettings.IsField(normalizedField)
+                ? new ProjectFileReference(move.TeraBlastProvenance!.SourceLayer, SvTeraBlastWorkflow.MainPath)
+                : new ProjectFileReference(move.Provenance.SourceLayer, move.Provenance.SourceFile),
             move.MoveId.ToString(CultureInfo.InvariantCulture),
             normalizedField,
             parsedValue.Value.ToString(CultureInfo.InvariantCulture));
@@ -333,6 +356,13 @@ internal sealed partial class SvMovesEditSessionService
             return;
         }
 
+        if (edit.Field is { } field)
+            SvTeraBlastWorkflow.CanEdit(workflow.Moves.Single(move => move.MoveId == moveId), field, diagnostics);
+        if (SvTeraBlastSettings.IsField(edit.Field)
+            && (edit.Sources.Count != 1 || edit.Sources[0].RelativePath != SvTeraBlastWorkflow.MainPath))
+            diagnostics.Add(SvEditSessionSupport.CreateDiagnostic(DiagnosticSeverity.Error,
+                "Tera Blast settings must reference their executable source.", SvEditSessionSupport.MovesDomain,
+                field: edit.Field, expected: SvTeraBlastWorkflow.MainPath));
         _ = TryParseEditableValue(edit.Field, edit.NewValue, diagnostics);
     }
 
@@ -452,7 +482,9 @@ internal sealed partial class SvMovesEditSessionService
         }
 
         if (parsedValue.Value < (editableField.MinimumValue ?? int.MinValue)
-            || parsedValue.Value > (editableField.MaximumValue ?? int.MaxValue))
+            || parsedValue.Value > (editableField.MaximumValue ?? int.MaxValue)
+            || SvTeraBlastSettings.IsField(field) && editableField.Options.Count > 0
+                && editableField.Options.All(option => option.Value != parsedValue.Value))
         {
             diagnostics.Add(SvEditSessionSupport.CreateDiagnostic(
                 DiagnosticSeverity.Error,
@@ -521,6 +553,9 @@ internal sealed partial class SvMovesEditSessionService
 
     private static SvMoveRecord OverlayMoveField(SvMoveRecord move, string field, int value)
     {
+        if (SvTeraBlastSettings.IsField(field))
+            return move.MoveId == 851 && move.TeraBlast is not null
+                ? move with { TeraBlast = move.TeraBlast.With(field, value) } : move;
         return field switch
         {
             SvMovesWorkflowService.CanUseMoveField => move with { CanUseMove = value != 0 },

@@ -5,6 +5,7 @@ using KM.Formats.Executable;
 using KM.SV.FashionUnlock;
 using KM.SV.HyperspaceBypass;
 using KM.SV.TypeChart;
+using KM.SV.Moves;
 
 namespace KM.SV.RuntimeSettings;
 
@@ -33,6 +34,13 @@ public static class SvKnownExecutableCompositionVerifier
             var retail = retailMain.ToArray();
             var normalized = candidateMain.ToArray();
             var recognizedTransformation = false;
+
+            var teraBlast = SvTeraBlastMainPatcher.Read(normalized, expectedGame);
+            if (teraBlast != SvTeraBlastSettings.Default)
+            {
+                normalized = SvTeraBlastMainPatcher.Apply(normalized, SvTeraBlastSettings.Default, expectedGame);
+                recognizedTransformation = true;
+            }
 
             var gameplay = SvGameplaySettingsMainPatcher.Analyze(
                 normalized,

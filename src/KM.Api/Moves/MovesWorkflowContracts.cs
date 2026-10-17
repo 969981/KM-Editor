@@ -186,6 +186,9 @@ public sealed record MovePlayerDamageRecordDto(
 
 public sealed record MoveVanillaFieldValueDto(string Field, string Value);
 
+public sealed record TeraBlastSettingsDto(int TypeBehavior, int CategoryBehavior, int StellarPower,
+    int StellarEffectiveness, int NormalEffectiveness, int AttackDrop, int SpecialAttackDrop);
+
 public sealed record MoveRecordDto(
     int MoveId,
     string Name,
@@ -221,6 +224,10 @@ public sealed record MoveRecordDto(
     IReadOnlyList<MoveFlagRecordDto> Flags,
     MoveProvenanceDto Provenance)
 {
+    public TeraBlastSettingsDto? TeraBlast { get; init; }
+
+    public string? TeraBlastBlockedReason { get; init; }
+
     public IReadOnlyList<MoveRuntimeVariantRecordDto> RuntimeVariants { get; init; } = [];
 
     public MoveTimingRecordDto? Timing { get; init; }

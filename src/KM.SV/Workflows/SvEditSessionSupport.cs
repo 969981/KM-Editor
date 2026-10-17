@@ -231,9 +231,7 @@ internal static class SvEditSessionSupport
         string virtualPath,
         SvOutputMode outputMode = SvOutputMode.Standalone)
     {
-        var relativePath = outputMode == SvOutputMode.TrinityModManager
-            ? virtualPath
-            : $"romfs/{virtualPath}";
+        var relativePath = SvWorkflowFileSource.ToOutputRelativePath(virtualPath, outputMode);
         return new ProjectFileReference(ProjectFileLayer.Generated, relativePath);
     }
 
@@ -248,6 +246,8 @@ internal static class SvEditSessionSupport
         {
             SvOutputMode.Standalone =>
                 $"Applied {workflowName} change plan as standalone Scarlet/Violet output and patched the Trinity descriptor.",
+            SvOutputMode.TrinityModManager when SvWorkflowFileSource.UsesTrinityModManagerContainer =>
+                "The RomFS source is in trinity-mod-manager-romfs/. Add only that inner folder to Trinity Mod Manager. Then install its generated romfs/ beside Output Root exefs/ when that folder contains output. Do not add the whole Output Root to Trinity Mod Manager.",
             SvOutputMode.TrinityModManager =>
                 $"Applied {workflowName} change plan for Trinity Mod Manager. Run this output folder through Trinity Mod Manager before installing.",
             SvOutputMode.TrinityBypass =>

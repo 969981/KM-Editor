@@ -115,6 +115,7 @@ export const projectBridgeErrorCodes = {
   trainerDynamaxInvalid: "KM-SWSH-TRAINER-DYNAMAX-INVALID",
   trainerDynamaxReviewStale: "KM-SWSH-TRAINER-DYNAMAX-REVIEW-STALE",
   summaryStatsSourceStale: "KM-SV-SUMMARY-STATS-SOURCE-STALE",
+  teraBlastUnavailable: "KM-SV-MOVES-TERA-BLAST-UNAVAILABLE",
   summaryStatsSourceUnavailable: "KM-SV-SUMMARY-STATS-SOURCE-UNAVAILABLE",
   summaryStatsOutputFailed: "KM-SV-SUMMARY-STATS-OUTPUT-FAILED",
   summaryStatsEditInvalid: "KM-SV-SUMMARY-STATS-EDIT-INVALID",

@@ -1678,6 +1678,7 @@ public sealed partial class SvWorkflowService
         SvOutputMode outputMode = SvOutputMode.Standalone)
     {
         using var outputLock = SvWorkflowFileSource.AcquireOutputLock(paths);
+        using var outputLayout = SvWorkflowFileSource.BeginOutputLayoutScope(paths, session, outputMode);
         using var freshReads = SvWorkflowFileSource.BeginFreshReadScope(paths);
         projectWorkspaceService.ClearMemoryCache();
         var domain = GetDomain(session);
@@ -1700,6 +1701,7 @@ public sealed partial class SvWorkflowService
         try
         {
             using var outputLock = SvWorkflowFileSource.AcquireOutputLock(paths);
+            using var outputLayout = SvWorkflowFileSource.BeginOutputLayoutScope(paths, session, outputMode);
             using var freshReads = SvWorkflowFileSource.BeginFreshReadScope(paths);
             projectWorkspaceService.ClearMemoryCache();
             var domain = GetDomain(session);

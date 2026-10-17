@@ -122,6 +122,10 @@ export function evaluateMoveFieldsUpdate({
 }
 
 export function getEditableMoveFieldValue(move: MoveRecord, field: string) {
+  if (field.startsWith('teraBlast.')) {
+    const key = field.slice('teraBlast.'.length) as keyof NonNullable<MoveRecord['teraBlast']>;
+    return move.moveId === 851 ? move.teraBlast?.[key] ?? null : null;
+  }
   const playerDamageAttackId = parseMovePlayerDamageField(field);
   if (playerDamageAttackId !== null) {
     return move.playerDamageRows.find((row) => row.attackId === playerDamageAttackId)
@@ -337,6 +341,7 @@ export function getMoveEditableFieldLabel(field: MoveEditableField) {
 }
 
 export function getMoveEditableFieldGroup(field: NumericMoveEditableField) {
+  if (field.field.startsWith('teraBlast.')) return 'Tera Blast';
   if (parseMovePlayerDamageField(field.field) !== null) {
     return 'Boss Player Damage';
   }
