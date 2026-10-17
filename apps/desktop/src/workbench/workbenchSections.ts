@@ -33,6 +33,8 @@ export const workbenchSections = [
   'encounters',
   'outbreaks',
   'distortions',
+  'weather',
+  'gameplayRules',
   'teraRaids',
   'raidBattles',
   'raidRewards',

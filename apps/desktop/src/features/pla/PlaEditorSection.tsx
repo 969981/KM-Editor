@@ -16,11 +16,12 @@ import { PlaDataWorkspace } from './PlaDataWorkspace';
 import { PlaPokemonRows } from './PlaPokemonRows';
 import { PlaEconomyWorkspace, isPlaEconomyKind } from './PlaEconomyWorkspace';
 import { PlaWildWorkspace, isPlaWildKind } from './PlaWildWorkspace';
+import { PlaRulesWorkspace } from './PlaRulesWorkspace';
 import './plaEditor.css';
 
 export type PlaDrafts = Record<string, { revision: string; values: Record<string, string>; baseline: Record<string, string> }>;
 type Props = {
-  section: 'pokemon' | 'moves' | 'text' | 'trainers' | 'giftPokemon' | 'staticEncounters' | 'items' | 'crafting' | 'shops' | 'pokemonDrops' | 'research' | 'encounters' | 'outbreaks' | 'distortions'; paths: ProjectPaths; session: EditSession | null; bridge: ProjectBridge;
+  section: 'pokemon' | 'moves' | 'text' | 'trainers' | 'giftPokemon' | 'staticEncounters' | 'items' | 'crafting' | 'shops' | 'pokemonDrops' | 'research' | 'encounters' | 'outbreaks' | 'distortions' | 'weather' | 'gameplayRules'; paths: ProjectPaths; session: EditSession | null; bridge: ProjectBridge;
   drafts: PlaDrafts; setDrafts: Dispatch<SetStateAction<PlaDrafts>>;
   isStarting: boolean; isBusy: boolean; onStart: () => void;
   onStage: (request: Omit<StagePlaRequest, 'paths' | 'session'>) => Promise<boolean>;
@@ -35,6 +36,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
   const [pokemonKind, setPokemonKind] = useState<PlaKind>('personal');
   const [economyTab, setEconomyTab] = useState<PlaKind | null>(null);
   const kind = section === 'pokemon' ? pokemonKind : section === 'giftPokemon' ? 'gifts' : section === 'staticEncounters' ? 'static'
+    : section === 'gameplayRules' ? economyTab ?? 'capture'
     : section === 'distortions' ? economyTab ?? 'distortionEncounters' : section === 'outbreaks' ? economyTab ?? 'outbreaks'
     : section === 'pokemonDrops' ? 'drops' : section === 'shops' || section === 'research' || section === 'encounters' ? economyTab ?? section : section;
   const [page, setPage] = useState<PlaPage | null>(null);
@@ -58,7 +60,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
     setError(null);
     const request = JSON.parse(requestKey) as { paths: ProjectPaths; session: EditSession | null; kind: PlaKind; query: string; offset: number; textFile: string | null; messageLanguage: string | null };
     const timer = window.setTimeout(() => {
-      void bridge.loadPla({ paths: request.paths, session: request.session, kind: request.kind, query: request.query, offset: request.offset, textFile: request.textFile, messageLanguage: request.messageLanguage }).then(response => {
+      void bridge.loadPla({ paths: request.paths, session: request.session, kind: request.kind, query: request.kind === 'weather' ? '' : request.query, offset: request.offset, textFile: request.textFile, messageLanguage: request.messageLanguage }).then(response => {
         if (epoch.current !== run) return;
         setPage(response.page);
         setSelectedId(current => response.page.records.some(record => record.id === current) ? current : response.page.records[0]?.id ?? null);
@@ -68,7 +70,10 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
     return () => { window.clearTimeout(timer); epoch.current++; };
   }, [bridge, requestKey]);
 
-  const selected = page?.records.find(record => record.id === selectedId) ?? null;
+  const weatherRecords = page?.kind === 'weather' ? page.records.filter(record => !query || record.id.toLocaleLowerCase().includes(query.toLocaleLowerCase())
+    || t('pla.area.' + record.id).toLocaleLowerCase().includes(query.toLocaleLowerCase())) : null;
+  const visiblePage = page?.kind === kind ? weatherRecords ? { ...page, records: weatherRecords, total: weatherRecords.length } : page : null;
+  const selected = visiblePage?.records.find(record => record.id === selectedId) ?? visiblePage?.records[0] ?? null;
   const recordDraftKey = (record: PlaRecord) => `${section}/${kind}/${paths.gameTextLanguage ?? 'English'}/${record.id}`;
   const draftKey = selected ? recordDraftKey(selected) : '';
   const draft = drafts[draftKey];
@@ -104,8 +109,8 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
           const rows = parseRows(requested[field.key]);
           if (rows.some(row => row.some(value => !/^\d+$/u.test(value)))) { setError(t('pla.invalid')); return; }
           requested[field.key] = JSON.stringify(rows.map(row => row.map(Number)));
-        } else if (field.kind === 'decimal' ? !/^-?(?:\d+(?:\.\d*)?|\.\d+)$/u.test(requested[field.key]) || !Number.isFinite(Number(requested[field.key]))
-          : field.kind !== 'text' && !/^-?\d+$/u.test(requested[field.key])) { setError(t(field.kind === 'decimal' ? 'pla.wild.invalid' : 'pla.invalid')); return; }
+        } else if (field.kind === 'decimal' || field.kind === 'factor' ? !/^-?(?:\d+(?:\.\d*)?|\.\d+)$/u.test(requested[field.key]) || !Number.isFinite(Number(requested[field.key]))
+          : field.kind !== 'text' && !/^-?\d+$/u.test(requested[field.key])) { setError(t(field.kind === 'factor' ? 'pla.rules.invalid' : field.kind === 'decimal' ? 'pla.wild.invalid' : 'pla.invalid')); return; }
       }
     }
     setStaging(true); setError(null);
@@ -145,7 +150,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
               ? { ...choice, label: t(`pla.choice.${field.key}.${choice.value}`) }
               : /^move[1-4]$/u.test(field.key) && choice.value === '0' ? { ...choice, label: t('pla.unspecifiedMove') } : choice)} isFiniteCatalog localizeOptions={false} />
         : field.kind === 'text' ? <textarea id={id} value={value} disabled={disabled} rows={8} onChange={event => change(event.target.value)} />
-        : <input id={id} type="text" inputMode={field.kind === 'decimal' ? 'decimal' : 'numeric'} value={value} disabled={disabled} onChange={event => change(event.target.value)} />;
+        : <input id={id} type="text" inputMode={field.kind === 'decimal' || field.kind === 'factor' ? 'decimal' : 'numeric'} value={value} disabled={disabled} onChange={event => change(event.target.value)} />;
   const actions = session ? <EditorSessionBarActions>
         <button type="button" className="primary-button" disabled={!enabled || !draft || loading || staging || isBusy} onClick={() => void stage()}>
           <Save size={16} aria-hidden="true" />{translateLiteral(staging ? 'Staging' : 'Stage')}
@@ -179,9 +184,8 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
             values[field.key] ?? '', value => setValue(field.key, value), disabled, `pla-field-${field.key}`);
       }} /></FocusedEditorWorkspace>;
   }
-  const visiblePage = page?.kind === kind ? page : null;
   const eventTabs: PlaKind[] = section === 'outbreaks' ? ['outbreaks', 'massiveOutbreaks', 'outbreakGroups', 'outbreakWaves', 'outbreakDurations', 'outbreakEncounters']
-    : section === 'distortions' ? ['distortionEncounters', 'distortionSpawns', 'distortionItems'] : [];
+    : section === 'distortions' ? ['distortionEncounters', 'distortionSpawns', 'distortionItems'] : section === 'gameplayRules' ? ['capture', 'friendship', 'shiny'] : [];
   const eventControls = eventTabs.length ? <>
     <nav className="text-category-browser" aria-label={t('pla.editor')}><div className="text-category-tabs" role="tablist" aria-label={t('pla.editor')}>
       {eventTabs.map((value, index) => <button type="button" key={value} role="tab" aria-selected={kind === value} tabIndex={kind === value ? 0 : -1}
@@ -193,8 +197,14 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
           event.preventDefault(); setEconomyTab(eventTabs[next]); setOffset(0); setQuery('');
           (event.currentTarget.parentElement?.children[next] as HTMLButtonElement | undefined)?.focus();
         }}>{t('pla.kind.' + value)}</button>)}
-    </div></nav><p className="field-note">{t(section === 'outbreaks' ? 'pla.event.outbreakNotice' : 'pla.event.distortionNotice')}</p>
+    </div></nav>{section !== 'gameplayRules' ? <p className="field-note">{t(section === 'outbreaks' ? 'pla.event.outbreakNotice' : 'pla.event.distortionNotice')}</p> : null}
   </> : undefined;
+  if (kind === 'capture' || kind === 'friendship' || kind === 'shiny') return <FocusedEditorWorkspace>
+    <PlaRulesWorkspace kind={kind} page={visiblePage} controls={eventControls} loading={loading} actions={actions} refresh={refreshButton} fieldLabel={label}
+      sessionBar={<EditorSessionBar canEdit={visiblePage !== null && !loading} isEditing={session !== null} isStarting={isStarting}
+        label={t('workbench.section.gameplayRules.label')} onStart={onStart} />}
+      renderInput={field => input(field, values[field.key] ?? '', value => setValue(field.key, value), !enabled || field.readOnly || Boolean(selected?.readOnlyFields.includes(field.key)), 'pla-field-' + field.key)} />
+  </FocusedEditorWorkspace>;
   if (isPlaWildKind(kind)) return <FocusedEditorWorkspace><PlaWildWorkspace kind={kind} page={visiblePage} selected={visiblePage ? selected : null}
     controls={eventControls} title={t(workbenchSectionLocalization[section].label)}
     query={query} offset={offset} loading={loading} refresh={refreshButton} actions={actions} fieldLabel={label} renderPokemon={renderPokemon}

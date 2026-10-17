@@ -43,6 +43,8 @@ export const workbenchSectionLocalization = {
   research: { label: 'workbench.section.research.label', description: 'workbench.section.research.description' },
   outbreaks: { label: 'workbench.section.outbreaks.label', description: 'workbench.section.outbreaks.description' },
   distortions: { label: 'workbench.section.distortions.label', description: 'workbench.section.distortions.description' },
+  weather: { label: 'workbench.section.weather.label', description: 'workbench.section.weather.description' },
+  gameplayRules: { label: 'workbench.section.gameplayRules.label', description: 'workbench.section.gameplayRules.description' },
   battleCafeRewards: { label: 'workbench.section.battle-cafe-rewards.label', description: 'workbench.section.battle-cafe-rewards.description' },
   tmMachineControls: { label: 'workbench.section.tm-machine-controls.label', description: 'workbench.section.tm-machine-controls.description' },
   habitatCoordinates: { label: 'workbench.section.habitat-coordinates.label', description: 'workbench.section.habitat-coordinates.description' },

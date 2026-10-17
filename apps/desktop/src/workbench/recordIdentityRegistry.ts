@@ -27,6 +27,8 @@ const registrations = {
   research: sourceRevisionBound('research', 'stored species and task slot or rank identity with exact source revision'),
   outbreaks: sourceRevisionBound('outbreaks', 'area, event group, fixed slot, and exact source revision'),
   distortions: sourceRevisionBound('distortions', 'area, encounter or item table, fixed slot, and exact source revision'),
+  weather: sourceRevisionBound('weather', 'area identity and exact source revision'),
+  gameplayRules: sourceRevisionBound('gameplayRules', 'setting group, fixed parameter key, and exact source revision'),
   pokemon: sourceRevisionBound('pokemon', 'personal-table row plus exact source revision'),
   dexLayout: intrinsic('dexLayout', 'stored species ID and dex kind'),
   moves: intrinsic('moves', 'stored move ID'),

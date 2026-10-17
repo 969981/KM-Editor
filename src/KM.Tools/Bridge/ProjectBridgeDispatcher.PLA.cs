@@ -36,6 +36,8 @@ public sealed partial class ProjectBridgeDispatcher
         new("encounters", "Wild Encounters", "Existing PLA encounter slots, Alpha traits, eligibility, and supported spawn counts.", WorkflowAvailabilityDto.Available, []),
         new("outbreaks", "Outbreaks", "PLA outbreak encounters, counts, selection weights, and duration choices.", WorkflowAvailabilityDto.Available, []),
         new("distortions", "Space Time Distortions", "Supported PLA distortion encounters, spawn counts, and item selections.", WorkflowAvailabilityDto.Available, []),
+        new("weather", "Weather", "PLA area weather selection weights with preserved story conditions.", WorkflowAvailabilityDto.Available, []),
+        new("gameplayRules", "Gameplay Rules", "Supported PLA capture factors, friendship changes, and shiny bonuses.", WorkflowAvailabilityDto.Available, []),
     ]);
 
     private string DispatchLoadPla(string requestJson)

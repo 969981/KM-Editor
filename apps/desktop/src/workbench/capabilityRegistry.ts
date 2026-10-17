@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
 import {
+  CloudSun,
+  SlidersVertical,
   Activity,
   ArrowLeftRight,
   Award,
@@ -302,6 +304,10 @@ export const workbenchCapabilityRegistry = [
     description: 'Edit outbreak encounters, counts, selection weights, and duration choices.' }),
   workflow({ id: 'distortions', label: 'Space Time Distortions', games: ['pla'], icon: Tornado,
     description: 'Edit supported distortion encounters, spawn counts, and item selections.' }),
+  workflow({ id: 'weather', label: 'Weather', games: ['pla'], icon: CloudSun,
+    description: 'Edit area weather selection weights with preserved story conditions.' }),
+  workflow({ id: 'gameplayRules', label: 'Gameplay Rules', games: ['pla'], icon: SlidersVertical,
+    description: 'Edit supported capture factors, friendship changes, and shiny bonuses.' }),
   workflow({
     description:
       'Control TM recipe availability and tracking-window material visibility independently.',

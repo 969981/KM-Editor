@@ -50,6 +50,10 @@ internal sealed class PlaCatalog
     internal PlaWildCatalog Wild => wild ??= new(this);
     private PlaEventCatalog? events;
     internal PlaEventCatalog Events => events ??= new(this);
+    private PlaSettingsCatalog? settings;
+    internal PlaSettingsCatalog Settings => settings ??= new(this);
+    private PlaWeatherCatalog? weather;
+    internal PlaWeatherCatalog Weather => weather ??= new(this);
     internal PlaFlatBuffer Personal { get; }
     internal Dictionary<string, int> Pokemon { get; } = new(StringComparer.Ordinal);
     internal Dictionary<int, (string Path, PlaFlatBuffer Buffer)> Moves { get; } = [];
@@ -143,6 +147,8 @@ internal sealed class PlaCatalog
 
     internal PlaField[] Fields(string kind) => kind switch
     {
+        _ when PlaSettingsCatalog.Supports(kind) => Settings.Fields(kind),
+        "weather" => Weather.Fields(),
         _ when PlaWildCatalog.Supports(kind) => Wild.Fields(kind),
         _ when PlaEventCatalog.Supports(kind) => Events.Fields(kind),
         _ when PlaEconomyCatalog.Supports(kind) => Economy.Fields(kind),
@@ -227,6 +233,8 @@ internal sealed class PlaCatalog
     }
 
     internal string ResourcePath(string kind, string id) => PlaWildCatalog.Supports(kind) ? Wild.PathFor(kind, id)
+        : PlaSettingsCatalog.Supports(kind) ? Settings.PathFor(kind, id)
+        : kind == "weather" ? Weather.PathFor(id)
         : PlaEventCatalog.Supports(kind) ? Events.PathFor(kind, id)
         : PlaEconomyCatalog.Supports(kind) ? Economy.PathFor(kind, id) : Locate(kind, id).Path;
 
@@ -235,6 +243,8 @@ internal sealed class PlaCatalog
 
     internal PlaRecord Record(string kind, string id, byte[]? edited = null)
     {
+        if (PlaSettingsCatalog.Supports(kind)) return Settings.Record(kind, id, edited);
+        if (kind == "weather") return Weather.Record(id, edited);
         if (PlaWildCatalog.Supports(kind)) return Wild.Record(kind, id, edited);
         if (PlaEventCatalog.Supports(kind)) return Events.Record(kind, id, edited);
         if (PlaEconomyCatalog.Supports(kind)) return Economy.Record(kind, id, edited);
