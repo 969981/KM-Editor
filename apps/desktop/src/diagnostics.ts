@@ -68,6 +68,7 @@ const diagnosticLocalizationKeys: Readonly<Record<string, string>> = {
   'KM-SV-TITAN-SWAPPER-SOURCE-UNAVAILABLE': 'titanSwapper.sourceUnavailable',
   'KM-SV-TITAN-SWAPPER-OUTPUT-FAILED': 'titanSwapper.outputFailed',
   'KM-SV-TITAN-SWAPPER-EDIT-INVALID': 'titanSwapper.invalid',
+  'KM-SV-MOVES-TERA-BLAST-UNAVAILABLE': 'moves.teraBlast.unavailable',
   'KM-SV-TITAN-RECOVERY-PLANNED': 'titanRecovery.planned',
   'KM-SV-TITAN-RECOVERY-SOURCE-INVALID': 'titanRecovery.source',
   'KM-SV-TITAN-RECOVERY-UNSUPPORTED': 'titanRecovery.unsupported',

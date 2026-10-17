@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 using System.Globalization;
+using KM.SV.Moves;
 
 namespace KM.SV.ExeFs;
 
@@ -39,10 +40,14 @@ internal static class SvExeFsReservedRegionLedger
     public const string OwnerHyperspaceBypass = "Hyperspace Bypass";
     public const string OwnerNativeGameplayMenu = "Native Gameplay Menu";
     public const string OwnerTypeChart = "Type Chart";
+    public const string OwnerTeraBlast = "Tera Blast";
     public const string ExeFsMainPath = "exefs/main";
 
     private static readonly SvExeFsReservedRegion[] regions =
     [
+        .. SvTeraBlastMainPatcher.Originals.Select(pair => new SvExeFsReservedRegion(
+            OwnerTeraBlast, $"tera-blast-{pair.Key:X}", ExeFsMainPath, "main.text", pair.Key,
+            pair.Value.Length, "Tera Blast battle and preview behavior", "do-not-overwrite")),
         new(
             OwnerNativeGameplayMenu,
             "native-gameplay-menu-bss-reservation",

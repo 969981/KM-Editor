@@ -296,6 +296,7 @@ internal sealed class SvMovesWorkflowService
             labels = SvTextLabelLookup.Load(project, fileSource, diagnostics, project.Paths);
             source = fileSource.Read(project, SvDataPaths.MoveDataArray);
             moves = LoadRecords(source, labels).ToArray();
+            moves = SvTeraBlastWorkflow.Attach(project, moves);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
         {
@@ -314,7 +315,7 @@ internal sealed class SvMovesWorkflowService
         return new SvMovesWorkflow(
             summary,
             moves,
-            EditableFields,
+            [.. EditableFields, .. SvTeraBlastSettings.Fields],
             new SvMovesWorkflowStats(
                 moves.Length,
                 moves.Count(move => move.CanUseMove),
@@ -325,7 +326,7 @@ internal sealed class SvMovesWorkflowService
 
     internal static SvMoveEditableField? GetEditableField(string? field)
     {
-        return EditableFields.FirstOrDefault(candidate =>
+        return EditableFields.Concat(SvTeraBlastSettings.Fields).FirstOrDefault(candidate =>
             string.Equals(candidate.Field, field, StringComparison.Ordinal));
     }
 

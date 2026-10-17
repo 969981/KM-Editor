@@ -355,6 +355,7 @@ import {
   resolveMoveRuntimeVariant,
   resolveMoveTimingEditableField
 } from './movesEditor';
+import { hasTeraBlastEdits, localizeTeraBlastField, teraBlastDefaultFields } from './teraBlastEditor';
 import { canAccessWorkflowSectionForHealth, getGameScopedWorkflowSummaries, getLoadedWorkflowStateForSection, isPokemonLegendsZAAdvancedEditorSection, isPokemonLegendsZAGame, isScarletVioletAdvancedEditorSection, isScarletVioletGame, isSharedStagedEditorSection, isTrinityCacheGame, isWorkflowNavigationVisibleForGame, isWorkflowSection, isWorkflowSupportedForGame, pokemonLegendsZAAdvancedEditorDomains, resolveWorkflowDataSection, scarletVioletAdvancedEditorDomains, sharedStagedEditorDomains, standaloneWorkflowSectionIds, workflowNavigationGroups } from './workflowGameSupport';
 import {
   WorkflowLoadGeneration,
@@ -22404,6 +22405,8 @@ export function App({
       {trinityOutputConfirmation ? (
         <TrinityOutputConfirmationModal
           includesExeFsOutput={getExeFsPlanWrite(visibleChangePlan) !== null}
+          allowsNewBypassExecutable={hasTeraBlastEdits(editSession)}
+          usesScarletVioletLayout={isScarletVioletGame(selectedGame)}
           isApplying={isChangePlanApplying}
           mode={trinityOutputConfirmation.mode}
           onCancel={() => setTrinityOutputConfirmation(null)}
@@ -28720,6 +28723,7 @@ function formatLocalizedMoveFieldGroup(
   translateLiteral: ReturnType<typeof useLocalization>['translateLiteral']
 ) {
   const keyByGroup: Record<string, string> = {
+    'Tera Blast': 'moves.teraBlast.heading',
     'Conventional Effects': 'moves.groups.conventionalEffects',
     'Runtime Behavior': 'moves.groups.runtimeBehavior',
     'Runtime Effects': 'moves.groups.runtimeEffects',
@@ -29384,14 +29388,14 @@ function SelectedMovePanel({
           (field, index, fields) =>
             fields.findIndex((candidate) => candidate.field === field.field) === index
         )
-        .map((field) => toNumericEditableField(field))
+        .map((field) => toNumericEditableField(localizeTeraBlastField(field, t)))
         .map((field) =>
           isMoveProjectileField(field.field) && projectileOptions.length > 0
             ? { ...field, options: projectileOptions }
             : field
         )
         .filter((field) => !move || getEditableMoveFieldValue(move, field.field) !== null),
-    [editableFields, move, projectileOptions]
+    [editableFields, move, projectileOptions, t]
   );
   const moveFields = useMemo(
     () =>
@@ -29871,7 +29875,11 @@ function SelectedMovePanel({
                   </label>
                 </div>
               </fieldset>
+              {move.teraBlastBlockedReason ? (
+                <p className="field-note" role="status">{t('moves.teraBlast.unavailable')}</p>
+              ) : null}
               {moveFieldGroups.map((group, groupIndex) => {
+                const isTeraBlastGroup = group.group === 'Tera Blast';
                 const isFlagsGroup = group.group.endsWith('Flags');
                 const isAdvancedGroup = group.group.startsWith('Advanced ');
                 const isPlayerDamageGroup = group.group === 'Boss Player Damage';
@@ -29901,7 +29909,9 @@ function SelectedMovePanel({
                   : isConventionalEffectsGroup && move.hasRuntimeData
                     ? t('moves.groups.sharedConventionalEffects')
                     : formatLocalizedMoveFieldGroup(group.group, t, translateLiteral);
-                const semanticMoveGroupHelp = isPlayerDamageGroup
+                const semanticMoveGroupHelp = isTeraBlastGroup
+                  ? t('moves.teraBlast.help')
+                  : isPlayerDamageGroup
                   ? t(
                       move.playerDamageRows.length === 1
                         ? 'moves.playerDamage.groupNote.one'
@@ -29937,6 +29947,20 @@ function SelectedMovePanel({
                           </ContextHelp>
                         ) : null}
                       </legend>
+                      {isTeraBlastGroup ? (
+                        <button type="button" className="secondary-action"
+                          disabled={!canEditMoves || editSession === null}
+                          onClick={() => setMoveDraftsByMoveId(current => {
+                            const drafts = { ...(current[move.moveId.toString()] ?? {}) };
+                            for (const [field, value] of Object.entries(teraBlastDefaultFields)) {
+                              if (getEditableMoveFieldValue(move, field) === value) delete drafts[field];
+                              else drafts[field] = value.toString();
+                            }
+                            return { ...current, [move.moveId.toString()]: drafts };
+                          })}>
+                          {t('moves.teraBlast.restore')}
+                        </button>
+                      ) : null}
                       {isPlayerDamageGroup ? (
                         <>
                           <ScriptedBossMoveControllerAvailability
@@ -58669,6 +58693,7 @@ function ChangesSection({
   const includesExeFsOutput = exeFsPlanWrite !== null;
   const canPreserveTrinityBypass =
     !includesExeFsOutput ||
+    hasTeraBlastEdits(editSession) ||
     exeFsPlanWrite.sources.some((source) => source.layer === 'layered');
   const hybridOutputExplanation =
     'This reviewed plan includes ExeFS output. The output choice changes RomFS packaging only. KM Editor will also update standard exefs/main, and both parts are required.';

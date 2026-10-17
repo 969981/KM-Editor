@@ -18,6 +18,7 @@ namespace KM.SV.Workflows;
 internal sealed class SvWorkflowFileSource
 {
     public const string DescriptorVirtualPath = SvTrinityDescriptorPatcher.DescriptorVirtualPath;
+    internal const string TrinityModManagerRomFsDirectory = "trinity-mod-manager-romfs";
     private const int MaximumBoundedArchiveIndexBytes = 64 * 1024 * 1024;
     private const long MaximumBoundedArchivePackBytes = 128L * 1024L * 1024L;
     private const int MaximumBoundedTableRecords = 50_000;
@@ -30,8 +31,11 @@ internal sealed class SvWorkflowFileSource
     private static DeferredOutputBatch? activeDeferredOutputBatch;
     [ThreadStatic]
     private static FreshReadContext? activeFreshReadContext;
+    [ThreadStatic]
+    private static bool isolateTrinityModManagerRomFs;
 
     internal static bool HasActiveDeferredOutputBatch => activeDeferredOutputBatch is not null;
+    internal static bool UsesTrinityModManagerContainer => isolateTrinityModManagerRomFs;
 
     private readonly SvCacheManager cacheManager;
     private readonly bool bypassReusableBaseCache;
@@ -283,7 +287,8 @@ internal sealed class SvWorkflowFileSource
             (string Path, bool IsStandalone)? looseOutput;
             try
             {
-                looseOutput = SelectLatestLooseOutput(trinityModManagerPath, standalonePath);
+                looseOutput = SelectLatestLooseOutput(trinityModManagerPath, standalonePath,
+                    CombineGraphPath(project.Paths.OutputRootPath, $"{TrinityModManagerRomFsDirectory}/{normalizedVirtualPath}"));
             }
             catch (Exception exception) when (IsContextualFileFailure(exception))
             {
@@ -518,7 +523,8 @@ internal sealed class SvWorkflowFileSource
         {
             var trinityModManagerPath = CombineGraphPath(paths.OutputRootPath, normalizedVirtualPath);
             var standalonePath = CombineGraphPath(paths.OutputRootPath, relativePath);
-            var looseOutput = SelectLatestLooseOutput(trinityModManagerPath, standalonePath);
+            var looseOutput = SelectLatestLooseOutput(trinityModManagerPath, standalonePath,
+                CombineGraphPath(paths.OutputRootPath, $"{TrinityModManagerRomFsDirectory}/{normalizedVirtualPath}"));
             if (looseOutput is not null)
             {
                 return (
@@ -630,6 +636,9 @@ internal sealed class SvWorkflowFileSource
                     relativePath,
                     ProjectFileLayer.Layered,
                     state: null)
+                || FileExistsWithContext(
+                    CombineGraphPath(project.Paths.OutputRootPath, $"{TrinityModManagerRomFsDirectory}/{normalizedVirtualPath}"),
+                    relativePath, ProjectFileLayer.Layered, state: null)
                 || TryOutputArchiveContains(project.Paths, normalizedVirtualPath, relativePath))
             {
                 return true;
@@ -936,6 +945,24 @@ internal sealed class SvWorkflowFileSource
             revalidateReviewedState);
     }
 
+    internal static OutputApplyResult? ApplyExecutableOutputBatch(
+        ProjectPaths paths,
+        byte[] main,
+        SvOutputMode outputMode,
+        SvOutputApplyContext applyContext)
+    {
+        ArgumentNullException.ThrowIfNull(main);
+        ArgumentNullException.ThrowIfNull(applyContext);
+        return ApplyBatchCore(
+            paths,
+            Array.Empty<SvWorkflowFileWrite>(),
+            Array.Empty<string>(),
+            [new SvStandaloneOutputMutation("exefs/main", main, ApplyContext: applyContext)],
+            outputMode,
+            applyContext,
+            revalidateReviewedState: null);
+    }
+
     internal static OutputApplyResult? ApplyStandaloneRomFsReplacementBatch(
         ProjectPaths paths,
         IReadOnlyList<SvWorkflowFileWrite> writes,
@@ -987,8 +1014,27 @@ internal sealed class SvWorkflowFileSource
         if (string.IsNullOrWhiteSpace(paths.OutputRootPath)) return null;
         var normalized = NormalizeVirtualPath(virtualPath);
         var selected = SelectLatestLooseOutput(CombineGraphPath(paths.OutputRootPath, normalized),
-            CombineGraphPath(paths.OutputRootPath, ToRelativePath(normalized)));
-        return selected is null ? null : selected.Value.IsStandalone ? ToRelativePath(normalized) : normalized;
+            CombineGraphPath(paths.OutputRootPath, ToRelativePath(normalized)),
+            CombineGraphPath(paths.OutputRootPath, $"{TrinityModManagerRomFsDirectory}/{normalized}"));
+        return selected is null ? null : Path.GetRelativePath(paths.OutputRootPath, selected.Value.Path).Replace('\\', '/');
+    }
+
+    internal static IDisposable BeginOutputLayoutScope(ProjectPaths paths, EditSession session, SvOutputMode mode)
+    {
+        var containsExecutable = session.PendingEdits.Any(edit =>
+            edit.Domain == SvEditSessionSupport.MovesDomain && Moves.SvTeraBlastSettings.IsField(edit.Field));
+        var useContainer = mode == SvOutputMode.TrinityModManager
+            && (containsExecutable || !string.IsNullOrWhiteSpace(paths.OutputRootPath)
+                && (Directory.Exists(Path.Combine(paths.OutputRootPath, TrinityModManagerRomFsDirectory))
+                    || File.Exists(Path.Combine(paths.OutputRootPath, "exefs", "main"))));
+        return new OutputLayoutScope(useContainer);
+    }
+
+    private sealed class OutputLayoutScope : IDisposable
+    {
+        private readonly bool previous = isolateTrinityModManagerRomFs;
+        internal OutputLayoutScope(bool useContainer) => isolateTrinityModManagerRomFs = useContainer;
+        public void Dispose() => isolateTrinityModManagerRomFs = previous;
     }
 
     internal static DeferredOutputBatch BeginDeferredOutputBatch(
@@ -1051,13 +1097,6 @@ internal sealed class SvWorkflowFileSource
                 nameof(writes));
         }
 
-        if (outputMode != SvOutputMode.Standalone && outputMutations.Count > 0)
-        {
-            throw new ArgumentException(
-                "Explicit output mutations require standalone output.",
-                nameof(outputMutations));
-        }
-
         var normalizedWrites = writes.Select(write =>
         {
             ArgumentNullException.ThrowIfNull(write);
@@ -1099,6 +1138,15 @@ internal sealed class SvWorkflowFileSource
                 mutation.DeleteFallbackBytes?.ToArray(),
                 mutation.ApplyContext);
         }).ToArray();
+        // The executable keeps the same output path in every RomFS layout.
+        if (outputMode != SvOutputMode.Standalone
+            && normalizedOutputMutations.Any(mutation =>
+                !mutation.RelativePath.Equals("exefs/main", StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new ArgumentException(
+                "Only exefs/main can accompany RomFS edits outside standalone output.",
+                nameof(outputMutations));
+        }
         if (normalizedWrites.Select(write => write.VirtualPath)
             .Concat(normalizedDeletes)
             .GroupBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -1639,9 +1687,13 @@ internal sealed class SvWorkflowFileSource
         var sameRomFsLayout = relativePath.Value.StartsWith("romfs/", StringComparison.OrdinalIgnoreCase)
             && owned.OutputMode is "sv.standalone" or "sv.trinity-bypass"
             && outputMode is "sv.standalone" or "sv.trinity-bypass";
+        var sameExecutableLayout = IsComposedExecutablePath(relativePath)
+            && owned.OutputMode is "sv.standalone" or "sv.trinity-bypass" or "sv.trinity-mod-manager"
+            && outputMode is "sv.standalone" or "sv.trinity-bypass" or "sv.trinity-mod-manager";
         if (!coordinator.OwnershipScopeMatches(owned, projectId, gameFamily)
             || owned.CurrentState != expectedPreimage
-            || !string.Equals(owned.OutputMode, outputMode, StringComparison.Ordinal) && !sameRomFsLayout)
+            || !string.Equals(owned.OutputMode, outputMode, StringComparison.Ordinal)
+                && !sameRomFsLayout && !sameExecutableLayout)
         {
             throw new OutputOwnershipConflictException(relativePath);
         }
@@ -1974,11 +2026,13 @@ internal sealed class SvWorkflowFileSource
         return $"romfs/{virtualRomFsPath}";
     }
 
-    private static string ToOutputRelativePath(string normalizedVirtualPath, SvOutputMode outputMode)
+    internal static string ToOutputRelativePath(string normalizedVirtualPath, SvOutputMode outputMode)
     {
         return outputMode switch
         {
             SvOutputMode.Standalone => ToRelativePath(normalizedVirtualPath),
+            SvOutputMode.TrinityModManager when isolateTrinityModManagerRomFs =>
+                $"{TrinityModManagerRomFsDirectory}/{normalizedVirtualPath}",
             SvOutputMode.TrinityModManager => normalizedVirtualPath,
             SvOutputMode.TrinityBypass => ToRelativePath(normalizedVirtualPath),
             _ => throw new ArgumentOutOfRangeException(nameof(outputMode), outputMode, null),
@@ -1988,6 +2042,8 @@ internal sealed class SvWorkflowFileSource
     private static string NormalizeVirtualPath(string virtualRomFsPath)
     {
         var normalized = virtualRomFsPath.Replace('\\', '/').TrimStart('/');
+        if (normalized.StartsWith(TrinityModManagerRomFsDirectory + "/", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized[(TrinityModManagerRomFsDirectory.Length + 1)..];
         if (normalized.StartsWith("romfs/", StringComparison.OrdinalIgnoreCase))
         {
             normalized = normalized["romfs/".Length..];
@@ -2003,8 +2059,13 @@ internal sealed class SvWorkflowFileSource
 
     internal static (string Path, bool IsStandalone)? SelectLatestLooseOutput(
         string trinityModManagerPath,
-        string standalonePath)
+        string standalonePath,
+        string? isolatedPath = null)
     {
+        if (isolatedPath is not null && FileExistsForInspection(isolatedPath)
+            && (!FileExistsForInspection(trinityModManagerPath)
+                || File.GetLastWriteTimeUtc(isolatedPath) >= File.GetLastWriteTimeUtc(trinityModManagerPath)))
+            trinityModManagerPath = isolatedPath;
         var trinityModManagerExists = FileExistsForInspection(trinityModManagerPath);
         var standaloneExists = FileExistsForInspection(standalonePath);
         if (!trinityModManagerExists)
@@ -2761,8 +2822,8 @@ internal sealed class SvWorkflowFileSource
             ThrowIfUnavailable();
             foreach (var mutation in mutations)
             {
-                // Legacy data recovery may accompany one advanced editor. Other
-                // explicit targets must keep their own transactional workflow.
+                // Reviewed executable edits can accompany data in every output mode.
+                // Other explicit targets keep their own transactional workflow.
                 if (!mutation.RelativePath.Equals("exefs/main", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("This explicit output target cannot join a deferred S/V batch.");
                 EnsureReviewedTarget(mutation.RelativePath);

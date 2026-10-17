@@ -1285,7 +1285,13 @@ public static class SvBridgeMapper
             move.RawHealing,
             move.StatChanges.Select(ToDto).ToArray(),
             move.Flags.Select(ToDto).ToArray(),
-            ToDto(move.Provenance));
+            ToDto(move.Provenance))
+        {
+            TeraBlast = move.TeraBlast is { } tera ? new(tera.TypeBehavior, tera.CategoryBehavior,
+                tera.StellarPower, tera.StellarEffectiveness, tera.NormalEffectiveness, tera.AttackDrop,
+                tera.SpecialAttackDrop) : null,
+            TeraBlastBlockedReason = move.TeraBlastBlockedReason,
+        };
     }
 
     private static MoveEditableFieldDto ToDto(SvMoveEditableField field)

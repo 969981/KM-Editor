@@ -2481,6 +2481,16 @@ export const scriptedBossProfileSchema = z
   });
 
 export const moveRecordSchema = z.strictObject({
+  teraBlast: z.strictObject({
+    typeBehavior: z.number().int().min(0).max(1),
+    categoryBehavior: z.number().int().min(0).max(3),
+    stellarPower: z.number().int().min(1).max(255),
+    stellarEffectiveness: z.union([z.literal(0), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9)]),
+    normalEffectiveness: z.union([z.literal(0), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9)]),
+    attackDrop: z.number().int().min(0).max(6),
+    specialAttackDrop: z.number().int().min(0).max(6),
+  }).nullish(),
+  teraBlastBlockedReason: z.string().nullish(),
   accuracy: z.number().int().nonnegative(),
   canRevertToVanilla: z.boolean(),
   canUseMove: z.boolean(),
