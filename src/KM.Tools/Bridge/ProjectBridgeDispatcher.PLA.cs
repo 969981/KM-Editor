@@ -33,6 +33,7 @@ public sealed partial class ProjectBridgeDispatcher
         new("shops", "Shops", "Existing PLA shop slots and ordinary Ginkgo offers with preserved unlock conditions.", WorkflowAvailabilityDto.Available, []),
         new("pokemonDrops", "Pokemon Drops", "Shared PLA field and Alpha drop items and chances.", WorkflowAvailabilityDto.Available, []),
         new("research", "Research", "Supported PLA task thresholds, research points, and rank requirements.", WorkflowAvailabilityDto.Available, []),
+        new("encounters", "Wild Encounters", "Existing PLA encounter slots, Alpha traits, eligibility, and supported spawn counts.", WorkflowAvailabilityDto.Available, []),
     ]);
 
     private string DispatchLoadPla(string requestJson)
@@ -46,7 +47,8 @@ public sealed partial class ProjectBridgeDispatcher
             page.Fields.Select(ToPlaFieldDto).ToArray(), page.RowFields.Select(ToPlaFieldDto).ToArray(),
             page.Records.Select(record => new PlaRecordDto(record.Id, record.Label, record.Values, record.ReadOnlyFields, record.Metadata,
                 record.RelatedRecords.Select(related => new PlaRelatedRecordDto(related.Kind, related.Id, related.Label)).ToArray())).ToArray(),
-            page.Total, page.TextFiles, page.TextFile, page.Notices, page.PokemonSpriteNames)), request.RequestId);
+            page.Total, page.TextFiles, page.TextFile, page.Notices, page.PokemonSpriteNames,
+            page.Groups.Select(group => new PlaChoiceDto(group.Value, group.Label)).ToArray())), request.RequestId);
     }
 
     private static PlaFieldDto ToPlaFieldDto(PlaField field) => new(field.Key, field.Label, field.Kind, field.Minimum, field.Maximum,
@@ -68,7 +70,7 @@ public sealed partial class ProjectBridgeDispatcher
     private ChangePlan CreatePlaChangePlan(ProjectPaths paths, EditSession session, ChangePlanOutputModeDto? mode)
     {
         if (mode is not (null or ChangePlanOutputModeDto.Standalone))
-            return new(session.Id, [], [new(KM.Core.Diagnostics.DiagnosticSeverity.Error, "PLA supports standalone loose output.", Domain: "pla") { Code = "KM-PLA-INVALID-DATA" }]);
+            return new(session.Id, [], [new(KM.Core.Diagnostics.DiagnosticSeverity.Error, "PLA supports standalone output.", Domain: "pla") { Code = "KM-PLA-INVALID-DATA" }]);
         return plaWorkflowService.CreateChangePlan(paths, session);
     }
 }

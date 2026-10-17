@@ -314,7 +314,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Encounter tables, wild slots, levels, weather, and source provenance.',
-    games: allGames,
+    games: plaGames,
     icon: Trees,
     id: 'encounters',
     label: 'Wild Encounters'

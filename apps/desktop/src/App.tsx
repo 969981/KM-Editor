@@ -1266,7 +1266,7 @@ const pathFields: Array<{
   kind: 'directory' | 'file';
   label: string;
   role: ProjectPathRole;
-  scope?: 'scarletViolet' | 'pokemonLegendsZA';
+  scope?: 'scarletViolet' | 'pokemonLegendsZA' | 'pla';
 }> = [
   {
     field: 'baseRomFsPath',
@@ -1311,11 +1311,14 @@ const pathFields: Array<{
     label: 'oo2core_8_win64.dll Folder',
     role: 'pokemonLegendsZASupportFolder',
     scope: 'pokemonLegendsZA'
-  }
+  },
+  { field: 'pokemonLegendsArceusSupportFolderPath', helpKey: 'pla.supportHelp', kind: 'directory',
+    label: 'oo2core_8_win64.dll Folder', role: 'pokemonLegendsArceusSupportFolder', scope: 'pla' }
 ];
 type ProjectPathField = (typeof pathFields)[number];
 
 function isProjectPathFieldVisible(pathField: ProjectPathField, selectedGame: ProjectGame) {
+  if (pathField.scope === 'pla') return selectedGame === 'pla';
   if (!pathField.scope) {
     return true;
   }
@@ -8928,6 +8931,7 @@ export function App({
         outputRootPath: candidatePaths.outputRootPath ?? '',
         pokemonLegendsZASupportFolderPath:
           candidatePaths.pokemonLegendsZASupportFolderPath ?? '',
+        pokemonLegendsArceusSupportFolderPath: candidatePaths.pokemonLegendsArceusSupportFolderPath ?? '',
         saveFilePath: candidatePaths.saveFilePath ?? '',
         scarletVioletSupportFolderPath:
           candidatePaths.scarletVioletSupportFolderPath ?? '',
@@ -8947,6 +8951,7 @@ export function App({
         'pokemonLegendsZASupportFolderPath',
         nextDraftPaths.pokemonLegendsZASupportFolderPath
       );
+      setDraftPath('pokemonLegendsArceusSupportFolderPath', nextDraftPaths.pokemonLegendsArceusSupportFolderPath);
       setDraftPath('saveFilePath', nextDraftPaths.saveFilePath);
       setDraftPath(
         'scarletVioletSupportFolderPath',
@@ -9602,7 +9607,7 @@ export function App({
 
       const supportFolderField: ProjectPathFieldName = isPokemonLegendsZAGame(selectedGame)
         ? 'pokemonLegendsZASupportFolderPath'
-        : 'scarletVioletSupportFolderPath';
+        : selectedGame === 'pla' ? 'pokemonLegendsArceusSupportFolderPath' : 'scarletVioletSupportFolderPath';
       const nextDraftPaths: ProjectPathDraft = {
         ...draftPathsRef.current,
         [supportFolderField]: folderPath
@@ -11316,6 +11321,7 @@ export function App({
   };
 
   const handleOpenEncountersWorkflow = async () => {
+    if (selectedGame === 'pla') return;
     await runRetainedWorkflowLoad(
       'encounters',
       setIsEncountersLoading,
@@ -20871,7 +20877,7 @@ export function App({
             )
           ) : null}
           {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text' || activeSection === 'trainers' || activeSection === 'giftPokemon' || activeSection === 'staticEncounters'
-            || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research') ? (
+            || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research' || activeSection === 'encounters') ? (
             <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
               session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
               isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
@@ -21394,7 +21400,7 @@ export function App({
               />
             )
           ) : null}
-          {activeSection === 'encounters' ? (
+          {activeSection === 'encounters' && selectedGame !== 'pla' ? (
             isEncountersLoading && !encountersWorkflow ? (
               <WorkflowLoadingPanel label="Wild Encounters" />
             ) : isScarletVioletProject ? (
@@ -68306,6 +68312,7 @@ function toProjectPaths(draftPaths: ProjectPathDraft, gameTextLanguage: Language
     pokemonLegendsZASupportFolderPath: isPokemonLegendsZAGame(draftPaths.selectedGame)
       ? normalizeDraftPath(draftPaths.pokemonLegendsZASupportFolderPath)
       : null,
+    pokemonLegendsArceusSupportFolderPath: draftPaths.selectedGame === 'pla' ? normalizeDraftPath(draftPaths.pokemonLegendsArceusSupportFolderPath) : null,
     saveFilePath: normalizeDraftPath(draftPaths.saveFilePath),
     scarletVioletSupportFolderPath: isScarletVioletGame(draftPaths.selectedGame)
       ? normalizeDraftPath(draftPaths.scarletVioletSupportFolderPath)
@@ -68411,6 +68418,7 @@ function resolveProjectAnalysisPaths(
         : null,
     pokemonLegendsZASupportFolderPath:
       validation('pokemonLegendsZASupportFolder')?.path ?? null,
+    pokemonLegendsArceusSupportFolderPath: validation('pokemonLegendsArceusSupportFolder')?.path ?? null,
     saveFilePath: validation('saveFile')?.path ?? null,
     scarletVioletSupportFolderPath:
       validation('scarletVioletSupportFolder')?.path ?? null
@@ -69220,7 +69228,7 @@ function isValidatedOutputSafetyScope(
     && pathMatchesValidation(
       'pokemonLegendsZASupportFolder',
       scope.paths.pokemonLegendsZASupportFolderPath
-    );
+    ) && (scope.paths.selectedGame !== 'pla' || pathMatchesValidation('pokemonLegendsArceusSupportFolder', scope.paths.pokemonLegendsArceusSupportFolderPath));
 }
 
 function hasValidTrinitySupportFolder(
@@ -69666,6 +69674,7 @@ function toProjectPathDraft(paths: {
   baseRomFsPath?: string | null;
   outputRootPath?: string | null;
   pokemonLegendsZASupportFolderPath?: string | null;
+  pokemonLegendsArceusSupportFolderPath?: string | null;
   saveFilePath?: string | null;
   scarletVioletSupportFolderPath?: string | null;
   selectedGame?: ProjectGame | null;
@@ -69676,6 +69685,7 @@ function toProjectPathDraft(paths: {
     outputRootPath: paths.outputRootPath ?? '',
     pokemonLegendsZASupportFolderPath:
       paths.pokemonLegendsZASupportFolderPath ?? '',
+    pokemonLegendsArceusSupportFolderPath: paths.pokemonLegendsArceusSupportFolderPath ?? '',
     saveFilePath: paths.saveFilePath ?? '',
     scarletVioletSupportFolderPath:
       paths.scarletVioletSupportFolderPath ?? '',
@@ -69689,6 +69699,7 @@ function hasConfiguredProjectPath(paths: ProjectPathDraft) {
     paths.baseRomFsPath,
     paths.outputRootPath,
     paths.pokemonLegendsZASupportFolderPath,
+    paths.pokemonLegendsArceusSupportFolderPath,
     paths.saveFilePath,
     paths.scarletVioletSupportFolderPath
   ].some((path) => path.length > 0);
@@ -69701,6 +69712,7 @@ function projectPathValuesEqual(left: ProjectPathDraft, right: ProjectPathDraft)
     left.outputRootPath === right.outputRootPath &&
     left.pokemonLegendsZASupportFolderPath ===
       right.pokemonLegendsZASupportFolderPath &&
+    left.pokemonLegendsArceusSupportFolderPath === right.pokemonLegendsArceusSupportFolderPath &&
     left.saveFilePath === right.saveFilePath &&
     left.scarletVioletSupportFolderPath === right.scarletVioletSupportFolderPath
   );

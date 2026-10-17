@@ -15,7 +15,8 @@ export const projectRelocationCandidatePathFields = Object.freeze([
   'outputRootPath',
   'saveFilePath',
   'scarletVioletSupportFolderPath',
-  'pokemonLegendsZASupportFolderPath'
+  'pokemonLegendsZASupportFolderPath',
+  'pokemonLegendsArceusSupportFolderPath'
 ] satisfies readonly ProjectRelocationCandidatePathField[]);
 
 export function reconcileRelocationCandidatePaths(
@@ -38,6 +39,7 @@ export function reconcileRelocationCandidatePaths(
 
   const next = { ...nextSource.paths };
   for (const field of projectRelocationCandidatePathFields) {
+    if (field === 'pokemonLegendsArceusSupportFolderPath' && nextSource.paths.selectedGame !== 'pla') continue;
     next[field] = reconcileSourceBackedDraft(
       current[field] ?? null,
       previousSource.paths[field] ?? null,

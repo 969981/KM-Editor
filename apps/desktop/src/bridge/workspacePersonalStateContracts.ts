@@ -193,7 +193,8 @@ export const workspaceRecentProjectProfileSchema = z
       profile.paths.outputRootPath,
       profile.paths.saveFilePath,
       profile.paths.scarletVioletSupportFolderPath,
-      profile.paths.pokemonLegendsZASupportFolderPath
+      profile.paths.pokemonLegendsZASupportFolderPath,
+      profile.paths.pokemonLegendsArceusSupportFolderPath
     ]) {
       if (path !== null && path !== undefined && !fullyQualifiedPathSchema.safeParse(path).success) {
         context.addIssue({ code: 'custom', message: 'Recent project paths must be fully qualified.' });
@@ -207,6 +208,9 @@ export const workspaceRecentProjectProfileSchema = z
       context.addIssue({ code: 'custom', message: 'Recent project has an unrelated support path.' });
     }
     if (profile.game !== 'za' && profile.paths.pokemonLegendsZASupportFolderPath) {
+      context.addIssue({ code: 'custom', message: 'Recent project has an unrelated support path.' });
+    }
+    if (profile.game !== 'pla' && profile.paths.pokemonLegendsArceusSupportFolderPath) {
       context.addIssue({ code: 'custom', message: 'Recent project has an unrelated support path.' });
     }
     if (

@@ -1,5 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 .pla-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
+.pla-wild-editor .pla-wild-row { grid-template-columns: minmax(100px, 1fr) minmax(130px, 1.2fr); }
+.pla-wild-editor .pla-wild-references { max-height: 14rem; overflow: auto; overflow-wrap: anywhere; }
+.pla-wild-editor .trainer-party-card-grid { max-height: 25rem; overflow: auto; }
+@container (max-width: 68rem) {
+  .pla-wild-editor .encounters-layout { grid-template-columns: minmax(0, 1fr); }
+}
 .pla-control { display: flex; flex: 1 1 16rem; flex-direction: column; gap: .35rem; min-width: 0; }
 .pla-economy-editor .pla-economy-row { grid-template-columns: minmax(60px, .7fr) minmax(120px, 1.5fr) minmax(100px, 1fr) minmax(85px, .7fr); }
 .pla-economy-editor .pla-shop-slot-row { grid-template-columns: 42px minmax(100px, 1fr) minmax(85px, .5fr); }

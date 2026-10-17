@@ -1020,6 +1020,7 @@ public sealed class ProjectRelocationApplicationService
             paths.SelectedGame is ProjectGame.ZA
                 ? paths.PokemonLegendsZASupportFolderPath
                 : null);
+        if (paths.SelectedGame == ProjectGame.PLA) AppendFingerprintField(hash, paths.PokemonLegendsArceusSupportFolderPath);
         AppendFingerprintField(hash, paths.SelectedGame?.ToString());
         AppendFingerprintField(hash, paths.GameTextLanguage);
         return Convert.ToHexStringLower(hash.GetHashAndReset());
@@ -1138,6 +1139,7 @@ public sealed class ProjectRelocationApplicationService
             && IsBoundedOptionalString(
                 paths.PokemonLegendsZASupportFolderPath,
                 ProjectRelocationService.MaximumCandidatePathLength)
+            && IsBoundedOptionalString(paths.PokemonLegendsArceusSupportFolderPath, ProjectRelocationService.MaximumCandidatePathLength)
             && IsBoundedOptionalString(
                 paths.GameTextLanguage,
                 ProjectRelocationService.MaximumGameTextLanguageLength);
@@ -1169,6 +1171,7 @@ public sealed class ProjectRelocationApplicationService
             ProjectPathRole.SaveFile => ProjectPathRoleDto.SaveFile,
             ProjectPathRole.ScarletVioletSupportFolder => ProjectPathRoleDto.ScarletVioletSupportFolder,
             ProjectPathRole.PokemonLegendsZASupportFolder => ProjectPathRoleDto.PokemonLegendsZASupportFolder,
+            ProjectPathRole.PokemonLegendsArceusSupportFolder => ProjectPathRoleDto.PokemonLegendsArceusSupportFolder,
             _ => throw new ArgumentOutOfRangeException(nameof(role), role, null),
         };
     }

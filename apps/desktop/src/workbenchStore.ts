@@ -80,6 +80,7 @@ export type ProjectPathDraft = {
   baseRomFsPath: string;
   outputRootPath: string;
   pokemonLegendsZASupportFolderPath: string;
+  pokemonLegendsArceusSupportFolderPath: string;
   saveFilePath: string;
   scarletVioletSupportFolderPath: string;
   selectedGame: ProjectGame | null;
@@ -1427,6 +1428,7 @@ function loadProjectPathDraft(): ProjectPathDraft {
       outputRootPath:
         typeof parsedValue.outputRootPath === 'string' ? parsedValue.outputRootPath : '',
       pokemonLegendsZASupportFolderPath: typeof parsedValue.pokemonLegendsZASupportFolderPath === 'string' ? parsedValue.pokemonLegendsZASupportFolderPath : '',
+      pokemonLegendsArceusSupportFolderPath: typeof parsedValue.pokemonLegendsArceusSupportFolderPath === 'string' ? parsedValue.pokemonLegendsArceusSupportFolderPath : '',
       saveFilePath: typeof parsedValue.saveFilePath === 'string' ? parsedValue.saveFilePath : '',
       scarletVioletSupportFolderPath: typeof parsedValue.scarletVioletSupportFolderPath === 'string' ? parsedValue.scarletVioletSupportFolderPath : '',
       selectedGame: null
@@ -1523,6 +1525,7 @@ function createEmptyProjectPathDraftValues(): ProjectPathDraftValues {
     baseRomFsPath: '',
     outputRootPath: '',
     pokemonLegendsZASupportFolderPath: '',
+    pokemonLegendsArceusSupportFolderPath: '',
     saveFilePath: '',
     scarletVioletSupportFolderPath: ''
   };
@@ -1534,6 +1537,7 @@ function normalizeProjectPathDraft(draftPaths: ProjectPathDraft): ProjectPathDra
     baseRomFsPath: draftPaths.baseRomFsPath,
     outputRootPath: draftPaths.outputRootPath,
     pokemonLegendsZASupportFolderPath: draftPaths.pokemonLegendsZASupportFolderPath,
+    pokemonLegendsArceusSupportFolderPath: draftPaths.pokemonLegendsArceusSupportFolderPath,
     saveFilePath: draftPaths.saveFilePath,
     scarletVioletSupportFolderPath: draftPaths.scarletVioletSupportFolderPath,
     selectedGame: draftPaths.selectedGame
@@ -1561,6 +1565,7 @@ function coerceProjectPathDraftValues(
         typeof draftPaths.pokemonLegendsZASupportFolderPath === 'string'
             ? draftPaths.pokemonLegendsZASupportFolderPath
             : '',
+    pokemonLegendsArceusSupportFolderPath: typeof draftPaths.pokemonLegendsArceusSupportFolderPath === 'string' ? draftPaths.pokemonLegendsArceusSupportFolderPath : '',
     saveFilePath : typeof draftPaths.saveFilePath === 'string'
                        ? draftPaths.saveFilePath
                        : '',

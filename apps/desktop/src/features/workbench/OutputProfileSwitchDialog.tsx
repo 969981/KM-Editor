@@ -362,6 +362,7 @@ const projectPathRoleLabelKeys: Record<ProjectPathRole, string> = {
   baseRomFs: 'outputSafety.relocation.path.baseRomFs',
   outputRoot: 'outputSafety.relocation.path.outputRoot',
   pokemonLegendsZASupportFolder: 'outputSafety.relocation.path.supportFolder',
+  pokemonLegendsArceusSupportFolder: 'outputSafety.relocation.path.supportFolder',
   saveFile: 'outputSafety.relocation.path.saveFile',
   scarletVioletSupportFolder: 'outputSafety.relocation.path.supportFolder'
 };

@@ -30,6 +30,7 @@ export function projectSourceRevisionObservationIdentity(options: {
           outputRootPath: options.paths.outputRootPath,
           pokemonLegendsZASupportFolderPath:
             options.paths.pokemonLegendsZASupportFolderPath ?? null,
+          ...(options.paths.selectedGame === 'pla' ? { pokemonLegendsArceusSupportFolderPath: options.paths.pokemonLegendsArceusSupportFolderPath ?? null } : {}),
           saveFilePath: options.paths.saveFilePath,
           scarletVioletSupportFolderPath:
             options.paths.scarletVioletSupportFolderPath ?? null,
