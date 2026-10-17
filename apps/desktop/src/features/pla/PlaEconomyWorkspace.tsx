@@ -9,8 +9,10 @@ import { useLocalization } from '../../localization';
 import { getWorkbenchCapabilityRegistration } from '../../workbench/capabilityRegistry';
 import { workbenchSectionLocalization } from '../../workbench/sectionLocalization';
 
-export type PlaEconomyKind = 'items' | 'crafting' | 'shops' | 'ginkgo' | 'drops' | 'research' | 'ranks';
-export const isPlaEconomyKind = (kind: PlaKind): kind is PlaEconomyKind => ['items', 'crafting', 'shops', 'ginkgo', 'drops', 'research', 'ranks'].includes(kind);
+export type PlaEconomyKind = 'items' | 'crafting' | 'shops' | 'ginkgo' | 'drops' | 'research' | 'ranks'
+  | 'outbreaks' | 'massiveOutbreaks' | 'outbreakGroups' | 'outbreakWaves' | 'outbreakDurations' | 'distortionItems';
+export const isPlaEconomyKind = (kind: PlaKind): kind is PlaEconomyKind => ['items', 'crafting', 'shops', 'ginkgo', 'drops', 'research', 'ranks',
+  'outbreaks', 'massiveOutbreaks', 'outbreakGroups', 'outbreakWaves', 'outbreakDurations', 'distortionItems'].includes(kind);
 type Props = {
   kind: PlaEconomyKind; page: PlaPage | null; selected: PlaRecord | null; query: string; offset: number; loading: boolean;
   controls: ReactNode; sessionBar: ReactNode; actions: ReactNode; refresh: ReactNode;
@@ -22,7 +24,9 @@ type Props = {
 export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loading, controls, sessionBar, actions, refresh,
   onQuery, onOffset, onSelect, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput }: Props) {
   const { t, translateLiteral } = useLocalization();
-  const section = kind === 'ginkgo' ? 'shops' : kind === 'drops' ? 'pokemonDrops' : kind === 'ranks' ? 'research' : kind;
+  const section = kind === 'ginkgo' ? 'shops' : kind === 'drops' ? 'pokemonDrops' : kind === 'ranks' ? 'research'
+    : kind === 'massiveOutbreaks' || kind === 'outbreakGroups' || kind === 'outbreakWaves' || kind === 'outbreakDurations' ? 'outbreaks'
+      : kind === 'distortionItems' ? 'distortions' : kind;
   const registration = getWorkbenchCapabilityRegistration(section);
   const Icon = registration.icon;
   const isShop = kind === 'shops';
@@ -39,7 +43,9 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
   const status = (record: PlaRecord) => translateLiteral(hasDraft(record) ? 'Draft' : pendingIds.has(record.id) ? 'Pending changes' : isProtected(record) ? 'Read-only' : 'Editable');
   const choice = (key: string, value: string) => value === '0' && /[Ii]tem|ingredient/u.test(key) ? translateLiteral('None')
     : fields.find(field => field.key === key)?.choices?.find(option => option.value === value)?.label ?? value;
-  const name = (record: PlaRecord) => kind === 'ranks' ? t('pla.rankLabel', { rank: record.id }) : record.label;
+  const name = (record: PlaRecord) => kind === 'ranks' ? t('pla.rankLabel', { rank: record.id })
+    : kind === 'outbreakDurations' ? t('pla.event.durationLabel', { seconds: valuesFor(record).durationSeconds })
+      : record.metadata.empty === '1' ? t('pla.event.emptySelection') : record.label;
   const summary = (record: PlaRecord) => {
     const values = valuesFor(record);
     if (isShop) return String(groups.get(record.metadata.inventory)?.length ?? 0);
@@ -47,9 +53,16 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
     if (kind === 'crafting') return `${choice('resultItem', values.resultItem)} × ${values.resultQuantity}`;
     if (kind === 'research') return t([0, 1, 2, 3, 4, 5, 13, 14, 15, 18, 19].includes(Number(record.metadata.task)) ? `pla.task.${record.metadata.task}` : 'pla.protectedTask');
     if (kind === 'ranks') return values.requiredPoints;
+    if (values.selectionWeight !== undefined) return values.selectionWeight;
+    if (values.outbreakChance !== undefined) return values.outbreakChance + '%';
     return String(record.relatedRecords.length);
   };
-  const groupFields = kind === 'crafting' ? [
+  const groupFields = kind === 'massiveOutbreaks' ? [
+    { title: t('pla.kind.massiveOutbreaks'), fields: fields.filter(field => ['outbreakChance', 'locationsMin', 'locationsMax', 'rareOneCount', 'rareTwoCount'].includes(field.key)) },
+    { title: t('pla.related.initial'), fields: fields.filter(field => field.key.startsWith('firstWave')) },
+    { title: t('pla.related.followup'), fields: fields.filter(field => field.key.startsWith('secondWave')) },
+    { title: t('pla.event.bonuses'), fields: fields.filter(field => ['extraBonusChance', 'starChance', 'berryChance', 'shinyRolls'].includes(field.key)) }
+  ] : kind === 'crafting' ? [
     { title: t('pla.group.result'), fields: fields.filter(field => field.key.startsWith('result')) },
     ...[1, 2, 3, 4].map(slot => ({ title: t('pla.ingredientSlot', { slot }), fields: fields.filter(field => field.key === `ingredient${slot}` || field.key === `quantity${slot}`) }))
   ] : kind === 'research' ? [
@@ -87,7 +100,8 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
         {selected ? <>
           <dl className="item-provenance-list"><div><dt>{translateLiteral('Name')}</dt><dd data-localization-ignore="true">{name(selected)}</dd></div>
             <div><dt>{translateLiteral('Status')}</dt><dd>{status(selected)}</dd></div>
-            {Object.entries(selected.metadata).map(([key, value]) => <div key={key}><dt>{t(`pla.meta.${key}`)}</dt><dd data-localization-ignore="true">{key === 'task' ? summary(selected) : value}</dd></div>)}
+            {Object.entries(selected.metadata).filter(([key]) => key !== 'protected').map(([key, value]) => <div key={key}><dt>{t(`pla.meta.${key}`)}</dt><dd data-localization-ignore="true">{key === 'task' ? summary(selected)
+              : key === 'category' ? t('pla.event.category.' + value) : key === 'empty' ? translateLiteral(value === '1' ? 'Yes' : 'No') : value}</dd></div>)}
           </dl>
           {isShop ? <div className="shop-inventory-editor-grid" role="table" aria-label={translateLiteral('Inventory')}>
             <div className="items-row items-row-heading pla-shop-slot-row" role="row"><span role="columnheader">{translateLiteral('Slot')}</span><span role="columnheader">{translateLiteral('Item')}</span><span role="columnheader">{translateLiteral('Status')}</span></div>

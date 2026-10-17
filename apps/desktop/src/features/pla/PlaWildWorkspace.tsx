@@ -1,28 +1,31 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 import type { ReactNode } from 'react';
 import { Search, Trees } from 'lucide-react';
-import type { PlaField, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
+import type { PlaField, PlaKind, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
 import { FieldLabel } from '../../components/FieldLabel';
 import { InteractiveTableRow, VirtualTableBody } from '../../components/VirtualTable';
 import { Metric } from '../../components/workflowPanels';
 import { useLocalization } from '../../localization';
 import type { PlaPokemonPreview } from './PlaBattleWorkspace';
 
+export type PlaWildKind = 'encounters' | 'spawns' | 'outbreakEncounters' | 'distortionEncounters' | 'distortionSpawns';
+export const isPlaWildKind = (kind: PlaKind): kind is PlaWildKind => ['encounters', 'spawns', 'outbreakEncounters', 'distortionEncounters', 'distortionSpawns'].includes(kind);
 type Props = {
-  kind: 'encounters' | 'spawns'; page: PlaPage | null; selected: PlaRecord | null;
+  kind: PlaWildKind; page: PlaPage | null; selected: PlaRecord | null;
+  controls?: ReactNode; title?: string;
   query: string; offset: number; loading: boolean; sessionBar: ReactNode; actions: ReactNode; refresh: ReactNode;
   onQuery: (value: string) => void; onOffset: (value: number) => void; onSelect: (id: string) => void;
-  onKind: (kind: 'encounters' | 'spawns') => void;
+  onKind: (kind: PlaWildKind) => void;
   valuesFor: (record: PlaRecord) => Record<string, string>; hasDraft: (record: PlaRecord) => boolean;
   pendingIds: ReadonlySet<string>; fieldLabel: (field: PlaField) => string;
   renderInput: (field: PlaField) => ReactNode; renderPokemon?: PlaPokemonPreview;
 };
 
-export function PlaWildWorkspace({ kind, page, selected, query, offset, loading, sessionBar, actions, refresh,
+export function PlaWildWorkspace({ kind, page, selected, query, offset, loading, sessionBar, actions, refresh, controls, title,
   onQuery, onOffset, onSelect, onKind, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput, renderPokemon }: Props) {
   const { t, translateLiteral } = useLocalization();
   const records = page?.records ?? [];
-  const isSpawn = kind === 'spawns';
+  const isSpawn = kind === 'spawns' || kind === 'distortionSpawns';
   const fields = page?.fields ?? [];
   const values = selected ? valuesFor(selected) : {};
   const name = (record: PlaRecord) => fields.find(field => field.key === 'species')?.choices?.find(choice => choice.value === valuesFor(record).species)?.label
@@ -38,14 +41,14 @@ export function PlaWildWorkspace({ kind, page, selected, query, offset, loading,
   ].filter(group => group.fields.length);
   const tabs = ['encounters', 'spawns'] as const;
   return <section className="panel wide-panel pla-wild-editor" aria-labelledby="pla-wild-heading">
-    <div className="panel-heading"><Trees size={18} aria-hidden="true" /><h2 id="pla-wild-heading">{translateLiteral('Wild Encounters')}</h2>{refresh}</div>
+    <div className="panel-heading"><Trees size={18} aria-hidden="true" /><h2 id="pla-wild-heading">{title ?? translateLiteral('Wild Encounters')}</h2>{refresh}</div>
     <div className="items-toolbar encounters-toolbar">
       <label className="search-box items-search"><Search size={18} aria-hidden="true" /><input type="search" aria-label={translateLiteral('Search encounters')}
         placeholder={translateLiteral('Search encounters')} value={query} onChange={event => onQuery(event.target.value)} /></label>
       <Metric label={translateLiteral(isSpawn ? 'Records' : 'Loaded tables')} value={String(page?.total ?? 0)} />
       <Metric label={translateLiteral('Pending changes')} value={String(pendingIds.size)} />
     </div>
-    <nav className="text-category-browser" aria-label={t('pla.editor')}><div className="text-category-tabs" role="tablist" aria-label={t('pla.editor')}>
+    {controls ?? <nav className="text-category-browser" aria-label={t('pla.editor')}><div className="text-category-tabs" role="tablist" aria-label={t('pla.editor')}>
       {tabs.map((value, index) => <button type="button" key={value} role="tab" aria-selected={kind === value} tabIndex={kind === value ? 0 : -1}
         className={kind === value ? 'is-active' : ''} onClick={() => onKind(value)}
         onKeyDown={event => {
@@ -53,7 +56,7 @@ export function PlaWildWorkspace({ kind, page, selected, query, offset, loading,
           if (next === null) return;
           event.preventDefault(); onKind(tabs[next]); (event.currentTarget.parentElement?.children[next] as HTMLButtonElement | undefined)?.focus();
         }}>{t('pla.kind.' + value)}</button>)}
-    </div></nav>
+    </div></nav>}
     {sessionBar}
     <p className="field-note">{t('pla.wild.notice')}</p>
     {loading ? <p role="status">{translateLiteral('Loading')}</p> : null}

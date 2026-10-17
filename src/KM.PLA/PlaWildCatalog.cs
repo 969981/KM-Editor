@@ -29,10 +29,17 @@ internal sealed class PlaWildCatalog
     private readonly PlaFieldArchive current;
     private readonly Dictionary<string, PlaFlatBuffer> buffers = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Entry> encounters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Entry> outbreakEncounters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Entry> distortionEncounters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Entry> distortionSpawns = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Entry> spawns = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float[]> defaults = new(StringComparer.Ordinal);
     private readonly Dictionary<PlaFlatBuffer, Dictionary<ulong, int>> tableCache = [];
-    internal static bool Supports(string kind) => kind is "encounters" or "spawns";
+    internal static bool IsEncounter(string kind) => kind is "encounters" or "outbreakEncounters" or "distortionEncounters";
+    internal static bool IsSpawn(string kind) => kind is "spawns" or "distortionSpawns";
+    internal static bool Supports(string kind) => IsEncounter(kind) || IsSpawn(kind);
+    internal static string PhysicalKind(string kind) => IsEncounter(kind) ? "encounters" : kind;
+    internal PlaEventLinks EventLinks { get; }
     private PlaCompressionRuntime Runtime => catalog.Scope.Compression;
     private static string Number(long value) => value.ToString(CultureInfo.InvariantCulture);
     private static string Hex(ulong value) => value.ToString("X16", CultureInfo.InvariantCulture);
@@ -55,6 +62,7 @@ internal sealed class PlaWildCatalog
         original = new(catalog.Scope.Base(ArchivePath));
         current = new(catalog.Scope.Read(ArchivePath));
         if (!original.HasSameDirectory(current)) throw new InvalidDataException("PLA field archive membership and directory identities must be preserved.");
+        EventLinks = new(catalog, original);
         var areas = new PlaFlatBuffer(original.Read(AreaPath, Runtime));
         if (!original.Read(AreaPath, Runtime).AsSpan().SequenceEqual(current.Read(AreaPath, Runtime)))
             throw new InvalidDataException("The PLA area resource links are unsupported. Restore the original area directory.");
@@ -112,16 +120,24 @@ internal sealed class PlaWildCatalog
                         : alphaFlags.SequenceEqual(new long[] { 1, 0, 1, 1 }) ? "alpha"
                         : alphaFlags.SequenceEqual(new long[] { 1, 1, 1, 1 }) ? "fixedAlpha" : "protected";
                     var identity = Identity(b, slot);
-                    var isProtected = !consumers.ContainsKey((path, hash)) || excluded.Contains((path, hash)) || alpha == "protected"
+                    var baseMin = Int(b, slot, 30) == 0 ? Int(b, table, 1) : Int(b, slot, 30);
+                    var baseMax = Int(b, slot, 31) == 0 ? Int(b, table, 2) : Int(b, slot, 31);
+                    var traitsProtected = alpha == "protected"
+                        || baseMin < 1 || baseMax > 100 || baseMin > baseMax
                         || !catalog.Pokemon.ContainsKey(identity) || !AllowedIdentity(identity) || !QualifiedCondition(b, Child(b, slot, 45))
                         || b.Scalar(slot, 33, 1) != 0 || b.Scalar(slot, 44, 1) != 0 || b.Scalar(slot, 11, 1) != 0
                         || b.Scalar(slot, 4, 4) != 0 || !PreservedTraits(b, slot, now, nowSlot);
-                    encounters.Add(area + ":" + Hex(hash) + ":" + i, new(path, area, hash, i, b.Hash(slot, 1), isProtected, alpha,
-                        consumers.GetValueOrDefault((path, hash))?.Order(StringComparer.Ordinal).ToArray() ?? []));
+                    var id = area + ":" + Hex(hash) + ":" + i;
+                    var entry = new Entry(path, area, hash, i, b.Hash(slot, 1), traitsProtected || !consumers.ContainsKey((path, hash)) || excluded.Contains((path, hash)), alpha,
+                        consumers.GetValueOrDefault((path, hash))?.Order(StringComparer.Ordinal).ToArray() ?? []);
+                    encounters.Add(id, entry);
+                    foreach (var (links, records) in new[] { (EventLinks.Outbreaks, outbreakEncounters), (EventLinks.Distortions, distortionEncounters) })
+                        if (links.TryGetValue((path, hash), out var names))
+                            records.Add(id, entry with { Protected = traitsProtected, Consumers = names.Union(entry.Consumers).Order(StringComparer.Ordinal).ToArray() });
                 }
             }
         }
-        foreach (var (path, source) in spawnSources)
+        foreach (var (path, source) in spawnSources.Concat(EventLinks.DistortionSpawns))
         {
             var b = new PlaFlatBuffer(original.Read(path, Runtime)); var now = Buffer(path);
             var baseRows = b.VectorReferences(b.Root, 0, 4096); var currentRows = now.VectorReferences(now.Root, 0, 4096);
@@ -136,12 +152,14 @@ internal sealed class PlaWildCatalog
                 var row = b.TableAtReference(reference);
                 var links = b.VectorReferences(row, 20, 64).Select(b.TableAtReference).ToArray();
                 var keys = links.Select(link => b.Hash(link, 0)).ToArray();
+                var records = EventLinks.DistortionSpawns.ContainsKey(path) ? distortionSpawns : spawns;
+                var slots = records == distortionSpawns ? distortionEncounters : encounters;
                 var isProtected = b.Scalar(row, 10, 1) != 0 || Int(b, row, 16) != 0 || !EmptySpawnLinks(b, row)
                     || b.StringVector(row, 22).Any(value => value.Length != 0) || aliases.Contains(row) || duplicateIds.Contains(hash) || keys.Length == 0
                     || links.Any(link => !OrdinaryCondition(b, link, 1, 3))
-                    || keys.Any(key => !encounters.Values.Any(entry => entry.Path == source.Encounter && entry.Table == key && !entry.Protected))
+                    || keys.Any(key => !slots.Values.Any(entry => entry.Path == source.Encounter && entry.Table == key && !entry.Protected))
                     || b.Field(row, 7, 4) == 0 || b.Field(row, 8, 4) == 0 || Int(b, row, 7) < 1 || Int(b, row, 8) > 4 || !compatible;
-                spawns.Add(source.Area + ":" + Hex(hash) + ":" + index, new(path, source.Area, hash, index, 0, isProtected, "", keys.Select(Hex).ToArray()));
+                records.Add(source.Area + ":" + Hex(hash) + ":" + index, new(path, source.Area, hash, index, 0, isProtected, "", keys.Select(Hex).ToArray()));
             }
         }
         var multipliers = new PlaFlatBuffer(catalog.Scope.Read("bin/pokemon/data/poke_encount.bin"));
@@ -201,10 +219,16 @@ internal sealed class PlaWildCatalog
             if (!result.TryAdd(b.Hash(b.TableAtReference(reference), 0), reference)) throw new InvalidDataException("The PLA field record identity is ambiguous.");
         return tableCache[b] = result;
     }
-    private Entry Get(string kind, string id) => (kind == "spawns" ? spawns : encounters).GetValueOrDefault(id)
+    private Dictionary<string, Entry> Entries(string kind) => kind switch
+    {
+        "encounters" => encounters, "spawns" => spawns, "outbreakEncounters" => outbreakEncounters,
+        "distortionEncounters" => distortionEncounters, "distortionSpawns" => distortionSpawns,
+        _ => throw new InvalidDataException("The PLA field editor is unsupported."),
+    };
+    private Entry Get(string kind, string id) => Entries(kind).GetValueOrDefault(id)
         ?? throw new InvalidDataException("The PLA wild encounter identity is unavailable.");
     internal string PathFor(string kind, string id) { _ = Get(kind, id); return ArchivePath; }
-    internal PlaField[] Fields(string kind) => kind == "spawns"
+    internal PlaField[] Fields(string kind) => IsSpawn(kind)
         ? [new("spawnMin", "spawnMin", Minimum: 1, Maximum: 4), new("spawnMax", "spawnMax", Minimum: 1, Maximum: 4)]
         : [
             new("species", "species", Choices: catalog.SpeciesChoices.Where(choice => !SpecialSpecies.Contains(int.Parse(choice.Value, CultureInfo.InvariantCulture))).ToArray()),
@@ -219,7 +243,7 @@ internal sealed class PlaWildCatalog
     {
         var archive = edited.TryGetValue(ArchivePath, out var data) ? new PlaFieldArchive(data) : current;
         var members = new Dictionary<string, PlaFlatBuffer>(StringComparer.Ordinal);
-        return (kind == "spawns" ? spawns : encounters).Select(pair =>
+        return Entries(kind).Select(pair =>
         {
             if (!members.TryGetValue(pair.Value.Path, out var b)) members[pair.Value.Path] = b = new(archive.Read(pair.Value.Path, Runtime));
             return Record(kind, pair.Key, pair.Value, b);
@@ -233,13 +257,13 @@ internal sealed class PlaWildCatalog
     }
     private PlaRecord Record(string kind, string id, Entry entry, PlaFlatBuffer b)
     {
-        var row = b.TableAtReference(kind == "spawns" ? b.VectorReferences(b.Root, 0, 4096)[entry.Slot] : Tables(b)[entry.Table]);
+        var row = b.TableAtReference(IsSpawn(kind) ? b.VectorReferences(b.Root, 0, 4096)[entry.Slot] : Tables(b)[entry.Table]);
         if (b.Hash(row, 0) != entry.Table) throw new InvalidDataException("The PLA field identity changed.");
         var metadata = new Dictionary<string, string> { ["area"] = entry.Area, ["table"] = Hex(entry.Table), ["alpha"] = entry.Alpha,
             ["consumers"] = Number(entry.Consumers.Length), ["protected"] = entry.Protected ? "1" : "0" };
         var values = new Dictionary<string, string>();
         var label = entry.Area + " / " + Hex(entry.Table);
-        if (kind == "spawns") { values["spawnMin"] = Number(Int(b, row, 7)); values["spawnMax"] = Number(Int(b, row, 8)); }
+        if (IsSpawn(kind)) { values["spawnMin"] = Number(Int(b, row, 7)); values["spawnMax"] = Number(Int(b, row, 8)); }
         else
         {
             metadata["defaultMin"] = Number(Int(b, row, 1)); metadata["defaultMax"] = Number(Int(b, row, 2));
@@ -263,19 +287,54 @@ internal sealed class PlaWildCatalog
             label = entry.Area + " / " + Hex(entry.Table) + " / " + catalog.PokemonLabel(Identity(b, row));
         }
         return new(id, label, values) { Metadata = metadata, ReadOnlyFields = entry.Protected ? Fields(kind).Select(field => field.Key).ToArray() : [],
-            RelatedRecords = entry.Consumers.Select(key => new PlaRelatedRecord(kind == "spawns" ? "table" : "spawner", key, key)).ToArray() };
+            RelatedRecords = entry.Consumers.Select(key => new PlaRelatedRecord(IsSpawn(kind) ? "table" : "spawner", key, key)).ToArray() };
     }
 
-    internal byte[] Edit(IReadOnlyDictionary<(string Kind, string Id), Dictionary<string, string>> edits)
+    internal byte[] Compose(IReadOnlyDictionary<string, byte[]> members) => current.Compose(members, Runtime);
+    internal byte[] ReadMember(string path) => current.Read(path, Runtime);
+    internal byte[] BaseMember(string path) => original.Read(path, Runtime);
+    internal void ValidateEventSources()
     {
+        foreach (var path in EventLinks.PlacementPaths)
+            if (!BaseMember(path).AsSpan().SequenceEqual(ReadMember(path))) throw new InvalidDataException("PLA distortion placement data must be preserved.");
+        foreach (var path in EventLinks.SpawnPaths)
+        {
+            var source = new PlaFlatBuffer(BaseMember(path)); var now = Buffer(path);
+            if (!CountOnlyCompatible(source, now, source.VectorReferences(source.Root, 0, 4096), now.VectorReferences(now.Root, 0, 4096)))
+                throw new InvalidDataException("PLA event spawner links and placement data must be preserved.");
+        }
+    }
+    internal string EncounterLabel(string path, ulong hash)
+    {
+        var b = Buffer(path);
+        if (!Tables(b).TryGetValue(hash, out var reference)) throw new InvalidDataException("The PLA event encounter table is missing.");
+        var slots = b.VectorReferences(b.TableAtReference(reference), 3, 100);
+        return slots.Length == 0 ? Hex(hash) : catalog.PokemonLabel(Identity(b, b.TableAtReference(slots[0])));
+    }
+    internal Dictionary<string, byte[]> EditMembers(IReadOnlyDictionary<(string Kind, string Id), Dictionary<string, string>> edits)
+    {
+        // Different editor tabs can address the same physical encounter slot.
+        // Merge those fields before validating the complete record and cloning its tree.
+        var combined = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
+        foreach (var group in edits.GroupBy(pair => (Kind: PhysicalKind(pair.Key.Kind), pair.Key.Id)))
+        {
+            var key = group.First().Key; var values = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var pair in group)
+            {
+                if (Get(pair.Key.Kind, pair.Key.Id).Protected) throw new InvalidDataException("This PLA encounter record is protected.");
+                foreach (var field in pair.Value)
+                    if (!values.TryAdd(field.Key, field.Value)) throw new InvalidDataException("The PLA session contains conflicting encounter fields.");
+            }
+            combined.Add(key, values);
+        }
         var members = new Dictionary<string, byte[]>(StringComparer.Ordinal);
-        foreach (var member in edits.GroupBy(pair => Get(pair.Key.Kind, pair.Key.Id).Path))
+        foreach (var member in combined.GroupBy(pair => Get(pair.Key.Kind, pair.Key.Id).Path))
         {
             var b = new PlaFlatBuffer(current.Read(member.Key, Runtime));
             foreach (var group in member.GroupBy(pair => Get(pair.Key.Kind, pair.Key.Id).Table))
             {
                 var first = group.First(); var firstEntry = Get(first.Key.Kind, first.Key.Id);
-                var reference = first.Key.Kind == "spawns" ? b.VectorReferences(b.Root, 0, 4096)[firstEntry.Slot] : Tables(b)[group.Key];
+                var reference = IsSpawn(first.Key.Kind) ? b.VectorReferences(b.Root, 0, 4096)[firstEntry.Slot] : Tables(b)[group.Key];
                 var table = b.TableAtReference(reference);
                 var treeEdits = new Dictionary<int, IReadOnlyDictionary<int, long>>();
                 foreach (var (key, changes) in group)
@@ -288,7 +347,7 @@ internal sealed class PlaWildCatalog
                     var values = record.Values.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
                     foreach (var pair in changes) values[pair.Key] = pair.Value;
                     int Value(string field) => int.Parse(values[field], CultureInfo.InvariantCulture);
-                    if (key.Kind == "spawns")
+                    if (IsSpawn(key.Kind))
                     {
                         if (Value("spawnMin") < 1 || Value("spawnMax") > 4 || Value("spawnMin") > Value("spawnMax"))
                             throw new InvalidDataException("PLA spawn counts must be between 1 and 4 with minimum no greater than maximum.");
@@ -335,6 +394,6 @@ internal sealed class PlaWildCatalog
             }
             members[member.Key] = b.ToArray();
         }
-        return current.Compose(members, Runtime);
+        return members;
     }
 }

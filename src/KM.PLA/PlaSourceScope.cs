@@ -30,7 +30,7 @@ internal sealed class PlaSourceScope : IDisposable
             if (compression is not null) return compression;
             var folder = Paths.PokemonLegendsArceusSupportFolderPath;
             if (string.IsNullOrWhiteSpace(folder))
-                throw new InvalidDataException("Set the PLA compression support folder in Project Setup before opening Wild Encounters.");
+                throw new InvalidDataException("Set the PLA compression support folder in Project Setup before opening PLA field editors.");
             var path = Resolve(folder, KM.Formats.PLA.PlaCompressionRuntime.RequiredFileName);
             if (!File.Exists(path)) throw new InvalidDataException("The PLA support folder must contain oo2core_8_win64.dll.");
             using var hash = SHA256.Create();
