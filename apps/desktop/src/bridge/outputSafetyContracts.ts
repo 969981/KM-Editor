@@ -326,7 +326,7 @@ export const outputHistoryReceiptSchema = z.strictObject({
     })).max(4096),
     truncated: z.boolean()
   }).nullable().optional(),
-  targets: z.array(z.strictObject({ relativePath: relativeOutputPathSchema, kind: z.enum(['Write', 'Delete']) })).max(2048).optional(),
+  targets: z.array(z.strictObject({ relativePath: relativeOutputPathSchema, kind: z.enum(['Write', 'Delete']) })).max(4096).optional(),
   completedAtUtc: dateTimeOffsetSchema,
   origins: z.array(outputApplyOriginSchema).max(64),
   outcome: z.enum(['committed', 'rolledBack', 'recoveryRequired']),

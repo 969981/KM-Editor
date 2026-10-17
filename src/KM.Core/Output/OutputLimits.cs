@@ -5,7 +5,7 @@ namespace KM.Core.Output;
 public static class OutputLimits
 {
     public const int StandardMaximumMutationsPerApply = 1_024;
-    public const int MaximumMutationsPerApply = 2_048;
+    public const int MaximumMutationsPerApply = 4_096;
     public const int MaximumOwnershipClaimsPerMutation = 256;
     public const int MaximumOriginsPerApply = 64;
     public const int MaximumCreatedDirectoriesPerApply = 4_096;
