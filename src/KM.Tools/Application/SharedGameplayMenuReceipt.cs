@@ -154,5 +154,5 @@ internal sealed record SharedGameplayMenuReceipt(
     }
 
     private static InvalidDataException Conflict() => new(
-        "Camera Control cannot restore a region changed by another edit. The existing files were preserved.");
+        "The installed native features cannot restore a region changed by another edit. The existing files were preserved.");
 }

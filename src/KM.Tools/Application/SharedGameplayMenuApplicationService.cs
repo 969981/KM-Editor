@@ -45,6 +45,8 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             request.RequiredCameraHook is null, request.CameraControl, request.BattleItems).ConfigureAwait(false);
         if (loaded.Snapshot.Revision != request.ExpectedRevision) throw new InGameSettingsPackageStateConflictException();
         var remove = request.Operation == InGameSettingsPackageOperationDto.Remove;
+        if (remove && loaded.Registrations.Count != 0)
+            throw new InGameSettingsPackageUnavailableException("Review and register the recognized installation before removing it.");
         var removeAll = remove;
         if (remove && !loaded.Context.IsExternal && loaded.Receipt is { } installedReceipt) {
             var installedFeatures = installedReceipt.Features ?? (SwShNativeMenuFeatures.Camera | SwShNativeMenuFeatures.Gameplay);
@@ -55,7 +57,8 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                 removeAll = false;
             }
         }
-        var requiredHook = !remove && !loaded.Context.IsExternal ? request.RequiredCameraHook : null;
+        var requiredHook = !remove && !loaded.Context.IsExternal
+            && loaded.Snapshot.ExecutableInput.ReasonCode != RegistrationReason ? request.RequiredCameraHook : null;
         if (requiredHook is not null)
             loaded.ExternalDependencies = loaded.ExternalDependencies.Add(await ReviewRequiredHook(request.Scope, requiredHook, token).ConfigureAwait(false));
         if (remove ? loaded.Snapshot.InstalledPackage is null || loaded.Snapshot.State is not
@@ -84,7 +87,8 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                 reviews.Remove(reviews.Values.MinBy(review => review.Expires)!.Id);
             reviews.Add(id, new(id, loaded.Context.ScopeKey, request.InstallationTarget, request.Operation, expiry, plan,
                 loaded.ExternalDependencies, remove ? null : loaded.SourceReceiptState, requiredHook,
-                !removeAll && !loaded.Context.IsExternal ? loaded.NextReceiptBytes : null, retained, request.CameraControl, request.BattleItems));
+                !removeAll && !loaded.Context.IsExternal ? loaded.NextReceiptBytes : null, retained, request.CameraControl, request.BattleItems,
+                loaded.IncludeConsoleSettings));
         }
         return new(id, expiry, request.Operation, loaded.Snapshot,
             mutations.Select(mutation => new InGameSettingsPackageTargetDto(mutation.Path.Value,
@@ -135,7 +139,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         if (result.Outcome != OutputApplyOutcome.RecoveryRequired)
         {
             try { snapshot = (await LoadAsync(request.Scope, request.InstallationTarget, request.InstallationRootPath, CancellationToken.None,
-                review.RequiredHook is null, review.CameraControl, review.BattleItems).ConfigureAwait(false)).Snapshot; }
+                review.IncludeConsoleSettings, review.CameraControl, review.BattleItems).ConfigureAwait(false)).Snapshot; }
             catch (Exception exception) when (exception is IOException or ArgumentException or InvalidOperationException or UnauthorizedAccessException) { }
         }
         return new(result.TransactionId.Value, result.Outcome switch
@@ -186,13 +190,17 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                     privateReceipt.LongLength, privateReceiptHash, MaximumBytes));
             }
             loaded.Targets.Add(receiptFile.Path.CanonicalKey, receiptFile);
+            var journal = await Track(loaded, loaded.JournalPath, token).ConfigureAwait(false);
+            if (journal.Exists) ValidateOrRecognizeJournal(loaded, journal);
+            sourceReceipt ??= await RecognizeOutput(loaded, token).ConfigureAwait(false);
             loaded.Receipt = sourceReceipt;
             loaded.Installed = sourceReceipt?.Package;
             // Battle Items works without settings. Keep the delivery choice of
             // an existing installation when adding or removing this feature.
-            if (battleItems) loaded.IncludeConsoleSettings = sourceReceipt?.ConsoleSettings ?? false;
-            var journal = await Track(loaded, loaded.JournalPath, token).ConfigureAwait(false);
-            if (journal.Exists) RequireJournal(loaded, journal);
+            if (loaded.Registrations.Contains("EXEFS/SUBSDK9")) loaded.IncludeConsoleSettings = sourceReceipt!.ConsoleSettings;
+            else if (battleItems) loaded.IncludeConsoleSettings = sourceReceipt?.ConsoleSettings == true
+                || loaded.Registrations.Contains(journal.Path.CanonicalKey);
+            if (loaded.Registrations.Contains(journal.Path.CanonicalKey)) loaded.IncludeConsoleSettings = true;
             var normalized = new Dictionary<string, byte[]?>(StringComparer.Ordinal);
             if (sourceReceipt is not null)
             {
@@ -201,12 +209,17 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                     file => file.Exists ? file.Bytes.ToArray() : null, StringComparer.Ordinal));
                 loaded.Restored = normalized;
                 var runtime = loaded.Targets["EXEFS/SUBSDK9"];
-                if (runtime.Exists) RequireOwned(context.Source, ownership, runtime, mutable: false);
+                if (runtime.Exists && !loaded.Registrations.Contains(runtime.Path.CanonicalKey))
+                    RequireOwned(context.Source, ownership, runtime, mutable: false);
             }
             var requestedFeature = SelectedFeature(cameraControl, battleItems);
             var priorFeatures = sourceReceipt is null ? 0 : sourceReceipt.Features
                 ?? (SwShNativeMenuFeatures.Camera | SwShNativeMenuFeatures.Gameplay);
-            var features = remainingFeatures ?? (priorFeatures | requestedFeature);
+            var registrationRequired = loaded.Registrations.Contains("EXEFS/SUBSDK9")
+                || sourceReceipt is not null && priorFeatures.HasFlag(requestedFeature) && loaded.Registrations.Count != 0
+                    && sourceReceipt.Files.All(file => loaded.Targets[new RelativeOutputPath(file.Path).CanonicalKey].Exists);
+            var features = remainingFeatures ?? (registrationRequired
+                ? priorFeatures : priorFeatures | requestedFeature);
             var resolution = await provider.ResolveSharedAsync(context.Source.Paths, context.Paths.SelectedGame.Value, normalized, token, features).ConfigureAwait(false);
             loaded.ExternalDependencies = loaded.ExternalDependencies.AddRange(resolution.ExternalSourceDependencies ?? []);
             foreach (var dependency in resolution.SourceDependencies ?? [])
@@ -245,9 +258,12 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                     if (before.Length == 0) throw new InvalidDataException("A required shared output base file is missing.");
                 }
                 var previous = sourceReceipt?.Files.Single(file => file.Path == path);
-                generated.Add(new(path, previous?.Existed ?? current.Exists, before, component.Value.ToArray()));
+                generated.Add(new(path, previous?.Existed ?? current.Exists, before,
+                    registrationRequired ? current.Bytes.ToArray() : component.Value.ToArray()));
             }
-            loaded.NextReceipt = new(1, loaded.Available, loaded.Bootstrap, generated.OrderBy(file => file.Path, StringComparer.Ordinal).ToArray(),
+            loaded.NextReceipt = new(1, registrationRequired ? sourceReceipt!.Package : loaded.Available,
+                registrationRequired && journal.Exists ? journal.Bytes.ToArray() : loaded.Bootstrap,
+                generated.OrderBy(file => file.Path, StringComparer.Ordinal).ToArray(),
                 loaded.IncludeConsoleSettings, features);
             loaded.NextReceiptBytes = loaded.NextReceipt.Write();
             loaded.NextReceiptRule = new(ReceiptRulePrefix + Hash(loaded.NextReceiptBytes), 1, true, true);
@@ -259,8 +275,11 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                 || sourceReceipt.Package.PackageVersion != loaded.Available.PackageVersion);
             var selectedInstalled = sourceReceipt is not null && priorFeatures.HasFlag(requestedFeature);
             if (!selectedInstalled) loaded.Installed = null;
-            return Finish(loaded, !selectedInstalled ? InGameSettingsPackageStateDto.NotInstalled
-                : needsUpdate ? InGameSettingsPackageStateDto.UpgradeAvailable : InGameSettingsPackageStateDto.Installed);
+            return Finish(loaded, registrationRequired ? InGameSettingsPackageStateDto.UpgradeAvailable
+                : !selectedInstalled ? InGameSettingsPackageStateDto.NotInstalled
+                : needsUpdate ? InGameSettingsPackageStateDto.UpgradeAvailable : InGameSettingsPackageStateDto.Installed,
+                !registrationRequired ? null : "This installation was verified. Review it to register its existing files and preserve saved settings.",
+                !registrationRequired ? null : RegistrationReason);
         }
         catch (SourceOwnershipException exception)
         {
@@ -270,7 +289,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         catch (Exception exception) when (exception is InvalidDataException or JsonException or UnauthorizedAccessException)
         {
             return Finish(loaded, InGameSettingsPackageStateDto.Conflict,
-                "The shared output or settings receipt does not match its current owned files. Existing edits were preserved.", "shared-output-conflict");
+                "The installation files or records could not be verified. Existing edits were preserved.", "shared-output-conflict");
         }
     }
 
@@ -293,16 +312,27 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         var journal = await Track(loaded, loaded.JournalPath, token).ConfigureAwait(false);
         if (receipt.Exists)
         {
-            RequireOwned(loaded.Context.Destination, loaded.Ownership, receipt, mutable: false);
             loaded.Installed = JsonSerializer.Deserialize<InGameSettingsPackageDescriptorDto>(receipt.Bytes.AsSpan());
-            if (loaded.Installed?.TitleId != loaded.TitleId.ToString("X16")) throw new InvalidDataException("Invalid settings receipt.");
+            var expected = NativeGameplayMenuBundleFactory.CreateCameraHookSettings(loaded.Context.Paths.SelectedGame!.Value).Package;
+            if (loaded.Installed?.TitleId != expected.TitleId || loaded.Installed.BuildId != expected.BuildId
+                || loaded.Installed.SupportedGameVersion != expected.SupportedGameVersion || loaded.Installed.TargetCount != 2)
+                throw RecognitionFailure(receipt, "shared-installation-record-conflict");
+            if (loaded.Ownership.Inventory.Files.Any(record => record.Path == receipt.Path))
+                RequireOwned(loaded.Context.Destination, loaded.Ownership, receipt, mutable: false);
+            else loaded.Registrations.Add(receipt.Path.CanonicalKey);
         }
-        if (journal.Exists) RequireJournal(loaded, journal);
+        if (journal.Exists) ValidateOrRecognizeJournal(loaded, journal);
         var initialValues = receipt.Exists || journal.Exists ? null
             : await ReadInitialCameraHookValues(loaded, token).ConfigureAwait(false);
         var settings = NativeGameplayMenuBundleFactory.CreateCameraHookSettings(loaded.Context.Paths.SelectedGame!.Value, initialValues);
         loaded.Available = settings.Package;
         loaded.Bootstrap = journal.Exists ? UpgradeJournal(loaded, journal.Bytes.ToArray()) : settings.Journal;
+        if (loaded.Registrations.Count != 0)
+        {
+            loaded.Installed ??= settings.Package;
+            return Finish(loaded, InGameSettingsPackageStateDto.UpgradeAvailable,
+                "This settings installation was verified. Review it to register the existing files and preserve saved choices.", RegistrationReason);
+        }
         if (receipt.Exists) return Finish(loaded, journal.Exists && journal.Bytes.AsSpan().SequenceEqual(loaded.Bootstrap)
             && loaded.Installed!.PackageVersion == settings.Package.PackageVersion
             ? InGameSettingsPackageStateDto.Installed : InGameSettingsPackageStateDto.UpgradeAvailable);
@@ -327,6 +357,11 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                     ? new OwnedTarget(loaded.Context.GameFamily, new(path), Owner, loaded.NextReceiptRule!) : Claim(loaded, path);
                 var claims = (path.CanonicalKey == "EXEFS/SUBSDK9" ? otherClaims.AsEnumerable() : beforeClaims)
                     .Append(claim).Distinct().ToArray();
+                if (loaded.Registrations.Contains(path.CanonicalKey))
+                {
+                    mutations.Add(Register(loaded, current, claim));
+                    continue;
+                }
                 if (current.Exists && current.Bytes.AsSpan().SequenceEqual(file.After)
                     && (path.CanonicalKey != "EXEFS/SUBSDK9" || beforeClaims.SequenceEqual(claims))) continue;
                 mutations.Add(current.Exists && current.Bytes.AsSpan().SequenceEqual(file.After)
@@ -381,6 +416,8 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         else if (!journal.Exists)
             mutations.Add(OutputMutation.WriteRuntimeMutableBootstrap(journal.Path, loaded.Bootstrap!, journal.State,
                 [Claim(loaded, journal.Path)], loaded.Context.GameFamily, loaded.TitleId));
+        else if (loaded.Registrations.Contains(journal.Path.CanonicalKey))
+            mutations.Add(Register(loaded, journal, Claim(loaded, journal.Path), settings: true));
         else AddJournalUpgrade(loaded, journal, mutations);
         return mutations;
     }
@@ -411,10 +448,14 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             }
             return;
         }
-        if (!receiptTarget.Exists || !receiptTarget.Bytes.AsSpan().SequenceEqual(receipt))
+        if (loaded.Registrations.Contains(receiptTarget.Path.CanonicalKey))
+            mutations.Add(Register(loaded, receiptTarget, Claim(loaded, receiptTarget.Path)));
+        else if (!receiptTarget.Exists || !receiptTarget.Bytes.AsSpan().SequenceEqual(receipt))
             mutations.Add(OutputMutation.Write(receiptTarget.Path, receipt!, receiptTarget.State, [Claim(loaded, receiptTarget.Path)]));
         if (!journal.Exists) mutations.Add(OutputMutation.WriteRuntimeMutableBootstrap(journal.Path, loaded.Bootstrap!, journal.State,
             [Claim(loaded, journal.Path)], loaded.Context.GameFamily, loaded.TitleId));
+        else if (loaded.Registrations.Contains(journal.Path.CanonicalKey))
+            mutations.Add(Register(loaded, journal, Claim(loaded, journal.Path), settings: true));
         else AddJournalUpgrade(loaded, journal, mutations);
     }
 
@@ -563,7 +604,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         InGameSettingsPackageOperationDto Operation, DateTimeOffset Expires,
         OutputApplyPlan Plan, ImmutableArray<InGameSettingsExternalSourceDependency> ExternalDependencies,
         OutputFileState? SourceReceiptState, CameraHookRequirementDto? RequiredHook, byte[]? ReceiptBytes, long RetainedBytes,
-        bool CameraControl, bool BattleItems);
+        bool CameraControl, bool BattleItems, bool IncludeConsoleSettings);
 
     private sealed class Loaded(PackageScopeContext context, OutputOwnershipInventorySnapshot ownership, ulong title)
     {
@@ -586,6 +627,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
         public byte[]? Bootstrap { get; set; }
         public Dictionary<string, byte[]?>? Restored { get; set; }
         public Dictionary<string, byte[]> VerifiedBases { get; } = new(StringComparer.Ordinal);
+        public HashSet<string> Registrations { get; } = new(StringComparer.Ordinal);
         public OutputFileState? SourceReceiptState { get; set; }
         public ImmutableArray<InGameSettingsExternalSourceDependency> ExternalDependencies { get; set; } = [];
     }

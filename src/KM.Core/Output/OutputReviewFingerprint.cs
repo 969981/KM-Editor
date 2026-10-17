@@ -96,6 +96,11 @@ public static class OutputReviewFingerprint
             AppendState(hash, budget, mutation.PlannedPostimage);
             AppendNullableText(hash, budget, mutation.OwnershipOutputMode);
             AppendNullableText(hash, budget, mutation.OwnershipActor?.Value);
+            if (mutation.VerifiedRegistrationActor is { } registrationActor)
+            {
+                AppendText(hash, budget, "verified-registration");
+                AppendText(hash, budget, registrationActor.Value);
+            }
             AppendNullableBoolean(hash, mutation.RestoredFileDeleteEligibility);
             if (mutation.RuntimeMutableDescriptor is { } runtimeMutable)
             {

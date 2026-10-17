@@ -1882,6 +1882,14 @@ public sealed partial class OutputTransactionCoordinator
             }
 
             var legacyAdoptionAuthorized = false;
+            if (mutation.VerifiedRegistrationActor is { } registrationActor
+                && (inventoryByPath.ContainsKey(mutation.Path.CanonicalKey)
+                    || mutation.ExpectedPreimage != mutation.PlannedPostimage
+                    || !mutation.ExpectedPreimage.Exists || mutation.Kind != OutputMutationKind.Write
+                    || mutation.OwnershipClaims.Length != 1 || mutation.OwnershipClaims[0].OwnerId != registrationActor
+                    || !HasWholeFileOwnership(mutation.OwnershipClaims)
+                    || !plan.Origins.Any(origin => origin.Kind == OutputApplyOriginKind.Workflow && origin.Id == registrationActor.Value)))
+                throw new OutputOwnershipConflictException(mutation.Path);
             if (mutation.IsOwnershipUpdate && (!hasOwnedRecord || owned!.RuntimeMutableDescriptor is not null
                 || OwnershipClaimsMatchExactly(owned.Claims, mutation.OwnershipClaims)))
                 throw new OutputOwnershipConflictException(mutation.Path);
@@ -1938,7 +1946,7 @@ public sealed partial class OutputTransactionCoordinator
             {
                 if (!hasOwnedRecord)
                 {
-                    if (mutation.ExpectedPreimage.Exists || mutation.Kind == OutputMutationKind.Delete)
+                    if (mutation.ExpectedPreimage.Exists && mutation.VerifiedRegistrationActor is null || mutation.Kind == OutputMutationKind.Delete)
                     {
                         throw new OutputOwnershipConflictException(mutation.Path);
                     }
@@ -2035,7 +2043,8 @@ public sealed partial class OutputTransactionCoordinator
                 mutation.Kind == OutputMutationKind.Write ? $"{index:D6}.stage.bin" : null,
                 mutation.ExpectedPreimage.Exists ? $"{index:D6}.backup.bin" : null,
                 mutation.LegacyAdoptionDeleteAuthority,
-                mutation.IsOwnershipUpdate ? mutation.OwnershipActor : null))
+                mutation.IsOwnershipUpdate ? mutation.OwnershipActor : null,
+                mutation.VerifiedRegistrationActor))
             .ToImmutableArray();
         var journal = new OutputTransactionJournal(
             OutputTransactionJournal.CurrentSchemaVersion,
@@ -2798,11 +2807,11 @@ public sealed partial class OutputTransactionCoordinator
         OutputJournalEntry entry,
         OutputOwnershipRecord? previous)
     {
-        return entry.RestoredFileDeleteEligibility
+        return entry.VerifiedRegistrationActor is not null || (entry.RestoredFileDeleteEligibility
                ?? (previous?.FileDeleteEligible == true
                    && (previous.CurrentState == entry.Preimage
                        || previous.RuntimeMutableDescriptor is not null && entry.RuntimeMutableDescriptor is not null)
-                   || !entry.Preimage.Exists && HasWholeFileOwnership(entry.OwnershipClaims));
+                   || !entry.Preimage.Exists && HasWholeFileOwnership(entry.OwnershipClaims)));
     }
 
     private static bool HasWholeFileOwnership(IEnumerable<OwnedTarget> claims)
@@ -3692,7 +3701,7 @@ public sealed partial class OutputTransactionCoordinator
                 : null;
             if (!pathsSeen.Add(entry.Path.CanonicalKey)
                 || !Enum.IsDefined(entry.Kind)
-                || entry.Preimage == entry.Postimage && entry.OwnershipUpdateActor is null && !entry.RestoredFileDeleteEligibility.HasValue
+                || entry.Preimage == entry.Postimage && entry.OwnershipUpdateActor is null && entry.VerifiedRegistrationActor is null && !entry.RestoredFileDeleteEligibility.HasValue
                 || entry.Kind == OutputMutationKind.Write && !entry.Postimage.Exists
                 || entry.Kind == OutputMutationKind.Delete && entry.Postimage.Exists
                 || entry.Kind == OutputMutationKind.Delete && !entry.Preimage.Exists
@@ -3715,6 +3724,15 @@ public sealed partial class OutputTransactionCoordinator
             {
                 throw new ArgumentException("The output transaction journal contains an invalid entry.", nameof(journal));
             }
+
+            if (entry.VerifiedRegistrationActor is { } registrationActor
+                && (entry.Kind != OutputMutationKind.Write || !entry.Preimage.Exists
+                    || entry.Preimage != entry.Postimage && entry.RuntimeMutableDescriptor is null
+                    || entry.RestoredFileDeleteEligibility.HasValue || entry.LegacyAdoptionDeleteAuthority is not null
+                    || entry.OwnershipUpdateActor is not null || entry.OwnershipClaims.Length != 1
+                    || entry.OwnershipClaims[0].OwnerId != registrationActor || !HasWholeFileOwnership(entry.OwnershipClaims)
+                    || !journal.Origins.Any(origin => origin.Kind == OutputApplyOriginKind.Workflow && origin.Id == registrationActor.Value)))
+                throw new ArgumentException("The output transaction journal contains an invalid registration.", nameof(journal));
 
             if (entry.OwnershipUpdateActor is { } updateActor
                 && (entry.Kind != OutputMutationKind.Write || !entry.Preimage.Exists || entry.Preimage != entry.Postimage
@@ -4704,6 +4722,11 @@ public sealed partial class OutputTransactionCoordinator
             }
 
             yield return entry.OwnershipOutputMode;
+            if (entry.VerifiedRegistrationActor is { } registrationActor)
+            {
+                yield return "verified-registration";
+                yield return registrationActor.Value;
+            }
             if (entry.OwnershipUpdateActor is { } updateActor)
             {
                 yield return "ownership-update";
