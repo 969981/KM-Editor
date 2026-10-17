@@ -3,6 +3,7 @@
 using KM.Core.Diagnostics;
 using KM.Core.GameDump;
 using KM.Core.Projects;
+using KM.SwSh.Rentals;
 using KM.SwSh.Workflows;
 
 namespace KM.SwSh.GameDump;
@@ -262,7 +263,13 @@ public sealed class SwShGameDumpService
                 paths =>
                 {
                     var workflow = workflowService.LoadRentalPokemon(paths);
-                    return new GameDumpCategoryData<KM.SwSh.Rentals.SwShRentalPokemonEntry>(workflow.Rentals, workflow.Diagnostics);
+                    var rentals = workflow.Rentals.Select(rental => rental with
+                    {
+                        Label = SwShRentalPokemonWorkflowService.FormatRentalLabel(
+                            rental.RentalIndex, rental.Species, rental.SpeciesId, rental.Form,
+                            rental.Level, rental.Moves, maximumMoveCount: rental.Moves.Count),
+                    }).ToArray();
+                    return new GameDumpCategoryData<SwShRentalPokemonEntry>(rentals, workflow.Diagnostics);
                 }),
             GameDumpWriter.CreateTableCategory(
                 SwShWorkflowIds.Encounters,
