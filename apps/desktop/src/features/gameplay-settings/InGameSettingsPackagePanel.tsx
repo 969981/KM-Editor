@@ -86,10 +86,17 @@ export function InGameSettingsPackagePanel({
   const [failureDiagnostics, setFailureDiagnostics] = useState<ApiDiagnostic[]>([]);
   const cameraConflict = snapshot?.detail?.startsWith('Camera Control requires ') ?? false;
   const sourceLayoutConflict = snapshot?.executableInput.reasonCode === 'source-layout-incompatible';
+  const registrationRequired = snapshot?.executableInput.reasonCode === 'shared-installation-registration-required';
   const sharedOutputConflict = snapshot?.executableInput.reasonCode === 'shared-output-conflict'
     || snapshot?.executableInput.reasonCode === 'shared-output-source-unavailable'
     || snapshot?.executableInput.reasonCode === 'shared-source-scope-conflict'
-    || snapshot?.executableInput.reasonCode === 'shared-source-unverified';
+    || snapshot?.executableInput.reasonCode === 'shared-source-unverified'
+    || snapshot?.executableInput.reasonCode === 'shared-runtime-unrecognized'
+    || snapshot?.executableInput.reasonCode === 'shared-base-unavailable'
+    || snapshot?.executableInput.reasonCode === 'shared-installation-incomplete'
+    || snapshot?.executableInput.reasonCode === 'shared-settings-invalid'
+    || snapshot?.executableInput.reasonCode === 'shared-installation-record-conflict'
+    || snapshot?.executableInput.reasonCode === 'shared-installation-content-conflict';
   const sharedOutputDetail = snapshot ? t(`gameplaySettings.shared.reason.${snapshot.executableInput.reasonCode}`,
     { path: snapshot.executableInput.sourceRelativePath ?? '' }) : '';
   useEffect(() => { if (messageKey === null) setFailureDiagnostics([]); }, [messageKey]);
@@ -320,7 +327,7 @@ export function InGameSettingsPackagePanel({
         requestOperationRef.current !== null ||
         applyInFlightGenerationRef.current !== null ||
         !canApply ||
-        (operation !== 'remove' && !canPrepare) ||
+        (operation !== 'remove' && !canPrepare && !registrationRequired) ||
         recoveryRequired ||
         !canReviewOperation(snapshot, operation)
       ) {
@@ -382,6 +389,7 @@ export function InGameSettingsPackagePanel({
       busy,
       canApply,
       canPrepare,
+      registrationRequired,
       requiredCameraHook,
       cameraControl,
       battleItems,
@@ -634,7 +642,8 @@ export function InGameSettingsPackagePanel({
       if (isMountedRef.current && requestContextKeyRef.current === requestedContext) await reportError(error, 'load');
     } finally { if (isMountedRef.current) setIsPickingDestination(false); }
   }
-  const stateTitleKey = snapshot ? useSharedOutput && !settingsOnly && snapshot.state === 'installed'
+  const stateTitleKey = snapshot ? registrationRequired ? 'gameplaySettings.shared.recognized'
+    : useSharedOutput && !settingsOnly && snapshot.state === 'installed'
     ? 'gameplaySettings.shared.outputInstalled' : useSharedOutput && !settingsOnly && snapshot.state === 'notInstalled'
       ? 'gameplaySettings.shared.outputNotInstalled' : packageStateTitleMessageKey(snapshot) : null;
   const stateDescriptionKey = snapshot
@@ -896,22 +905,22 @@ export function InGameSettingsPackagePanel({
           {snapshot.state === 'upgradeAvailable' && !(supportsSharedOutput && legacyInstallation) ? (
             <button
               className="primary-button"
-              disabled={actionsDisabled || !canPrepare}
+              disabled={actionsDisabled || !canPrepare && !registrationRequired}
               onClick={() => void reviewOperation('upgrade')}
               type="button"
             >
               {busy === 'preview'
                 ? t('gameplaySettings.inGamePackage.reviewing')
                 : t(
-                    refreshRequired
+                    registrationRequired ? 'gameplaySettings.shared.reviewRegistration' : refreshRequired
                       ? 'gameplaySettings.inGamePackage.reviewRefresh'
                       : 'gameplaySettings.inGamePackage.reviewUpgrade'
                   )}
             </button>
           ) : null}
-          {snapshot.state === 'installed' ||
+          {!registrationRequired && (snapshot.state === 'installed' ||
           snapshot.state === 'upgradeAvailable' ||
-          snapshot.state === 'coexistenceConflict' ? (
+          snapshot.state === 'coexistenceConflict') ? (
             <button
               className="secondary-button"
               disabled={actionsDisabled}
@@ -937,11 +946,13 @@ export function InGameSettingsPackagePanel({
         >
           <div>
             <h4 id="in-game-settings-package-review-title">
-              {t(`gameplaySettings.inGamePackage.review.${reviewPresentationOperation}.title`)}
+              {t(registrationRequired ? 'gameplaySettings.shared.reviewRegistration'
+                : `gameplaySettings.inGamePackage.review.${reviewPresentationOperation}.title`)}
             </h4>
             <p>
               {t(
-                useSharedOutput ? preview.operation === 'remove'
+                registrationRequired ? 'gameplaySettings.shared.reason.shared-installation-registration-required'
+                  : useSharedOutput ? preview.operation === 'remove'
                   ? settingsOnly ? 'gameplaySettings.shared.removeSettings' : 'gameplaySettings.shared.removeOutput'
                   : settingsOnly ? 'gameplaySettings.shared.settingsHelp' : 'gameplaySettings.shared.outputHelp'
                   : `gameplaySettings.inGamePackage.review.${reviewPresentationOperation}.description`
@@ -1094,7 +1105,8 @@ export function InGameSettingsPackagePanel({
               {busy === 'apply'
                 ? t('gameplaySettings.inGamePackage.applying')
                 : t(
-                    useSharedOutput && !settingsOnly ? 'gameplaySettings.shared.applyOutput' : `gameplaySettings.inGamePackage.apply.${reviewPresentationOperation}`
+                    registrationRequired ? 'gameplaySettings.shared.applyRegistration'
+                      : useSharedOutput && !settingsOnly ? 'gameplaySettings.shared.applyOutput' : `gameplaySettings.inGamePackage.apply.${reviewPresentationOperation}`
                   )}
             </button>
           </div>

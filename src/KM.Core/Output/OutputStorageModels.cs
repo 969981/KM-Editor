@@ -18,7 +18,8 @@ internal sealed record OutputJournalEntry(
     string? StageFileName,
     string? BackupFileName,
     OutputLegacyAdoptionDeleteAuthority? LegacyAdoptionDeleteAuthority = null,
-    OwnershipOwnerId? OwnershipUpdateActor = null);
+    OwnershipOwnerId? OwnershipUpdateActor = null,
+    OwnershipOwnerId? VerifiedRegistrationActor = null);
 
 internal sealed record OutputTransactionJournal(
     int SchemaVersion,

@@ -52,6 +52,23 @@ public sealed record OutputMutation
 
     internal bool IsOwnershipUpdate { get; private init; }
 
+    internal OwnershipOwnerId? VerifiedRegistrationActor { get; private init; }
+
+    /// <summary>Registers an existing file after its owning workflow verifies its complete supported format.</summary>
+    public static OutputMutation RegisterVerifiedFile(RelativeOutputPath path, ReadOnlyMemory<byte> content,
+        OutputFileState expectedState, OwnedTarget claim, string outputMode, ulong? settingsTitleId = null)
+    {
+        ArgumentNullException.ThrowIfNull(claim);
+        var descriptor = settingsTitleId is { } title
+            ? OutputRuntimeMutableDescriptor.ValidateRegistration(path, claim.GameFamily, title, content.Span) : null;
+        var mutation = CreateWrite(path, content, expectedState, [claim], outputMode, null,
+            null, descriptor, null, null, allowUnchangedState: true);
+        if (!expectedState.Exists || mutation.PlannedPostimage != expectedState
+            || claim.Address.ScopeKind != OwnedTargetScopeKind.File)
+            throw new ArgumentException("Registration must preserve the exact verified file.");
+        return mutation with { VerifiedRegistrationActor = claim.OwnerId };
+    }
+
     /// <summary>Updates one actor's ownership reference while retaining the exact reviewed bytes.</summary>
     public static OutputMutation RebindOwnership(RelativeOutputPath path, ReadOnlyMemory<byte> content,
         OutputFileState expectedState, IEnumerable<OwnedTarget> claims, string outputMode, OwnershipOwnerId actor)
@@ -881,7 +898,7 @@ public sealed record OutputApplyPlan
         }
 
         var ownershipActors = Mutations
-            .Select(mutation => mutation.OwnershipActor)
+            .Select(mutation => mutation.OwnershipActor ?? mutation.VerifiedRegistrationActor)
             .Where(actor => actor is not null)
             .Select(actor => actor!)
             .Concat(Mutations

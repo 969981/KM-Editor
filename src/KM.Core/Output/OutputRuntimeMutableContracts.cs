@@ -67,6 +67,18 @@ public sealed record OutputRuntimeMutableDescriptor
     /// </summary>
     public string? PreviousSemanticIdentity { get; }
 
+    internal static OutputRuntimeMutableDescriptor ValidateRegistration(RelativeOutputPath path,
+        GameFamily gameFamily, ulong titleId, ReadOnlySpan<byte> content)
+    {
+        var inspection = GameplaySettingsJournal.Inspect(content.ToArray(), ToSettingsFamily(gameFamily), titleId);
+        if (!inspection.WritesAllowed || inspection.ActiveSnapshot is null)
+            throw new ArgumentException("Registration requires a supported settings journal.", nameof(content));
+        var descriptor = new OutputRuntimeMutableDescriptor(OutputRuntimeMutableKind.GameplaySettingsJournalV1,
+            titleId, inspection.ActiveSnapshot.Generation);
+        descriptor.ValidateIdentity(path, gameFamily);
+        return descriptor;
+    }
+
     internal static OutputRuntimeMutableDescriptor ValidateBootstrap(
         RelativeOutputPath path,
         GameFamily gameFamily,
