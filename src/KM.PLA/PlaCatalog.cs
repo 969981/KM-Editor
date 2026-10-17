@@ -50,6 +50,8 @@ internal sealed class PlaCatalog
     internal PlaWildCatalog Wild => wild ??= new(this);
     private PlaEventCatalog? events;
     internal PlaEventCatalog Events => events ??= new(this);
+    private PlaScriptCatalog? scripts;
+    internal PlaScriptCatalog Scripts => scripts ??= new(this);
     private PlaSettingsCatalog? settings;
     internal PlaSettingsCatalog Settings => settings ??= new(this);
     private PlaWeatherCatalog? weather;
@@ -147,6 +149,7 @@ internal sealed class PlaCatalog
 
     internal PlaField[] Fields(string kind) => kind switch
     {
+        _ when PlaScriptCatalog.Supports(kind) => Scripts.Fields(kind),
         _ when PlaSettingsCatalog.Supports(kind) => Settings.Fields(kind),
         "weather" => Weather.Fields(),
         _ when PlaWildCatalog.Supports(kind) => Wild.Fields(kind),
@@ -233,6 +236,7 @@ internal sealed class PlaCatalog
     }
 
     internal string ResourcePath(string kind, string id) => PlaWildCatalog.Supports(kind) ? Wild.PathFor(kind, id)
+        : PlaScriptCatalog.Supports(kind) ? Scripts.PathFor(kind, id)
         : PlaSettingsCatalog.Supports(kind) ? Settings.PathFor(kind, id)
         : kind == "weather" ? Weather.PathFor(id)
         : PlaEventCatalog.Supports(kind) ? Events.PathFor(kind, id)
@@ -243,6 +247,7 @@ internal sealed class PlaCatalog
 
     internal PlaRecord Record(string kind, string id, byte[]? edited = null)
     {
+        if (PlaScriptCatalog.Supports(kind)) return Scripts.Record(kind, id, edited);
         if (PlaSettingsCatalog.Supports(kind)) return Settings.Record(kind, id, edited);
         if (kind == "weather") return Weather.Record(id, edited);
         if (PlaWildCatalog.Supports(kind)) return Wild.Record(kind, id, edited);

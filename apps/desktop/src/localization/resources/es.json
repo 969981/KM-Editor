@@ -1,5 +1,17 @@
 {
   "keys": {
+    "pla.kind.bagPrices": "Precios de ampliación del zurrón",
+    "pla.kind.charmPrices": "Precios de amuletos",
+    "pla.notice.bagPrices": "Precios de cada espacio adicional del zurrón, por orden de compra. Se conservan las condiciones de desbloqueo y el límite de 39 ampliaciones.",
+    "pla.notice.charmPrices": "Los precios dependen de cuántos amuletos del tipo elegido se poseen. El primer amuleto de supervivencia y el primer amuleto de tentación comparten un precio y se editan juntos. Se conservan las identidades y las condiciones de compra.",
+    "pla.rules.expansion": "Ampliación {number}",
+    "pla.rules.expansions": "Ampliaciones de {first} a {last}",
+    "pla.rules.ownedCharms": "Precio con {count} en posesión",
+    "pla.rules.sharedCharms": "Precio compartido del primer amuleto",
+    "pla.rules.warding": "Amuletos de protección",
+    "pla.rules.survival": "Amuletos de supervivencia",
+    "pla.rules.tempting": "Amuletos de tentación",
+    "pla.field.sharedCharmPrice": "Primer amuleto de supervivencia y de tentación",
     "workbench.section.weather.label": "Clima",
     "workbench.section.gameplayRules.label": "Reglas de juego",
     "workbench.section.weather.description": "Edita los pesos del clima por zona conservando las condiciones de la historia.",

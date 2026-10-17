@@ -82,7 +82,10 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
     && (kind !== 'text' || selected.id.startsWith(`${messageLanguage}/${textFile ?? page.textFile}:`));
   const fields = page?.fields ?? [];
   const hasEditableFields = fields.some(field => !field.readOnly && !selected?.readOnlyFields.includes(field.key));
-  const label = (field: PlaField) => field.key.startsWith('tutor.') ? field.label : t(`pla.field.${field.key}`);
+  const label = (field: PlaField) => field.key.startsWith('tutor.') ? field.label
+    : field.key.startsWith('bagPrice.') ? t('pla.rules.expansion', { number: field.key.split('.')[1] })
+    : /^(warding|survival|tempting)Price\./u.test(field.key) ? t('pla.rules.ownedCharms', { count: Number(field.key.split('.')[1]) - 1 })
+    : t(`pla.field.${field.key}`);
   const setValue = (key: string, value: string) => {
     if (!page || !selected || !enabled) return;
     const revision = page.revision;
@@ -185,7 +188,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
       }} /></FocusedEditorWorkspace>;
   }
   const eventTabs: PlaKind[] = section === 'outbreaks' ? ['outbreaks', 'massiveOutbreaks', 'outbreakGroups', 'outbreakWaves', 'outbreakDurations', 'outbreakEncounters']
-    : section === 'distortions' ? ['distortionEncounters', 'distortionSpawns', 'distortionItems'] : section === 'gameplayRules' ? ['capture', 'friendship', 'shiny'] : [];
+    : section === 'distortions' ? ['distortionEncounters', 'distortionSpawns', 'distortionItems'] : section === 'gameplayRules' ? ['capture', 'friendship', 'shiny', 'bagPrices', 'charmPrices'] : [];
   const eventControls = eventTabs.length ? <>
     <nav className="text-category-browser" aria-label={t('pla.editor')}><div className="text-category-tabs" role="tablist" aria-label={t('pla.editor')}>
       {eventTabs.map((value, index) => <button type="button" key={value} role="tab" aria-selected={kind === value} tabIndex={kind === value ? 0 : -1}
@@ -199,7 +202,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
         }}>{t('pla.kind.' + value)}</button>)}
     </div></nav>{section !== 'gameplayRules' ? <p className="field-note">{t(section === 'outbreaks' ? 'pla.event.outbreakNotice' : 'pla.event.distortionNotice')}</p> : null}
   </> : undefined;
-  if (kind === 'capture' || kind === 'friendship' || kind === 'shiny') return <FocusedEditorWorkspace>
+  if (kind === 'capture' || kind === 'friendship' || kind === 'shiny' || kind === 'bagPrices' || kind === 'charmPrices') return <FocusedEditorWorkspace>
     <PlaRulesWorkspace kind={kind} page={visiblePage} controls={eventControls} loading={loading} actions={actions} refresh={refreshButton} fieldLabel={label}
       sessionBar={<EditorSessionBar canEdit={visiblePage !== null && !loading} isEditing={session !== null} isStarting={isStarting}
         label={t('workbench.section.gameplayRules.label')} onStart={onStart} />}

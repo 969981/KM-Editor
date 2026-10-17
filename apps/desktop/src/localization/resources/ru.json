@@ -1,5 +1,17 @@
 {
   "keys": {
+    "pla.kind.bagPrices": "Цены расширения сумки",
+    "pla.kind.charmPrices": "Цены амулетов",
+    "pla.notice.bagPrices": "Цены каждой дополнительной ячейки сумки в порядке покупки. Условия открытия и предел в 39 расширений сохраняются.",
+    "pla.notice.charmPrices": "Цены зависят от количества имеющихся амулетов выбранного типа. Первый амулет выживания и первый амулет приманки имеют общую цену и редактируются вместе. Идентификаторы амулетов и условия покупки сохраняются.",
+    "pla.rules.expansion": "Расширение {number}",
+    "pla.rules.expansions": "Расширения с {first} по {last}",
+    "pla.rules.ownedCharms": "Цена при наличии {count}",
+    "pla.rules.sharedCharms": "Общая цена первого амулета",
+    "pla.rules.warding": "Защитные амулеты",
+    "pla.rules.survival": "Амулеты выживания",
+    "pla.rules.tempting": "Амулеты приманки",
+    "pla.field.sharedCharmPrice": "Первый амулет выживания и приманки",
     "workbench.section.weather.label": "Погода",
     "workbench.section.gameplayRules.label": "Правила игры",
     "workbench.section.weather.description": "Изменение весов погоды в областях с сохранением сюжетных условий.",

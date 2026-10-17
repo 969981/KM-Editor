@@ -27,7 +27,7 @@ public sealed class PlaWorkflowService
         "encounters" or "spawns" => "workflow.encounters",
         "outbreaks" or "massiveOutbreaks" or "outbreakGroups" or "outbreakWaves" or "outbreakDurations" or "outbreakEncounters" => "workflow.outbreaks",
         "distortionEncounters" or "distortionSpawns" or "distortionItems" => "workflow.distortions",
-        "capture" or "friendship" or "shiny" => "workflow.gameplayRules",
+        "capture" or "friendship" or "shiny" or "bagPrices" or "charmPrices" => "workflow.gameplayRules",
         "weather" => "workflow.weather",
         "personal" or "learnsets" or "evolutions" or "compatibility" or "tutors" => "workflow.pokemon",
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
@@ -100,6 +100,7 @@ public sealed class PlaWorkflowService
         textFiles = [];
         selectedFile = null;
         catalog.RefreshTutorLabels(edited);
+        if (PlaScriptCatalog.Supports(kind)) return catalog.Scripts.Records(kind, edited);
         if (PlaSettingsCatalog.Supports(kind)) return catalog.Settings.Records(kind, edited);
         if (kind == "weather") return catalog.Weather.Records(edited);
         if (PlaWildCatalog.Supports(kind))
@@ -244,6 +245,7 @@ public sealed class PlaWorkflowService
         var economy = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var wild = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var events = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
+        var scripts = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var settings = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var weather = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -262,6 +264,13 @@ public sealed class PlaWorkflowService
             if (kind == "weather")
             {
                 if (!weather.TryGetValue(id, out var values)) weather[id] = values = new(StringComparer.Ordinal);
+                values.Add(field.Key, value);
+                continue;
+            }
+            if (PlaScriptCatalog.Supports(kind))
+            {
+                var key = (kind, id);
+                if (!scripts.TryGetValue(key, out var values)) scripts[key] = values = new(StringComparer.Ordinal);
                 values.Add(field.Key, value);
                 continue;
             }
@@ -356,6 +365,7 @@ public sealed class PlaWorkflowService
             files[path] = catalog.Economy.Edit(key.Kind, key.Id, files.GetValueOrDefault(path) ?? catalog.Scope.Read(path), values);
         }
         var members = wild.Count > 0 ? catalog.Wild.EditMembers(wild) : new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        foreach (var (key, values) in scripts) files[catalog.Scripts.PathFor(key.Kind, key.Id)] = catalog.Scripts.Edit(key.Kind, key.Id, values);
         foreach (var (key, values) in settings) files[catalog.Settings.PathFor(key.Kind, key.Id)] = catalog.Settings.Edit(key.Kind, key.Id, values);
         if (events.Count > 0) catalog.Events.Edit(events, files, members);
         if (weather.Count > 0) members.Add(PlaWeatherCatalog.MemberPath, catalog.Weather.Edit(weather));
