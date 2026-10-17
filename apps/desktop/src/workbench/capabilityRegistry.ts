@@ -73,6 +73,8 @@ import {
   TicketCheck,
   TreeDeciduous,
   Trees,
+  Radar,
+  Tornado,
   Upload,
   UsersRound,
   Waypoints,
@@ -296,6 +298,10 @@ export const workbenchCapabilityRegistry = [
     description: 'Edit shared field and Alpha drop items and chances.' }),
   workflow({ id: 'research', label: 'Research', games: ['pla'], icon: NotebookPen,
     description: 'Edit supported research task thresholds, points, and rank requirements.' }),
+  workflow({ id: 'outbreaks', label: 'Outbreaks', games: ['pla'], icon: Radar,
+    description: 'Edit outbreak encounters, counts, selection weights, and duration choices.' }),
+  workflow({ id: 'distortions', label: 'Space Time Distortions', games: ['pla'], icon: Tornado,
+    description: 'Edit supported distortion encounters, spawn counts, and item selections.' }),
   workflow({
     description:
       'Control TM recipe availability and tracking-window material visibility independently.',

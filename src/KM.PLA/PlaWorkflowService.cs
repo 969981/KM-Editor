@@ -23,6 +23,8 @@ public sealed class PlaWorkflowService
         "items" => "workflow.items", "crafting" => "workflow.crafting", "shops" or "ginkgo" => "workflow.shops",
         "drops" => "workflow.pokemonDrops", "research" or "ranks" => "workflow.research",
         "encounters" or "spawns" => "workflow.encounters",
+        "outbreaks" or "massiveOutbreaks" or "outbreakGroups" or "outbreakWaves" or "outbreakDurations" or "outbreakEncounters" => "workflow.outbreaks",
+        "distortionEncounters" or "distortionSpawns" or "distortionItems" => "workflow.distortions",
         "personal" or "learnsets" or "evolutions" or "compatibility" or "tutors" => "workflow.pokemon",
         _ => throw new InvalidDataException("The PLA editor is unsupported."),
     };
@@ -66,7 +68,7 @@ public sealed class PlaWorkflowService
             total = inventories.Length;
             visible = inventories.Skip(offset).Take(3).SelectMany(group => group).ToArray();
         }
-        if (kind == "encounters")
+        if (PlaWildCatalog.IsEncounter(kind))
         {
             var groups = records.GroupBy(record => record.Metadata["area"] + "/" + record.Metadata["table"]).Where(group => group.Any(Matches)).ToArray();
             groupChoices = groups.Select((group, index) => new PlaChoice(index.ToString(CultureInfo.InvariantCulture), group.Key)).ToArray();
@@ -84,7 +86,7 @@ public sealed class PlaWorkflowService
         var rowFields = catalog.RowFields(kind);
         return new(kind, scope.Fingerprint(), fields, rowFields, visible, total,
             textFiles, selectedFile, notices)
-        { Groups = groupChoices, PokemonSpriteNames = PlaBattleCatalog.Supports(kind) || kind is "personal" or "learnsets" or "evolutions" or "compatibility" or "encounters"
+        { Groups = groupChoices, PokemonSpriteNames = PlaBattleCatalog.Supports(kind) || PlaWildCatalog.IsEncounter(kind) || kind is "personal" or "learnsets" or "evolutions" or "compatibility"
             ? catalog.PokemonSpriteNames() : new Dictionary<string, string>() };
     }
 
@@ -94,7 +96,12 @@ public sealed class PlaWorkflowService
         textFiles = [];
         selectedFile = null;
         catalog.RefreshTutorLabels(edited);
-        if (PlaWildCatalog.Supports(kind)) return catalog.Wild.Records(kind, edited);
+        if (PlaWildCatalog.Supports(kind))
+        {
+            if (kind is not ("encounters" or "spawns")) _ = catalog.Events;
+            return catalog.Wild.Records(kind, edited);
+        }
+        if (PlaEventCatalog.Supports(kind)) return catalog.Events.Records(kind, edited);
         if (PlaEconomyCatalog.Supports(kind)) return catalog.Economy.Records(kind, edited);
         if (kind == "text")
         {
@@ -144,7 +151,8 @@ public sealed class PlaWorkflowService
             if (!fields.TryGetValue(key, out var field) || field.ReadOnly || current.ReadOnlyFields.Contains(key)) throw new InvalidDataException("This PLA field is protected or unsupported.");
             var value = restoreBase ? BaseValue(catalog, kind, id, key) : requested;
             value = Normalize(field, value);
-            edits.RemoveAll(edit => edit.Owner == Owner && edit.RecordId == kind + "/" + id && edit.Field == key);
+            edits.RemoveAll(edit => edit.Owner == Owner && edit.Field == key && (edit.RecordId == kind + "/" + id
+                || PlaWildCatalog.IsEncounter(kind) && new[] { "encounters", "outbreakEncounters", "distortionEncounters" }.Any(alias => edit.RecordId == alias + "/" + id)));
             var actual = kind == "text" ? TextRecord(catalog, id).Values[key] : catalog.Record(kind, id).Values[key];
             if (value == actual) continue;
             var path = kind == "text" ? TextPath(scope, SplitTextId(id).File) : catalog.ResourcePath(kind, id);
@@ -222,6 +230,7 @@ public sealed class PlaWorkflowService
         var battles = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var economy = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var wild = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
+        var events = new Dictionary<(string Kind, string Id), Dictionary<string, string>>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var edit in session.PendingEdits.OrderBy(edit => edit.RecordId, StringComparer.Ordinal).ThenBy(edit => edit.Field, StringComparer.Ordinal))
         {
@@ -234,8 +243,16 @@ public sealed class PlaWorkflowService
             if (edit.Domain != Domain(kind)) throw new InvalidDataException("The PLA edit domain is invalid.");
             var field = catalog.Fields(kind).SingleOrDefault(field => field.Key == edit.Field) ?? throw new InvalidDataException("The PLA field is unsupported.");
             var value = Normalize(field, edit.NewValue);
+            if (PlaEventCatalog.Supports(kind))
+            {
+                var key = (kind, id);
+                if (!events.TryGetValue(key, out var values)) events[key] = values = new(StringComparer.Ordinal);
+                values.Add(field.Key, value);
+                continue;
+            }
             if (PlaWildCatalog.Supports(kind))
             {
+                if (kind is not ("encounters" or "spawns")) _ = catalog.Events;
                 var key = (kind, id);
                 if (!wild.TryGetValue(key, out var values)) wild[key] = values = new(StringComparer.Ordinal);
                 values.Add(field.Key, value);
@@ -309,7 +326,9 @@ public sealed class PlaWorkflowService
             var path = catalog.ResourcePath(key.Kind, key.Id);
             files[path] = catalog.Economy.Edit(key.Kind, key.Id, files.GetValueOrDefault(path) ?? catalog.Scope.Read(path), values);
         }
-        if (wild.Count > 0) files[PlaWildCatalog.ArchivePath] = catalog.Wild.Edit(wild);
+        var members = wild.Count > 0 ? catalog.Wild.EditMembers(wild) : new Dictionary<string, byte[]>(StringComparer.Ordinal);
+        if (events.Count > 0) catalog.Events.Edit(events, files, members);
+        if (members.Count > 0) files[PlaWildCatalog.ArchivePath] = catalog.Wild.Compose(members);
         if (economy.Count > 0) catalog.Economy.ValidateComposition(files);
         ValidateComposition(catalog, files);
         // A no-op never creates output or claims ownership.

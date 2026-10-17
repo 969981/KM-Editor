@@ -15,12 +15,12 @@ import { PlaBattleWorkspace, type PlaPokemonPreview } from './PlaBattleWorkspace
 import { PlaDataWorkspace } from './PlaDataWorkspace';
 import { PlaPokemonRows } from './PlaPokemonRows';
 import { PlaEconomyWorkspace, isPlaEconomyKind } from './PlaEconomyWorkspace';
-import { PlaWildWorkspace } from './PlaWildWorkspace';
+import { PlaWildWorkspace, isPlaWildKind } from './PlaWildWorkspace';
 import './plaEditor.css';
 
 export type PlaDrafts = Record<string, { revision: string; values: Record<string, string>; baseline: Record<string, string> }>;
 type Props = {
-  section: 'pokemon' | 'moves' | 'text' | 'trainers' | 'giftPokemon' | 'staticEncounters' | 'items' | 'crafting' | 'shops' | 'pokemonDrops' | 'research' | 'encounters'; paths: ProjectPaths; session: EditSession | null; bridge: ProjectBridge;
+  section: 'pokemon' | 'moves' | 'text' | 'trainers' | 'giftPokemon' | 'staticEncounters' | 'items' | 'crafting' | 'shops' | 'pokemonDrops' | 'research' | 'encounters' | 'outbreaks' | 'distortions'; paths: ProjectPaths; session: EditSession | null; bridge: ProjectBridge;
   drafts: PlaDrafts; setDrafts: Dispatch<SetStateAction<PlaDrafts>>;
   isStarting: boolean; isBusy: boolean; onStart: () => void;
   onStage: (request: Omit<StagePlaRequest, 'paths' | 'session'>) => Promise<boolean>;
@@ -35,6 +35,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
   const [pokemonKind, setPokemonKind] = useState<PlaKind>('personal');
   const [economyTab, setEconomyTab] = useState<PlaKind | null>(null);
   const kind = section === 'pokemon' ? pokemonKind : section === 'giftPokemon' ? 'gifts' : section === 'staticEncounters' ? 'static'
+    : section === 'distortions' ? economyTab ?? 'distortionEncounters' : section === 'outbreaks' ? economyTab ?? 'outbreaks'
     : section === 'pokemonDrops' ? 'drops' : section === 'shops' || section === 'research' || section === 'encounters' ? economyTab ?? section : section;
   const [page, setPage] = useState<PlaPage | null>(null);
   const [query, setQuery] = useState('');
@@ -179,14 +180,32 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
       }} /></FocusedEditorWorkspace>;
   }
   const visiblePage = page?.kind === kind ? page : null;
-  if (kind === 'encounters' || kind === 'spawns') return <FocusedEditorWorkspace><PlaWildWorkspace kind={kind} page={visiblePage} selected={visiblePage ? selected : null}
+  const eventTabs: PlaKind[] = section === 'outbreaks' ? ['outbreaks', 'massiveOutbreaks', 'outbreakGroups', 'outbreakWaves', 'outbreakDurations', 'outbreakEncounters']
+    : section === 'distortions' ? ['distortionEncounters', 'distortionSpawns', 'distortionItems'] : [];
+  const eventControls = eventTabs.length ? <>
+    <nav className="text-category-browser" aria-label={t('pla.editor')}><div className="text-category-tabs" role="tablist" aria-label={t('pla.editor')}>
+      {eventTabs.map((value, index) => <button type="button" key={value} role="tab" aria-selected={kind === value} tabIndex={kind === value ? 0 : -1}
+        className={kind === value ? 'is-active' : ''} onClick={() => { setEconomyTab(value); setOffset(0); setQuery(''); }}
+        onKeyDown={event => {
+          const next = event.key === 'ArrowRight' ? (index + 1) % eventTabs.length : event.key === 'ArrowLeft' ? (index + eventTabs.length - 1) % eventTabs.length
+            : event.key === 'Home' ? 0 : event.key === 'End' ? eventTabs.length - 1 : null;
+          if (next === null) return;
+          event.preventDefault(); setEconomyTab(eventTabs[next]); setOffset(0); setQuery('');
+          (event.currentTarget.parentElement?.children[next] as HTMLButtonElement | undefined)?.focus();
+        }}>{t('pla.kind.' + value)}</button>)}
+    </div></nav><p className="field-note">{t(section === 'outbreaks' ? 'pla.event.outbreakNotice' : 'pla.event.distortionNotice')}</p>
+  </> : undefined;
+  if (isPlaWildKind(kind)) return <FocusedEditorWorkspace><PlaWildWorkspace kind={kind} page={visiblePage} selected={visiblePage ? selected : null}
+    controls={eventControls} title={t(workbenchSectionLocalization[section].label)}
     query={query} offset={offset} loading={loading} refresh={refreshButton} actions={actions} fieldLabel={label} renderPokemon={renderPokemon}
     onQuery={value => { setQuery(value); setOffset(0); }} onOffset={setOffset} onSelect={setSelectedId}
     onKind={value => { setEconomyTab(value); setOffset(0); setQuery(''); }}
     sessionBar={<EditorSessionBar canEdit={visiblePage !== null && !loading} isEditing={session !== null} isStarting={isStarting}
-      label={translateLiteral('Wild Encounters')} onStart={onStart} />}
+      label={t(workbenchSectionLocalization[section].label)} onStart={onStart} />}
     valuesFor={record => ({ ...record.values, ...drafts[recordDraftKey(record)]?.values })} hasDraft={record => Boolean(drafts[recordDraftKey(record)])}
-    pendingIds={new Set(session?.pendingEdits.filter(edit => edit.owner === 'pla.loose.v1' && edit.recordId?.startsWith(kind + '/')).map(edit => edit.recordId!.slice(kind.length + 1)) ?? [])}
+    pendingIds={new Set(session?.pendingEdits.filter(edit => edit.owner === 'pla.loose.v1' && (kind === 'spawns' || kind === 'distortionSpawns'
+      ? edit.recordId?.startsWith(kind + '/') : ['encounters/', 'outbreakEncounters/', 'distortionEncounters/'].some(prefix => edit.recordId?.startsWith(prefix))))
+      .map(edit => edit.recordId!.slice(edit.recordId!.indexOf('/') + 1)) ?? [])}
     renderInput={field => input(field, values[field.key] ?? '', value => setValue(field.key, value),
       !enabled || field.readOnly || Boolean(selected?.readOnlyFields.includes(field.key)), 'pla-field-' + field.key)} /></FocusedEditorWorkspace>;
   if (isPlaEconomyKind(kind)) {
@@ -199,7 +218,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
       valuesFor={record => ({ ...record.values, ...drafts[recordDraftKey(record)]?.values })} hasDraft={record => Boolean(drafts[recordDraftKey(record)])}
       pendingIds={new Set(session?.pendingEdits.filter(edit => edit.owner === 'pla.loose.v1' && edit.recordId?.startsWith(kind + '/')).map(edit => edit.recordId!.slice(kind.length + 1)) ?? [])}
       renderInput={field => input(field, values[field.key] ?? '', value => setValue(field.key, value), !enabled || field.readOnly || Boolean(selected?.readOnlyFields.includes(field.key)), `pla-field-${field.key}`)}
-      controls={tabs.length ? <nav className="text-category-browser" aria-label={t('pla.editor')}><div className="text-category-tabs" role="tablist" aria-label={t('pla.editor')}>
+      controls={eventControls ?? (tabs.length ? <nav className="text-category-browser" aria-label={t('pla.editor')}><div className="text-category-tabs" role="tablist" aria-label={t('pla.editor')}>
         {tabs.map(value => <button type="button" role="tab" aria-selected={kind === value} tabIndex={kind === value ? 0 : -1}
           className={kind === value ? 'is-active' : ''} key={value} onClick={() => { setEconomyTab(value); setOffset(0); }}
           onKeyDown={event => {
@@ -210,7 +229,7 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
             event.preventDefault(); setEconomyTab(tabs[next]); setOffset(0);
             (event.currentTarget.parentElement?.children[next] as HTMLButtonElement | undefined)?.focus();
           }}>{t(`pla.kind.${value}`)}</button>)}
-      </div></nav> : null} /></FocusedEditorWorkspace>;
+      </div></nav> : null)} /></FocusedEditorWorkspace>;
   }
   return <FocusedEditorWorkspace><PlaDataWorkspace kind={kind} page={visiblePage} selected={visiblePage ? selected : null} query={query} offset={offset} loading={loading}
     onQuery={value => { setQuery(value); setOffset(0); }} onOffset={setOffset} onSelect={setSelectedId} refresh={refreshButton}

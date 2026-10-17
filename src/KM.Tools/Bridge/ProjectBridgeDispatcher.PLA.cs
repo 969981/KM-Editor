@@ -34,6 +34,8 @@ public sealed partial class ProjectBridgeDispatcher
         new("pokemonDrops", "Pokemon Drops", "Shared PLA field and Alpha drop items and chances.", WorkflowAvailabilityDto.Available, []),
         new("research", "Research", "Supported PLA task thresholds, research points, and rank requirements.", WorkflowAvailabilityDto.Available, []),
         new("encounters", "Wild Encounters", "Existing PLA encounter slots, Alpha traits, eligibility, and supported spawn counts.", WorkflowAvailabilityDto.Available, []),
+        new("outbreaks", "Outbreaks", "PLA outbreak encounters, counts, selection weights, and duration choices.", WorkflowAvailabilityDto.Available, []),
+        new("distortions", "Space Time Distortions", "Supported PLA distortion encounters, spawn counts, and item selections.", WorkflowAvailabilityDto.Available, []),
     ]);
 
     private string DispatchLoadPla(string requestJson)

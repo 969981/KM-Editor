@@ -90,7 +90,8 @@ public sealed class PlaFlatBuffer
     public float Float(int table, int index) => BitConverter.Int32BitsToSingle(unchecked((int)Scalar(table, index, 4)));
 
     public sealed record ObjectLayout(int[] Widths, int[] Strings,
-        IReadOnlyDictionary<int, ObjectLayout> Children, IReadOnlyDictionary<int, ObjectLayout> Vectors);
+        IReadOnlyDictionary<int, ObjectLayout> Children, IReadOnlyDictionary<int, ObjectLayout> Vectors,
+        int[]? StringVectors = null, int[]? IntVectors = null);
 
     // Clone the entire known subtree so editing one slot never changes shared children.
     // Edit keys are reference positions, not object positions: aliases remain independent.
@@ -103,7 +104,8 @@ public sealed class PlaFlatBuffer
             if (depth > 8) throw new InvalidDataException("The PLA object tree is too deep.");
             var original = TableAtReference(sourceReference);
             RequireKnownFields(original, schema.Widths);
-            var pointers = schema.Strings.Concat(schema.Children.Keys).Concat(schema.Vectors.Keys).ToArray();
+            var pointers = schema.Strings.Concat(schema.Children.Keys).Concat(schema.Vectors.Keys)
+                .Concat(schema.StringVectors ?? []).Concat(schema.IntVectors ?? []).ToArray();
             var values = edits.GetValueOrDefault(sourceReference) ?? new Dictionary<int, long>();
             if (pointers.Distinct().Count() != pointers.Length || pointers.Any(key => key < 0 || key >= schema.Widths.Length || schema.Widths[key] != 4)
                 || values.Keys.Any(key => key < 0 || key >= schema.Widths.Length || pointers.Contains(key)))
@@ -115,6 +117,10 @@ public sealed class PlaFlatBuffer
                 .ToDictionary(pair => pair.Key, pair => Field(original, pair.Key, 4));
             var vectors = schema.Vectors.Where(pair => Field(original, pair.Key, 4) != 0)
                 .ToDictionary(pair => pair.Key, pair => VectorReferences(original, pair.Key, 4096));
+            var stringVectors = (schema.StringVectors ?? []).Where(key => Field(original, key, 4) != 0)
+                .ToDictionary(key => key, key => VectorCells(original, key, 4096).Select(pointer => StringRange(pointer, 4096)).ToArray());
+            var intVectors = (schema.IntVectors ?? []).Where(key => Field(original, key, 4) != 0)
+                .ToDictionary(key => key, key => Int32Vector(original, key, 4096));
             var copy = CopyObject(original, schema.Widths, values);
             foreach (var (key, value) in values)
             {
@@ -149,6 +155,23 @@ public sealed class PlaFlatBuffer
                     var entry = vector + 4 + i * 4; W32(entry, target - entry);
                 }
             }
+            foreach (var (key, entries) in stringVectors)
+            {
+                var vector = Allocate(4 + entries.Length * 4); W32(vector, entries.Length);
+                var pointer = Field(copy, key, 4); W32(pointer, vector - pointer);
+                for (var i = 0; i < entries.Length; i++)
+                {
+                    var range = entries[i]; var target = Allocate(5 + range.Length);
+                    data.AsSpan(range.Offset, 5 + range.Length).CopyTo(data.AsSpan(target));
+                    var entry = vector + 4 + i * 4; W32(entry, target - entry);
+                }
+            }
+            foreach (var (key, entries) in intVectors)
+            {
+                var vector = Allocate(4 + entries.Length * 4); W32(vector, entries.Length);
+                var pointer = Field(copy, key, 4); W32(pointer, vector - pointer);
+                for (var i = 0; i < entries.Length; i++) W32(vector + 4 + i * 4, entries[i]);
+            }
             return copy;
         }
         var result = Copy(reference, layout, 0);
@@ -177,6 +200,15 @@ public sealed class PlaFlatBuffer
 
     public int[] VectorReferences(int table, int field, int maximum = 100_000)
     {
+        var references = VectorCells(table, field, maximum);
+        foreach (var reference in references) _ = TableAtReference(reference);
+        return references;
+    }
+
+    public int[] Int32Vector(int table, int field, int maximum = 4096) => VectorCells(table, field, maximum).Select(I32).ToArray();
+
+    private int[] VectorCells(int table, int field, int maximum)
+    {
         var pointer = Field(table, field, 4);
         if (pointer == 0) return [];
         var displacement = U32(pointer);
@@ -190,7 +222,6 @@ public sealed class PlaFlatBuffer
         for (var i = 0; i < references.Length; i++)
         {
             references[i] = vector + 4 + i * 4;
-            _ = TableAtReference(references[i]);
         }
         return references;
     }

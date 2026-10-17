@@ -31,6 +31,8 @@ export const workbenchSections = [
   'tmMachineControls',
   'habitatCoordinates',
   'encounters',
+  'outbreaks',
+  'distortions',
   'teraRaids',
   'raidBattles',
   'raidRewards',
