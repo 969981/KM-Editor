@@ -17,6 +17,8 @@ public sealed partial class ProjectBridgeDispatcher
     private static bool IsPlaAllowedCommand(string command) => command is KmCommandNames.LoadPla or KmCommandNames.StagePla
         or KmCommandNames.ListWorkflows or KmCommandNames.StartEditSession or KmCommandNames.ValidateEditSession
         or KmCommandNames.CreateChangePlan or KmCommandNames.ApplyChangePlan
+        or KmCommandNames.ModelCatalog or KmCommandNames.ModelPrepare or KmCommandNames.ModelTextures
+        or KmCommandNames.ModelTextureStage or KmCommandNames.ModelProperties or KmCommandNames.ModelAssetStage
         || command.StartsWith("project.", StringComparison.Ordinal)
         || command.StartsWith("workspace.", StringComparison.Ordinal)
         || IsOutputSafetyCommand(command) || IsChangeSetCommand(command);
@@ -38,6 +40,7 @@ public sealed partial class ProjectBridgeDispatcher
         new("distortions", "Space Time Distortions", "Supported PLA distortion encounters, spawn counts, and item selections.", WorkflowAvailabilityDto.Available, []),
         new("weather", "Weather", "PLA area weather selection weights with preserved story conditions.", WorkflowAvailabilityDto.Available, []),
         new("gameplayRules", "Gameplay Rules", "Supported PLA capture factors, friendship changes, and shiny bonuses.", WorkflowAvailabilityDto.Available, []),
+        new("modelViewer", "3D Model Editor", "PLA Pokemon models, animations, materials, and texture colors.", WorkflowAvailabilityDto.Available, []),
     ]);
 
     private string DispatchLoadPla(string requestJson)

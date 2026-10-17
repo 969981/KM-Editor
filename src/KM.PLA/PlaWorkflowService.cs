@@ -10,6 +10,8 @@ using KM.Core.Output;
 using KM.Core.Projects;
 using KM.Core.Semantics;
 using KM.Formats.PLA;
+using KM.Formats.Models;
+using KM.PLA.Models;
 
 namespace KM.PLA;
 
@@ -247,6 +249,7 @@ public sealed class PlaWorkflowService
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var edit in session.PendingEdits.OrderBy(edit => edit.RecordId, StringComparer.Ordinal).ThenBy(edit => edit.Field, StringComparer.Ordinal))
         {
+            if (edit.Domain == ModelTextureIntent.Domain) continue;
             if (edit.Owner != Owner || edit.RecordId is null || edit.Field is null || edit.NewValue is null || !seen.Add(edit.RecordId + "/" + edit.Field))
                 throw new InvalidDataException("The PLA session contains unsupported or conflicting edits.");
             var slash = edit.RecordId.IndexOf('/');
@@ -358,6 +361,8 @@ public sealed class PlaWorkflowService
         if (weather.Count > 0) members.Add(PlaWeatherCatalog.MemberPath, catalog.Weather.Edit(weather));
         if (members.Count > 0) files[PlaWildCatalog.ArchivePath] = catalog.Wild.Compose(members);
         if (economy.Count > 0) catalog.Economy.ValidateComposition(files);
+        foreach (var (path, bytes) in PlaModelEditSessionService.BuildFiles(catalog.Scope, session.PendingEdits.Where(edit => edit.Domain == ModelTextureIntent.Domain)))
+            if (!files.TryAdd(path, bytes)) throw new InvalidDataException("The PLA model output conflicts with another editor.");
         ValidateComposition(catalog, files);
         // A no-op never creates output or claims ownership.
         foreach (var path in files.Keys.ToArray())

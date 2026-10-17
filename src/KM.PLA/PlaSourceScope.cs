@@ -30,7 +30,7 @@ internal sealed class PlaSourceScope : IDisposable
             if (compression is not null) return compression;
             var folder = Paths.PokemonLegendsArceusSupportFolderPath;
             if (string.IsNullOrWhiteSpace(folder))
-                throw new InvalidDataException("Set the PLA compression support folder in Project Setup before opening PLA field editors.");
+                throw new InvalidDataException("Set the PLA compression support folder in Project Setup before opening archive based PLA editors.");
             var path = Resolve(folder, KM.Formats.PLA.PlaCompressionRuntime.RequiredFileName);
             if (!File.Exists(path)) throw new InvalidDataException("The PLA support folder must contain oo2core_8_win64.dll.");
             using var hash = SHA256.Create();
@@ -161,6 +161,33 @@ internal sealed class PlaSourceScope : IDisposable
     }
 
     internal OutputFileState OutputState(string relative) { _ = Read(relative); return outputStates[relative]; }
+    internal void RequireAbsent(string relative)
+    {
+        if (File.Exists(Resolve(Paths.BaseRomFsPath!, relative)))
+            throw new InvalidDataException("Loose PLA model overrides are unsupported. Use the catalog's original model archives.");
+        if (!string.IsNullOrWhiteSpace(Paths.OutputRootPath))
+        {
+            if (File.Exists(Resolve(Paths.OutputRootPath, "romfs/" + relative)))
+                throw new InvalidDataException("A loose output overrides this PLA model asset. Remove the override before editing its archive.");
+            outputStates[relative] = OutputFileState.Missing;
+        }
+    }
+
+    internal void VerifyOutput()
+    {
+        if (string.IsNullOrWhiteSpace(Paths.OutputRootPath)) return;
+        foreach (var (relative, expected) in outputStates)
+        {
+            var path = Resolve(Paths.OutputRootPath, "romfs/" + relative);
+            var actual = OutputFileState.Missing;
+            if (File.Exists(path))
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                actual = State(ReadBounded(stream));
+            }
+            if (actual != expected) throw new InvalidDataException("The PLA output changed while loading. Reload the editor.");
+        }
+    }
     internal IEnumerable<OutputReadDependency> Dependencies => outputStates.OrderBy(p => p.Key, StringComparer.Ordinal)
         .Select(pair => new OutputReadDependency(new RelativeOutputPath("romfs/" + pair.Key), pair.Value));
     internal static string Hash(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes));

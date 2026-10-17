@@ -19,7 +19,7 @@ public sealed record ModelTextureIntent(string Game, string Model, string Textur
     }
     public void Validate()
     {
-        if (Game is not ("Sword" or "Shield" or "Scarlet" or "Violet" or "ZA") || Model is not { Length: > 0 and <= 1024 }
+        if (Game is not ("Sword" or "Shield" or "Scarlet" or "Violet" or "ZA" or "PLA") || Model is not { Length: > 0 and <= 1024 }
             || Texture is not { Length: > 0 and <= 1024 } || Kind is not ("texture" or "material" or "restore")
             || (Kind == "texture" && !Texture.EndsWith(".bntx", StringComparison.Ordinal))
             || (Kind == "material" && Path.GetExtension(Texture) is not (".trmtr" or ".gfbmdl"))

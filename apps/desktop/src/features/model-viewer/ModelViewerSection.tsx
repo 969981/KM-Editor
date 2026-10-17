@@ -107,7 +107,7 @@ export default function ModelViewerSection({ paths, session, disabled, onStage, 
     try { localStorage.setItem(backgroundKey, JSON.stringify(background)); } catch { /* Session controls remain usable when storage is unavailable. */ }
   }, [background]);
   const pathKey = JSON.stringify(paths);
-  const supported = ['sword', 'shield', 'scarlet', 'violet', 'za'].some(game => game === paths.selectedGame);
+  const supported = ['sword', 'shield', 'scarlet', 'violet', 'za', 'pla'].some(game => game === paths.selectedGame);
   const vanillaAssets = useMemo(() => (properties?.vanillaAssets ?? properties?.assets ?? []).map(a => ({ asset: a.id, sourceHash: a.sourceHash, changes: [], restore: true })), [properties]);
   const viewer = useModelViewport(paths, selected, animation, revision, !!image, background, original ? [] : textureChanges,
     original ? vanillaAssets : assetChanges ?? stagedAssetChanges(session, selected), light,
@@ -199,6 +199,7 @@ export default function ModelViewerSection({ paths, session, disabled, onStage, 
       {editing ? <div className="model-workspace__actions" ref={setActionsTarget} /> : null}
     </header>
     <p className="model-viewer__note">{t('modelViewer.scope')}</p>
+    {paths.selectedGame === 'pla' ? <p className="model-viewer__note">{t('modelViewer.plaScope')}</p> : null}
     {!supported ? <p role="status">{t('modelViewer.unsupportedGame')}</p> : !isTauri() ? <p role="status">{t('modelViewer.desktopRequired')}</p> :
       <div className="model-viewer__workspace">
         <aside className="model-viewer__browser" aria-label={t('modelViewer.models', { count: catalog.length })}>
