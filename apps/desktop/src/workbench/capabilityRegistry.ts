@@ -641,7 +641,7 @@ export const workbenchCapabilityRegistry = [
   }),
   workflow({
     description: 'Browse 3D models and play animations in the embedded DX12 viewport.',
-    games: allGames,
+    games: plaGames,
     icon: Box,
     id: 'modelViewer',
     label: '3D Model Editor',

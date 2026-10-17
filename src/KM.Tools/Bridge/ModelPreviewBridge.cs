@@ -2,6 +2,7 @@
 using KM.Api.Models;
 using KM.Core.Projects;
 using KM.Formats.Models;
+using KM.PLA.Models;
 using KM.SV.Models;
 using KM.SwSh.Models;
 using KM.ZA.Models;
@@ -34,6 +35,9 @@ internal static class ModelPreviewBridge
             ProjectGame.ZA => request.RestoreVanilla
                 ? new ZaModelTextureEditSessionService().RestoreVanilla(project.Paths, session, request.Id)
                 : new ZaModelTextureEditSessionService().Stage(project.Paths, session, intent!),
+            ProjectGame.PLA => request.RestoreVanilla
+                ? new PlaModelEditSessionService().RestoreVanilla(project.Paths, session, request.Id)
+                : new PlaModelEditSessionService().Stage(project.Paths, session, intent!),
             _ => request.RestoreVanilla ? new SvModelTextureEditSessionService().RestoreVanilla(project.Paths, session, request.Id)
                 : new SvModelTextureEditSessionService().Stage(project.Paths, session, intent!)
         };
@@ -43,11 +47,13 @@ internal static class ModelPreviewBridge
     private static ModelTextureResource[] Assets(OpenedProject project, string id, bool vanilla = false) => project.Paths.SelectedGame switch {
         ProjectGame.Sword or ProjectGame.Shield => new SwShModelPreviewService().Assets(project, id, vanilla),
         ProjectGame.ZA => new ZaModelPreviewService().Assets(project, id, vanilla),
+        ProjectGame.PLA => new PlaModelPreviewService().Assets(project, id, vanilla),
         _ => new SvModelPreviewService().Assets(project, id, vanilla)
     };
     private static ModelTextureResource[] RestorationAssets(OpenedProject project, string id) => project.Paths.SelectedGame switch {
         ProjectGame.Sword or ProjectGame.Shield => new SwShModelPreviewService().RestorationAssets(project, id),
         ProjectGame.ZA => new ZaModelPreviewService().RestorationAssets(project, id),
+        ProjectGame.PLA => new PlaModelPreviewService().RestorationAssets(project, id),
         _ => new SvModelPreviewService().RestorationAssets(project, id)
     };
     private static ModelTextureIntent AssetIntent(OpenedProject project, string id, ModelAssetChangeDto change)
@@ -126,6 +132,7 @@ internal static class ModelPreviewBridge
         {
             ProjectGame.Sword or ProjectGame.Shield => new SwShModelTextureEditSessionService().Stage(project.Paths, session, intent),
             ProjectGame.ZA => new ZaModelTextureEditSessionService().Stage(project.Paths, session, intent),
+            ProjectGame.PLA => new PlaModelEditSessionService().Stage(project.Paths, session, intent),
             _ => new SvModelTextureEditSessionService().Stage(project.Paths, session, intent)
         };
         return new { Session = EditSessionBridgeMapper.ToDto(updated) };
@@ -135,6 +142,7 @@ internal static class ModelPreviewBridge
     {
         ProjectGame.Sword or ProjectGame.Shield => new SwShModelPreviewService().Textures(project, id),
         ProjectGame.ZA => new ZaModelPreviewService().Textures(project, id),
+        ProjectGame.PLA => new PlaModelPreviewService().Textures(project, id),
         _ => new SvModelPreviewService().Textures(project, id)
     };
     private static ModelTextureIntent Intent(OpenedProject project, string id, ModelTextureChangeDto change)
@@ -153,6 +161,7 @@ internal static class ModelPreviewBridge
         {
             ProjectGame.Sword or ProjectGame.Shield => new SwShModelPreviewService().Catalog(project),
             ProjectGame.ZA => new ZaModelPreviewService().Catalog(project),
+            ProjectGame.PLA => new PlaModelPreviewService().Catalog(project),
             _ => new SvModelPreviewService().Catalog(project)
         };
     }
@@ -195,6 +204,7 @@ internal static class ModelPreviewBridge
         {
             ProjectGame.Sword or ProjectGame.Shield => new SwShModelPreviewService().Prepare(project, request.Id, animation, transform: Transform),
             ProjectGame.ZA => new ZaModelPreviewService().Prepare(project, request.Id, animation, transform: Transform),
+            ProjectGame.PLA => new PlaModelPreviewService().Prepare(project, request.Id, animation, transform: Transform),
             _ => new SvModelPreviewService().Prepare(project, request.Id, animation, transform: Transform)
         };
         var scene = Prepare(restoring ? "rest" : request.Animation);
@@ -237,7 +247,7 @@ internal static class ModelPreviewBridge
     private static OpenedProject Open(KM.Api.Projects.ProjectPathsDto paths)
     {
         var core = ProjectBridgeMapper.ToCore(paths);
-        if (core.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield or ProjectGame.Scarlet or ProjectGame.Violet or ProjectGame.ZA))
+        if (core.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield or ProjectGame.Scarlet or ProjectGame.Violet or ProjectGame.ZA or ProjectGame.PLA))
             throw new InvalidDataException("Select a supported game for the 3D Model Editor.");
         return new ProjectWorkspaceService().ValidateAndOpen(core);
     }

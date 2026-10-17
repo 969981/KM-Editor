@@ -17,7 +17,7 @@ public sealed class PlaCompressionRuntime : IDisposable
         if (!OperatingSystem.IsWindows() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
             throw new InvalidDataException("PLA archive compression requires a supported 64 bit runtime.");
         if (string.IsNullOrWhiteSpace(folder) || !File.Exists(Path.Combine(folder, RequiredFileName)))
-            throw new InvalidDataException("Set the PLA compression support folder in Project Setup before opening Wild Encounters.");
+            throw new InvalidDataException("Set the PLA compression support folder in Project Setup before opening archive based editors.");
         try
         {
             handle = NativeLibrary.Load(Path.GetFullPath(Path.Combine(folder, RequiredFileName)));
