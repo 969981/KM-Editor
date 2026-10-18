@@ -34,7 +34,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                 (sourceFolder + sourceStem + "_rare.trmtr", null), (sourceFolder + sourceStem + "_base.tracn", null) }, (path, _) => Donor(path));
             var sourceScene = new TrinityPreviewReader(Donor, topOriginMaterialUv: true).Load(sourceFolder + sourceStem + ".trmdl");
             Report("reading");
-            var scene = NormalizeUvs(sourceScene, profile.MeshVisibility);
+            var scene = NormalizeUvs(sourceScene, true);
             if (scene.Rig.Warnings.Length > 0) throw new InvalidDataException("Source model requires an additional conversion adapter.");
             var nativePack = SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0007_00.gfpak"));
             var nativeModel = Member(nativePack, "pm0007_00.gfbmdl"); var nativeMetadata = new ModelBuffer(nativeModel);
@@ -49,9 +49,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             foreach (var bone in scene.Rig.Bones) aliases.TryAdd(bone.Name, bone.Name.Replace(sourceStem, stem, StringComparison.Ordinal));
             var locators = Locators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_{(species == 15 ? 20000 : 0):00000}_eff.trskl"));
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
-            if (!profile.MeshVisibility)
-                foreach (var resource in graph.Where(r => r.Id.EndsWith(".bntx", StringComparison.Ordinal))) members[modelFolder + Path.GetFileName(resource.Id)] = resource.Bytes;
-            var textures = new RestorationTexturePool(members, modelFolder, profile.MeshVisibility);
+            var textures = new RestorationTexturePool(members, modelFolder, true);
             foreach (var name in new[] { "Default_lta", "dummy_col", "projection_effect_col", "pm0007_00_Eye_amb" })
                 members[modelFolder + name + ".bntx"] = Member(nativePack, name + ".bntx");
             var shaderNames = new HashSet<string>(StringComparer.Ordinal);
@@ -67,7 +65,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 var variant = rare ? PreviewMaterialVariant.Shiny(new(Donor(sourceFolder + sourceStem + ".trmmt")), sourceFolder + sourceStem + ".trmmt")
                     ?? throw new InvalidDataException("Z-A shiny materials are missing.") : null;
-                var variantScene = rare ? NormalizeUvs(new TrinityPreviewReader(Donor, topOriginMaterialUv: true).Load(sourceFolder + sourceStem + ".trmdl", variant), profile.MeshVisibility) : scene;
+                var variantScene = rare ? NormalizeUvs(new TrinityPreviewReader(Donor, topOriginMaterialUv: true).Load(sourceFolder + sourceStem + ".trmdl", variant), true) : scene;
                 if (variantScene.Primitives.Count != scene.Primitives.Count || variantScene.Primitives.Where((p, i) => p.Material.Name != scene.Primitives[i].Material.Name).Any())
                     throw new InvalidDataException("Z-A shiny material identities do not match the model.");
                 var sourceMaterialBytes = rare ? Donor(variant!.Materials.Single()) : materialBytes;
@@ -109,6 +107,8 @@ public sealed partial class ZaSwShRestorationPreparationService
                 bindings = bindings.Select((binding, index) => binding with { Name = targetScene.Primitives[index].Material.Name }).ToArray();
                 Report("geometry", rare ? 1 : 0, 2);
                 var converted = SwShModelWriter.Convert(targetScene, nativeModel, bindings, aliases, locators, cancellationToken: token, preserveMeshNames: profile.MeshVisibility);
+                converted = converted with { Model = SwShRestorationMaterialResponse.Apply(converted.Model) };
+                converted = converted with { Model = CompactPrograms(converted.Model) };
                 geometry ??= converted; members[modelFolder + stem + (rare ? "_rare" : "") + ".gfbmdl"] = converted.Model;
             }
             var sizeStem = $"pm{profile.NativeTemplate:0000}_00"; var sizePack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{sizeStem}.gfpak"));
@@ -162,13 +162,23 @@ public sealed partial class ZaSwShRestorationPreparationService
                         members[animationFolder + stem + "_" + name + ".gfbanm"], clip.Decoded.Visibility, meshNames);
             }
             Report("packing");
+            members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
             members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"), materialNames);
             var facialBones = new Dictionary<string, string[]>(StringComparer.Ordinal);
             var eyelids = scene.Rig.Bones.Where(b => b.Name.Contains("eyelid", StringComparison.OrdinalIgnoreCase)).Select(b => aliases[b.Name]).ToArray();
             if (eyelids.Length > 0) facialBones.Add("eye01", eyelids);
             foreach (var group in new[] { "battle", "camp", "field" })
-                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = ZaSwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
-            var result = new List<SwShRestorationContribution> { File($"bin/archive/pokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(members).Write()) };
+            {
+                var controller = ZaSwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
+                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = group == "battle" ? SwShAnimationWriter.BattleIdleController(controller) : controller;
+            }
+            var result = new List<SwShRestorationContribution>();
+            foreach (var rare in new[] { false, true })
+            {
+                var suffix = rare ? "_rare" : "";
+                result.Add(File($"bin/archive/pokemon/{stem}{suffix}.gfpak", SwShGfPackFile.CreateWithPaths(PaletteMembers(members, modelFolder + stem + suffix + ".gfbmdl")).Write()));
+            }
+            shaderNames.IntersectWith(new[] { 3, 5 }.SelectMany(f => ModelNames(new(members[modelFolder + stem + ".gfbmdl"]), f)));
             var giantDonor = SwShGfPackFile.Parse(Native("bin/archive/gpokemon/pm0007_00.gfpak"));
             var giantSize = SwShGfPackFile.Parse(Native($"bin/archive/gpokemon/{sizeStem}.gfpak"));
             var giantConfiguration = Member(giantSize, sizeStem + ".gfbgpokecfg");
@@ -190,7 +200,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 var identity = new SwShPokemonResourceIdentity(species, 0, 0, shiny);
                 var row = new SwShPokemonResourceRow(identity, modelFolder + stem + (shiny ? "_rare" : "") + ".gfbmdl",
-                    $"bin/pokemon/{stem}/{stem}.gfbpokecfg", $"bin/archive/pokemon/{stem}.gfpak",
+                    $"bin/pokemon/{stem}/{stem}.gfbpokecfg", $"bin/archive/pokemon/{stem}{(shiny ? "_rare" : "")}.gfpak",
                     new[] { "battle", "camp", "field" }.ToDictionary(g => g, g => animationFolder + stem + "_" + g + ".gfbanmcfg", StringComparer.Ordinal));
                 result.Add(new(SwShRestorationComposer.CatalogPath, SwShRestorationWriter.ModelCatalog, SwShRestorationComposer.CatalogKey(identity), null, JsonSerializer.SerializeToUtf8Bytes(row)));
             }

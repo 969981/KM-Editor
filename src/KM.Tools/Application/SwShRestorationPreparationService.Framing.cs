@@ -12,22 +12,29 @@ public sealed partial class SwShRestorationPreparationService
         private static SwShConvertedGeometry IdleBounds(IReadOnlyDictionary<string, byte[]> members, string modelFolder,
             string animationFolder, string stem, SwShConvertedGeometry geometry)
         {
-            // A snake's straight bind pose is its length, not its standing height.
-            // SwSh scales the actor using its idle height, including in the party screen.
+            // SwSh scales the actor using its posed idle height, including in the party screen.
             var scene = new SwShPreviewReader(path => members[modelFolder + Path.GetFileName(path)]).Load(stem + ".gfbmdl");
             var bones = scene.Rig.Bones;
             var clip = PreviewRigReader.Animation(new(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]), stem, bones);
             var world = new Matrix4x4[bones.Length]; var skin = new Matrix4x4[bones.Length];
+            var scales = new Vector3[bones.Length];
             static Vector3 Vector(float[] values) => new(values[0], values[1], values[2]);
             static float[] First(PreviewKey[]? keys, float[] fallback) => keys is { Length: > 0 } ? keys[0].Value : fallback;
             for (var i = 0; i < bones.Length; i++)
             {
                 var bone = bones[i]; var track = clip.Tracks.SingleOrDefault(t => t.Bone == i);
                 var scale = First(track?.Scale, bone.Scale); var rotation = First(track?.Rotation, bone.Rotation);
-                if (scale.Any(value => Math.Abs(value - 1) > .00001f))
-                    throw new InvalidDataException("Source idle framing needs a scale compensation adapter.");
-                var local = Matrix4x4.CreateFromQuaternion(new(rotation[0], rotation[1], rotation[2], rotation[3]))
-                    * Matrix4x4.CreateTranslation(Vector(First(track?.Translation, bone.Translation)));
+                if (scale.Any(value => !float.IsFinite(value))) throw new InvalidDataException("Source idle scale is invalid.");
+                scales[i] = Vector(scale);
+                var local = Matrix4x4.CreateScale(scales[i])
+                    * Matrix4x4.CreateFromQuaternion(new(rotation[0], rotation[1], rotation[2], rotation[3]));
+                if (bone.CompensateScale && bone.Parent >= 0)
+                {
+                    float Inverse(float value) => MathF.Abs(value) > .000001f ? 1 / value : 0;
+                    var parent = scales[bone.Parent];
+                    local *= Matrix4x4.CreateScale(Inverse(parent.X), Inverse(parent.Y), Inverse(parent.Z));
+                }
+                local *= Matrix4x4.CreateTranslation(Vector(First(track?.Translation, bone.Translation)));
                 world[i] = bone.Parent < 0 ? local : local * world[bone.Parent];
                 var b = bone.InverseBind;
                 var inverse = new Matrix4x4(b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],

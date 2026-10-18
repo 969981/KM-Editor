@@ -102,6 +102,8 @@ KM Editor includes Pokémon sprites from Pokémon Showdown's public `gen5` and `
 
 Item artwork uses PokeSprite and PokeAPI assets alongside KM category symbols. See the bundled [item artwork notices](apps/desktop/public/item-icons/NOTICE.txt). Starmobile artwork has its own [attribution and license](apps/desktop/public/sprites/starmobiles/NOTICE.txt), and Sound Studio includes [decoder notices](apps/desktop/public/audio-decoder/NOTICE.txt).
 
+Restored Pokémon party icons use static miniatures from PokeSprite. See the [party artwork credits and rights](src/KM.Tools/Resources/PartySprites/NOTICE.txt). These images are excluded from KM Editor's GPL license.
+
 KM Editor is an unofficial fan project and is not affiliated with or endorsed by the games' publishers or developers. Related names, trademarks, and artwork belong to their respective owners.
 
 KM Editor source code is distributed under the [GPL 3.0 only license](LICENSE). Other assets remain subject to their own applicable rights and terms.

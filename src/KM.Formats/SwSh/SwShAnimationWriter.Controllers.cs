@@ -51,6 +51,37 @@ public static partial class SwShAnimationWriter
         return writer.Finish(source.Root);
     }
 
+    public static byte[] BattleIdle(byte[] primaryIdle)
+    {
+        // A secondary battle wait must keep the battle pose and still finish.
+        // Ambient fidgets remain available to field and camp controllers.
+        var source = new ModelBuffer(primaryIdle);
+        var info = source.Table(source.Root, 0);
+        if (source.Value(info, 0) != 1 || source.Value(info, 1) == 0 || source.Value(info, 2) == 0)
+            throw new InvalidDataException("Battle idle requires a looping primary animation.");
+        var writer = new ModelTableBuilder(primaryIdle);
+        writer.Int32(source.Field(info, 0), 0);
+        return writer.Finish(source.Root);
+    }
+
+    public static byte[] BattleIdleController(byte[] controller)
+    {
+        var source = new ModelBuffer(controller); var writer = new ModelTableBuilder(controller);
+        var bindings = source.Tables(source.Table(source.Root, 6), 0, 2048);
+        var paths = bindings.Select(b => source.Text(b, 1) ?? "").ToArray();
+        var replaced = 0;
+        for (var i = 0; i < bindings.Length; i++)
+        {
+            if (!paths[i].EndsWith("_ba10_waitB01.gfbanm", StringComparison.Ordinal)) continue;
+            var stem = paths[i][..^"_ba10_waitB01.gfbanm".Length];
+            if (!paths.Contains(stem + "_ba10_waitA01.gfbanm", StringComparer.Ordinal))
+                throw new InvalidDataException("Battle controller primary idle is missing.");
+            writer.Text(bindings[i], 1, stem + "_battleidle01.gfbanm"); replaced++;
+        }
+        if (replaced != 1) throw new InvalidDataException("Battle controller secondary idle is missing or ambiguous.");
+        return writer.Finish(source.Root);
+    }
+
     public static byte[] GlobalMaterialLoop(byte[] nativeAnimation, IReadOnlyList<string> materialNames)
     {
         if (materialNames.Count is < 1 or > 128) throw new InvalidDataException("Global material animation target count is invalid.");

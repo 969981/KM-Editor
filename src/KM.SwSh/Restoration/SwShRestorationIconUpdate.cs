@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using KM.Formats.Models;
+using KM.Formats.SwSh;
 using System.Buffers.Binary;
+using System.Text.Json;
 
 namespace KM.SwSh.Restoration;
 
@@ -16,11 +18,33 @@ internal static class SwShRestorationIconUpdate
         var icons = SwShRestorationDefinitions.Get(next.DefinitionId).Identities.Select(i =>
             $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx").ToHashSet(StringComparer.Ordinal);
         var old = previous.Contributions.ToDictionary(c => (c.Path, c.Key));
-        if (old.Count != next.Contributions.Count) throw new InvalidDataException("Restoration update changes resource ownership.");
+        var replacements = next.Contributions.ToDictionary(c => (c.Path, c.Key));
+        if (old.Keys.Any(key => !replacements.ContainsKey(key))) throw new InvalidDataException("Restoration update removes resource ownership.");
+        var models = SwShRestorationDefinitions.Get(next.DefinitionId).Identities.Select(i =>
+            $"romfs/bin/archive/pokemon/pm{i.Species:0000}_{i.Form:00}").ToArray();
+        bool Archive(string path) => models.Any(stem => path == stem + ".gfpak" || path == stem + "_rare.gfpak");
+        bool Giant(string path) => models.Any(stem => path == stem.Replace("/pokemon/", "/gpokemon/", StringComparison.Ordinal) + ".gfpak");
+        bool Model(SwShRestorationContribution item) => item.Writer == SwShRestorationWriter.ModelCatalog
+            || item.Writer == SwShRestorationWriter.File && (Archive(item.Path) || Giant(item.Path)
+                || item.Path.StartsWith("romfs/bin/pokemon/pm", StringComparison.Ordinal));
+        var custom = customized.Contributions.ToDictionary(c => (c.Path, c.Key));
+        // A palette split is one model graph update. Keep the complete old graph
+        // when it contains edits, including its original shiny routing.
+        var keepModels = customized.Contributions.Where(Model).Any(item =>
+            !old.TryGetValue((item.Path, item.Key), out var original) || !Equal(original.After, item.After))
+            || previous.Contributions.Where(Model).Any(item => !custom.ContainsKey((item.Path, item.Key)));
         var updates = new List<SwShRestorationContribution>();
         foreach (var item in next.Contributions)
         {
-            if (!old.TryGetValue((item.Path, item.Key), out var original) || original.Writer != item.Writer || !Equal(original.Before, item.Before))
+            if (!old.TryGetValue((item.Path, item.Key), out var original))
+            {
+                if (item.Writer != SwShRestorationWriter.File || item.Key.Length != 0 || item.Before is not null
+                    || !models.Any(stem => item.Path == stem + "_rare.gfpak"))
+                    throw new InvalidDataException("Restoration update changes resource ownership.");
+                ValidateModelArchive(item);
+                continue;
+            }
+            if (original.Writer != item.Writer || !Equal(original.Before, item.Before))
                 throw new InvalidDataException("Restoration update changes resource ownership.");
             if (Equal(original.After, item.After)) continue;
             if (item.Writer == SwShRestorationWriter.File && icons.Contains(item.Path))
@@ -29,18 +53,49 @@ internal static class SwShRestorationIconUpdate
                 if (image.Width != 136 || image.Height != 112 || image.MipCount != 1)
                     throw new InvalidDataException("Updated party icon layout is invalid.");
             }
+            else if (item.Writer == SwShRestorationWriter.File && Archive(item.Path)) ValidateModelArchive(item);
+            else if (item.Writer == SwShRestorationWriter.File && Giant(item.Path)) ValidateResourceSubset(original.After, item.After);
+            else if (item.Writer == SwShRestorationWriter.ModelCatalog) ValidatePaletteRouting(original.After, item.After, models);
             else if (item.Writer != SwShRestorationWriter.Voices || item.Path != SwShRestorationComposer.VoicesPath
                 || !item.Key.StartsWith("2:", StringComparison.Ordinal) || !SameSoundExceptGain(original.After, item.After))
-                throw new InvalidDataException("Only party icon and cry gain updates are supported for installed restorations.");
-            updates.Add(item with { Before = original.After });
+                throw new InvalidDataException("This restoration update changes an unsupported resource.");
+            if (!keepModels || !Model(item)) updates.Add(item with { Before = original.After });
         }
-        var replacements = next.Contributions.ToDictionary(c => (c.Path, c.Key));
         changed = updates.ToArray();
         // Keep edited models, gameplay, loose resources, and custom icons. Only
         // a value that still equals the previous default follows the new default.
         return next with { Contributions = customized.Contributions.Select(item =>
-            old.TryGetValue((item.Path, item.Key), out var original) && Equal(original.After, item.After)
-                ? replacements[(item.Path, item.Key)] : item).ToArray() };
+            (!keepModels || !Model(item)) && old.TryGetValue((item.Path, item.Key), out var original) && Equal(original.After, item.After)
+                ? replacements[(item.Path, item.Key)] : item)
+            .Concat(next.Contributions.Where(item => !old.ContainsKey((item.Path, item.Key)) && (!keepModels || !Model(item)))).ToArray() };
+    }
+    private static void ValidateResourceSubset(byte[] previous, byte[] next)
+    {
+        var old = SwShGfPackFile.ParseBoundedReadOnly(previous, 4096, 64L * 1024 * 1024);
+        var pack = SwShGfPackFile.ParseBoundedReadOnly(next, 4096, 64L * 1024 * 1024);
+        if (!pack.Write().AsSpan().SequenceEqual(next)) throw new InvalidDataException("Updated resource archive layout is invalid.");
+        foreach (var member in pack.AbsoluteHashes)
+            if (!old.ReadFileByHash(member.HashFnv1aPathFull, 32 * 1024 * 1024).AsSpan()
+                .SequenceEqual(pack.ReadFileByHash(member.HashFnv1aPathFull, 32 * 1024 * 1024)))
+                throw new InvalidDataException("Updated giant resources change retained content.");
+    }
+    private static void ValidateModelArchive(SwShRestorationContribution item)
+    {
+        var pack = SwShGfPackFile.ParseBoundedReadOnly(item.After, 4096, 64L * 1024 * 1024);
+        if (!pack.Write().AsSpan().SequenceEqual(item.After))
+            throw new InvalidDataException("Updated model archive layout is invalid.");
+        var name = Path.GetFileNameWithoutExtension(item.Path);
+        var scene = new SwShPreviewReader(path => pack.GetFileByName(Path.GetFileName(path))).Load(name + ".gfbmdl");
+        if (scene.Primitives.Count == 0) throw new InvalidDataException("Updated model archive has no geometry.");
+    }
+    private static void ValidatePaletteRouting(byte[] previous, byte[] next, string[] models)
+    {
+        var left = JsonSerializer.Deserialize<SwShPokemonResourceRow>(previous) ?? throw new InvalidDataException("Original model routing is missing.");
+        var right = JsonSerializer.Deserialize<SwShPokemonResourceRow>(next) ?? throw new InvalidDataException("Updated model routing is missing.");
+        if (left.Identity != right.Identity || !left.Identity.Shiny || left.Model != right.Model || left.Configuration != right.Configuration
+            || !left.Controllers.OrderBy(p => p.Key).SequenceEqual(right.Controllers.OrderBy(p => p.Key))
+            || !models.Any(stem => left.Archive == stem[6..] + ".gfpak" && right.Archive == stem[6..] + "_rare.gfpak"))
+            throw new InvalidDataException("Restoration update changes unsupported model routing.");
     }
     private static bool SameSoundExceptGain(byte[] previous, byte[] next)
     {

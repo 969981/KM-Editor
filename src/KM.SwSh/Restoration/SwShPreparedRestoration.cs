@@ -99,6 +99,7 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
                     int.TryParse(item.Key, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) && species.Contains(id),
                 SwShRestorationWriter.File => item.Key.Length == 0 && definition.Identities.Any(i =>
                     item.Path == $"romfs/bin/archive/pokemon/pm{i.Species:0000}_{i.Form:00}.gfpak"
+                    || item.Path == $"romfs/bin/archive/pokemon/pm{i.Species:0000}_{i.Form:00}_rare.gfpak"
                     || item.Path == $"romfs/bin/archive/gpokemon/pm{i.Species:0000}_{i.Form:00}.gfpak"
                     || item.Path == $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx"
                     || item.Path == $"romfs/bin/pml/evolution/evo_{i.Species:000}.bin"

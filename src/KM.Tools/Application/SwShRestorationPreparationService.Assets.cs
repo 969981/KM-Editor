@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using KM.Formats.Models;
 using KM.Formats.SwSh;
+using KM.Formats.SV;
 using KM.SwSh.Restoration;
 
 namespace KM.Tools.Application;
@@ -33,15 +34,20 @@ public sealed partial class SwShRestorationPreparationService
             Report("reading");
             var scene = new TrinityPreviewReader(Donor).Load(sourceFolder + sourceStem + ".trmdl");
             if (scene.Rig.Warnings.Length > 0) throw new InvalidDataException("Source model requires an additional conversion adapter.");
+            var targetScene = UniqueMaterials(profile.CompactResources ? CompactGeometry(scene) : scene);
+            if (profile.NativeFlames)
+            {
+                var flame = targetScene.Primitives.Single(p => p.Material.Name == "fire");
+                targetScene = targetScene with { Primitives = targetScene.Primitives.Append(flame with
+                    { Name = flame.Name + "_mask", Material = flame.Material with { Name = "fire_mask" } }).ToArray() };
+            }
             var nativePack = SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0007_00.gfpak"));
-            var nativeModel = Member(nativePack, "pm0007_00.gfbmdl"); var nativeMetadata = new ModelBuffer(nativeModel);
+            var bodyModel = Member(nativePack, "pm0007_00.gfbmdl");
+            var firePack = profile.NativeFlames ? SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0004_00.gfpak")) : null;
             var materialBytes = Donor(sourceFolder + sourceStem + ".trmtr");
-            var baked = profile.AuthoredMaterials ? [] : scene.Primitives.Select((primitive, index) => {
-                Report("textures", index, scene.Primitives.Count);
-                var result = SwShMaterialBaker.Bake(primitive, materialBytes, index,
-                    name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
-                Report("textures", index + 1, scene.Primitives.Count); return result;
-            }).ToArray();
+            var fireModel = firePack is null ? null : Member(firePack, "pm0004_00.gfbmdl");
+            var nativeModel = fireModel is null ? bodyModel : SvSwShFlameMaterial.Template(bodyModel, fireModel, materialBytes).Model;
+            var nativeMetadata = new ModelBuffer(nativeModel);
             var aliases = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["origin"] = "Origin", ["waist"] = "Waist", ["head"] = "Head", ["neck"] = "Neck", ["spine"] = "Spine",
@@ -52,13 +58,13 @@ public sealed partial class SwShRestorationPreparationService
                 ? SourceLocators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_00000_eff.trskl"))
                 : Locators(scene, aliases);
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
-            if (!profile.AuthoredMaterials)
-                foreach (var resource in graph.Where(r => r.Id.EndsWith(".bntx", StringComparison.Ordinal))) members[modelFolder + Path.GetFileName(resource.Id)] = resource.Bytes;
-            foreach (var material in baked)
+            var textures = new RestorationTexturePool(members, modelFolder, profile.CompactResources);
+            var fireTextures = profile.NativeFlames ? SvSwShFlameMaterial.Textures(materialBytes,
+                name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token) : null;
+            if (fireTextures is not null)
             {
-                members[modelFolder + material.ColorName + ".bntx"] = material.Color;
-                members[modelFolder + material.NormalName + ".bntx"] = material.Normal;
-                members[modelFolder + material.AmbientName + ".bntx"] = material.Ambient;
+                foreach (var pair in fireTextures.Files) members[modelFolder + pair.Key + ".bntx"] = pair.Value;
+                members[modelFolder + "viewport_mask_col.bntx"] = Member(firePack!, "viewport_mask_col.bntx");
             }
             foreach (var name in new[] { "Default_lta", "dummy_col", "projection_effect_col", "pm0007_00_Eye_amb" })
                 members[modelFolder + name + ".bntx"] = Member(nativePack, name + ".bntx");
@@ -69,81 +75,133 @@ public sealed partial class SwShRestorationPreparationService
                 for (var i = 0; i < count; i++) shaderNames.Add(nativeMetadata.StringAt(start + i * 4));
             }
             foreach (var name in shaderNames) foreach (var extension in new[] { ".bnsh_vsh", ".bnsh_fsh" })
-                members[modelFolder + name + extension] = Member(nativePack, name + extension);
+                members[modelFolder + name + extension] = nativePack.TryGetFileByName(name + extension, 32 * 1024 * 1024, out var shader)
+                    ? shader : Member(firePack ?? nativePack, name + extension);
             SwShConvertedGeometry? geometry = null;
             foreach (var rare in new[] { false, true })
             {
                 var paletteBytes = Donor(sourceFolder + sourceStem + (rare ? "_rare" : "") + ".trmtr");
                 var sourceMaterial = new ModelBuffer(paletteBytes);
-                var palette = profile.AuthoredMaterials ? BakePalette(scene, paletteBytes, rare, sourceFolder + sourceStem + ".trmtr", members, modelFolder) : baked;
+                var palette = BakePalette(scene, paletteBytes, rare, sourceFolder + sourceStem + ".trmtr", textures, profile.NativeFlames);
+                var flameTemplate = fireModel is null ? null : SvSwShFlameMaterial.Template(bodyModel, fireModel, paletteBytes, materialBytes);
+                SwShMaterialBinding FireBinding(bool mask) => new(mask ? "fire_mask" : "fire", mask ? flameTemplate!.Mask : flameTemplate!.Core,
+                    mask ? new Dictionary<string, string> { ["Mask0Texture"] = fireTextures!.White, ["Mask1Texture"] = fireTextures.White }
+                    : new Dictionary<string, string> { ["LerpTex"] = fireTextures!.Control, ["Blend0Tex"] = fireTextures.Layer,
+                        ["Blend1Tex"] = fireTextures.Noise, ["MaskTex"] = "viewport_mask_col" });
                 var bindings = scene.Primitives.Select((primitive, index) =>
                 {
+                    if (profile.NativeFlames && primitive.Material.Name == "fire") return FireBinding(false);
+                    var material = palette[index] ?? throw new InvalidDataException("Converted material is missing.");
                     var original = sourceMaterial.Tables(sourceMaterial.Root, 1, 128).Single(t => sourceMaterial.Text(t, 0) == primitive.Material.Name);
                     var textureNames = sourceMaterial.Tables(original, 2, 64).ToDictionary(t => sourceMaterial.Text(t, 0)!, t => Path.GetFileNameWithoutExtension(sourceMaterial.Text(t, 1)!));
                     var eye = primitive.Material.Name.Contains("eye", StringComparison.Ordinal); var nativeMaterial = eye ? 1 : 0;
                     var textureBindings = nativeMetadata.Tables(nativeMetadata.Tables(nativeMetadata.Root, 6, 128)[nativeMaterial], 11, 64)
                         .ToDictionary(t => nativeMetadata.Text(t, 0)!, _ => "dummy_col", StringComparer.Ordinal);
-                    textureBindings["Col0Tex"] = eye || profile.AuthoredMaterials ? palette[index].ColorName : textureNames["BaseColorMap"];
-                    textureBindings["NormalMapTex"] = palette[index].NormalName; textureBindings["AmbientTex"] = palette[index].AmbientName;
+                    textureBindings["Col0Tex"] = material.ColorName;
+                    textureBindings["NormalMapTex"] = material.NormalName; textureBindings["AmbientTex"] = material.AmbientName;
                     textureBindings["LightTblTex"] = "Default_lta"; textureBindings["EffectTex"] = "projection_effect_col";
-                    return new SwShMaterialBinding(primitive.Material.Name, nativeMaterial, textureBindings);
+                    return new SwShMaterialBinding(targetScene.Primitives[index].Material.Name, nativeMaterial, textureBindings);
                 }).ToArray();
+                if (profile.NativeFlames) bindings = bindings.Append(FireBinding(true)).ToArray();
                 Report("geometry", rare ? 1 : 0, 2);
-                var converted = SwShModelWriter.Convert(scene, nativeModel, bindings, aliases, locators, cancellationToken: token);
+                var converted = SwShModelWriter.Convert(targetScene, flameTemplate?.Model ?? nativeModel, bindings, aliases, locators,
+                    cancellationToken: token, preserveMeshNames: profile.NativeFlames);
+                converted = converted with { Model = SwShRestorationMaterialResponse.Apply(converted.Model) };
+                if (profile.CompactResources) converted = converted with { Model = CompactPrograms(converted.Model) };
                 geometry ??= converted; members[modelFolder + stem + (rare ? "_rare" : "") + ".gfbmdl"] = converted.Model;
             }
-            var sizeStem = $"pm{profile.NativeTemplate:0000}_00"; var sizePack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{sizeStem}.gfpak"));
-            var materialNames = scene.Primitives.Select(p => p.Material.Name).ToArray();
+            var sizeStem = profile.ResourceStem ?? $"pm{profile.NativeTemplate:0000}_00";
+            var sizePack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{sizeStem}.gfpak"));
+            var materialNames = targetScene.Primitives.Select(p => p.Material.Name).ToArray();
             var frameStem = profile.FramingTemplate == 0 ? sizeStem : $"pm{profile.FramingTemplate:0000}_00";
             var framePack = profile.FramingTemplate == 0 ? sizePack : SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{frameStem}.gfpak"));
             var clips = new Dictionary<string, (byte[] Skeleton, PreviewClip Decoded)>(StringComparer.Ordinal);
             var motions = graph.Where(r => r.Id.EndsWith(".tranm", StringComparison.Ordinal)).ToArray();
+            var meshNames = targetScene.Primitives.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+            byte[] ConvertMotion(byte[] skeleton, PreviewClip decoded, bool complete, SwShExpressionCurve expression = SwShExpressionCurve.None)
+            {
+                var converted = SwShAnimationWriter.Convert(skeleton, profile.NativeFlames ? decoded.Materials.Where(t => t.Material != "fire").ToArray() : decoded.Materials,
+                    scene.Rig.Bones, aliases, complete, expression);
+                if (!profile.NativeFlames || expression != SwShExpressionCurve.None) return converted;
+                converted = SvSwShFlameAnimation.Apply(converted, decoded.Materials);
+                var fireMesh = scene.Primitives.Single(p => p.Material.Name == "fire").Name;
+                var visibility = decoded.Visibility.SelectMany(v => v.Name == fireMesh ? new[] { v, v with { Name = fireMesh + "_mask" } } : [v]).ToArray();
+                return SwShAnimationWriter.Visibility(converted, visibility, meshNames);
+            }
             Report("animations", 0, motions.Length + NativeClips.Count);
             foreach (var resource in motions)
             {
                 token.ThrowIfCancellationRequested();
                 var clip = PreviewRigReader.Animation(new(resource.Bytes), resource.Id, scene.Rig.Bones);
                 var warnings = new List<string>();
-                clip = PreviewMaterialAnimation.Read(new(Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/'))), clip, warnings, true);
-                if (warnings.Count > 0 || clip.Visibility.Any(v => v.Keys.Any(k => k.Value.Any(x => x == 0))))
+                var materialAnimation = Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/'));
+                clip = profile.NativeFlames ? SvSwShFlameAnimation.Read(materialAnimation, clip) : PreviewMaterialAnimation.Read(new(materialAnimation), clip, warnings, true);
+                if (warnings.Count > 0 || (!profile.NativeFlames && clip.Visibility.Any(v => v.Keys.Any(k => k.Value.Any(x => x == 0)))))
                     throw new InvalidDataException("Source animation needs an unsupported material or visibility adapter.");
+                if (clip.Materials.Any(t => !scene.Primitives.Any(p => p.Material.Name == t.Material)))
+                    throw new InvalidDataException("Source animation has an undeclared material target.");
+                clip = clip with { Materials = clip.Materials.SelectMany(track => scene.Primitives.Select((p, i) => (p, i))
+                    .Where(pair => pair.p.Material.Name == track.Material)
+                    .Select(pair => track with { Material = targetScene.Primitives[pair.i].Material.Name })).ToArray() };
                 Report("animations", clips.Count, motions.Length + NativeClips.Count);
                 var name = Path.GetFileNameWithoutExtension(resource.Id); var code = name[sourceStem.Length..].TrimStart('_').Split('_')[0];
                 if (!clips.TryAdd(code, (resource.Bytes, clip))) throw new InvalidDataException("Source animation code is ambiguous.");
-                members[animationFolder + name.Replace(sourceStem, stem, StringComparison.Ordinal) + ".gfbanm"] = SwShAnimationWriter.Convert(resource.Bytes, clip.Materials, scene.Rig.Bones, aliases, completePose: false);
+                members[animationFolder + name.Replace(sourceStem, stem, StringComparison.Ordinal) + ".gfbanm"] = ConvertMotion(resource.Bytes, clip, false);
             }
             var nativeClipsDone = 0;
             foreach (var (name, code) in NativeClips)
             {
-                if (!clips.TryGetValue(code, out var clip)) throw new InvalidDataException($"Required animation is unavailable: {code}");
+                var sourceCode = name == "ba10_waitA01" ? profile.BattleIdle : code;
+                if (!clips.TryGetValue(sourceCode, out var clip)) throw new InvalidDataException($"Required animation is unavailable: {sourceCode}");
                 Report("animations", motions.Length + nativeClipsDone++, motions.Length + NativeClips.Count);
                 var expression = name == "eye01" ? SwShExpressionCurve.Eyes : name == "mouth01" ? SwShExpressionCurve.Mouth : SwShExpressionCurve.None;
-                members[animationFolder + stem + "_" + name + ".gfbanm"] = SwShAnimationWriter.Convert(clip.Skeleton, clip.Decoded.Materials,
-                    scene.Rig.Bones, aliases, completePose: expression == SwShExpressionCurve.None, expression);
+                members[animationFolder + stem + "_" + name + ".gfbanm"] = ConvertMotion(clip.Skeleton, clip.Decoded, expression == SwShExpressionCurve.None, expression);
             }
             Report("packing");
-            members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"), materialNames);
+            members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
+            var globalLoop = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"),
+                materialNames.Where(n => n is not ("fire" or "fire_mask")).ToArray());
+            members[animationFolder + stem + "_gloop01.gfbanm"] = profile.NativeFlames
+                ? SvSwShFlameAnimation.Apply(globalLoop, clips["08201"].Decoded.Materials, clips["08201"].Decoded) : globalLoop;
             var facialBones = new Dictionary<string, string[]>(StringComparer.Ordinal);
-            foreach (var name in new[] { "eye01", "mouth01" }) facialBones.Add(name, clips[NativeClips[name]].Decoded.Tracks.Select(t => scene.Rig.Bones[t.Bone].Name)
-                .Where(b => b.Contains(name == "eye01" ? "eyelid" : "jaw", StringComparison.OrdinalIgnoreCase)).Select(b => aliases[b]).ToArray());
+            foreach (var name in new[] { "eye01", "mouth01" })
+            {
+                var bones = clips[NativeClips[name]].Decoded.Tracks.Select(t => scene.Rig.Bones[t.Bone].Name)
+                    .Where(b => b.Contains(name == "eye01" ? "eyelid" : "jaw", StringComparison.OrdinalIgnoreCase)).Select(b => aliases[b]).ToArray();
+                if (bones.Length > 0) facialBones.Add(name, bones);
+            }
             foreach (var group in new[] { "battle", "camp", "field" })
-                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = SwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
+            {
+                var controller = SwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
+                if (group == "battle") controller = SwShAnimationWriter.BattleIdleController(controller);
+                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = profile.NativeFlames ? SvSwShFlameAnimation.Controller(controller) : controller;
+            }
             var framingGeometry = profile.AuthoredMaterials ? IdleBounds(members, modelFolder, animationFolder, stem, geometry!) : geometry!;
             members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(Member(framePack, frameStem + ".gfbpokecfg"), species, framingGeometry, materialNames,
                 profile.BattleHeight, profile.FieldHeight);
-            var result = new List<SwShRestorationContribution> { File($"bin/archive/pokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(members).Write()) };
+            var result = new List<SwShRestorationContribution>();
+            foreach (var rare in profile.CompactResources ? new[] { false, true } : new[] { false })
+            {
+                var suffix = rare ? "_rare" : "";
+                var selected = profile.CompactResources ? PaletteMembers(members, modelFolder + stem + suffix + ".gfbmdl") : members;
+                result.Add(File($"bin/archive/pokemon/{stem}{suffix}.gfpak", SwShGfPackFile.CreateWithPaths(selected).Write()));
+            }
+            if (profile.CompactResources)
+                shaderNames.IntersectWith(new[] { 3, 5 }.SelectMany(f => ModelNames(new(members[modelFolder + stem + ".gfbmdl"]), f)));
             var giantDonor = SwShGfPackFile.Parse(Native("bin/archive/gpokemon/pm0007_00.gfpak"));
+            var giantFire = profile.NativeFlames ? SwShGfPackFile.Parse(Native("bin/archive/gpokemon/pm0004_00.gfpak")) : null;
             var giantSize = SwShGfPackFile.Parse(Native($"bin/archive/gpokemon/{sizeStem}.gfpak"));
             var giantMembers = new Dictionary<string, byte[]> { [$"bin/pokemon/{stem}/{stem}.gfbgpokecfg"] = Member(giantSize, sizeStem + ".gfbgpokecfg") };
             foreach (var name in shaderNames) foreach (var extension in new[] { ".bnsh_vsh", ".bnsh_fsh" })
-                giantMembers[$"bin/pokemon/{stem}/g_shader/{name}{extension}"] = Member(giantDonor, name + extension);
+                giantMembers[$"bin/pokemon/{stem}/g_shader/{name}{extension}"] = giantDonor.TryGetFileByName(name + extension, 32 * 1024 * 1024, out var shader)
+                    ? shader : Member(giantFire ?? giantDonor, name + extension);
             result.Add(File($"bin/archive/gpokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(giantMembers).Write()));
             result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token)));
             foreach (var shiny in new[] { false, true })
             {
                 var identity = new SwShPokemonResourceIdentity(species, 0, 0, shiny);
                 var row = new SwShPokemonResourceRow(identity, modelFolder + stem + (shiny ? "_rare" : "") + ".gfbmdl",
-                    $"bin/pokemon/{stem}/{stem}.gfbpokecfg", $"bin/archive/pokemon/{stem}.gfpak",
+                    $"bin/pokemon/{stem}/{stem}.gfbpokecfg", $"bin/archive/pokemon/{stem}{(shiny && profile.CompactResources ? "_rare" : "")}.gfpak",
                     new[] { "battle", "camp", "field" }.ToDictionary(g => g, g => animationFolder + stem + "_" + g + ".gfbanmcfg", StringComparer.Ordinal));
                 result.Add(new(SwShRestorationComposer.CatalogPath, SwShRestorationWriter.ModelCatalog, SwShRestorationComposer.CatalogKey(identity), null, JsonSerializer.SerializeToUtf8Bytes(row)));
             }

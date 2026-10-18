@@ -9,22 +9,37 @@ public sealed partial class SwShRestorationPreparationService
 {
     private sealed partial class Preparation
     {
-        private SwShBakedMaterial[] BakePalette(PreviewScene scene, byte[] materialBytes, bool rare, string sourcePath,
-            IDictionary<string, byte[]> members, string modelFolder)
+        private static PreviewScene UniqueMaterials(PreviewScene scene)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            return scene with { Primitives = scene.Primitives.Select((primitive, index) =>
+            {
+                var name = primitive.Material.Name;
+                if (!names.Add(name))
+                {
+                    name += "_mesh" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    if (!names.Add(name)) throw new InvalidDataException("Converted material name is ambiguous.");
+                }
+                return primitive with { Material = primitive.Material with { Name = name } };
+            }).ToArray() };
+        }
+
+        private SwShBakedMaterial?[] BakePalette(PreviewScene scene, byte[] materialBytes, bool rare, string sourcePath,
+            RestorationTexturePool textures, bool nativeFlames = false)
         {
             return scene.Primitives.Select((primitive, index) =>
             {
+                if (nativeFlames && primitive.Material.Name == "fire") return null;
                 Report("textures", (rare ? scene.Primitives.Count : 0) + index, scene.Primitives.Count * 2);
                 var material = SwShMaterialBaker.Bake(primitive, materialBytes, index,
-                    name => Donor(TrinityPreviewReader.Resolve(sourcePath, name)), token);
+                    name => Donor(TrinityPreviewReader.Resolve(sourcePath, name)), token, sourceNormalDimensions: Profiles[currentSpecies].CompactResources);
                 // Eyes can share a layer mask while having different palette colors.
                 // Give each material and palette its own native texture identity.
                 (string Name, byte[] Bytes) Add(string original, byte[] bytes, char prefix)
                 {
                     var name = prefix + index.ToString(System.Globalization.CultureInfo.InvariantCulture) + original[2..];
                     var renamed = ModelTextureIdentity.Rename(bytes, original, name);
-                    if (!members.TryAdd(modelFolder + name + ".bntx", renamed)) throw new InvalidDataException("Converted texture identity is duplicated.");
-                    return (name, renamed);
+                    return (textures.Add(name, renamed), renamed);
                 }
                 var color = Add(material.ColorName, material.Color, rare ? 'd' : 'c');
                 var normal = Add(material.NormalName, material.Normal, rare ? 'o' : 'n');
