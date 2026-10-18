@@ -14,11 +14,17 @@ public sealed record SwShPokemonReferences(IReadOnlyList<SwShPokemonReference> R
 public static class SwShPokemonReferenceIndex
 {
     public static SwShPokemonReferences Find(ProjectPaths paths, IReadOnlySet<int> removed)
+        => Find(paths, identity => removed.Contains(identity.Species));
+
+    public static SwShPokemonReferences FindIdentities(ProjectPaths paths, IReadOnlySet<SwShPokemonIdentity> removed)
+        => Find(paths, removed.Contains);
+
+    private static SwShPokemonReferences Find(ProjectPaths paths, Func<SwShPokemonIdentity, bool> removed)
     {
         var references = new List<SwShPokemonReference>(); var sources = new HashSet<ProjectFileReference>(); long readBytes = 0;
         void Add(int species, int form, string editor, string file, string record, string field = "species")
         {
-            if (removed.Contains(species)) references.Add(new(species, form, editor, file, record, field));
+            if (removed(new(species, form))) references.Add(new(species, form, editor, file, record, field));
             if (references.Count > 100000) throw new InvalidDataException("Pokemon reference count exceeds its review budget.");
         }
         byte[] Read(string relative)
@@ -47,12 +53,12 @@ public static class SwShPokemonReferenceIndex
 
         var personal = SwShPersonalTable.Parse(Read(SwShRestorationComposer.PersonalPath), 4096).Records;
         var identities = SwShEffectivePokemonCatalog.Identities(personal).ToDictionary(i => i.PersonalId);
-        foreach (var row in identities.Values.Where(i => i.Personal.IsPresentInGame && !removed.Contains(i.Identity.Species)))
-            Add(row.Personal.HatchedSpecies, 0, "pokemon", SwShRestorationComposer.PersonalPath, row.PersonalId.ToString(CultureInfo.InvariantCulture), "hatchedSpecies");
+        foreach (var row in identities.Values.Where(i => i.Personal.IsPresentInGame && !removed(i.Identity)))
+            Add(row.Personal.HatchedSpecies, row.Personal.LocalFormIndex, "pokemon", SwShRestorationComposer.PersonalPath, row.PersonalId.ToString(CultureInfo.InvariantCulture), "hatchedSpecies");
         foreach (var file in Files("romfs/bin/pml/evolution", "evo_*.bin"))
         {
             if (!int.TryParse(Path.GetFileNameWithoutExtension(file).AsSpan(4), out var owner)) throw new InvalidDataException("Evolution reference identity is invalid.");
-            if (!identities.TryGetValue(owner, out var identity) || !identity.Personal.IsPresentInGame || removed.Contains(identity.Identity.Species)) continue;
+            if (!identities.TryGetValue(owner, out var identity) || !identity.Personal.IsPresentInGame || removed(identity.Identity)) continue;
             foreach (var evolution in SwShEvolutionSet.Parse(Read(file)).Evolutions)
                 Add(evolution.Species, evolution.Form, "pokemon", file, $"{owner}:{evolution.Slot}", "evolution");
         }

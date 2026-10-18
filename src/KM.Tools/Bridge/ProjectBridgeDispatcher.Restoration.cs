@@ -134,7 +134,8 @@ public sealed partial class ProjectBridgeDispatcher
                 return new RestorationEntryDto(e.SpeciesId, e.Name, e.DefinitionId, e.Support.ToString(), e.Installation.ToString(), e.Family,
                     intent?.RemovalId is not null ? null : intent?.PreparedHash ?? (selected?.RemovalId is null ? selected?.PreparedHash : null),
                     intent?.Enabled ?? selected?.Enabled == true, intent is not null)
-                    { Donor = e.Donor?.ToString(), AssetsRemoved = selected?.RemovalId, RemovalStaged = intent?.RemovalId is not null };
+                    { Form = e.Form, FormLabel = e.FormLabel, PlannedPersonalId = e.PlannedPersonalId, Donor = e.Donor?.ToString(),
+                        AssetsRemoved = selected?.RemovalId, RemovalStaged = intent?.RemovalId is not null };
             }).ToArray(), catalog.UnavailableReason is null ? cleanupDiagnostics : [.. cleanupDiagnostics, ProjectBridgeMapper.ToDto(new ValidationDiagnostic(DiagnosticSeverity.Error, catalog.UnavailableReason,
                 Domain: SwShRestorationDefinitions.Domain) { Code = SwShRestorationService.SourceCode })]);
     }
@@ -199,7 +200,7 @@ public sealed partial class ProjectBridgeDispatcher
                     selections[selection.DefinitionId] = selection;
                 foreach (var source in preview.Sources) sources.Add(source);
                 foreach (var file in preview.Files.Keys) targets.Add(file);
-                var references = SwShPokemonReferenceIndex.Find(view.Paths, initial.RemovedSpecies.ToHashSet());
+                var references = SwShPokemonReferenceIndex.FindIdentities(view.Paths, initial.RemovedIdentities.ToHashSet());
                 if (references.References.Count > 0) return new(new(session.Id, [], SwShRestorationService.ReferenceDiagnostics(references)), null);
                 foreach (var source in references.Sources) sources.Add(source);
             }
@@ -211,7 +212,8 @@ public sealed partial class ProjectBridgeDispatcher
                 p == SwShRestorationComposer.PersonalPath ? originalSources : [],
                 File.Exists(Path.Combine(paths.OutputRootPath!, p)), "Apply Pokemon restoration and dependent editor changes together.")).ToArray();
             var combined = SwShChangePlanSourceGuard.Capture(paths, new(session.Id, writes, []) { EffectivePendingEdits = session.PendingEdits }, preserveExplicitSourceLayers: true);
-            return new(combined, new(files, stored.Hash, initial.PreviousStateHash, finalState, originalSources, initial.RemovedSpecies));
+            return new(combined, new(files, stored.Hash, initial.PreviousStateHash, finalState, originalSources, initial.RemovedSpecies)
+                { RemovedIdentities = initial.RemovedIdentities });
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or JsonException or OverflowException or KM.Core.Output.OutputCoordinatorException)
         {

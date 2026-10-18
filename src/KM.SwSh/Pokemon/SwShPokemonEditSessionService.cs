@@ -1140,6 +1140,10 @@ public sealed class SwShPokemonEditSessionService
         var claims = new Dictionary<int, List<int>>();
         foreach (var pokemon in finalWorkflow.Pokemon)
         {
+            if (pokemon.PersonalId is <= 0 or > SwShEffectivePokemonCatalog.MaximumSpecies)
+            {
+                continue;
+            }
             var pointer = pokemon.Personal.FormStatsIndex;
             var count = pokemon.Personal.FormCount;
             if (count <= 1)

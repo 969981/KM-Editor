@@ -437,15 +437,7 @@ public sealed class SwShBehaviorWorkflowService
         int speciesId,
         int currentForm)
     {
-        var values = new SortedSet<int> { 0 };
-        if ((uint)speciesId < (uint)personalRecords.Count)
-        {
-            var formCount = Math.Max(1, personalRecords[speciesId].FormCount);
-            for (var form = 1; form < formCount && form <= MaximumFormValue; form++)
-            {
-                values.Add(form);
-            }
-        }
+        var values = new SortedSet<int>(SwShSpeciesAvailability.PresentForms(personalRecords, speciesId, MaximumFormValue));
 
         if (currentForm >= MinimumFormValue && currentForm <= MaximumFormValue)
         {

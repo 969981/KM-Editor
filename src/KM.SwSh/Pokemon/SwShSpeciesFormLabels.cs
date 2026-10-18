@@ -132,7 +132,8 @@ internal static class SwShSpeciesFormLabels
     {
         return KnownFormLabels.TryGetValue((speciesId, localFormIndex), out var label)
             ? label
-            : PokemonFormLabels.ResolveFormLabel(
+            : KM.SwSh.Restoration.SwShRestorationFormCandidates.ResolveFormLabel(speciesId, localFormIndex)
+                ?? PokemonFormLabels.ResolveFormLabel(
                 speciesId,
                 string.Empty,
                 localFormIndex,

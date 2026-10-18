@@ -650,15 +650,7 @@ public sealed class SwShRaidBattlesWorkflowService
         int speciesId,
         int currentForm)
     {
-        var values = new SortedSet<int> { 0 };
-        if ((uint)speciesId < (uint)personalRecords.Count)
-        {
-            var formCount = personalRecords[speciesId].FormCount;
-            for (var form = 1; form < formCount && form <= MaximumFormValue; form++)
-            {
-                values.Add(form);
-            }
-        }
+        var values = new SortedSet<int>(SwShSpeciesAvailability.PresentForms(personalRecords, speciesId, MaximumFormValue));
 
         if (currentForm >= 0 && currentForm <= MaximumFormValue)
         {

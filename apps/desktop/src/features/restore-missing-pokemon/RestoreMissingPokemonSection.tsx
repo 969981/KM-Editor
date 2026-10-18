@@ -45,6 +45,8 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
   const preparationIntents = useRef(new Map<string, { sessionId: string; version: number }>());
   const active = useRef(true); const submittedDrafts = useRef(drafts); submittedDrafts.current = drafts;
   const entries = workflow?.entries ?? [];
+  const entryName = (entry: RestorationWorkflow['entries'][number]) => entry.formLabel
+    ? t(`restoration.form.${entry.formLabel}`, { name: entry.name }) : entry.name;
   const pendingCount = session?.pendingEdits.filter(e => e.domain === 'workflow.restoreMissingPokemon').length ?? 0;
   const dirty = Object.keys(drafts).length > 0;
   const canEdit = isEditing && session !== null && workflow?.canEdit === true;
@@ -173,23 +175,25 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
     }} />
     {removing ? <LoadingProgress label={t('restoration.removeAssets')} detail={t('restoration.stage')} /> : null}
     {preparationVisible ? <RestorationPreparationProgress preparation={preparation}
-      name={entries.find(entry => entry.speciesId === preparation.species)?.name
-        ?? entries.find(entry => entry.definitionId === preparation.definitionId)?.name ?? t('restoration.title')}
+      name={entries.find(entry => entry.definitionId === preparation.definitionId)?.name
+        ?? entries.find(entry => entry.speciesId === preparation.species && entry.form === 0)?.name ?? t('restoration.title')}
       onCancel={() => void cancelPreparation()} /> : null}
     <label className="restoration-search">{t('restoration.search')}<input type="search" value={search} onChange={e => setSearch(e.target.value)} /></label>
     <div className="restoration-list"><table><thead><tr><th scope="col">{t('restoration.enabled')}</th><th scope="col">{t('restoration.pokemon')}</th>
       <th scope="col">{t('restoration.availability')}</th><th scope="col">{t('restoration.actions')}</th></tr></thead><tbody>
-      {entries.filter(e => `${e.speciesId} ${e.name}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).map(entry => {
+      {entries.filter(e => `${e.speciesId} ${entryName(e)}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).map(entry => {
         const id = entry.definitionId;
-        const label = entry.name;
+        const label = entryName(entry);
         const enabled = id && id in drafts ? drafts[id] : entry.selected;
-        return <tr key={entry.speciesId}><td><input type="checkbox" aria-label={`${t('restoration.enabled')}: ${label}`} checked={enabled}
+        return <tr key={`${entry.speciesId}:${entry.form}`}><td><input type="checkbox" aria-label={`${t('restoration.enabled')}: ${label}`} checked={enabled}
           disabled={!canEdit || removing === id || !id || !hashes.has(id) || entry.support === 'NotSupported' || entry.installation === 'External'}
           title={id && !hashes.has(id) ? t('restoration.prepare') : undefined}
           onChange={event => { if (!id) return; selectionVersions.current[id] = (selectionVersions.current[id] ?? 0) + 1; const checked = event.target.checked; setDrafts(current => {
             const next = { ...current, [id]: checked }; if (checked === entry.selected && !isStaging) delete next[id]; return next;
-          }); }} /></td><td data-localization-ignore="true"><strong>{label}</strong><small>#{entry.speciesId}</small></td>
-          <td>{t(`restoration.support.${entry.support}`)}{entry.donor ? <small>{t(`restoration.source.${entry.donor}`)}</small> : null}
+          }); }} /></td><td data-localization-ignore="true"><strong>{label}</strong><small>#{entry.speciesId}</small>
+            {entry.plannedPersonalId != null ? <small>{t('restoration.plannedRow', { form: entry.form, row: entry.plannedPersonalId })}</small> : null}</td>
+          <td>{t(`restoration.support.${entry.support}`)}{entry.donor ? <small>{t(`restoration.source.${entry.donor}`)}</small>
+            : entry.form > 0 ? <small>{t('restoration.sourceUnavailable')}</small> : null}
             {id && hashes.has(id) ? <small>{t('restoration.status.prepared')}</small> : null}
             {entry.removalStaged ? <small role="status">{t('restoration.removalStaged')}</small> : null}
             <small>{t(`restoration.installation.${entry.installation}`)}{entry.staged ? ` · ${t('restoration.staged')}` : ''}</small></td>

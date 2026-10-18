@@ -72,7 +72,7 @@ public sealed record SwShStaticEncounterEdit(
     SwShStaticEncounterField Field,
     int Value);
 
-public sealed record SwShStaticEncounterArchive(IReadOnlyList<SwShStaticEncounterRecord> Encounters)
+public sealed partial record SwShStaticEncounterArchive(IReadOnlyList<SwShStaticEncounterRecord> Encounters)
 {
     public const int RandomIvValue = -1;
     public const int ThreePerfectIvSentinel = -4;
@@ -130,7 +130,8 @@ public sealed record SwShStaticEncounterArchive(IReadOnlyList<SwShStaticEncounte
         ArgumentOutOfRangeException.ThrowIfNegative(encounterIndex);
         ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(encounterIndex, Encounters.Count);
         return SourceData is null || SourceEncounterTableOffsets is null
-            || ReadTableFieldOffset(SourceData, SourceEncounterTableOffsets[encounterIndex], 8) != 0;
+            || ReadTableFieldOffset(SourceData, SourceEncounterTableOffsets[encounterIndex], 8) != 0
+            || CanExpandForm(SourceData, SourceEncounterTableOffsets[encounterIndex]);
     }
 
     public byte[] WriteEdits(IEnumerable<SwShStaticEncounterEdit> edits)
@@ -328,12 +329,12 @@ public sealed record SwShStaticEncounterArchive(IReadOnlyList<SwShStaticEncounte
             throw new InvalidDataException("Static encounter archive source layout is unavailable or inconsistent.");
         }
 
-        var output = SourceData.ToArray();
+        var (output, tableOffsets) = MaterializeFormFields(encounters);
         for (var index = 0; index < encounters.Count; index++)
         {
             var original = Encounters[index];
             var updated = encounters[index];
-            var tableOffset = SourceEncounterTableOffsets[index];
+            var tableOffset = tableOffsets[index];
 
             PatchByte(output, tableOffset, 5, original.Evs.HP, updated.Evs.HP);
             PatchByte(output, tableOffset, 3, original.Evs.Attack, updated.Evs.Attack);
