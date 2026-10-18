@@ -51,6 +51,12 @@ public sealed class PlaWorkflowService
         using var scope = new PlaSourceScope(paths);
         var catalog = new PlaCatalog(scope);
         var files = BuildFiles(catalog, session);
+        if (files.Keys.Any(path => path.StartsWith("bin/message/", StringComparison.Ordinal)))
+        {
+            // Build the display catalog after composing pending messages so all
+            // consumers share their labels without changing source identities.
+            catalog = new PlaCatalog(scope, files);
+        }
         var records = Records(catalog, kind, textFile, files, out var textFiles, out var selectedFile);
         bool Matches(PlaRecord record) => string.IsNullOrEmpty(query) || record.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
             || record.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || kind == "text" && record.Values["text"].Contains(query, StringComparison.OrdinalIgnoreCase)

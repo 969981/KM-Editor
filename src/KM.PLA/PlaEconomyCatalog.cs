@@ -53,8 +53,7 @@ internal sealed class PlaEconomyCatalog
         items = new(catalog.Scope.Read(ItemsPath));
         baseItems = new(catalog.Scope.Base(ItemsPath));
         if (!items.HasSameIndex(baseItems)) throw new InvalidDataException("The PLA item index has an unsupported structural change.");
-        var path = $"bin/message/{catalog.Scope.Language}/common/itemname";
-        names = new PlaMessageFile(catalog.Scope.Read(path + ".dat"), catalog.Scope.Read(path + ".tbl")).Lines.Select(line => line.Text).ToArray();
+        names = catalog.Labels("itemname");
         foreach (var (kind, relative) in Paths)
         {
             var buffer = new PlaFlatBuffer(catalog.Scope.Read(relative));
