@@ -60,8 +60,10 @@ public static class ZaSwShMaterialBaker
         var scalarParameters = source.Tables(table, 4, 128).ToDictionary(t => source.Text(t, 0)!, t => source.Field(t, 1) is var at && at != 0 ? source.Float(at) : 0, StringComparer.Ordinal);
         var normalUv = parameters.GetValueOrDefault("UVScaleOffsetNormal", new(1, 1, 0, 0));
         if (normalUv != new Vector4(1, 1, 0, 0)) throw new InvalidDataException("Z-A normal UV transform needs another material adapter.");
-        var width = container.Width; var height = container.Height;
         var normalSource = Read(readTexture(textures["NormalMap"]));
+        // Object normal images are unique to each primitive. Bound those
+        // repeated allocations independently of the layered color detail.
+        var width = Math.Min(512, normalSource.Width); var height = Math.Min(512, normalSource.Height);
         var tangentNormals = Resize(normalSource.Pixels, normalSource.Width, normalSource.Height, width, height);
         var normals = new Vector3[width * height]; var covered = new bool[normals.Length]; var conflicts = 0;
         var vertices = primitive.Vertices;
@@ -101,37 +103,45 @@ public static class ZaSwShMaterialBaker
         var coverage = covered.Count(v => v);
         if (coverage == 0) throw new InvalidDataException("Material has no rasterizable UV coverage.");
         var nearest = Nearest(covered, width, height, cancellationToken);
-        var normalPixels = new byte[width * height * 4]; var ambientPixels = new byte[normalPixels.Length];
+        var normalPixels = new byte[width * height * 4];
+        var ambientWidth = 4; var ambientHeight = 4;
         byte[]? occlusion = null;
         if (textures.TryGetValue("OcclusionMap", out var aoPath))
-        { var ao = Read(readTexture(aoPath)); occlusion = Resize(ao.Pixels, ao.Width, ao.Height, width, height); }
+        { var ao = Read(readTexture(aoPath)); ambientWidth = ao.Width; ambientHeight = ao.Height; occlusion = ao.Pixels; }
         for (var i = 0; i < nearest.Length; i++)
         {
             var n = normals[nearest[i]];
             normalPixels[i * 4] = Channel((n.X + 1) / 2); normalPixels[i * 4 + 1] = Channel((n.Y + 1) / 2); normalPixels[i * 4 + 2] = Channel((n.Z + 1) / 2); normalPixels[i * 4 + 3] = 255;
+        }
+        var ambientPixels = new byte[ambientWidth * ambientHeight * 4];
+        for (var i = 0; i < ambientWidth * ambientHeight; i++)
+        {
             ambientPixels[i * 4] = occlusion is null ? (byte)0 : (byte)(255 - occlusion[i * 4]);
             ambientPixels[i * 4 + 2] = eye ? (byte)166 : (byte)128; ambientPixels[i * 4 + 3] = 255;
         }
         var colorName = $"z{materialIndex}{(shiny ? 's' : 'n')}" + templateName[3..];
         var normalName = $"n{materialIndex}n" + templateName[3..];
         var ambientName = $"a{materialIndex}n" + templateName[3..];
-        var colorContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(template, templateName, colorName, linear: true));
-        var normalContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(template, templateName, normalName, linear: true));
-        var ambientContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(template, templateName, ambientName, linear: true));
         var baseImage = Read(readTexture(textures["BaseColorMap"]));
         var maskImage = Read(readTexture(textures["LayerMaskMap"]));
         var highlightImage = textures.TryGetValue("HighlightMaskMap", out var highlightPath) ? Read(readTexture(highlightPath)) : null;
+        var colorWidth = Math.Max(baseImage.Width, Math.Max(maskImage.Width, highlightImage?.Width ?? 4));
+        var colorHeight = Math.Max(baseImage.Height, Math.Max(maskImage.Height, highlightImage?.Height ?? 4));
+        var colorContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, colorWidth, colorHeight, true), templateName, colorName));
+        var normalContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, width, height, false), templateName, normalName));
+        var ambientContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, ambientWidth, ambientHeight, false), templateName, ambientName));
         var uvTransform = parameters.GetValueOrDefault("UVScaleOffset", new(1, 1, 0, 0));
         var highlightTransform = parameters.GetValueOrDefault("UVScaleOffset1", new(1, 1, 0, 0));
         var baseColor = parameters.GetValueOrDefault("BaseColor", Vector4.One);
         var highlightColor = parameters.GetValueOrDefault("EmissionColorLayer5", Vector4.Zero) * scalarParameters.GetValueOrDefault("EmissionIntensityLayer5");
-        var pixels = new byte[width * height * 4];
-        for (var y = 0; y < height; y++)
+        var pixels = new byte[colorWidth * colorHeight * 4];
+        byte ColorChannel(float value) => Channel(value <= .0031308f ? value * 12.92f : 1.055f * MathF.Pow(value, 1 / 2.4f) - .055f);
+        for (var y = 0; y < colorHeight; y++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            for (var x = 0; x < width; x++)
+            for (var x = 0; x < colorWidth; x++)
             {
-                var uv = new Vector2((x + .5f) / width, (y + .5f) / height);
+                var uv = new Vector2((x + .5f) / colorWidth, (y + .5f) / colorHeight);
                 var original = Sample(baseImage, uv, uvTransform, new(primitive.Material.Wrap.X, primitive.Material.Wrap.Y)) * baseColor;
                 var mask = Sample(maskImage, uv, uvTransform, new(primitive.Material.Wrap.Z, primitive.Material.Wrap.W));
                 var rgb = original;
@@ -146,13 +156,13 @@ public static class ZaSwShMaterialBaker
                 {
                     rgb += Sample(highlightImage, uv, highlightTransform, new(primitive.Material.HighlightWrap.X, primitive.Material.HighlightWrap.Y)).X * highlightColor;
                 }
-                var at = (y * width + x) * 4;
-                pixels[at] = Channel(rgb.X); pixels[at + 1] = Channel(rgb.Y); pixels[at + 2] = Channel(rgb.Z); pixels[at + 3] = 255;
+                var at = (y * colorWidth + x) * 4;
+                pixels[at] = ColorChannel(rgb.X); pixels[at + 1] = ColorChannel(rgb.Y); pixels[at + 2] = ColorChannel(rgb.Z); pixels[at + 3] = 255;
             }
         }
-        var color = colorContainer.EncodeMipImages(Mips(pixels, width, height, container.MipCount), cancellationToken);
-        return new(colorName, color, normalName, normalContainer.EncodeMipImages(Mips(normalPixels, width, height, container.MipCount), cancellationToken),
-            ambientName, ambientContainer.EncodeMipImages(Mips(ambientPixels, width, height, container.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts);
+        var color = colorContainer.EncodeMipImages(SwShTextureFiltering.Mips(pixels, colorWidth, colorHeight, colorContainer.MipCount, srgb: true, sharpen: true), cancellationToken);
+        return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken),
+            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts);
     }
 
     private static Image Read(byte[] bytes)

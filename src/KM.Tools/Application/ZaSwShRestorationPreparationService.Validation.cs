@@ -21,7 +21,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             }, enable: true);
             var files = composition.Files;
             var speciesCount = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count;
-            if (files.Count != 6 + 5 * speciesCount || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
+            if (files.Count != 6 + 6 * speciesCount || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
             var catalog = new SwShPokemonResourceCatalog(files[SwShRestorationComposer.CatalogPath]!);
             var personal = SwShPersonalTable.Parse(files[SwShRestorationComposer.PersonalPath]!, 4096);
             var packs = new Dictionary<string, SwShGfPackFile>(StringComparer.Ordinal);
@@ -29,13 +29,14 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 token.ThrowIfCancellationRequested();
                 var species = identity.Species; var stem = $"pm{species:0000}_00";
-                var packPath = $"romfs/bin/archive/pokemon/{stem}.gfpak";
-                var pack = SwShGfPackFile.Parse(files[packPath]!); packs.Add(packPath, pack);
                 if (!personal.Records[species].IsPresentInGame || personal.Records[species].HatchedSpecies != Profiles[species].HatchedSpecies || personal.Records[species].CanNotDynamax)
                     throw new InvalidDataException("Converted personal data does not support the declared contexts.");
                 foreach (var shiny in new[] { false, true })
                 {
                     var row = catalog.Read(new(species, 0, 0, shiny));
+                    var packPath = "romfs/" + row.Archive;
+                    if (!packs.TryGetValue(packPath, out var pack))
+                    { pack = SwShGfPackFile.Parse(files[packPath]!); packs.Add(packPath, pack); }
                     _ = pack.ReadFileByHash(SwShGfPackFile.HashMemberPath(row.Configuration), 1024 * 1024);
                     var scene = new SwShPreviewReader(path =>
                     {

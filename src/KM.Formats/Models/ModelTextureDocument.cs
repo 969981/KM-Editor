@@ -244,7 +244,9 @@ public sealed class ModelTextureDocument
                         double error = 0; var count = 0;
                         for (var i = 0; i < block.Length; i++)
                         {
-                            if (!VisibleTexel(i) || block[i].a == 0) continue;
+                            // Explicit mip authoring also carries data in transparent RGB
+                            // channels (for example the native flame control texture).
+                            if (!VisibleTexel(i) || (preserveSourceAlpha && block[i].a == 0)) continue;
                             error += Math.Pow(decoded[i].r - block[i].r, 2) + Math.Pow(decoded[i].g - block[i].g, 2) + Math.Pow(decoded[i].b - block[i].b, 2); count += 3;
                         }
                         return count == 0 ? 0 : Math.Sqrt(error / count);

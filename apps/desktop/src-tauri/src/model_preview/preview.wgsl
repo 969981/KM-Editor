@@ -116,7 +116,8 @@ fn game_highlight(value: vec3<f32>) -> vec3<f32> {
         // color textures; the mask mesh must never become an opaque white shell.
         let first_uv = transform_uv(input.uv, material.uv);
         let second_uv = transform_uv(input.uv, material.mask_uv);
-        let first = textureSample(base_color, base_sampler, coordinates(first_uv, material.wrap.xy, material.texture_scale.xy, textureDimensions(base_color))).r;
+        let control = textureSample(base_color, base_sampler, coordinates(first_uv, material.wrap.xy, material.texture_scale.xy, textureDimensions(base_color)));
+        let first = control.r;
         let second = textureSample(layer_mask, base_sampler, coordinates(second_uv, material.wrap.zw, material.texture_scale.zw, textureDimensions(layer_mask))).r;
         if material.flags.w == 2.0 {
             if first + second < material.surface[7].y { discard; }
@@ -124,7 +125,7 @@ fn game_highlight(value: vec3<f32>) -> vec3<f32> {
         }
         let third_uv = transform_uv(input.uv, material.underlay_uv);
         let third = textureSample(underlay_texture, base_sampler, coordinates(third_uv, material.underlay_wrap.xy, material.underlay_scale.xy, textureDimensions(underlay_texture))).r;
-        let layer = clamp(mix(second, third, first), 0.0, 1.0);
+        let layer = clamp(first + (1.0 - control.a) * (second + third), 0.0, 1.0);
         let color_lerp = clamp(material.surface[6].x, 0.0, 1.0);
         var n = normalize(input.normal + vec3<f32>(0.00001));
         n = select(-n, n, front);
