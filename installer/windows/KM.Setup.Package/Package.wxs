@@ -67,10 +67,13 @@
     <Property Id="KmSvCacheTempPath" Value="%LOCALAPPDATA%\KM Editor\ScarletVioletCache\tmp" />
     <Property Id="KmZaCacheProjectsPath" Value="%LOCALAPPDATA%\KM Editor\PokemonLegendsZACache\projects" />
     <Property Id="KmZaCacheTempPath" Value="%LOCALAPPDATA%\KM Editor\PokemonLegendsZACache\tmp" />
+    <Property Id="KmPlaCacheProjectsPath" Value="%LOCALAPPDATA%\KM Editor\LegendsArceusCache\projects" />
     <Property Id="KmSwShCacheProjectsPath" Value="%LOCALAPPDATA%\KM Editor\SwordShieldCache\projects" />
+    <Property Id="KmPlaCacheTempPath" Value="%LOCALAPPDATA%\KM Editor\LegendsArceusCache\tmp" />
     <Property Id="KmSwShCacheTempPath" Value="%LOCALAPPDATA%\KM Editor\SwordShieldCache\tmp" />
     <Property Id="KmSvCacheRootPath" Value="%LOCALAPPDATA%\KM Editor\ScarletVioletCache" />
     <Property Id="KmZaCacheRootPath" Value="%LOCALAPPDATA%\KM Editor\PokemonLegendsZACache" />
+    <Property Id="KmPlaCacheRootPath" Value="%LOCALAPPDATA%\KM Editor\LegendsArceusCache" />
     <Property Id="KmSwShCacheRootPath" Value="%LOCALAPPDATA%\KM Editor\SwordShieldCache" />
     <Property Id="KmTauriRoamingDataPath" Value="%APPDATA%\app.kmeditor.desktop" />
     <Property Id="KmTauriLocalDataPath" Value="%LOCALAPPDATA%\app.kmeditor.desktop" />
@@ -199,8 +202,18 @@
             On="both"
             Condition="NOT Installed OR REMOVE~=&quot;ALL&quot;" />
           <util:RemoveFolderEx
+            Id="RemovePlaProjectsCache"
+            Property="KmPlaCacheProjectsPath"
+            On="both"
+            Condition="NOT Installed OR REMOVE~=&quot;ALL&quot;" />
+          <util:RemoveFolderEx
             Id="RemoveSwShTemporaryCache"
             Property="KmSwShCacheTempPath"
+            On="both"
+            Condition="NOT Installed OR REMOVE~=&quot;ALL&quot;" />
+          <util:RemoveFolderEx
+            Id="RemovePlaTemporaryCache"
+            Property="KmPlaCacheTempPath"
             On="both"
             Condition="NOT Installed OR REMOVE~=&quot;ALL&quot;" />
 
@@ -222,6 +235,11 @@
           <util:RemoveFolderEx
             Id="RemoveSwShCacheAndSettings"
             Property="KmSwShCacheRootPath"
+            On="uninstall"
+            Condition="KM_DELETE_USER_SETTINGS = 1 AND Installed AND REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+          <util:RemoveFolderEx
+            Id="RemovePlaCacheAndSettings"
+            Property="KmPlaCacheRootPath"
             On="uninstall"
             Condition="KM_DELETE_USER_SETTINGS = 1 AND Installed AND REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
           <util:RemoveFolderEx

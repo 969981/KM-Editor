@@ -172,9 +172,13 @@ public static class KmCommandNames
     public const string UpdateZaCacheSettings = "zaCache.settings.update";
     public const string ClearZaCache = "zaCache.clear";
     public const string WarmupZaCacheStep = "zaCache.warmup.step";
+    public const string GetPlaCacheStatus = "plaCache.status";
     public const string GetSwShCacheStatus = "swshCache.status";
+    public const string UpdatePlaCacheSettings = "plaCache.settings.update";
     public const string UpdateSwShCacheSettings = "swshCache.settings.update";
+    public const string ClearPlaCache = "plaCache.clear";
     public const string ClearSwShCache = "swshCache.clear";
+    public const string WarmupPlaCacheStep = "plaCache.warmup.step";
     public const string WarmupSwShCacheStep = "swshCache.warmup.step";
     public const string LoadFpsPatch = "fpsPatch.load";
     public const string ApplyFpsPatch = "fpsPatch.apply";

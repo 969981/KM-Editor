@@ -60,9 +60,12 @@ internal sealed class PlaCatalog
     internal PlaWeatherCatalog Weather => weather ??= new(this);
     internal PlaFlatBuffer Personal { get; }
     internal Dictionary<string, int> Pokemon { get; } = new(StringComparer.Ordinal);
-    internal Dictionary<int, (string Path, PlaFlatBuffer Buffer)> Moves { get; } = [];
-    internal Dictionary<int, (int Reference, int Move)> Tutors { get; } = [];
-    internal PlaFlatBuffer TutorTable { get; }
+    private Dictionary<int, (string Path, PlaFlatBuffer Buffer)>? moves;
+    internal Dictionary<int, (string Path, PlaFlatBuffer Buffer)> Moves => moves ??= LoadMoves();
+    private Dictionary<int, (int Reference, int Move)>? tutors;
+    internal Dictionary<int, (int Reference, int Move)> Tutors => tutors ??= LoadTutors();
+    private PlaFlatBuffer? tutorTable;
+    internal PlaFlatBuffer TutorTable => tutorTable ??= new(Scope.Read(PlaSourceScope.TutorsPath));
     private readonly string[] names;
     private readonly string[] moveNames;
     private readonly string[] typeNames;
@@ -84,26 +87,37 @@ internal sealed class PlaCatalog
             if (Personal.Scalar(row, 2, 1) == 1) Pokemon.Add(id, reference);
         }
         if (Pokemon.Count == 0) throw new InvalidDataException("The PLA personal table contains no supported Pokemon.");
-        foreach (var path in scope.MoveFiles())
+        names = Labels("monsname");
+        moveNames = Labels("wazaname");
+        typeNames = Labels("typename");
+    }
+
+    private Dictionary<int, (string Path, PlaFlatBuffer Buffer)> LoadMoves()
+    {
+        var result = new Dictionary<int, (string Path, PlaFlatBuffer Buffer)>();
+        foreach (var path in Scope.MoveFiles())
         {
-            var buffer = new PlaFlatBuffer(scope.Read(path));
+            var buffer = new PlaFlatBuffer(Scope.Read(path));
             if (buffer.Scalar(buffer.Root, 1, 1) == 0) continue;
             var id = checked((int)buffer.Scalar(buffer.Root, 0, 4));
-            if (id <= 0 || !Moves.TryAdd(id, (path, buffer))) throw new InvalidDataException("The PLA move identities are ambiguous.");
+            if (id <= 0 || !result.TryAdd(id, (path, buffer))) throw new InvalidDataException("The PLA move identities are ambiguous.");
         }
-        TutorTable = new(scope.Read(PlaSourceScope.TutorsPath));
+        return result;
+    }
+
+    private Dictionary<int, (int Reference, int Move)> LoadTutors()
+    {
+        var result = new Dictionary<int, (int Reference, int Move)>();
         foreach (var reference in TutorTable.VectorReferences(TutorTable.Root, 0, 64))
         {
             var table = TutorTable.TableAtReference(reference);
             var index = checked((int)TutorTable.Scalar(table, 0, 4));
             var move = checked((int)TutorTable.Scalar(table, 1, 4));
-            if (index is < 1 or > 61 || !Moves.ContainsKey(move) || !Tutors.TryAdd(index, (reference, move)))
+            if (index is < 1 or > 61 || !Moves.ContainsKey(move) || !result.TryAdd(index, (reference, move)))
                 throw new InvalidDataException("The PLA tutor index or move is invalid.");
         }
-        if (Tutors.Count != 61) throw new InvalidDataException("The PLA tutor slot layout is unsupported.");
-        names = Labels("monsname");
-        moveNames = Labels("wazaname");
-        typeNames = Labels("typename");
+        if (result.Count != 61) throw new InvalidDataException("The PLA tutor slot layout is unsupported.");
+        return result;
     }
 
     internal string[] Labels(string file)

@@ -275,6 +275,7 @@ import {
   type SwShCacheMode,
   type SwShCacheStatus
 } from './bridge/swShCacheContracts';
+import type { PlaCacheMode, PlaCacheStatus } from './bridge/plaCacheContracts';
 import {
   type QuerySwShPlacementCatalogResponse,
   type SwShPlacementCatalog
@@ -833,8 +834,9 @@ const bundledAppVersion = tauriConfig.version;
 const legacyWorkspaceProjectIdPlaceholder = `km1_${'0'.repeat(64)}`;
 type TypeChartEffectivenessValue = TypeChartWorkflow['cells'][number]['effectiveness'];
 export type EditorUiFamily = 'swsh' | 'sv' | 'za';
-type TrinityCacheMode = SvCacheMode | ZaCacheMode | SwShCacheMode;
-type TrinityCacheStatus = SvCacheStatus | ZaCacheStatus | SwShCacheStatus;
+
+type TrinityCacheMode = SvCacheMode | ZaCacheMode | SwShCacheMode | PlaCacheMode;
+type TrinityCacheStatus = SvCacheStatus | ZaCacheStatus | SwShCacheStatus | PlaCacheStatus;
 type ProjectCacheApplyPause = Readonly<{
   runId: number;
   scopeKey: string;
@@ -3167,6 +3169,13 @@ export function App({
     [setActiveSection]
   );
   const isScarletVioletProject = isScarletVioletGame(selectedGame);
+  const plaWorkflowLoadsRef = useRef(new Set<symbol>());
+  const beginPlaWorkflowLoad = useCallback(() => {
+    const token = Symbol();
+    plaWorkflowLoadsRef.current.add(token);
+    return () => { plaWorkflowLoadsRef.current.delete(token); };
+  }, []);
+  const [plaCacheRevision, setPlaCacheRevision] = useState(0);
   const [plaDrafts, setPlaDrafts] = useState<PlaDrafts>({});
   const isPokemonLegendsZAProject = isPokemonLegendsZAGame(selectedGame);
   const isSwordShieldProject = selectedGame === 'sword' || selectedGame === 'shield';
@@ -8387,6 +8396,7 @@ export function App({
           }
 
           if (
+            plaWorkflowLoadsRef.current.size > 0 ||
             workflowLoadGenerationRef.current.getActiveSections().length > 0 ||
             editSessionReviewOperationRef.current !== null ||
             editSessionApplyInFlightRef.current ||
@@ -8653,6 +8663,7 @@ export function App({
         }
         semanticExploreController.invalidate();
         projectSourceRevision.refresh();
+        setPlaCacheRevision(revision => revision + 1);
         if (paths && health && svCacheScopeKey) {
           void startSvCacheWarmup(paths, health, svCacheScopeKey);
         }
@@ -8834,6 +8845,7 @@ export function App({
       }
       semanticExploreController.invalidate();
       projectSourceRevision.refresh();
+      setPlaCacheRevision(revision => revision + 1);
     } catch (error) {
       if (isCurrentOperation() && !isStaleProjectScopeError(error)) {
         setBridgeDiagnostics(toOperationDiagnostics(error, diagnosticFallback));
@@ -20235,14 +20247,14 @@ export function App({
             )
           }
           cacheTitle={
-            isSwordShieldGame(showingWelcome ? welcomeGame : selectedGame)
+            (showingWelcome ? welcomeGame : selectedGame) === 'pla' ? t('settings.cache.pla.title') : isSwordShieldGame(showingWelcome ? welcomeGame : selectedGame)
               ? t('settings.cache.swsh.title')
               : isPokemonLegendsZAGame(showingWelcome ? welcomeGame : selectedGame)
                 ? 'Z-A Cache'
                 : 'S/V Cache'
           }
           description={
-            isSwordShieldGame(showingWelcome ? welcomeGame : selectedGame)
+            (showingWelcome ? welcomeGame : selectedGame) === 'pla' ? t('settings.cache.pla.clearDescription') : isSwordShieldGame(showingWelcome ? welcomeGame : selectedGame)
               ? t('settings.cache.swsh.clearDescription')
               : isPokemonLegendsZAGame(showingWelcome ? welcomeGame : selectedGame)
                 ? 'This removes the Pokemon Legends Z-A Trinity disk cache and releases clean loaded editor data. Pending edits and dirty drafts remain safe, and released editors reload on demand.'
@@ -20880,6 +20892,7 @@ export function App({
           {selectedGame === 'pla' && (activeSection === 'pokemon' || activeSection === 'moves' || activeSection === 'text' || activeSection === 'trainers' || activeSection === 'giftPokemon' || activeSection === 'staticEncounters'
             || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research' || activeSection === 'encounters' || activeSection === 'outbreaks' || activeSection === 'distortions' || activeSection === 'weather' || activeSection === 'gameplayRules' || activeSection === 'typeChart') ? (
             <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
+              beginLoad={beginPlaWorkflowLoad} cacheRevision={plaCacheRevision}
               session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
               isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
               onStage={handleStagePla} onCancel={requestCancelEditSession}
@@ -22739,7 +22752,7 @@ function HealthSection({
       : hasValidProjectCacheSource(selectedGame, health)
         ? 'ready'
         : 'setupRequired';
-  const cacheTitle = isSwordShieldGame(selectedGame)
+  const cacheTitle = selectedGame === 'pla' ? t('settings.cache.pla.title') : isSwordShieldGame(selectedGame)
     ? t('settings.cache.swsh.title')
     : getTrinityCacheTitle(selectedGame);
 
@@ -23018,6 +23031,7 @@ function SvCacheProgressPanel({
       ? `Complete the required ${cacheTitle} source path in Project Setup.`
       : isChecking
         ? `Reading the current ${cacheTitle} status...`
+        : selectedGame === 'pla' ? t(isMinimal ? 'settings.cache.pla.status.off' : isWarming ? 'settings.cache.pla.status.building' : isReady ? 'settings.cache.pla.status.ready' : 'settings.cache.pla.status.readyToBuild')
         : isSwordShieldCache
           ? isMinimal
             ? t('settings.cache.swsh.status.off')
@@ -58112,17 +58126,17 @@ function SettingsSection({
     isSvCacheSettingsUpdating ||
     isSvCacheWarming;
   const canShowSvCacheSettings = isProjectCacheGame(selectedGame);
-  const cacheTitle = isSwordShieldGame(selectedGame)
+  const cacheTitle = selectedGame === 'pla' ? t('settings.cache.pla.title') : isSwordShieldGame(selectedGame)
     ? t('settings.cache.swsh.title')
     : isPokemonLegendsZAGame(selectedGame)
       ? translateLiteral('Pokemon Legends Z-A Data Cache')
       : translateLiteral('Scarlet/Violet Data Cache');
-  const cacheModeLabel = isSwordShieldGame(selectedGame)
+  const cacheModeLabel = selectedGame === 'pla' ? t('settings.cache.pla.modeLabel') : isSwordShieldGame(selectedGame)
     ? t('settings.cache.swsh.modeLabel')
     : isPokemonLegendsZAGame(selectedGame)
       ? translateLiteral('Z-A cache mode')
       : translateLiteral('S/V cache mode');
-  const cacheDescription = isSwordShieldGame(selectedGame)
+  const cacheDescription = selectedGame === 'pla' ? t('settings.cache.pla.description') : isSwordShieldGame(selectedGame)
     ? t('settings.cache.swsh.description')
     : isPokemonLegendsZAGame(selectedGame)
       ? translateLiteral('Controls how aggressively Z-A Trinity data is cached between editor loads.')
@@ -58406,7 +58420,8 @@ function SettingsSection({
                     ) : null}
                   </span>
                   <p>
-                    {isSwordShieldGame(selectedGame)
+                    {selectedGame === 'pla' ? t(`settings.cache.pla.mode.${option.id}.description`)
+                      : isSwordShieldGame(selectedGame)
                       ? swShCacheModeDescriptionById[option.id]
                       : translateLiteral(option.description)}
                   </p>
@@ -69252,6 +69267,7 @@ function hasValidTrinitySupportFolder(
 }
 
 function getTrinityCacheTitle(game: ProjectGame | null | undefined) {
+  if (game === 'pla') return 'PLA Data Cache';
   if (isSwordShieldGame(game)) return 'Sword/Shield Data Cache';
   return isPokemonLegendsZAGame(game) ? 'Z-A Data Cache' : 'S/V Data Cache';
 }
@@ -69517,11 +69533,11 @@ function isSwordShieldGame(
 function isProjectCacheGame(
   game: ProjectGame | null | undefined
 ): game is NonNullable<ProjectGame> {
-  return isSwordShieldGame(game) || isTrinityCacheGame(game);
+  return game === 'pla' || isSwordShieldGame(game) || isTrinityCacheGame(game);
 }
 
 function hasValidProjectCacheSource(game: ProjectGame, health: ProjectHealth) {
-  return isSwordShieldGame(game)
+  return isSwordShieldGame(game) || game === 'pla'
     ? health.canOpenReadOnlyWorkflows
     : hasValidTrinitySupportFolder(game, health);
 }
@@ -69531,6 +69547,7 @@ function getProjectCacheStatusForGame(
   game: ProjectGame,
   paths: ReturnType<typeof toProjectPaths> | null
 ) {
+  if (game === 'pla') return bridge.getPlaCacheStatus({ paths });
   if (isSwordShieldGame(game)) return bridge.getSwShCacheStatus({ paths });
   if (isPokemonLegendsZAGame(game)) return bridge.getZaCacheStatus({ paths });
   return bridge.getSvCacheStatus({ paths });
@@ -69544,6 +69561,7 @@ function updateProjectCacheSettingsForGame(
   paths: ReturnType<typeof toProjectPaths> | null
 ) {
   const request = { maxCacheSizeBytes, mode, paths };
+  if (game === 'pla') return bridge.updatePlaCacheSettings(request);
   if (isSwordShieldGame(game)) return bridge.updateSwShCacheSettings(request);
   if (isPokemonLegendsZAGame(game)) return bridge.updateZaCacheSettings(request);
   return bridge.updateSvCacheSettings(request);
@@ -69554,6 +69572,7 @@ function clearProjectCacheForGame(
   game: ProjectGame,
   activePaths: ReturnType<typeof toProjectPaths> | null
 ) {
+  if (game === 'pla') return bridge.clearPlaCache({ activePaths });
   if (isSwordShieldGame(game)) return bridge.clearSwShCache({ activePaths });
   if (isPokemonLegendsZAGame(game)) return bridge.clearZaCache({ activePaths });
   return bridge.clearSvCache({ activePaths });
@@ -69566,6 +69585,7 @@ function warmupProjectCacheStepForGame(
   stepIndex: number
 ) {
   const request = { paths, stepIndex };
+  if (game === 'pla') return bridge.warmupPlaCacheStep(request);
   if (isSwordShieldGame(game)) return bridge.warmupSwShCacheStep(request);
   if (isPokemonLegendsZAGame(game)) return bridge.warmupZaCacheStep(request);
   return bridge.warmupSvCacheStep(request);

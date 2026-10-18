@@ -71,6 +71,7 @@ using KM.Api.StartingItems;
 using KM.Api.StaticEncounters;
 using KM.Api.SvCache;
 using KM.Api.SwShCache;
+using KM.Api.PlaCache;
 using KM.Api.Text;
 using KM.Api.TmMachine;
 using KM.Api.Trainers;
@@ -313,8 +314,10 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         ResearchLabApplicationService? researchLabApplicationService = null,
         RowClipboardApplicationService? rowClipboardApplicationService = null,
         GameplaySettingsApplicationService? gameplaySettingsApplicationService = null,
-        InGameSettingsPackageApplicationService? inGameSettingsPackageApplicationService = null)
+        InGameSettingsPackageApplicationService? inGameSettingsPackageApplicationService = null,
+        KM.PLA.PlaWorkflowService? plaWorkflowService = null)
     {
+        this.plaWorkflowService = plaWorkflowService ?? new();
         this.projectWorkspaceService = projectWorkspaceService ?? new ProjectWorkspaceService();
         this.dynamaxAdventuresEditSessionService = dynamaxAdventuresEditSessionService ?? new SwShDynamaxAdventuresEditSessionService(this.projectWorkspaceService);
         this.dynamaxAdventureSeedPlanningService = dynamaxAdventureSeedPlanningService ?? new SwShDynamaxAdventureSeedPlanningService(this.projectWorkspaceService);
@@ -596,7 +599,9 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                         KmCommandNames.ClearSvCache or
                         KmCommandNames.UpdateZaCacheSettings or
                         KmCommandNames.ClearZaCache or
+                        KmCommandNames.UpdatePlaCacheSettings or
                         KmCommandNames.UpdateSwShCacheSettings or
+                        KmCommandNames.ClearPlaCache or
                         KmCommandNames.ClearSwShCache);
             }
 
@@ -771,9 +776,13 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.UpdateZaCacheSettings => DispatchUpdateZaCacheSettings(requestJson),
                 KmCommandNames.ClearZaCache => DispatchClearZaCache(requestJson),
                 KmCommandNames.WarmupZaCacheStep => DispatchWarmupZaCacheStep(requestJson),
+                KmCommandNames.GetPlaCacheStatus => DispatchGetPlaCacheStatus(requestJson),
                 KmCommandNames.GetSwShCacheStatus => DispatchGetSwShCacheStatus(requestJson),
+                KmCommandNames.UpdatePlaCacheSettings => DispatchUpdatePlaCacheSettings(requestJson),
                 KmCommandNames.UpdateSwShCacheSettings => DispatchUpdateSwShCacheSettings(requestJson),
+                KmCommandNames.ClearPlaCache => DispatchClearPlaCache(requestJson),
                 KmCommandNames.ClearSwShCache => DispatchClearSwShCache(requestJson),
+                KmCommandNames.WarmupPlaCacheStep => DispatchWarmupPlaCacheStep(requestJson),
                 KmCommandNames.WarmupSwShCacheStep => DispatchWarmupSwShCacheStep(requestJson),
                 KmCommandNames.LoadFpsPatch => DispatchLoadFpsPatch(requestJson),
                 KmCommandNames.ApplyFpsPatch => DispatchApplyFpsPatch(requestJson),
@@ -1287,7 +1296,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                     selectedGame),
                 RequiresDispatcherReset: false);
         }
-        catch (Exception exception) when (selectedGame == ProjectGame.PLA && command is KmCommandNames.LoadPla or KmCommandNames.StagePla
+        catch (Exception exception) when (selectedGame == ProjectGame.PLA && (command is KmCommandNames.LoadPla or KmCommandNames.StagePla || IsPlaCacheCommand(command))
             && exception is InvalidDataException or IOException or ArgumentException or OverflowException or JsonException or UnauthorizedAccessException)
         {
             return (SerializeFailure("KM-PLA-INVALID-DATA", exception.Message, requestId), RequiresDispatcherReset: false);
@@ -5552,6 +5561,52 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         return SerializeSuccess(response, request.RequestId);
     }
 
+    private string DispatchGetPlaCacheStatus(string requestJson)
+    {
+        var request = DeserializeRequest<GetPlaCacheStatusRequest>(requestJson);
+        var paths = request.Payload.Paths is null
+            ? null
+            : ProjectBridgeMapper.ToCore(request.Payload.Paths);
+        var response = PlaCacheBridgeMapper.ToDto(plaWorkflowService.GetCacheStatus(paths));
+
+        return SerializeSuccess(response, request.RequestId);
+    }
+
+    private string DispatchUpdatePlaCacheSettings(string requestJson)
+    {
+        var request = DeserializeRequest<UpdatePlaCacheSettingsRequest>(requestJson);
+        var paths = request.Payload.Paths is null
+            ? null
+            : ProjectBridgeMapper.ToCore(request.Payload.Paths);
+        var response = PlaCacheBridgeMapper.ToDto(plaWorkflowService.UpdateCacheSettings(
+            PlaCacheBridgeMapper.ToCore(request.Payload.Mode),
+            request.Payload.MaxCacheSizeBytes,
+            paths));
+
+        return SerializeSuccess(response, request.RequestId);
+    }
+
+    private string DispatchClearPlaCache(string requestJson)
+    {
+        var request = DeserializeRequest<ClearPlaCacheRequest>(requestJson);
+        var paths = request.Payload.ActivePaths is null
+            ? null
+            : ProjectBridgeMapper.ToCore(request.Payload.ActivePaths);
+        var response = PlaCacheBridgeMapper.ToDto(plaWorkflowService.ClearCache(paths));
+
+        return SerializeSuccess(response, request.RequestId);
+    }
+
+    private string DispatchWarmupPlaCacheStep(string requestJson)
+    {
+        var request = DeserializeRequest<WarmupPlaCacheStepRequest>(requestJson);
+        var response = PlaCacheBridgeMapper.ToDto(plaWorkflowService.WarmupCacheStep(
+            ProjectBridgeMapper.ToCore(request.Payload.Paths),
+            request.Payload.StepIndex));
+
+        return SerializeSuccess(response, request.RequestId);
+    }
+
     private string DispatchLoadFpsPatch(string requestJson)
     {
         var request = DeserializeRequest<LoadFpsPatchRequest>(requestJson);
@@ -7081,7 +7136,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         }
 
         if (selectedGame == ProjectGame.PLA && !IsPlaAllowedCommand(command)
-            || command is KmCommandNames.LoadPla or KmCommandNames.StagePla && selectedGame != ProjectGame.PLA)
+            || (command is KmCommandNames.LoadPla or KmCommandNames.StagePla || IsPlaCacheCommand(command)) && selectedGame != ProjectGame.PLA)
             return SerializeFailure(BridgeErrorCodes.GameMismatch, $"Bridge command '{command}' is unavailable for the selected game.", envelope.RequestId);
 
         if (IsSwordShieldOnlyCommand(command)
@@ -8415,6 +8470,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         swShWorkflowService.ClearMemoryCaches(clearReusableDataCaches);
         svWorkflowService.ClearMemoryCaches(clearReusableDataCaches);
         zaWorkflowService.ClearMemoryCaches(clearReusableDataCaches);
+        plaWorkflowService.ClearMemoryCaches();
     }
 
     private static bool IsWorkflowCacheBoundary(string? command)
@@ -8427,7 +8483,9 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.ClearSvCache or
             KmCommandNames.UpdateZaCacheSettings or
             KmCommandNames.ClearZaCache or
+            KmCommandNames.UpdatePlaCacheSettings or
             KmCommandNames.UpdateSwShCacheSettings or
+            KmCommandNames.ClearPlaCache or
             KmCommandNames.ClearSwShCache;
     }
 

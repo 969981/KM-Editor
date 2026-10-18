@@ -1,5 +1,16 @@
 {
   "keys": {
+    "settings.cache.pla.title": "Cache de données PLA",
+    "settings.cache.pla.modeLabel": "Mode du cache PLA",
+    "settings.cache.pla.description": "Détermine la quantité de données vérifiées des éditeurs PLA réutilisées entre les chargements.",
+    "settings.cache.pla.clearDescription": "Supprime les données réutilisables du cache PLA. Les modifications en attente et les brouillons non enregistrés sont conservés.",
+    "settings.cache.pla.mode.minimal.description": "Conserve les catalogues réutilisables dans une mémoire limitée, sans les enregistrer sur disque.",
+    "settings.cache.pla.mode.balanced.description": "Conserve les catalogues Base vérifiés des éditeurs de tables séparées et de la langue de Texte sélectionnée entre les sessions.",
+    "settings.cache.pla.mode.performance.description": "Conserve aussi les catalogues Base vérifiés des éditeurs d’archives. Prépare les rencontres, apparitions massives et conditions météo si la compression est disponible.",
+    "settings.cache.pla.status.off": "En mode Minimal, les catalogues PLA restent uniquement en mémoire.",
+    "settings.cache.pla.status.building": "Préparation des catalogues Base vérifiés de PLA.",
+    "settings.cache.pla.status.ready": "Les catalogues Base de PLA sont prêts.",
+    "settings.cache.pla.status.readyToBuild": "Les catalogues Base de PLA sont prêts à être préparés.",
     "restoration.plannedRow": "Forme {form}, ligne prévue {row}",
     "restoration.form.Mega": "Méga {name}",
     "restoration.form.MegaX": "Méga {name} X",
@@ -5593,6 +5604,7 @@
     "pla.field.baseExperience": "Expérience de base"
   },
   "literals": {
+    "PLA Data Cache": "Cache de données PLA",
     "60FPS Patch found unsupported stadium audience animation data.": "Le correctif 60 FPS a trouvé des données d’animation du public du stade non prises en charge.",
     "Restored sounds require the selected game's supported 1.3.2 executable.": "Les sons restaurés nécessitent l’exécutable compatible de la version 1.3.2 du jeu sélectionné.",
     "The sound memory executable has an invalid segment checksum.": "L’exécutable de la mémoire audio contient une somme de contrôle de segment non valide.",

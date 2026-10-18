@@ -5,6 +5,8 @@ using System.Text;
 using KM.Core.Output;
 using KM.Core.Projects;
 using KM.Core.Semantics;
+using KM.Core.Files;
+using KM.PLA.Caching;
 
 namespace KM.PLA;
 
@@ -23,6 +25,7 @@ internal sealed class PlaSourceScope : IDisposable
     private readonly Dictionary<string, OutputFileState> outputStates = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string[]> catalogs = new(StringComparer.Ordinal);
     private readonly string executableFingerprint;
+    internal PlaCacheSourceIdentity CacheSource { get; }
     private KM.Formats.PLA.PlaCompressionRuntime? compression;
     private string? compressionFingerprint;
     internal KM.Formats.PLA.PlaCompressionRuntime Compression
@@ -71,7 +74,13 @@ internal sealed class PlaSourceScope : IDisposable
             var npdm = ReadBounded(OpenBase(Resolve(paths.BaseExeFsPath!, "main.npdm")));
             if (!PlaProjectProfile.MatchesMetadata(npdm))
                 throw new InvalidDataException("The executable metadata does not identify Pokemon Legends Arceus.");
-            executableFingerprint = Convert.ToHexString(SHA256.HashData(main)) + Hash(npdm);
+            var mainHash = Convert.ToHexString(SHA256.HashData(main));
+            var npdmHash = Hash(npdm);
+            executableFingerprint = mainHash + npdmHash;
+            CacheSource = new(PlaCacheManager.CacheSchemaVersion, PlaCacheManager.ParserVersion, ProjectGame.PLA,
+                [new(Path.GetFullPath(main.Name), ProjectFileLayer.Base, main.Length, File.GetLastWriteTimeUtc(main.Name), mainHash),
+                 new(Path.GetFullPath(Path.Combine(paths.BaseExeFsPath!, "main.npdm")), ProjectFileLayer.Base, npdm.Length,
+                     File.GetLastWriteTimeUtc(Path.Combine(paths.BaseExeFsPath!, "main.npdm")), npdmHash)]);
         }
         catch { Dispose(); throw; }
     }
@@ -206,6 +215,50 @@ internal sealed class PlaSourceScope : IDisposable
             text.Append('\n').Append(pair.Key).Append(':').Append(Hash(pair.Value)).Append(':').Append(Hash(Base(pair.Key)))
                 .Append(':').Append(outputStates[pair.Key].Exists);
         return Hash(Encoding.UTF8.GetBytes(text.ToString()));
+    }
+
+    internal PlaCacheDependencies CacheDependencies() => new(
+        vanilla.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => new PlaCacheInput(pair.Key, Hash(pair.Value),
+            sources.TryGetValue(pair.Key, out var current) ? Hash(current) : null,
+            outputStates.TryGetValue(pair.Key, out var state) && state.Exists)).ToArray(),
+        new Dictionary<string, string[]>(catalogs, StringComparer.Ordinal), compressionFingerprint);
+
+    internal void ResetCacheObservations()
+    {
+        sources.Clear(); vanilla.Clear(); outputStates.Clear(); catalogs.Clear();
+        compression?.Dispose(); compression = null; compressionFingerprint = null;
+        // The executable and metadata leases established by the constructor stay
+        // open. Failed cache hints must not add dependencies to a rebuilt revision.
+        for (var index = leases.Count - 1; index >= 2; index--) { leases[index].Dispose(); leases.RemoveAt(index); }
+    }
+
+    // Reobserve bytes and catalog membership on every hit. File timestamps alone
+    // cannot establish freshness, and output dependencies are never persisted.
+    internal bool Matches(PlaCacheDependencies dependencies)
+    {
+        if (dependencies.Inputs is null || dependencies.Inputs.Length > 8192 || dependencies.Catalogs is null
+            || dependencies.Catalogs.Count > 16) return false;
+        foreach (var (key, expected) in dependencies.Catalogs)
+        {
+            string[] actual;
+            if (key == "moves") actual = MoveFiles();
+            else if (key == "trainers") actual = TrainerFiles();
+            else if (key.StartsWith("text/", StringComparison.Ordinal) && Languages.Contains(key[5..], StringComparer.Ordinal)) actual = TextFiles(key[5..]);
+            else return false;
+            if (expected is null || !actual.SequenceEqual(expected, StringComparer.Ordinal)) return false;
+        }
+        if (dependencies.Compression is not null)
+        {
+            _ = Compression;
+            if (compressionFingerprint != dependencies.Compression) return false;
+        }
+        foreach (var input in dependencies.Inputs)
+        {
+            if (input is null || input.Path is null || input.Path.Length > 1024) return false;
+            if (Hash(Base(input.Path)) != input.BaseHash) return false;
+            if (input.CurrentHash is not null && (Hash(Read(input.Path)) != input.CurrentHash || outputStates[input.Path].Exists != input.HasOutput)) return false;
+        }
+        return true;
     }
 
     public void Dispose() { compression?.Dispose(); foreach (var lease in leases) lease.Dispose(); leases.Clear(); }
