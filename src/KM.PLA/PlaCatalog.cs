@@ -66,11 +66,13 @@ internal sealed class PlaCatalog
     private readonly string[] names;
     private readonly string[] moveNames;
     private readonly string[] typeNames;
+    private readonly IReadOnlyDictionary<string, byte[]>? displayFiles;
     private readonly Dictionary<string, (PlaFlatBuffer Buffer, Dictionary<string, int> References)> tables = new(StringComparer.Ordinal);
 
-    internal PlaCatalog(PlaSourceScope scope)
+    internal PlaCatalog(PlaSourceScope scope, IReadOnlyDictionary<string, byte[]>? displayFiles = null)
     {
         Scope = scope;
+        this.displayFiles = displayFiles;
         Battles = new(this);
         Personal = new(scope.Read(PlaSourceScope.PersonalPath));
         var allIdentities = new HashSet<string>(StringComparer.Ordinal);
@@ -104,10 +106,11 @@ internal sealed class PlaCatalog
         typeNames = Labels("typename");
     }
 
-    private string[] Labels(string file)
+    internal string[] Labels(string file)
     {
         var path = $"bin/message/{Scope.Language}/common/{file}";
-        return new PlaMessageFile(Scope.Read(path + ".dat"), Scope.Read(path + ".tbl")).Lines.Select(line => line.Text).ToArray();
+        byte[] Read(string relative) => displayFiles?.TryGetValue(relative, out var bytes) == true ? bytes : Scope.Read(relative);
+        return new PlaMessageFile(Read(path + ".dat"), Read(path + ".tbl")).Lines.Select(line => line.Text).ToArray();
     }
     internal static string Identity(PlaFlatBuffer buffer, int row) => $"{buffer.Scalar(row, 0)}:{buffer.Scalar(row, 1)}";
     internal string PokemonLabel(string identity)

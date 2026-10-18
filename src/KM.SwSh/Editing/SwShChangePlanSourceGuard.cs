@@ -438,6 +438,17 @@ public static class SwShChangePlanSourceGuard
         {
             var groupedSources = group.ToArray();
             if (!preserveExplicitSourceLayers
+                && groupedSources.Length > 1
+                && groupedSources.All(source => source.Layer is ProjectFileLayer.Base or ProjectFileLayer.Layered)
+                && ResolveEffectiveLayer(paths, group.Key) == ProjectFileLayer.Base)
+            {
+                // Combined edits can retain both source layers from Stage. A new
+                // Review after output deletion must bind to the remaining base.
+                normalizedSources.Add(groupedSources[0] with { Layer = ProjectFileLayer.Base });
+                continue;
+            }
+
+            if (!preserveExplicitSourceLayers
                 && groupedSources.Length == 1
                 && groupedSources[0].Layer is ProjectFileLayer.Base or ProjectFileLayer.Layered)
             {

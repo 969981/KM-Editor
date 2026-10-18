@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
-import type { ProjectGame } from '../bridge/contracts';
+import { projectGameSchema, type ProjectGame } from '../bridge/contracts';
 import type { WorkbenchSection } from '../workbenchStore';
 import {
   getWorkbenchCapabilityRegistration,
@@ -44,7 +44,7 @@ const maximumContractKeyLength = 128;
 const maximumStableIdLength = 1024;
 const maximumSubcontextEntries = 32;
 const maximumSubcontextStringLength = 4096;
-const projectGames = new Set<ProjectGame>(['sword', 'shield', 'scarlet', 'violet', 'za']);
+const projectGames = new Set<ProjectGame>(projectGameSchema.options);
 const inspectorTabs = new Set<WorkbenchInspectorTab>([
   'compare',
   'references',
