@@ -256,6 +256,10 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "output.recovery.status",
     "pla.load",
     "pla.stage",
+    "plaCache.clear",
+    "plaCache.settings.update",
+    "plaCache.status",
+    "plaCache.warmup.step",
     "placement.catalog.open",
     "placement.catalog.query",
     "placement.load",
@@ -2547,9 +2551,13 @@ fn project_bridge_request_policy(request_json: &str) -> Option<ProjectBridgeRequ
                     | "zaCache.settings.update"
                     | "zaCache.clear"
                     | "zaCache.warmup.step"
+                    | "plaCache.status"
                     | "swshCache.status"
+                    | "plaCache.settings.update"
                     | "swshCache.settings.update"
+                    | "plaCache.clear"
                     | "swshCache.clear"
+                    | "plaCache.warmup.step"
                     | "swshCache.warmup.step"
                     | "output.recovery.status"
                     | "output.integrity.scan"
@@ -2660,9 +2668,13 @@ fn project_bridge_command_allows_bounded_recovery(command: &str) -> bool {
             | "svCache.settings.update"
             | "svCache.status"
             | "svCache.warmup.step"
+            | "plaCache.clear"
             | "swshCache.clear"
+            | "plaCache.settings.update"
             | "swshCache.settings.update"
+            | "plaCache.status"
             | "swshCache.status"
+            | "plaCache.warmup.step"
             | "swshCache.warmup.step"
             | "zaCache.clear"
             | "zaCache.settings.update"
@@ -2928,9 +2940,13 @@ fn project_bridge_command_requires_exclusive_barrier(command: &str) -> bool {
             | "svCache.status"
             | "svCache.warmup.step"
             | "svModMerger.apply"
+            | "plaCache.clear"
             | "swshCache.clear"
+            | "plaCache.settings.update"
             | "swshCache.settings.update"
+            | "plaCache.status"
             | "swshCache.status"
+            | "plaCache.warmup.step"
             | "swshCache.warmup.step"
             | "workspace.applicationState.write"
             | "workspace.drafts.delete"
@@ -2977,7 +2993,9 @@ fn project_bridge_command_recycles_read_workers(command: &str) -> bool {
             | "svCache.clear"
             | "svCache.settings.update"
             | "svModMerger.apply"
+            | "plaCache.clear"
             | "swshCache.clear"
+            | "plaCache.settings.update"
             | "swshCache.settings.update"
             | "zaCache.clear"
             | "zaCache.settings.update"
@@ -4272,7 +4290,7 @@ mod tests {
 
     #[test]
     fn cache_commands_are_exclusive_and_only_destructive_controls_recycle_workers() {
-        for family in ["svCache", "zaCache", "swshCache"] {
+        for family in ["svCache", "zaCache", "swshCache", "plaCache"] {
             for operation in ["status", "warmup.step"] {
                 let command = format!("{family}.{operation}");
                 let policy =

@@ -15,7 +15,7 @@ using KM.PLA.Models;
 
 namespace KM.PLA;
 
-public sealed class PlaWorkflowService
+public sealed partial class PlaWorkflowService
 {
     private const string Owner = "pla.loose.v1";
     private static string Domain(string kind) => kind switch
@@ -49,15 +49,13 @@ public sealed class PlaWorkflowService
             paths = paths with { GameTextLanguage = messageLanguage };
         }
         using var scope = new PlaSourceScope(paths);
-        var catalog = new PlaCatalog(scope);
-        var files = BuildFiles(catalog, session);
-        if (files.Keys.Any(path => path.StartsWith("bin/message/", StringComparison.Ordinal)))
+        var listing = !session.HasPendingChanges ? cache.LoadListing(scope, kind, textFile) : null;
+        if (listing is null)
         {
-            // Build the display catalog after composing pending messages so all
-            // consumers share their labels without changing source identities.
-            catalog = new PlaCatalog(scope, files);
+            listing = ReadListing(scope, session, kind, textFile);
+            if (!session.HasPendingChanges) cache.StoreListing(scope, kind, textFile, listing);
         }
-        var records = Records(catalog, kind, textFile, files, out var textFiles, out var selectedFile);
+        var records = listing.Records;
         bool Matches(PlaRecord record) => string.IsNullOrEmpty(query) || record.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
             || record.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || kind == "text" && record.Values["text"].Contains(query, StringComparison.OrdinalIgnoreCase)
             || record.RelatedRecords.Any(related => related.Label.Contains(query, StringComparison.OrdinalIgnoreCase));
@@ -86,6 +84,20 @@ public sealed class PlaWorkflowService
             total = groups.Length;
             visible = groups.Skip(offset).Take(1).SelectMany(group => group).ToArray();
         }
+        return listing with { Records = visible, Total = total, Groups = groupChoices };
+    }
+
+    private static PlaPage ReadListing(PlaSourceScope scope, EditSession session, string kind, string? textFile)
+    {
+        var catalog = new PlaCatalog(scope);
+        var files = BuildFiles(catalog, session);
+        if (files.Keys.Any(path => path.StartsWith("bin/message/", StringComparison.Ordinal)))
+        {
+            // Build the display catalog after composing pending messages so all
+            // consumers share their labels without changing source identities.
+            catalog = new PlaCatalog(scope, files);
+        }
+        var records = Records(catalog, kind, textFile, files, out var textFiles, out var selectedFile);
         var notices = new List<string>();
         if (kind == "moves") notices.Add("Special signature move values controlled by separate battle configuration are protected.");
         if (kind == "evolutions") notices.Add("Unqualified evolution conditions are preserved. Argument meanings depend on the selected method; form 65535 preserves the source form.");
@@ -95,9 +107,9 @@ public sealed class PlaWorkflowService
         if (PlaEconomyCatalog.Supports(kind)) notices.Add("Existing identities, unlock conditions, and protected records are preserved. Research edits change game rules, not saved progress.");
         var fields = catalog.Fields(kind);
         var rowFields = catalog.RowFields(kind);
-        return new(kind, scope.Fingerprint(), fields, rowFields, visible, total,
+        return new(kind, scope.Fingerprint(), fields, rowFields, records, records.Count,
             textFiles, selectedFile, notices)
-        { Groups = groupChoices, PokemonSpriteNames = PlaBattleCatalog.Supports(kind) || PlaWildCatalog.IsEncounter(kind) || kind is "personal" or "learnsets" or "evolutions" or "compatibility"
+        { PokemonSpriteNames = PlaBattleCatalog.Supports(kind) || PlaWildCatalog.IsEncounter(kind) || kind is "personal" or "learnsets" or "evolutions" or "compatibility"
             ? catalog.PokemonSpriteNames() : new Dictionary<string, string>() };
     }
 

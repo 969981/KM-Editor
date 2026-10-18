@@ -4,10 +4,11 @@ import type { ProjectBridge } from '../../bridge/projectBridge';
 import type { ProjectGame } from '../../bridge/contracts';
 import type { SvCacheMode, SvCacheStatus } from '../../bridge/svCacheContracts';
 import type { ZaCacheMode, ZaCacheStatus } from '../../bridge/zaCacheContracts';
+import type { PlaCacheMode, PlaCacheStatus } from '../../bridge/plaCacheContracts';
 import type { SwShCacheMode, SwShCacheStatus } from '../../bridge/swShCacheContracts';
 
-type CacheMode = SvCacheMode | ZaCacheMode | SwShCacheMode;
-type CacheStatus = SvCacheStatus | ZaCacheStatus | SwShCacheStatus;
+type CacheMode = SvCacheMode | ZaCacheMode | SwShCacheMode | PlaCacheMode;
+type CacheStatus = SvCacheStatus | ZaCacheStatus | SwShCacheStatus | PlaCacheStatus;
 
 // Welcome settings never provide project paths or start a cache warmup.
 export function useWelcomeCacheSettings(bridge: ProjectBridge, game: ProjectGame, enabled: boolean, onError: (error: unknown) => void) {
@@ -25,13 +26,16 @@ export function useWelcomeCacheSettings(bridge: ProjectBridge, game: ProjectGame
       let response;
       if (update === 'clear') {
         response = swsh ? await bridge.clearSwShCache({ activePaths: null })
+          : game === 'pla' ? await bridge.clearPlaCache({ activePaths: null })
           : game === 'za' ? await bridge.clearZaCache({ activePaths: null }) : await bridge.clearSvCache({ activePaths: null });
       } else if (update) {
         const request = { ...update, paths: null };
         response = swsh ? await bridge.updateSwShCacheSettings(request)
+          : game === 'pla' ? await bridge.updatePlaCacheSettings(request)
           : game === 'za' ? await bridge.updateZaCacheSettings(request) : await bridge.updateSvCacheSettings(request);
       } else {
         response = swsh ? await bridge.getSwShCacheStatus({ paths: null })
+          : game === 'pla' ? await bridge.getPlaCacheStatus({ paths: null })
           : game === 'za' ? await bridge.getZaCacheStatus({ paths: null }) : await bridge.getSvCacheStatus({ paths: null });
       }
       if (epoch === generation.current) setState({ game, status: response.status, busy: false, error: false });

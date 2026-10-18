@@ -1,5 +1,16 @@
 {
   "keys": {
+    "settings.cache.pla.title": "PLA Data Cache",
+    "settings.cache.pla.modeLabel": "PLA cache mode",
+    "settings.cache.pla.description": "Controls how much verified PLA editor data is reused between loads.",
+    "settings.cache.pla.clearDescription": "Removes reusable PLA cache data. Pending edits and unsaved drafts are preserved.",
+    "settings.cache.pla.mode.minimal.description": "Keeps reusable editor catalogs in bounded memory without storing them on disk.",
+    "settings.cache.pla.mode.balanced.description": "Keeps verified Base catalogs for loose table editors and the selected Text language between launches.",
+    "settings.cache.pla.mode.performance.description": "Also keeps verified Base catalogs for archive editors. Prepares encounters, outbreaks, and weather when compression support is available.",
+    "settings.cache.pla.status.off": "PLA editor catalogs remain in memory only in Minimal mode.",
+    "settings.cache.pla.status.building": "Preparing verified PLA Base editor catalogs.",
+    "settings.cache.pla.status.ready": "PLA Base editor catalogs are ready.",
+    "settings.cache.pla.status.readyToBuild": "PLA Base editor catalogs are ready to prepare.",
     "restoration.plannedRow": "Form {form}, planned row {row}",
     "restoration.form.Mega": "Mega {name}",
     "restoration.form.MegaX": "Mega {name} X",
@@ -5593,6 +5604,7 @@
     "pla.field.baseExperience": "Base experience"
   },
   "literals": {
+    "PLA Data Cache": "PLA Data Cache",
     "60FPS Patch found unsupported stadium audience animation data.": "60FPS Patch found unsupported stadium audience animation data.",
     "Restored sounds require the selected game's supported 1.3.2 executable.": "Restored sounds require the selected game's supported 1.3.2 executable.",
     "The sound memory executable has an invalid segment checksum.": "The sound memory executable has an invalid segment checksum.",

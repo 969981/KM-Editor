@@ -15,6 +15,7 @@ using KM.Api.RuntimeSettings;
 using KM.Api.Semantics;
 using KM.Api.SemanticMerging;
 using KM.Api.SvCache;
+using KM.Api.PlaCache;
 using KM.Api.SwShCache;
 using KM.Api.TrainerPools;
 using KM.Api.ZaCache;
@@ -73,6 +74,7 @@ public static class BridgeJson
         options.Converters.Add(new JsonStringEnumConverter<ProjectPathRoleDto>(JsonNamingPolicy.CamelCase));
         options.Converters.Add(new JsonStringEnumConverter<ProjectPathStatusDto>(JsonNamingPolicy.CamelCase));
         options.Converters.Add(new JsonStringEnumConverter<SvCacheModeDto>(JsonNamingPolicy.CamelCase));
+        options.Converters.Add(new JsonStringEnumConverter<PlaCacheModeDto>(JsonNamingPolicy.CamelCase));
         options.Converters.Add(new JsonStringEnumConverter<SwShCacheModeDto>(JsonNamingPolicy.CamelCase));
         options.Converters.Add(new JsonStringEnumConverter<ZaCacheModeDto>(JsonNamingPolicy.CamelCase));
         options.Converters.Add(new JsonStringEnumConverter<WorkflowAvailabilityDto>(JsonNamingPolicy.CamelCase));

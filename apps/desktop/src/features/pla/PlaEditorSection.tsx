@@ -28,11 +28,12 @@ type Props = {
   onStage: (request: Omit<StagePlaRequest, 'paths' | 'session'>) => Promise<boolean>;
   onCancel: (discard: () => void) => void; onDirtyChange: (dirty: boolean) => void;
   renderPokemon?: PlaPokemonPreview;
+  beginLoad?: () => () => void; cacheRevision?: number;
 };
 const pokemonKinds: PlaKind[] = ['personal', 'learnsets', 'evolutions', 'compatibility', 'tutors'];
 
 export function PlaEditorSection({ section, paths, session, bridge, drafts, setDrafts, isStarting, isBusy,
-  onStart, onStage, onCancel, onDirtyChange, renderPokemon }: Props) {
+  onStart, onStage, onCancel, onDirtyChange, renderPokemon, beginLoad, cacheRevision }: Props) {
   const { t, translateLiteral } = useLocalization();
   const [pokemonKind, setPokemonKind] = useState<PlaKind>('personal');
   const [economyTab, setEconomyTab] = useState<PlaKind | null>(null);
@@ -51,25 +52,28 @@ export function PlaEditorSection({ section, paths, session, bridge, drafts, setD
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const epoch = useRef(0);
-  const requestKey = JSON.stringify({ paths, session, kind, query, offset, textFile, messageLanguage: kind === 'text' ? messageLanguage : null, refresh });
+  const requestKey = JSON.stringify({ paths, session, kind, query, offset, textFile, messageLanguage: kind === 'text' ? messageLanguage : null, refresh, cacheRevision });
   const dirty = Object.keys(drafts).some(key => key.startsWith(section + '/'));
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   usePublishCommonEditorError({ domain: `workflow.${section}`, field: 'pla', message: error });
   useEffect(() => {
     const run = ++epoch.current;
+    const finishLoad = beginLoad?.();
+    let started = false;
     setLoading(true);
     setError(null);
     const request = JSON.parse(requestKey) as { paths: ProjectPaths; session: EditSession | null; kind: PlaKind; query: string; offset: number; textFile: string | null; messageLanguage: string | null };
     const timer = window.setTimeout(() => {
+      started = true;
       void bridge.loadPla({ paths: request.paths, session: request.session, kind: request.kind, query: request.kind === 'weather' ? '' : request.query, offset: request.offset, textFile: request.textFile, messageLanguage: request.messageLanguage }).then(response => {
         if (epoch.current !== run) return;
         setPage(response.page);
         setSelectedId(current => response.page.records.some(record => record.id === current) ? current : response.page.records[0]?.id ?? null);
       }).catch(reason => { if (epoch.current === run) { setPage(null); setError(String(reason)); } })
-        .finally(() => { if (epoch.current === run) setLoading(false); });
+        .finally(() => { finishLoad?.(); if (epoch.current === run) setLoading(false); });
     }, 180);
-    return () => { window.clearTimeout(timer); epoch.current++; };
-  }, [bridge, requestKey]);
+    return () => { window.clearTimeout(timer); if (!started) finishLoad?.(); epoch.current++; };
+  }, [bridge, requestKey, beginLoad]);
 
   const weatherRecords = page?.kind === 'weather' ? page.records.filter(record => !query || record.id.toLocaleLowerCase().includes(query.toLocaleLowerCase())
     || t('pla.area.' + record.id).toLocaleLowerCase().includes(query.toLocaleLowerCase())) : null;

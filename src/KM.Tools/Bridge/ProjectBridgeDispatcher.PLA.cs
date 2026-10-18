@@ -12,9 +12,14 @@ namespace KM.Tools.Bridge;
 
 public sealed partial class ProjectBridgeDispatcher
 {
-    private readonly PlaWorkflowService plaWorkflowService = new();
+    private readonly PlaWorkflowService plaWorkflowService;
+
+    private static bool IsPlaCacheCommand(string? command) => command is KmCommandNames.GetPlaCacheStatus
+        or KmCommandNames.UpdatePlaCacheSettings or KmCommandNames.ClearPlaCache or KmCommandNames.WarmupPlaCacheStep;
 
     private static bool IsPlaAllowedCommand(string command) => command is KmCommandNames.LoadPla or KmCommandNames.StagePla
+        or KmCommandNames.GetPlaCacheStatus or KmCommandNames.UpdatePlaCacheSettings
+        or KmCommandNames.ClearPlaCache or KmCommandNames.WarmupPlaCacheStep
         or KmCommandNames.ListWorkflows or KmCommandNames.StartEditSession or KmCommandNames.ValidateEditSession
         or KmCommandNames.CreateChangePlan or KmCommandNames.ApplyChangePlan
         or KmCommandNames.ModelCatalog or KmCommandNames.ModelPrepare or KmCommandNames.ModelTextures

@@ -500,6 +500,10 @@ import {
   type SwShCacheProjectBridgeApi,
 } from "./swShCacheProjectBridge";
 import {
+  createPlaCacheProjectBridgeApi,
+  type PlaCacheProjectBridgeApi,
+} from "./plaCacheProjectBridge";
+import {
   createGameDumpProjectBridgeApi,
   type GameDumpProjectBridgeApi,
 } from "./gameDumpProjectBridge";
@@ -992,6 +996,7 @@ export type ProjectBridge = {
   ZaCacheProjectBridgeApi &
   GameDumpProjectBridgeApi &
   SwShPlacementProjectBridgeApi &
+  PlaCacheProjectBridgeApi &
   SwShCacheProjectBridgeApi &
   WorkspaceDraftProjectBridgeApi &
   ProjectSourceRevisionProjectBridgeApi &
@@ -2084,6 +2089,7 @@ export function createProjectBridge(
     ...createSvBatchFieldProjectBridgeApi(transport),
     ...createSvCacheProjectBridgeApi(transport),
     ...createZaCacheProjectBridgeApi(transport),
+    ...createPlaCacheProjectBridgeApi(transport),
     ...createSwShCacheProjectBridgeApi(transport),
     ...createRestorationProjectBridge(transport),
     ...createSwShPlacementProjectBridgeApi(transport),
