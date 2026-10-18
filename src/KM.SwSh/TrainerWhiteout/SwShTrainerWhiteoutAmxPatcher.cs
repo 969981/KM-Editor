@@ -9,7 +9,7 @@ using I = KM.Formats.SwSh.SwShAmxInstruction;
 
 namespace KM.SwSh.TrainerWhiteout;
 
-internal static class SwShTrainerWhiteoutAmxPatcher
+internal static partial class SwShTrainerWhiteoutAmxPatcher
 {
     private const long Marker = 0x4B4D5457414D5831;
     private const long EndMarker = 0x4B4D5457454E4431;
@@ -24,10 +24,10 @@ internal static class SwShTrainerWhiteoutAmxPatcher
         return Inspect(vanilla, source, fileName).Settings;
     }
 
-    public static (IReadOnlyList<byte> Settings, bool VanillaRouting) ReadConfiguration(byte[] vanilla, byte[] source, string fileName)
+    public static (IReadOnlyList<byte> Settings, bool VanillaRouting, bool RequiresUpgrade) ReadConfiguration(byte[] vanilla, byte[] source, string fileName)
     {
         var state = Inspect(vanilla, source, fileName);
-        return (state.Settings, state.VanillaRouting);
+        return (state.Settings, state.VanillaRouting, state.RequiresUpgrade);
     }
 
     public static byte[] ApplySettings(byte[] vanilla, byte[] source, string fileName, IReadOnlyDictionary<int, bool?> changes)
@@ -38,9 +38,10 @@ internal static class SwShTrainerWhiteoutAmxPatcher
                 throw new ArgumentOutOfRangeException(nameof(changes), "The trainer ID is outside the roster.");
         var current = Inspect(vanilla, source, fileName);
         var updates = changes.Where(change => current.Settings[change.Key] != Encode(change.Value)).ToArray();
-        if (updates.Length == 0)
+        if (updates.Length == 0 && !current.RequiresUpgrade)
             return source.ToArray();
-        var output = current.Installed ? source.ToArray() : Build(SwShAmxDocument.Parse(source), fileName);
+        var output = current.RequiresUpgrade ? AddRecovery(SwShAmxDocument.Parse(source), legacyHelperEnd: current.HelperEnd)
+            : current.Installed ? source.ToArray() : Build(SwShAmxDocument.Parse(source), fileName);
         var dataOffset = current.Installed ? current.OriginalDataCells : SwShAmxDocument.Parse(source).DataCells.Count;
         output = SwShAmxCellPatcher.ApplyDataCellPatches(output, updates.Select(change => new SwShAmxDataCellPatch(dataOffset + SettingsOffset + change.Key, Encode(change.Value))).ToArray());
         var actual = Inspect(vanilla, output, fileName).Settings;
@@ -64,18 +65,21 @@ internal static class SwShTrainerWhiteoutAmxPatcher
         var baseline = Baselines.GetOrAdd(hash, _ => SwShAmxDocument.Parse(vanilla));
         var current = SwShAmxDocument.Parse(source);
         ValidateBorrowedHelpers(baseline, current, fileName);
-        if (current.DataCells.Count < 6 || current.DataCells[^1] != EndMarker || current.DataCells[^6] != Marker)
+        var recovery = current.DataCells.Count >= 7 && current.DataCells[^7] == Marker;
+        if (current.DataCells.Count < 6 || current.DataCells[^1] != EndMarker || (!recovery && current.DataCells[^6] != Marker))
         {
             ValidateOriginal(baseline, current, fileName);
-            return new(false, current.DataCells.Count, new byte[TrainerCount], RoutingMatches(baseline, current, baseline.DataCells.Count, vanilla, source, fileName));
+            return new(false, current.DataCells.Count, new byte[TrainerCount], RoutingMatches(baseline, current, baseline.DataCells.Count, vanilla, source, fileName), false, 0);
         }
 
-        if (current.DataCells[^5] != FormatVersion)
+        var footer = current.DataCells.Count - (recovery ? 7 : 6);
+        if (current.DataCells[footer + 1] != (recovery ? RecoveryVersion : FormatVersion))
             throw new InvalidDataException("Trainer Whiteout script version is unsupported.");
-        var originalCode = checked((int)current.DataCells[^4]);
-        var originalData = checked((int)current.DataCells[^3]);
-        var originalNatives = checked((int)current.DataCells[^2]);
-        if (originalCode < CodeCells(baseline) || originalData < baseline.DataCells.Count || originalNatives < baseline.NativeHashes.Count || originalNatives > current.NativeHashes.Count || originalData != current.DataCells.Count - AppendedDataCells || originalCode >= CodeCells(current))
+        var originalCode = checked((int)current.DataCells[footer + 2]);
+        var originalData = checked((int)current.DataCells[footer + 3]);
+        var originalNatives = checked((int)current.DataCells[footer + 4]);
+        var recoveryStart = recovery ? checked((int)current.DataCells[footer + 5]) : 0;
+        if (originalCode < CodeCells(baseline) || originalData < baseline.DataCells.Count || originalNatives < baseline.NativeHashes.Count || originalNatives > current.NativeHashes.Count || originalData != current.DataCells.Count - AppendedDataCells - (recovery ? 1 : 0) || originalCode >= CodeCells(current))
             throw new InvalidDataException("Trainer Whiteout script metadata is inconsistent.");
         if (current.DataCells.Skip(originalData).Take(3).Any(value => value != 0))
             throw new InvalidDataException("Trainer Whiteout script contains a persisted runtime result.");
@@ -89,7 +93,7 @@ internal static class SwShTrainerWhiteoutAmxPatcher
         // Cache only derived, immutable validation layouts. Live output is always parsed and compared.
         if (HelperLayouts.Count >= 256)
             HelperLayouts.Clear();
-        var expected = HelperLayouts.GetOrAdd(layoutKey, _ =>
+        var legacy = HelperLayouts.GetOrAdd(layoutKey, _ =>
         {
             var skeleton = baseline.CreateAssembler();
             skeleton.AppendDataCells(new long[originalData - baseline.DataCells.Count]);
@@ -100,15 +104,23 @@ internal static class SwShTrainerWhiteoutAmxPatcher
             var extraCode = originalCode - CodeCells(baseline);
             if (extraCode > 0)
                 skeleton.InsertAfter(skeleton.Instructions.Last(), Enumerable.Range(0, extraCode).Select(_ => I.CreateLiteral(Op.Nop)).ToArray());
-            return SwShAmxDocument.Parse(Build(SwShAmxDocument.Parse(skeleton.Assemble()), fileName));
+            return SwShAmxDocument.Parse(BuildLegacy(SwShAmxDocument.Parse(skeleton.Assemble()), fileName));
         });
+        var legacyEnd = CodeCells(legacy);
+        if (recovery && (recoveryStart < legacyEnd || recoveryStart >= CodeCells(current)))
+            throw new InvalidDataException("Trainer Whiteout recovery metadata is inconsistent.");
+        var expected = recovery ? HelperLayouts.GetOrAdd($"{layoutKey}:recovery:{recoveryStart}", _ =>
+            SwShAmxDocument.Parse(AddRecovery(legacy, recoveryStart - legacyEnd))) : legacy;
         // Other editors may append independent code after the Whiteout helper span.
         var helperEnd = CodeCells(expected);
+        bool OwnedHelper(I instruction) => instruction.OriginalCell >= originalCode
+            && (instruction.OriginalCell < legacyEnd || recovery && instruction.OriginalCell >= recoveryStart && instruction.OriginalCell < helperEnd);
         if (!expected.NativeHashes.SequenceEqual(current.NativeHashes) || helperEnd > CodeCells(current)
-            || !expected.Instructions.Where(instruction => instruction.OriginalCell >= originalCode).Select(Signature)
-                .SequenceEqual(current.Instructions.Where(instruction => instruction.OriginalCell >= originalCode && instruction.OriginalCell < helperEnd).Select(Signature)))
+            || !expected.Instructions.Where(OwnedHelper).Select(Signature)
+                .SequenceEqual(current.Instructions.Where(OwnedHelper).Select(Signature)))
             throw new InvalidDataException("Trainer Whiteout helper code contains incompatible changes.");
         var owned = OwnedCells(baseline, fileName);
+        owned.UnionWith(RecoveryCells(baseline));
         var actualByCell = current.Instructions.ToDictionary(instruction => instruction.OriginalCell!.Value);
         foreach (var cell in owned)
         {
@@ -125,7 +137,7 @@ internal static class SwShTrainerWhiteoutAmxPatcher
 
         return new(true, originalData, settings.Select(value => (byte)value).ToArray(),
             originalData == baseline.DataCells.Count && originalCode == CodeCells(baseline)
-            && RoutingMatches(expected, current, originalData, vanilla, source, fileName));
+            && RoutingMatches(expected, current, originalData, vanilla, source, fileName), !recovery, legacyEnd);
     }
 
     private static bool RoutingMatches(SwShAmxDocument expected, SwShAmxDocument current, int originalDataCells,
@@ -163,7 +175,9 @@ internal static class SwShTrainerWhiteoutAmxPatcher
         if (CodeCells(current) < CodeCells(baseline) || current.DataCells.Count < baseline.DataCells.Count || !current.NativeHashes.Take(baseline.NativeHashes.Count).SequenceEqual(baseline.NativeHashes))
             throw new InvalidDataException("The trainer script layout or native bindings are incompatible.");
         var owned = OwnedCells(baseline, fileName);
+        owned.UnionWith(RecoveryCells(baseline));
         var currentOwned = OwnedCells(current, fileName);
+        currentOwned.UnionWith(RecoveryCells(current));
         if (!owned.SetEquals(currentOwned))
             throw new InvalidDataException("The trainer script launch or result callsites have changed.");
         var actual = current.Instructions.ToDictionary(instruction => instruction.OriginalCell!.Value);
@@ -188,8 +202,11 @@ internal static class SwShTrainerWhiteoutAmxPatcher
     }
 
     private static string Signature(I instruction) => $"{instruction.OriginalCell}:{instruction.Opcode}:{string.Join(',', instruction.Operands.Select(operand => operand.Kind == SwShAmxOperandKind.Literal ? $"v{operand.LiteralValue}" : $"t{operand.Target.OriginalCell}"))}";
-    private sealed record State(bool Installed, int OriginalDataCells, IReadOnlyList<byte> Settings, bool VanillaRouting);
-    private static byte[] Build(SwShAmxDocument doc, string fileName)
+    private sealed record State(bool Installed, int OriginalDataCells, IReadOnlyList<byte> Settings, bool VanillaRouting, bool RequiresUpgrade, int HelperEnd);
+    private static byte[] Build(SwShAmxDocument doc, string fileName) =>
+        AddRecovery(SwShAmxDocument.Parse(BuildLegacy(doc, fileName)));
+
+    private static byte[] BuildLegacy(SwShAmxDocument doc, string fileName)
     {
         var names = new[]
         {
@@ -487,6 +504,7 @@ internal static class SwShTrainerWhiteoutAmxPatcher
         public const int LoadI = 9;
         public const int ConstPri = 11;
         public const int ConstAlt = 12;
+        public const int AddrPri = 13;
         public const int StorPri = 15;
         public const int StorAlt = 16;
         public const int StorSPri = 17;
@@ -512,6 +530,8 @@ internal static class SwShTrainerWhiteoutAmxPatcher
         public const int EqCPri = 105;
         public const int Nop = 134;
         public const int SysreqN = 135;
+        public const int PushCP = 188;
         public const int StackP = 191;
+        public const int HaltP = 210;
     }
 }

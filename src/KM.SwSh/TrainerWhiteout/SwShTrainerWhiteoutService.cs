@@ -68,7 +68,8 @@ public sealed class SwShTrainerWhiteoutService(ProjectWorkspaceService? workspac
             var retained = current.PendingEdits.Where(edit => edit.Domain != Domain
                 || !changes.Any(change => edit.RecordId == change.TrainerId.ToString(CultureInfo.InvariantCulture))).ToList();
             foreach (var change in changes)
-                if (state.Scripts.Any(script => script.Settings[change.TrainerId] != Encode(AppliesTo(script, change.TrainerId) ? change.Enabled : null)))
+                if (state.Scripts.Any(script => script.RequiresUpgrade
+                    || script.Settings[change.TrainerId] != Encode(AppliesTo(script, change.TrainerId) ? change.Enabled : null)))
                     retained.Add(CreateEdit(change.TrainerId, change.Enabled));
             current = current with { PendingEdits = retained.ToArray() };
         }
@@ -162,7 +163,7 @@ public sealed class SwShTrainerWhiteoutService(ProjectWorkspaceService? workspac
             {
                 var file = ReadFile(paths, ScriptRoot + name);
                 var configuration = SwShTrainerWhiteoutAmxPatcher.ReadConfiguration(file.Vanilla, file.Source, name);
-                return new Script(file, configuration.Settings, configuration.VanillaRouting);
+                return new Script(file, configuration.Settings, configuration.VanillaRouting, configuration.RequiresUpgrade);
             }).ToArray();
             var main = ReadFile(paths, MainPath);
             if (SwShTrainerWhiteoutMainPatcher.Inspect(main.Vanilla, paths.SelectedGame).HasAny)
@@ -192,7 +193,8 @@ public sealed class SwShTrainerWhiteoutService(ProjectWorkspaceService? workspac
     private static IEnumerable<SourceFile> SelectWrites(State state, IReadOnlyDictionary<int, bool?> changes)
     {
         foreach (var script in state.Scripts)
-            if (ScriptChanges(script, changes).Any(change => script.Settings[change.Key] != Encode(change.Value))) yield return script.File;
+            if (changes.Count > 0 && script.RequiresUpgrade
+                || ScriptChanges(script, changes).Any(change => script.Settings[change.Key] != Encode(change.Value))) yield return script.File;
         var bridge = NeedsBridge(state, changes);
         if (bridge ? !state.MainState.Installed : state.MainState.HasAny) yield return state.Main;
     }
@@ -261,6 +263,6 @@ public sealed class SwShTrainerWhiteoutService(ProjectWorkspaceService? workspac
         return new(id, now, written, new WriteManifest(id, now, plan.Writes), diagnostics);
     }
     private sealed record SourceFile(string RelativePath, byte[] Vanilla, byte[] Source, string Target, ProjectFileLayer Layer);
-    private sealed record Script(SourceFile File, IReadOnlyList<byte> Settings, bool VanillaRouting);
+    private sealed record Script(SourceFile File, IReadOnlyList<byte> Settings, bool VanillaRouting, bool RequiresUpgrade);
     private sealed record State(IReadOnlyList<Script> Scripts, SourceFile Main, SwShTrainerWhiteoutMainState MainState, bool CanEdit);
 }
