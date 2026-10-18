@@ -8,6 +8,9 @@ namespace KM.Api.Restoration;
 public sealed record RestorationEntryDto(int SpeciesId, string Name, string? DefinitionId, string Support,
     string Installation, IReadOnlyList<int> Family, string? PreparedHash, bool Selected, bool Staged)
 {
+    public int Form { get; init; }
+    public string? FormLabel { get; init; }
+    public int? PlannedPersonalId { get; init; }
     public string? Donor { get; init; }
     public string? AssetsRemoved { get; init; }
     public bool RemovalStaged { get; init; }

@@ -4,9 +4,13 @@ import { apiDiagnosticSchema, editSessionSchema, projectPathsSchema } from './co
 
 export const restorationWorkflowSchema = z.strictObject({ canEdit: z.boolean(), revision: z.string(),
   entries: z.array(z.strictObject({ speciesId: z.number().int(), name: z.string(), definitionId: z.string().nullable(),
+    form: z.number().int().min(0).max(255).default(0),
+    plannedPersonalId: z.number().int().min(899).max(1191).nullable().default(null),
+    formLabel: z.enum(['Mega', 'MegaX', 'MegaY', 'MegaZ', 'MegaMale', 'MegaFemale', 'MegaStandard', 'MegaOriginal',
+      'Alolan', 'Hisuian', 'Paldean', 'PaldeanCombat', 'PaldeanBlaze', 'PaldeanAqua', 'Origin', 'Primal']).nullable().default(null),
     support: z.enum(['NotSupported', 'Testing', 'Ready']), installation: z.enum(['Disabled', 'Enabled', 'NeedsRepair', 'External']),
     assetsRemoved: z.string().nullable().default(null), removalStaged: z.boolean().default(false),
-    donor: z.enum(['ScarletViolet', 'LegendsZA']).nullable(), family: z.array(z.number().int()), preparedHash: z.string().nullable(), selected: z.boolean(), staged: z.boolean() })).max(898),
+    donor: z.enum(['ScarletViolet', 'LegendsZA', 'LegendsArceus']).nullable(), family: z.array(z.number().int()), preparedHash: z.string().nullable(), selected: z.boolean(), staged: z.boolean() })).max(1020),
   diagnostics: z.array(apiDiagnosticSchema) });
 export const restorationPreparationSchema = z.strictObject({ id: z.string(), definitionId: z.string(),
   status: z.enum(['preparing', 'prepared', 'canceled', 'failed']), phase: z.string(), completedSpecies: z.number().int(),

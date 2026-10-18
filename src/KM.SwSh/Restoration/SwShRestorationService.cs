@@ -10,6 +10,7 @@ using KM.Core.Files;
 using KM.Core.Projects;
 using KM.SwSh.Editing;
 using KM.SwSh.Items;
+using KM.SwSh.Pokemon;
 
 namespace KM.SwSh.Restoration;
 
@@ -20,7 +21,10 @@ public sealed record SwShRestorationIntent(string DefinitionId, string PreparedH
 }
 public sealed record SwShRestorationStageResult(EditSession Session, IReadOnlyList<ValidationDiagnostic> Diagnostics);
 public sealed record SwShRestorationPreview(IReadOnlyDictionary<string, byte[]?> Files, string StateHash, string? PreviousStateHash,
-    SwShRestorationState State, IReadOnlyList<ProjectFileReference> Sources, IReadOnlyList<int> RemovedSpecies);
+    SwShRestorationState State, IReadOnlyList<ProjectFileReference> Sources, IReadOnlyList<int> RemovedSpecies)
+{
+    public IReadOnlyList<SwShPokemonIdentity> RemovedIdentities { get; init; } = RemovedSpecies.Select(s => new SwShPokemonIdentity(s, 0)).ToArray();
+}
 
 public sealed class SwShRestorationService
 {
@@ -99,10 +103,10 @@ public sealed class SwShRestorationService
 
     private static SwShPokemonReferences CheckReferences(ProjectPaths paths, SwShRestorationPreview preview)
     {
-        if (preview.RemovedSpecies.Count == 0) return new([], []);
+        if (preview.RemovedIdentities.Count == 0) return new([], []);
         using var view = new SwShRestorationView(paths);
         WritePreview(view.Paths, preview);
-        var references = SwShPokemonReferenceIndex.Find(view.Paths, preview.RemovedSpecies.ToHashSet());
+        var references = SwShPokemonReferenceIndex.FindIdentities(view.Paths, preview.RemovedIdentities.ToHashSet());
         return references with { Sources = references.Sources.Select(s => new ProjectFileReference(
             System.IO.File.Exists(Output(paths, s.RelativePath)) ? ProjectFileLayer.Layered : ProjectFileLayer.Base, s.RelativePath)).ToArray() };
     }
@@ -137,7 +141,7 @@ public sealed class SwShRestorationService
             throw new InvalidDataException("Restoration selections are missing, duplicated, or excessive.");
         var snapshot = SwShRestorationStateStore.Read(paths); var selections = snapshot.State.Selections.ToDictionary(s => s.DefinitionId, StringComparer.Ordinal);
         var owned = SwShRestorationOwnership.ExactFiles(paths);
-        var outputs = new Dictionary<string, byte[]?>(StringComparer.Ordinal); var sources = new HashSet<ProjectFileReference>(); var removed = new HashSet<int>();
+        var outputs = new Dictionary<string, byte[]?>(StringComparer.Ordinal); var sources = new HashSet<ProjectFileReference>(); var removed = new HashSet<SwShPokemonIdentity>();
         var needsSoundMemory = false;
         byte[]? Current(string path)
         {
@@ -205,7 +209,7 @@ public sealed class SwShRestorationService
                     SwShRestorationDependencies.Retain(c, retained.GetValueOrDefault((c.Path, c.Key), c), snapshot.State)).ToArray() };
                 var stored = SwShRestorationStateStore.Store(paths, customized); using (stored.Lease) customization = stored.Hash;
                 }
-                foreach (var identity in SwShRestorationDefinitions.Get(intent.DefinitionId).Identities) removed.Add(identity.Species);
+                foreach (var identity in SwShRestorationDefinitions.Get(intent.DefinitionId).Identities) removed.Add(identity);
             }
             selections[intent.DefinitionId] = intent.RemovalId is not null ? RemovedSelection(intent, installed)
                 : new(intent.DefinitionId, intent.PreparedHash, intent.Enabled, customization)
@@ -217,7 +221,9 @@ public sealed class SwShRestorationService
         var storedState = SwShRestorationStateStore.Store(paths, state); using (storedState.Lease) { }
         if (!outputs.ContainsKey(SwShRestorationComposer.PersonalPath)) outputs.Add(SwShRestorationComposer.PersonalPath, Current(SwShRestorationComposer.PersonalPath)
             ?? throw new InvalidDataException("Restoration state requires a personal data anchor."));
-        return new(outputs, storedState.Hash, snapshot.Hash, state, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(), removed.Order().ToArray());
+        return new(outputs, storedState.Hash, snapshot.Hash, state, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(),
+            removed.Select(i => i.Species).Distinct().Order().ToArray())
+            { RemovedIdentities = removed.OrderBy(i => i.Species).ThenBy(i => i.Form).ToArray() };
     }
 
     private static void AddSoundMemory(ProjectPaths paths, IDictionary<string, byte[]?> outputs, ISet<ProjectFileReference> sources)

@@ -1345,6 +1345,10 @@ public sealed class SwShPokemonWorkflowService
 
         foreach (var record in records)
         {
+            if (record.PersonalId is <= 0 or > SwShEffectivePokemonCatalog.MaximumSpecies)
+            {
+                continue;
+            }
             if (record.FormCount <= 1)
             {
                 continue;

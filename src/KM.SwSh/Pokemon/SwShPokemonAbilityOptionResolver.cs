@@ -128,22 +128,21 @@ public sealed class SwShPokemonAbilityOptionResolver
 
     public SwShPersonalRecord? ResolvePersonalRecord(int speciesId, int form)
     {
-        if ((uint)speciesId >= (uint)records.Count)
+        if (speciesId is <= 0 or > SwShEffectivePokemonCatalog.MaximumSpecies || (uint)speciesId >= (uint)records.Count || form < 0)
         {
             return null;
         }
 
         var record = records[speciesId];
+        if (form >= Math.Max(1, record.FormCount)) return null;
         if (form > 0 && record.FormStatsIndex > 0)
         {
             var formPersonalId = record.FormStatsIndex + form - 1;
-            if ((uint)formPersonalId < (uint)records.Count)
-            {
-                record = records[formPersonalId];
-            }
+            if (formPersonalId <= SwShEffectivePokemonCatalog.MaximumSpecies || (uint)formPersonalId >= (uint)records.Count) return null;
+            record = records[formPersonalId];
         }
 
-        return record;
+        return record.IsPresentInGame ? record : null;
     }
 
     private string FormatAbility(int abilityId)

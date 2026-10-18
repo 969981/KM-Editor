@@ -7,7 +7,7 @@ namespace KM.SwSh.Restoration;
 
 public enum SwShRestorationSupport { NotSupported, Testing, Ready }
 public enum SwShRestorationInstallation { Disabled, Enabled, NeedsRepair, External }
-public enum SwShRestorationDonor { ScarletViolet, LegendsZA }
+public enum SwShRestorationDonor { ScarletViolet, LegendsZA, LegendsArceus }
 public sealed record SwShRestorationDefinition(string Id, int Version, int ConverterVersion,
     IReadOnlyList<SwShPokemonIdentity> Identities, IReadOnlyDictionary<ProjectGame, SwShRestorationSupport> Support,
     IReadOnlyList<string> RequiredContexts)
@@ -50,6 +50,9 @@ public static class SwShRestorationDefinitions
 public sealed record SwShRestorationCatalogEntry(int SpeciesId, string Name, string? DefinitionId,
     SwShRestorationSupport Support, SwShRestorationInstallation Installation, IReadOnlyList<int> Family)
 {
+    public int Form { get; init; }
+    public string? FormLabel { get; init; }
+    public int? PlannedPersonalId { get; init; }
     public SwShRestorationDonor? Donor { get; init; }
 }
 public sealed record SwShRestorationCatalog(string Revision, IReadOnlyList<SwShRestorationCatalogEntry> Entries, string? UnavailableReason)
@@ -68,10 +71,10 @@ public sealed record SwShRestorationCatalog(string Revision, IReadOnlyList<SwShR
         var catalog = SwShEffectivePokemonCatalog.Load(paths);
         if (!catalog.Available) return new(catalog.Revision, [], catalog.UnavailableReason);
         var state = SwShRestorationStateStore.Read(paths);
-        var entries = catalog.Entries.GroupBy(e => e.Identity.Species).Where(g => g.All(e => e.Origin != SwShPokemonOrigin.Native))
+        var entries = catalog.Entries.Where(e => e.Identity.Form == 0).GroupBy(e => e.Identity.Species).Where(g => g.All(e => e.Origin != SwShPokemonOrigin.Native))
             .Select(group =>
             {
-                var definition = SwShRestorationDefinitions.All.SingleOrDefault(d => d.Identities.Any(i => i.Species == group.Key));
+                var definition = SwShRestorationDefinitions.All.SingleOrDefault(d => d.Identities.Contains(new(group.Key, 0)));
                 var selection = state.State.Selections.SingleOrDefault(s => s.DefinitionId == definition?.Id);
                 var complete = group.Any(e => e.Capabilities.HasFlag(SwShPokemonCapability.Assignment));
                 return new SwShRestorationCatalogEntry(group.Key,
@@ -80,7 +83,7 @@ public sealed record SwShRestorationCatalog(string Revision, IReadOnlyList<SwShR
                     selection?.Enabled == true ? complete ? SwShRestorationInstallation.Enabled : SwShRestorationInstallation.NeedsRepair
                         : group.Any(e => e.Personal.IsPresentInGame) ? SwShRestorationInstallation.External : SwShRestorationInstallation.Disabled,
                     definition?.Identities.Select(i => i.Species).Distinct().ToArray() ?? [group.Key]) { Donor = definition?.Donor };
-            }).OrderBy(e => e.SpeciesId).ToArray();
-        return new(catalog.Revision, entries, null);
+            });
+        return new(catalog.Revision + ":forms-1", SwShRestorationFormCandidates.Include(entries, catalog, names), null);
     }
 }

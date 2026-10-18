@@ -90,6 +90,17 @@ internal static class SwShSpeciesAvailability
         return speciesId > 0 && presentSpeciesIds.Contains(speciesId);
     }
 
+    internal static IEnumerable<int> PresentForms(IReadOnlyList<SwShPersonalRecord> records, int species, int maximumForm)
+    {
+        if (species is <= 0 or > SwShEffectivePokemonCatalog.MaximumSpecies || species >= records.Count) yield break;
+        var main = records[species];
+        for (var form = 0; form < Math.Max(1, main.FormCount) && form <= maximumForm; form++)
+        {
+            var row = form == 0 || main.FormStatsIndex == 0 ? species : main.FormStatsIndex + form - 1;
+            if (row >= 0 && row < records.Count && records[row].IsPresentInGame) yield return form;
+        }
+    }
+
     private static string FormatSpeciesOptionLabel(int speciesId, string name)
     {
         var label = string.IsNullOrWhiteSpace(name)
