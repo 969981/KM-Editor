@@ -11,6 +11,46 @@ public sealed record SvSwShFlameTextures(string Layer, string Noise, string Cont
 /// <summary>Fits the S/V unlit flame surface to the native paired flame shader contract.</summary>
 public static class SvSwShFlameMaterial
 {
+    public static bool IsUndisplaced(byte[] sourceMaterials)
+    {
+        var source = new ModelBuffer(sourceMaterials);
+        return Scalar(source, Flame(source), "DisplacementHeight") == 0;
+    }
+
+    public static PreviewPrimitive AtlasGeometry(PreviewPrimitive primitive)
+    {
+        var vertices = (float[])primitive.Vertices.Clone();
+        for (var triangle = 0; triangle < primitive.Indices.Length; triangle += 3)
+            for (var channel = 6; channel < 8; channel++)
+            {
+                var tile = MathF.Floor(vertices[checked((int)primitive.Indices[triangle] * 16 + channel)]);
+                if (!float.IsFinite(tile) || Enumerable.Range(1, 2).Any(corner =>
+                    MathF.Floor(vertices[checked((int)primitive.Indices[triangle + corner] * 16 + channel)]) != tile))
+                    throw new InvalidDataException("A flame triangle crosses source UV tiles.");
+            }
+        // Trinity applies the material transform inside the authored UV tile.
+        // Native fire shaders transform raw UVs before addressing the texture.
+        foreach (var index in primitive.Indices.Distinct())
+            for (var channel = 6; channel < 8; channel++)
+            {
+                var at = checked((int)index * 16 + channel);
+                vertices[at] -= MathF.Floor(vertices[at]);
+            }
+        return primitive with { Vertices = vertices };
+    }
+
+    public static byte[] NormalizeName(byte[] bytes, string sourceName)
+    {
+        if (sourceName == "fire") return bytes;
+        var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
+        var materials = source.Tables(source.Root, 1, 128);
+        if (materials.Any(t => source.Text(t, 0) == "fire")) throw new InvalidDataException("S/V flame material identity is ambiguous.");
+        var selected = materials.Where(t => source.Text(t, 0) == sourceName).ToArray();
+        if (selected.Length != 1) throw new InvalidDataException("S/V flame material identity is missing or duplicated.");
+        writer.Text(selected[0], 0, "fire");
+        return writer.Finish(source.Root);
+    }
+
     public static SvSwShFlameTemplate Template(byte[] bodyModel, byte[] flameModel, byte[] sourceMaterials, byte[]? sharedMaterials = null)
     {
         var source = new ModelBuffer(sourceMaterials); var flame = Flame(source);
@@ -29,7 +69,7 @@ public static class SvSwShFlameMaterial
         }, StringComparer.Ordinal);
         float[] Color(string name) => colors.TryGetValue(name, out var color) && color.All(float.IsFinite)
             ? color[..3] : throw new InvalidDataException("S/V flame palette is incomplete.");
-        if (!colors.GetValueOrDefault("BaseColor", []).SequenceEqual([1f, 1, 1, 1])
+        if (!colors.GetValueOrDefault("BaseColor", [1f, 1, 1, 1]).SequenceEqual([1f, 1, 1, 1])
             || Scalar(source, flame, "LayerMaskScale1") != 1 || Scalar(source, flame, "LayerMaskScale2") != 1)
             throw new InvalidDataException("S/V flame base tint or layer weights require another adapter.");
         var native = new ModelBuffer(bodyModel); var fire = new ModelBuffer(flameModel);
@@ -68,6 +108,16 @@ public static class SvSwShFlameMaterial
             ["LayerColor0"] = Color("BaseColorLayer2"), ["LayerColor1"] = Color("BaseColorLayer2"),
             ["OnGameColor"] = [1, 1, 1], ["ConstantColor0"] = [1, 1, 1],
         };
+        var uv = new Dictionary<string, float>(StringComparer.Ordinal);
+        foreach (var (parameter, prefix) in new[] { ("UVScaleOffset", "Blend0"), ("UVScaleOffset3", "Blend1") })
+        {
+            var value = colors.GetValueOrDefault(parameter, [1, 1, 0, 0]);
+            if (value.Length != 4 || value.Any(v => !float.IsFinite(v))) throw new InvalidDataException("S/V flame UV transform is invalid.");
+            if (Scalar(source, flame, "DisplacementHeight") == 0 && (value[0] <= 0 || value[1] <= 0 || value[2] != 0 || value[3] != 0))
+                throw new InvalidDataException("S/V flame atlas transform requires another adapter.");
+            string[] names = ["UVScaleU", "UVScaleV", "UVTranslateU", "UVTranslateV"];
+            for (var i = 0; i < names.Length; i++) uv.Add(prefix + names[i], value[i]);
+        }
         foreach (var material in selected)
             foreach (var field in new[] { 13, 14 })
             {
@@ -80,7 +130,7 @@ public static class SvSwShFlameMaterial
                     {
                         "MatLinkID" or "RimStrength" or "BaseRimVal" or "LayerRimVal" or "ColorLerpValue" or "ConstantColor0Val" => [0],
                         "OnGameEmissionVal" or "OnGameColorVal" or "OnGameAlpha" => [1],
-                        _ => null,
+                        _ => uv.TryGetValue(name, out var coordinate) ? [coordinate] : null,
                     };
                     if (value is null) { writer.Pointer(entries[i], parameterCopy + parameter); continue; }
                     var replacement = writer.Table(2, new Dictionary<int, byte[]> { [1] = ModelTableBuilder.Floats(value) },
@@ -88,6 +138,24 @@ public static class SvSwShFlameMaterial
                     writer.Pointer(entries[i], replacement); writer.Text(replacement, 0, name);
                 }
             }
+        if (Scalar(source, flame, "DisplacementHeight") == 0)
+        {
+            var layer = source.Tables(flame, 2, 64).Single(t => source.Text(t, 0) == "LayerMaskMap");
+            var samplers = source.Tables(flame, 3, 32);
+            var index = checked((int)source.Value(layer, 2));
+            if ((uint)index >= samplers.Length) throw new InvalidDataException("S/V flame sampler is missing.");
+            uint Address(int field) => source.Value(samplers[index], field) switch
+            {
+                0 => 0, 1 => 1, 6 => 2,
+                _ => throw new InvalidDataException("S/V flame addressing requires another adapter."),
+            };
+            var binding = fire.Tables(selected[0], 11, 64).Single(t => fire.Text(t, 0) == "Blend0Tex");
+            var sampler = fire.Table(binding, 2);
+            var values = Enumerable.Range(0, 9).ToDictionary(f => f,
+                f => f is 1 or 2 ? ModelTableBuilder.Integer(checked((int)Address(f + 8)))
+                    : fire.Field(sampler, f) is var at && at != 0 ? fire.Slice(at, 4).ToArray() : new byte[4]);
+            writer.Reference(fireCopy + binding, 2, writer.Table(9, values));
+        }
         return new(writer.Finish(native.Root), originals.Length, originals.Length + 1);
     }
 
@@ -98,21 +166,22 @@ public static class SvSwShFlameMaterial
         if (textures.Count != 3 || !textures.ContainsKey("BaseColorMap") || !textures.ContainsKey("LayerMaskMap") || !textures.ContainsKey("DisplacementMap"))
             throw new InvalidDataException("S/V flame texture bindings require another adapter.");
         var sourceLayer = read(textures["LayerMaskMap"]); var layer = new ModelTextureDocument(sourceLayer); var pixels = layer.Pixels();
-        if (Enumerable.Range(0, pixels.Length / 4).Any(i => pixels[i * 4 + 2] != 0 || pixels[i * 4 + 3] != 0))
+        // Compressed masks can have a few quantization steps in unused channels.
+        if (Enumerable.Range(0, pixels.Length / 4).Any(i => pixels[i * 4 + 2] > 4 || pixels[i * 4 + 3] > 4))
             throw new InvalidDataException("S/V flame has unsupported additional color layers.");
         var whiteBytes = read(textures["BaseColorMap"]); var white = new ModelTextureDocument(whiteBytes);
         if (white.Pixels().Any(v => v != 255)) throw new InvalidDataException("S/V flame base color is not neutral.");
         var displacement = PreviewTexture.ReadBaseLevel(read(textures["DisplacementMap"]));
-        if (displacement.Format != 0x1d01 || displacement.Width != layer.Width || displacement.Height != layer.Height)
-            throw new InvalidDataException("S/V flame noise requires another texture adapter.");
-        var noise = new BcDecoder().DecodeRaw(displacement.Blocks, displacement.Width, displacement.Height, CompressionFormat.Bc4);
         var height = Scalar(source, flame, "DisplacementHeight");
-        if (!float.IsFinite(height) || height is <= 0 or > .11f) throw new InvalidDataException("S/V flame displacement exceeds the native approximation.");
+        if (!float.IsFinite(height) || height is < 0 or > .11f) throw new InvalidDataException("S/V flame displacement exceeds the native approximation.");
+        if (displacement.Format != 0x1d01 || height != 0 && (displacement.Width != layer.Width || displacement.Height != layer.Height))
+            throw new InvalidDataException("S/V flame noise requires another texture adapter.");
+        var noise = height == 0 ? [] : new BcDecoder().DecodeRaw(displacement.Blocks, displacement.Width, displacement.Height, CompressionFormat.Bc4);
         var noisePixels = new byte[pixels.Length];
         for (var i = 0; i < pixels.Length / 4; i++)
         {
             var green = pixels[i * 4 + 1];
-            for (var c = 0; c < 3; c++) { pixels[i * 4 + c] = green; noisePixels[i * 4 + c] = (byte)Math.Clamp((int)MathF.Round(noise[i].r * height), 0, 255); }
+            for (var c = 0; c < 3; c++) { pixels[i * 4 + c] = green; noisePixels[i * 4 + c] = height == 0 ? (byte)0 : (byte)Math.Clamp((int)MathF.Round(noise[i].r * height), 0, 255); }
             pixels[i * 4 + 3] = noisePixels[i * 4 + 3] = 255;
         }
         var original = Path.GetFileNameWithoutExtension(textures["LayerMaskMap"]);

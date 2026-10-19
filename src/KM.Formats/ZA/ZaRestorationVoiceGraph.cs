@@ -88,7 +88,24 @@ public static class ZaRestorationVoiceGraph
         if ((auxiliaryFlags & 8) != 0) for (var i = 0; i < 4; i++) _ = Word();
         if (Word() != 0) throw new InvalidDataException("Z-A voice switch has unsupported auxiliary routing.");
         Zero(); _ = Byte(); _ = Byte(); _ = Byte(); _ = Byte(); _ = Byte();
-        Zero(); Zero(); Zero(); Zero(); // State and RTPC counts.
+        Zero(); Zero(); // State counts.
+        var curves = Byte(); Zero();
+        if (curves > 1) throw new InvalidDataException("Z-A cry modulation needs another adapter.");
+        if (curves == 1)
+        {
+            // This nearly neutral source volume correction is sampled at its
+            // default endpoint. Native distance and context mixing remain active.
+            if (Word() != 617048655 || Byte() != 0 || Byte() != 2 || Byte() != 0)
+                throw new InvalidDataException("Z-A cry modulation needs another adapter.");
+            _ = Word();
+            if (Byte() != 2 || Byte() != 3 || Byte() != 0) throw new InvalidDataException("Z-A cry volume curve is unsupported.");
+            for (var i = 0; i < 3; i++)
+            {
+                var x = BitConverter.UInt32BitsToSingle(Word()); var y = BitConverter.UInt32BitsToSingle(Word());
+                if (x != i || !float.IsFinite(y) || (i == 1 ? y is < -.05f or > 0 : y != 0) || Word() != 4)
+                    throw new InvalidDataException("Z-A cry volume curve is unsupported.");
+            }
+        }
         if (Byte() != 0) throw new InvalidDataException("Z-A voice selector is not a switch.");
         var group = Word(); var defaultState = Word(); Zero();
         var childCount = Count(); var children = new HashSet<uint>();

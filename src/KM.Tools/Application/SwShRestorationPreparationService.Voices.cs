@@ -51,13 +51,29 @@ public sealed partial class SwShRestorationPreparationService
                     var decoded = PtAdpcmDecoder.Decode(encoded, token); media.Add(state, SoundBankDocument.EncodePcm16(decoded.Samples, decoded.Channels, decoded.SampleRate));
                 }
                 var contribution = SwShVoiceWriter.Create(targetBank, id, 7, media);
-                var gains = states.ToDictionary(p => SwShVoiceWriter.MediaId(id, p.Key), p => p.Value.GainDecibels);
-                result.AddRange(contribution.Objects.Select(o => o.Type == 2 ? Gain(o, gains[BinaryPrimitives.ReadUInt32LittleEndian(o.Payload.AsSpan(5))]) : o).Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
+                var playback = states.ToDictionary(p => SwShVoiceWriter.MediaId(id, p.Key), p => p.Value);
+                result.AddRange(contribution.Objects.Select(o => o.Type == 2 ? Playback(o, playback[BinaryPrimitives.ReadUInt32LittleEndian(o.Payload.AsSpan(5))]) : o).Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
                     string.Create(CultureInfo.InvariantCulture, $"{o.Type}:{o.Id}"), null, o.Payload)));
                 result.AddRange(contribution.Media.Select(m => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
                     "media:" + m.Id.ToString(CultureInfo.InvariantCulture), null, m.Bytes)));
             }
             return result;
+        }
+
+        private static SoundBankObject Playback(SoundBankObject sound, SvRestorationVoice playback)
+        {
+            sound = Gain(sound, playback.GainDecibels);
+            if (playback.PitchMinimum == 0 && playback.PitchMaximum == 0) return sound;
+            var source = sound.Payload;
+            if (source.Length < 28 || source[26] > 1) throw new InvalidDataException("Native cry playback properties are unsupported.");
+            var at = 27 + source[26] * 5;
+            if (at >= source.Length || source[at] != 0) throw new InvalidDataException("Native cry already contains random properties.");
+            var bytes = new byte[source.Length + 9]; source.AsSpan(0, at).CopyTo(bytes);
+            bytes[at] = 1; bytes[at + 1] = 2;
+            BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(at + 2), playback.PitchMinimum);
+            BinaryPrimitives.WriteSingleLittleEndian(bytes.AsSpan(at + 6), playback.PitchMaximum);
+            source.AsSpan(at + 1).CopyTo(bytes.AsSpan(at + 10));
+            return sound with { Payload = bytes };
         }
 
         private static SoundBankObject Gain(SoundBankObject sound, float decibels)

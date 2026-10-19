@@ -138,6 +138,14 @@ public sealed class TrinityPreviewReader(Func<string, byte[]> read, bool topOrig
             var highlight = -1;
             var highlightWrap = Vector4.Zero;
             var wrap = Vector4.Zero;
+            Vector4? maskUv = null;
+            if (topOriginMaterialUv)
+            {
+                var selector = data.Tables(material, 9, 128).SingleOrDefault(t => data.Text(t, 0) == "UVIndexLayerMask");
+                var index = selector == 0 ? uint.MaxValue : data.Value(selector, 1);
+                if (index == 0) maskUv = new(1, 1, 0, 0);
+                else if (index != uint.MaxValue) warnings.Add("materialUvUnsupported");
+            }
             var samplers = data.Tables(material, 3, 32);
             foreach (var entry in data.Tables(material, 2, 32))
             {
@@ -168,6 +176,7 @@ public sealed class TrinityPreviewReader(Func<string, byte[]> read, bool topOrig
             if (!materials.TryAdd(name, new(name, texture, mask, color, layers, uv, data.Text(material, 15) ?? "Opaque")
             {
                 Wrap = wrap,
+                MaskUv = maskUv,
                 Surface = surface,
                 MaskChannels = maskChannels,
                 TopOriginUv = topOriginMaterialUv,

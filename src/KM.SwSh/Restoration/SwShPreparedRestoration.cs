@@ -90,6 +90,8 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
     private static void ValidateContributions(SwShRestorationDefinition definition, IReadOnlyList<SwShRestorationContribution> items)
     {
         var species = definition.Identities.Select(i => i.Species).ToHashSet();
+        var variants = definition.Identities.Select(i => new SwShRestorationModelVariant(i, 0, $"pm{i.Species:0000}_{i.Form:00}"))
+            .Concat(definition.AdditionalModelVariants).ToArray();
         foreach (var item in items)
         {
             SwShRestorationComposer.ValidatePath(item.Path, item.Writer);
@@ -98,17 +100,19 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
                 SwShRestorationWriter.Personal or SwShRestorationWriter.Learnset or SwShRestorationWriter.Icons =>
                     int.TryParse(item.Key, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) && species.Contains(id),
                 SwShRestorationWriter.File => item.Key.Length == 0 && definition.Identities.Any(i =>
-                    item.Path == $"romfs/bin/archive/pokemon/pm{i.Species:0000}_{i.Form:00}.gfpak"
-                    || item.Path == $"romfs/bin/archive/pokemon/pm{i.Species:0000}_{i.Form:00}_rare.gfpak"
-                    || item.Path == $"romfs/bin/archive/gpokemon/pm{i.Species:0000}_{i.Form:00}.gfpak"
-                    || item.Path == $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx"
+                    item.Path == $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx"
                     || item.Path == $"romfs/bin/pml/evolution/evo_{i.Species:000}.bin"
                     || item.Path == $"romfs/bin/pml/tamagowaza/tamagowaza_{i.Species:0000}.bin"
-                    || item.Path.StartsWith($"romfs/bin/pokemon/pm{i.Species:0000}_{i.Form:00}/", StringComparison.Ordinal)),
-                SwShRestorationWriter.ModelCatalog => definition.Identities.Any(i => item.Key.StartsWith($"{i.Species}:{i.Form}:", StringComparison.Ordinal)),
+                    || variants.Where(v => v.Identity == i).Any(v => item.Path == $"romfs/bin/archive/pokemon/{v.ResourceStem}.gfpak"
+                        || item.Path == $"romfs/bin/archive/pokemon/{v.ResourceStem}_rare.gfpak"
+                        || item.Path == $"romfs/bin/archive/gpokemon/{v.ResourceStem}.gfpak"
+                        || item.Path.StartsWith($"romfs/bin/pokemon/{v.ResourceStem}/", StringComparison.Ordinal))),
+                SwShRestorationWriter.ModelCatalog => variants.Any(v => new[] { false, true }.Any(shiny =>
+                    item.Key == SwShRestorationComposer.CatalogKey(new(v.Identity.Species, v.Identity.Form, v.Gender, shiny)))),
                 SwShRestorationWriter.Camp => definition.Identities.Any(i =>
                     item.Key == $"bin/pokemon_data/pokecamp/common/poke_{i.Species:0000}_XX_X.bin"
-                    || new[] { "motion", "face", "ball", "turning" }.Any(group => item.Key == $"bin/pokemon_data/pokecamp/{group}/poke_{group}_{i.Species:0000}_{i.Form:00}_0.bin")),
+                    || variants.Where(v => v.Identity == i).Any(v => new[] { "motion", "face", "ball", "turning" }.Any(group =>
+                        item.Key == $"bin/pokemon_data/pokecamp/{group}/poke_{group}_{i.Species:0000}_{i.Form:00}_{v.Gender}.bin"))),
                 SwShRestorationWriter.Voices => true,
                 _ => false,
             };

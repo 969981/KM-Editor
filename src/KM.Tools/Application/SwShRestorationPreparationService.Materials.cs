@@ -50,7 +50,7 @@ public sealed partial class SwShRestorationPreparationService
             }).ToArray();
         }
 
-        private static SwShEffectLocator[] SourceLocators(PreviewScene scene, IReadOnlyDictionary<string, string> aliases, byte[] bytes)
+        private static SwShEffectLocator[] SourceLocators(PreviewScene scene, IReadOnlyDictionary<string, string> aliases, byte[] bytes, Vector3? mouthPosition = null)
         {
             var source = new ModelBuffer(bytes); var nodes = source.Tables(source.Root, 1, 512);
             var transforms = PreviewRigReader.Skeleton(source);
@@ -73,6 +73,17 @@ public sealed partial class SwShRestorationPreparationService
                 ["EffGcloud01"] = "eff_overhead01",
             };
             var result = mapping.Select(pair => Convert(pair.Key, pair.Value)).ToList();
+            if (mouthPosition is { } mouth)
+            {
+                // A feeding target fixed to Origin cannot follow the face. The meal
+                // camera needs a mouth attachment in the animated head's local space.
+                if (!float.IsFinite(mouth.X) || !float.IsFinite(mouth.Y) || !float.IsFinite(mouth.Z)
+                    || !aliases.TryGetValue("head", out var head) || !scene.Rig.Bones.Any(b => b.Name == "head"))
+                    throw new InvalidDataException("S/V mouth attachment requires another target adapter.");
+                var reference = Convert("EffMouth01", "eff_headcenter01");
+                if (reference.Parent != head) throw new InvalidDataException("S/V mouth attachment requires another target adapter.");
+                result[result.FindIndex(locator => locator.Name == "EffMouth01")] = reference with { Translation = mouth * 100 };
+            }
             foreach (var (name, candidates) in new[] { ("EffHand01", new[] { "right_hand" }), ("EffHand02", new[] { "left_hand" }),
                 ("EffFoot01", new[] { "right_foot", "right_foot_a" }), ("EffFoot02", new[] { "left_foot", "left_foot_a" }) })
             {

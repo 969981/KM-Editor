@@ -25,11 +25,18 @@ public sealed partial class ZaSwShRestorationPreparationService
         internal IReadOnlyList<SwShRestorationContribution> Assets(int species)
         {
             currentSpecies = species; Report("reading");
+            var genders = Profiles[species].SeparateFemale ? new[] { 0, 1 } : new[] { 0 };
+            SwShRestorationGenderAudit.RequireModels(Donor("ik_pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
+                species, 0, genders.ToDictionary(g => g, g => $"pm{species:0000}/pm{species:0000}_{g:00}_00/pm{species:0000}_{g:00}_00.trmdl"));
+            var result = genders.SelectMany(g => Assets(species, g)).ToList();
+            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token)));
+            return result;
+        }
+
+        private IReadOnlyList<SwShRestorationContribution> Assets(int species, int gender)
+        {
             var profile = Profiles[species];
-            var stem = $"pm{species:0000}_00"; var sourceStem = stem + "_00"; var sourceFolder = $"ik_pokemon/data/pm{species:0000}/{sourceStem}/";
-            SwShRestorationGenderAudit.RequireSharedModel(Donor("ik_pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
-                species, 0, $"pm{species:0000}/{sourceStem}/{sourceStem}.trmdl");
-            var iconBytes = SwShRestorationPartyIcons.Create(species, Native, token);
+            var stem = $"pm{species:0000}_{gender:00}"; var sourceStem = stem + "_00"; var sourceFolder = $"ik_pokemon/data/pm{species:0000}/{sourceStem}/";
             var graph = ModelAssetGraph.Read(new[] { (sourceFolder + sourceStem + ".trmdl", (string?)null),
                 (sourceFolder + sourceStem + "_rare.trmtr", null), (sourceFolder + sourceStem + "_base.tracn", null) }, (path, _) => Donor(path));
             var sourceScene = new TrinityPreviewReader(Donor, topOriginMaterialUv: true).Load(sourceFolder + sourceStem + ".trmdl");
@@ -40,14 +47,14 @@ public sealed partial class ZaSwShRestorationPreparationService
             var nativeModel = Member(nativePack, "pm0007_00.gfbmdl"); var nativeMetadata = new ModelBuffer(nativeModel);
             var materialBytes = Donor(sourceFolder + sourceStem + ".trmtr");
             var textureTemplateName = sourceStem + profile.TextureSuffix;
-            var textureTemplate = Donor(sourceFolder + textureTemplateName + ".bntx");
+            var textureTemplate = profile.MeshVisibility ? [] : Donor(sourceFolder + textureTemplateName + ".bntx");
             var aliases = new Dictionary<string, string>(StringComparer.Ordinal)
             {
                 ["origin"] = "Origin", ["waist"] = "Waist", ["head"] = "Head", ["neck"] = "Neck", ["spine"] = "Spine",
                 ["lower_jaw"] = "Jaw", ["jaw"] = "Jaw", ["left_hand"] = "LHand", ["right_hand"] = "RHand", ["left_foot"] = "LFoot", ["right_foot"] = "RFoot",
             };
             foreach (var bone in scene.Rig.Bones) aliases.TryAdd(bone.Name, bone.Name.Replace(sourceStem, stem, StringComparison.Ordinal));
-            var locators = Locators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_{(species == 15 ? 20000 : 0):00000}_eff.trskl"));
+            var locators = Locators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_{(species == 15 ? 20000 : 0):00000}_eff.trskl"), profile.MouthPosition);
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
             var textures = new RestorationTexturePool(members, modelFolder, true);
             foreach (var name in new[] { "Default_lta", "dummy_col", "projection_effect_col", "pm0007_00_Eye_amb" })
@@ -130,8 +137,6 @@ public sealed partial class ZaSwShRestorationPreparationService
                     System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(configuration.AsSpan(destination, 4), value);
                 }
             }
-            members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(configuration, species, geometry!, materialNames,
-                profile.BattleHeight, profile.FieldHeight);
             var clips = new Dictionary<string, (byte[] Skeleton, PreviewClip Decoded)>(StringComparer.Ordinal);
             var motions = graph.Where(r => r.Id.EndsWith(".tranm", StringComparison.Ordinal)).ToArray();
             Report("animations", 0, motions.Length + NativeClips.Count);
@@ -140,6 +145,18 @@ public sealed partial class ZaSwShRestorationPreparationService
                 token.ThrowIfCancellationRequested();
                 var clip = PreviewRigReader.Animation(new(resource.Bytes), resource.Id, scene.Rig.Bones);
                 clip = ZaSwShAnimationWriter.ReadClip(Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/')), clip, profile.MeshVisibility);
+                // A material can be shared by multiple mesh sections. Each converted
+                // material needs the authored channel, including hidden mouth sections.
+                clip = clip with { Materials = clip.Materials.SelectMany(track => scene.Primitives.Select((p, i) => (p, i))
+                    .Where(pair => pair.p.Material.Name == track.Material)
+                    .Select(pair => track with { Material = materialNames[pair.i] })).ToArray() };
+                if (profile.SeparateFemale)
+                {
+                    var otherMesh = $"pm{species:0000}_{1 - gender:00}_00_body_c_mesh_shape";
+                    if (clip.Visibility.Where(v => !meshNames.Contains(v.Name)).Any(v => v.Name != otherMesh || v.Keys.Any(k => k.Value.Length != 1 || k.Value[0] != 1)))
+                        throw new InvalidDataException("Source gender visibility needs another conversion adapter.");
+                    clip = clip with { Visibility = clip.Visibility.Where(v => meshNames.Contains(v.Name)).ToArray() };
+                }
                 Report("animations", clips.Count, motions.Length + NativeClips.Count);
                 var name = Path.GetFileNameWithoutExtension(resource.Id); var code = name[sourceStem.Length..].TrimStart('_').Split('_')[0];
                 if (!clips.TryAdd(code, (resource.Bytes, clip))) throw new InvalidDataException("Source animation code is ambiguous.");
@@ -161,6 +178,10 @@ public sealed partial class ZaSwShRestorationPreparationService
                     members[animationFolder + stem + "_" + name + ".gfbanm"] = ZaSwShAnimationWriter.Visibility(
                         members[animationFolder + stem + "_" + name + ".gfbanm"], clip.Decoded.Visibility, meshNames);
             }
+            var framingGeometry = profile.IdleFraming
+                ? SwShRestorationFraming.IdleBounds(members, modelFolder, animationFolder, stem, geometry!) : geometry!;
+            members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(configuration, species, framingGeometry, materialNames,
+                profile.BattleHeight, profile.FieldHeight);
             Report("packing");
             members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
             members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"), materialNames);
@@ -182,6 +203,8 @@ public sealed partial class ZaSwShRestorationPreparationService
             var giantDonor = SwShGfPackFile.Parse(Native("bin/archive/gpokemon/pm0007_00.gfpak"));
             var giantSize = SwShGfPackFile.Parse(Native($"bin/archive/gpokemon/{sizeStem}.gfpak"));
             var giantConfiguration = Member(giantSize, sizeStem + ".gfbgpokecfg");
+            if (profile.MatchNativeGiantHeight)
+                SwShRestorationFraming.MatchGiantHeight(giantConfiguration, configuration, profile.BattleHeight);
             if (species == 15)
             {
                 // The source idle already hovers above its origin. Butterfree's
@@ -195,10 +218,9 @@ public sealed partial class ZaSwShRestorationPreparationService
             foreach (var name in shaderNames) foreach (var extension in new[] { ".bnsh_vsh", ".bnsh_fsh" })
                 giantMembers[$"bin/pokemon/{stem}/g_shader/{name}{extension}"] = Member(giantDonor, name + extension);
             result.Add(File($"bin/archive/gpokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(giantMembers).Write()));
-            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx", iconBytes));
             foreach (var shiny in new[] { false, true })
             {
-                var identity = new SwShPokemonResourceIdentity(species, 0, 0, shiny);
+                var identity = new SwShPokemonResourceIdentity(species, 0, gender, shiny);
                 var row = new SwShPokemonResourceRow(identity, modelFolder + stem + (shiny ? "_rare" : "") + ".gfbmdl",
                     $"bin/pokemon/{stem}/{stem}.gfbpokecfg", $"bin/archive/pokemon/{stem}{(shiny ? "_rare" : "")}.gfpak",
                     new[] { "battle", "camp", "field" }.ToDictionary(g => g, g => animationFolder + stem + "_" + g + ".gfbanmcfg", StringComparer.Ordinal));
@@ -239,7 +261,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             }).ToArray() };
         }
 
-        private static SwShEffectLocator[] Locators(PreviewScene scene, IReadOnlyDictionary<string, string> aliases, byte[] bytes)
+        private static SwShEffectLocator[] Locators(PreviewScene scene, IReadOnlyDictionary<string, string> aliases, byte[] bytes, Vector3? mouthPosition = null)
         {
             var source = new ModelBuffer(bytes); var nodes = source.Tables(source.Root, 1, 512);
             var transforms = PreviewRigReader.Skeleton(source);
@@ -247,7 +269,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                 .ToDictionary(e => e.Bone.Name, StringComparer.Ordinal);
             SwShEffectLocator Convert(string name, string original)
             {
-                if (!entries.TryGetValue(original, out var entry) || entry.Bone.Parent != -1 || entry.Bone.Scale.Any(v => v != 1)
+                if (!entries.TryGetValue(original, out var entry) || entry.Bone.Parent != -1 || entry.Bone.Scale.Any(v => !float.IsFinite(v) || MathF.Abs(v - 1) > .00001f)
                     || entry.Parent is null || !scene.Rig.Bones.Any(b => b.Name == entry.Parent))
                     throw new InvalidDataException("Z-A effect attachment requires another target adapter.");
                 var p = entry.Bone.Translation; var q = entry.Bone.Rotation;
@@ -262,6 +284,17 @@ public sealed partial class ZaSwShRestorationPreparationService
                 ["EffGcloud01"] = "eff_overhead01",
             };
             var result = mapping.Select(pair => Convert(pair.Key, pair.Value)).ToList();
+            if (mouthPosition is { } mouth)
+            {
+                // A feeding target fixed to Origin cannot follow the face. The meal
+                // camera needs a mouth attachment in the animated head's local space.
+                if (!float.IsFinite(mouth.X) || !float.IsFinite(mouth.Y) || !float.IsFinite(mouth.Z)
+                    || !aliases.TryGetValue("head", out var head) || !scene.Rig.Bones.Any(b => b.Name == "head"))
+                    throw new InvalidDataException("Z-A mouth attachment requires another target adapter.");
+                var reference = Convert("EffMouth01", "eff_headcenter01");
+                if (reference.Parent != head) throw new InvalidDataException("Z-A mouth attachment requires another target adapter.");
+                result[result.FindIndex(locator => locator.Name == "EffMouth01")] = reference with { Translation = mouth * 100 };
+            }
             foreach (var (name, candidates) in new[] { ("EffHand01", new[] { "right_hand" }), ("EffHand02", new[] { "left_hand" }),
                 ("EffFoot01", new[] { "right_foot", "right_foot_a" }), ("EffFoot02", new[] { "left_foot", "left_foot_a" }) })
             {

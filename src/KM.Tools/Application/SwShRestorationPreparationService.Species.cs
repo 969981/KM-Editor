@@ -5,10 +5,17 @@ public sealed partial class SwShRestorationPreparationService
 {
     private sealed record SpeciesProfile(int NativeTemplate, int HatchedSpecies, int Experience,
         int FemalePercent, byte GenderThreshold, float BattleHeight, float FieldHeight, bool AuthoredMaterials = false, int FramingTemplate = 0,
-        string BattleIdle = "00001", bool NativeFlames = false, string? ResourceStem = null, bool CompactResources = true);
+        string BattleIdle = "00001", bool NativeFlames = false, string? ResourceStem = null, bool CompactResources = true, string FlameMaterial = "fire",
+        System.Numerics.Vector3? MouthPosition = null);
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [155] = new(4, 155, 62, 12, 31, 50, 50, AuthoredMaterials: true, NativeFlames: true, FlameMaterial: "body_b",
+            MouthPosition: new(.115f, 0, .162f)),
+        [156] = new(5, 155, 142, 12, 31, 90, 90, AuthoredMaterials: true, NativeFlames: true, FlameMaterial: "body_b",
+            MouthPosition: new(.187f, 0, .095f)),
+        [157] = new(467, 155, 240, 12, 31, 170, 170, AuthoredMaterials: true, NativeFlames: true, FlameMaterial: "body_b",
+            MouthPosition: new(.33f, 0, .135f)),
         [23] = new(147, 23, 58, 50, 127, 50, 50, AuthoredMaterials: true, FramingTemplate: 7),
         [24] = new(350, 23, 157, 50, 127, 160, 200, AuthoredMaterials: true),
         [387] = new(1, 387, 64, 12, 31, 60, 40, AuthoredMaterials: true, BattleIdle: "00000", CompactResources: true),

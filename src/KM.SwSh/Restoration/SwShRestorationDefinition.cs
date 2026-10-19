@@ -8,11 +8,13 @@ namespace KM.SwSh.Restoration;
 public enum SwShRestorationSupport { NotSupported, Testing, Ready }
 public enum SwShRestorationInstallation { Disabled, Enabled, NeedsRepair, External }
 public enum SwShRestorationDonor { ScarletViolet, LegendsZA, LegendsArceus }
+public sealed record SwShRestorationModelVariant(SwShPokemonIdentity Identity, int Gender, string ResourceStem);
 public sealed record SwShRestorationDefinition(string Id, int Version, int ConverterVersion,
     IReadOnlyList<SwShPokemonIdentity> Identities, IReadOnlyDictionary<ProjectGame, SwShRestorationSupport> Support,
     IReadOnlyList<string> RequiredContexts)
 {
     public SwShRestorationDonor Donor { get; init; } = SwShRestorationDonor.ScarletViolet;
+    public IReadOnlyList<SwShRestorationModelVariant> AdditionalModelVariants { get; init; } = [];
 }
 
 public static class SwShRestorationDefinitions
@@ -30,6 +32,14 @@ public static class SwShRestorationDefinitions
     });
     public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(PiplupSpecies.Concat(new[]
     {
+        Species("chikorita", 152) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("bayleef", 153) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("meganium", 154) with { Donor = SwShRestorationDonor.LegendsZA,
+            AdditionalModelVariants = Array.AsReadOnly(new[] { new SwShRestorationModelVariant(new(154, 0), 1, "pm0154_01") }) },
+        Species("cyndaquil", 155), Species("quilava", 156), Species("typhlosion", 157),
+        Species("totodile", 158) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("croconaw", 159) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("feraligatr", 160) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("ekans", 23), Species("arbok", 24),
         Species("turtwig", 387), Species("grotle", 388), Species("torterra", 389),
         Species("chimchar", 390), Species("monferno", 391), Species("infernape", 392),
