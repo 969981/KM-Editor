@@ -4,7 +4,6 @@ import { Bird, RefreshCw, Save, Trash2, X } from 'lucide-react';
 import type { EditSession, ProjectPaths } from '../../bridge/contracts';
 import type { RestorationProjectBridgeApi } from '../../bridge/restorationProjectBridge';
 import type { RestorationPreparation, RestorationSelection, RestorationWorkflow } from '../../bridge/restorationContracts';
-import { LoadingProgress } from '../../components/LoadingProgress';
 import { EditorSessionBar, EditorSessionBarActions } from '../../components/EditorSessionBar';
 import { usePublishCommonEditorError } from '../../components/CommonEditorDiagnostics';
 import { WorkflowPanelOutputSections, type WorkflowPanelOutput } from '../../components/workflowPanels';
@@ -173,7 +172,6 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
     <RestorationSourceFolders sources={sources} desktop={desktopServices} paths={paths} bridge={bridge} onChange={next => {
       setSources(next); if (!rememberRestorationSources(projectKey, next)) setError(t('restoration.sourcesSaveFailed'));
     }} />
-    {removing ? <LoadingProgress label={t('restoration.removeAssets')} detail={t('restoration.stage')} /> : null}
     {preparationVisible ? <RestorationPreparationProgress preparation={preparation}
       name={entries.find(entry => entry.definitionId === preparation.definitionId)?.name
         ?? entries.find(entry => entry.speciesId === preparation.species && entry.form === 0)?.name ?? t('restoration.title')}

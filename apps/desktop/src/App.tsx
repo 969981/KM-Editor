@@ -435,6 +435,7 @@ import { isCustomCategoryId } from './features/categories/categoryLayout';
 import { AppSidebar } from './components/AppSidebar';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { LoadingProgress } from './components/LoadingProgress';
+import { EditorOperationProgress, useEditorOperationProgress, type EditorProgressDetails } from './components/EditorOperationProgress';
 import {
   TrainerPartySlotContextMenu,
   trainerPartySlotContextMenuId
@@ -3438,6 +3439,8 @@ export function App({
   const [isDynamaxAdventureSaveSeedWriting, setIsDynamaxAdventureSaveSeedWriting] = useState(false);
   const [isEditSessionMutating, setIsEditSessionMutating] = useState(false);
   const [isSessionValidating, setIsSessionValidating] = useState(false);
+  const { progress: editorOperationProgress, begin: beginEditorProgress, update: updateEditorProgress,
+    finish: finishEditorProgress, clear: clearEditorProgress } = useEditorOperationProgress(projectScopeGenerationRef.current);
   const [lazyLoadedWorkflowSections, setLazyLoadedWorkflowSections] = useState<
     Set<WorkbenchSection>
   >(() => new Set());
@@ -4192,11 +4195,12 @@ export function App({
   const editSessionApplyInFlightRef = useRef(false);
   const exitDiscardOperationRef = useRef<object | null>(null);
   const invalidateEditSessionReview = useCallback(() => {
+    finishEditorProgress(editSessionReviewOperationRef.current);
     editSessionReviewRunRef.current += 1;
     editSessionReviewOperationRef.current = null;
     setIsSessionValidating(false);
     setIsChangePlanCreating(false);
-  }, []);
+  }, [finishEditorProgress]);
   const dynamaxAdventurePreviewRunRef = useRef(0);
   const editSessionMutationGenerationRef = useRef(0);
   const editSessionMutationQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -4917,6 +4921,7 @@ export function App({
     editSessionApplyInFlightRef.current = false;
     setIsChangePlanApplying(false);
     setWorkProgress(null);
+    clearEditorProgress();
     editSessionMutationGenerationRef.current += 1;
     editSessionMutationQueueRef.current = Promise.resolve();
     pendingEditSessionMutationTokensRef.current.clear();
@@ -4942,7 +4947,8 @@ export function App({
     setApplyResult,
     setChangePlan,
     setEditSession,
-    setEditValidationDiagnostics
+    setEditValidationDiagnostics,
+    clearEditorProgress
   ]);
 
   const rematerializeSessionLocalChange = useCallback(async (
@@ -10642,12 +10648,17 @@ export function App({
     let accepted = false; restorationGenerationRef.current += 1; setIsRestorationStaging(true);
     prepareScopedEditorPanelAction('restoreMissingPokemon');
     try {
-      await runEditSessionMutation(async session => {
+      await runEditSessionMutation(async (session, reportProgress) => {
         let next = session;
         let response: Awaited<ReturnType<typeof bridge.stageRestoration>> | null = null;
+        let completed = 0;
         for (const selection of selections) {
+          const entry = restoreMissingPokemonWorkflow?.entries.find(entry => entry.definitionId === selection.definitionId);
+          const subject = entry?.formLabel ? t(`restoration.form.${entry.formLabel}`, { name: entry.name }) : entry?.name;
+          reportProgress({ subject, completed, total: selections.length });
           response = await bridge.stageRestoration({ paths: createProjectPaths(draftPaths), session: next, ...selection });
           if (response.diagnostics.some(d => d.severity === 'error')) break;
+          reportProgress({ completed: ++completed });
           next = response.session;
         }
         if (!response) throw new Error(t('restoration.failed'));
@@ -10660,7 +10671,7 @@ export function App({
       }, response => {
         setScopedEditorPanelDiagnostics('restoreMissingPokemon', response.diagnostics);
         if (response.didSucceed) { accepted = true; setRestorationWorkflow(response.workflow); setEditSessionSection('restoreMissingPokemon'); }
-      }, activeSession);
+      }, activeSession, undefined, undefined, selections.some(selection => selection.removeAssets) ? 'remove' : 'stage');
     } catch (error) { setScopedEditorPanelDiagnostics('restoreMissingPokemon', toBridgeDiagnostics(error)); }
     finally { setIsRestorationStaging(false); }
     return accepted;
@@ -14371,6 +14382,7 @@ export function App({
     const paths = createProjectPaths(draftPathsRef.current);
     const requestedSection = activeSectionIsEditor ? activeSection : null;
     setIsEditStarting(true);
+    beginEditorProgress(operation, { operation: 'start', phase: 'starting' });
     setBridgeDiagnostics([]);
     setEditValidationDiagnostics([]);
     setChangePlan(null);
@@ -14397,6 +14409,7 @@ export function App({
         setBridgeDiagnostics(toBridgeDiagnostics(error));
       }
     } finally {
+      finishEditorProgress(operation);
       if (editSessionStartOperationRef.current === operation) {
         editSessionStartOperationRef.current = null;
         setIsEditStarting(false);
@@ -14530,11 +14543,12 @@ export function App({
   );
 
   const runEditSessionMutation = async <T extends { session: EditSession | null },>(
-    mutation: (session: EditSession | null) => Promise<T>,
+    mutation: (session: EditSession | null, reportProgress: (details: Partial<EditorProgressDetails>) => void) => Promise<T>,
     commit: (response: T) => void,
     requiredSession?: EditSession | null,
     onChangeSetCapture?: (response: CaptureChangeSetSessionResponse) => void,
-    requiredAuthoringRequest?: AuthoringStageRequest
+    requiredAuthoringRequest?: AuthoringStageRequest,
+    progressOperation: 'stage' | 'remove' = 'stage'
   ) => {
     if (pendingEditSessionMutationTokensRef.current.size > 0) {
       await editSessionMutationQueueRef.current.catch(() => undefined);
@@ -14559,6 +14573,9 @@ export function App({
     pendingEditSessionMutationTokensRef.current.add(mutationToken);
     setIsEditSessionMutating(true);
     const generation = editSessionMutationGenerationRef.current;
+    const progressOwner = {};
+    beginEditorProgress(progressOwner, { operation: progressOperation, phase: progressOperation === 'remove' ? 'removing' : 'staging' });
+    const reportProgress = (details: Partial<EditorProgressDetails>) => updateEditorProgress(progressOwner, details);
     const queuedMutation = editSessionMutationQueueRef.current
       .catch(() => undefined)
       .then(async () => {
@@ -14600,7 +14617,7 @@ export function App({
           throw new AdvancedAuthoringError('source-assumption-changed');
         }
 
-        const response = await mutation(currentSession);
+        const response = await mutation(currentSession, reportProgress);
         if (editSessionMutationGenerationRef.current !== generation) {
           return null;
         }
@@ -14654,6 +14671,7 @@ export function App({
           }
           try {
             try {
+              reportProgress({ phase: 'capturing', completed: undefined, total: undefined, subject: undefined });
               capturedResponse = await stageGate.captureStagedSession(
                 currentSession,
                 stagedSessionForCapture,
@@ -14665,6 +14683,7 @@ export function App({
             } catch (captureError) {
               if (editSessionMutationGenerationRef.current === generation) {
                 try {
+                  reportProgress({ phase: 'refreshing', completed: undefined, total: undefined, subject: undefined });
                   const recoveredSnapshot = await stageGate.refresh(currentSession);
                   if (
                     editSessionMutationGenerationRef.current === generation &&
@@ -14699,6 +14718,7 @@ export function App({
           stageGate.etag !== null &&
           sessionContentChanged
         ) {
+          reportProgress({ phase: 'refreshing', completed: undefined, total: undefined, subject: undefined });
           rematerializedSnapshot = await stageGate.refresh(stagedSessionForCapture);
           if (
             editSessionMutationGenerationRef.current !== generation ||
@@ -14767,6 +14787,7 @@ export function App({
     try {
       return await queuedMutation;
     } finally {
+      finishEditorProgress(progressOwner);
       pendingEditSessionMutationTokensRef.current.delete(mutationToken);
       setIsEditSessionMutating(pendingEditSessionMutationTokensRef.current.size > 0);
     }
@@ -17706,6 +17727,7 @@ export function App({
 
     setIsSessionValidating(true);
     setIsChangePlanCreating(true);
+    beginEditorProgress(operation, { operation: 'validate', phase: 'validating', phases: ['validating', 'planning'] });
     setBridgeDiagnostics([]);
     setEditValidationDiagnostics([]);
     setDynamaxAdventurePanelDiagnostics([]);
@@ -17732,6 +17754,7 @@ export function App({
         return;
       }
 
+      updateEditorProgress(operation, { phase: 'planning' });
       const planResponse = await bridge.createChangePlan({
         outputMode: response.session.authoringBinding?.outputMode ?? undefined,
         paths: createProjectPaths(draftPaths),
@@ -17754,6 +17777,7 @@ export function App({
       }
       setBridgeDiagnostics(toBridgeDiagnostics(error));
     } finally {
+      finishEditorProgress(operation);
       if (editSessionReviewOperationRef.current === operation) {
         editSessionReviewOperationRef.current = null;
         setIsSessionValidating(false);
@@ -18669,6 +18693,7 @@ export function App({
 
     setIsSessionValidating(true);
     setIsChangePlanCreating(true);
+    beginEditorProgress(operation, { operation: 'validate', phase: 'validating', phases: ['validating', 'planning'] });
     setBridgeDiagnostics([]);
     setEditValidationDiagnostics([]);
     setChangePlan(null);
@@ -18694,6 +18719,7 @@ export function App({
         return;
       }
 
+      updateEditorProgress(operation, { phase: 'planning' });
       const planResponse = await bridge.createChangePlan({
         outputMode: response.session.authoringBinding?.outputMode ?? undefined,
         paths: createProjectPaths(draftPaths),
@@ -18715,6 +18741,7 @@ export function App({
       }
       setBridgeDiagnostics(toBridgeDiagnostics(error));
     } finally {
+      finishEditorProgress(operation);
       if (editSessionReviewOperationRef.current === operation) {
         editSessionReviewOperationRef.current = null;
         setIsSessionValidating(false);
@@ -18751,6 +18778,7 @@ export function App({
 
     setIsSessionValidating(false);
     setIsChangePlanCreating(true);
+    beginEditorProgress(operation, { operation: 'review', phase: 'planning' });
     setBridgeDiagnostics([]);
     setEditValidationDiagnostics([]);
     setChangePlan(null);
@@ -18793,6 +18821,7 @@ export function App({
       }
       setScopedEditorPanelDiagnostics(section, toBridgeDiagnostics(error));
     } finally {
+      finishEditorProgress(operation);
       if (editSessionReviewOperationRef.current === operation) {
         editSessionReviewOperationRef.current = null;
         setIsChangePlanCreating(false);
@@ -20412,15 +20441,15 @@ export function App({
           tabs={workspaceRecordTabs}
         />
 
+        {editorOperationProgress && workProgress === null ? (
+          <EditorOperationProgress progress={editorOperationProgress} />
+        ) : null}
+
         <div
           aria-busy={isProjectScopeTransitioning || undefined}
           className="workspace-content"
           inert={isProjectScopeTransitioning ? true : undefined}
         >
-          {(isSessionValidating || isChangePlanCreating) && workProgress === null ? (
-            <LoadingProgress className="is-compact wide-panel" label={translateLiteral('Review')}
-              detail={translateLiteral('Reviewing change plan')} operationKey={activeProjectId ?? 'unselected'} />
-          ) : null}
           <Fragment
             key={`${activeProjectId ?? 'no-project'}:${selectedGame}:${activeSection}:${workspaceContentDiscardRevision}`}
           >

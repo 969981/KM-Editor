@@ -110,6 +110,37 @@
   grid-row: 3;
 }
 
+.workspace:has(> .workspace-operation-progress) {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.workspace > .workspace-operation-progress {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 8px 16px 0;
+  width: auto;
+  max-height: min(40vh, 20rem);
+  overflow-y: auto;
+}
+
+.workspace:has(> .workspace-operation-progress) > .workspace-content,
+.workspace:has(> .workspace-operation-progress) > .km-adaptive-inspector {
+  grid-row: 3;
+}
+
+.workspace:has(> .km-record-tab-rail):has(> .workspace-operation-progress) {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.workspace:has(> .km-record-tab-rail) > .workspace-operation-progress {
+  grid-row: 3;
+}
+
+.workspace:has(> .km-record-tab-rail):has(> .workspace-operation-progress) > .workspace-content,
+.workspace:has(> .km-record-tab-rail):has(> .workspace-operation-progress) > .km-adaptive-inspector {
+  grid-row: 4;
+}
+
 .km-workbench-overlay {
   position: fixed;
   z-index: 70;
