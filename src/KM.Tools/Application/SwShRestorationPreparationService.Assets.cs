@@ -34,7 +34,17 @@ public sealed partial class SwShRestorationPreparationService
             Report("reading");
             var scene = new TrinityPreviewReader(Donor).Load(sourceFolder + sourceStem + ".trmdl");
             if (scene.Rig.Warnings.Length > 0) throw new InvalidDataException("Source model requires an additional conversion adapter.");
+            if (profile.NativeFlames && profile.FlameMaterial != "fire")
+                scene = scene with { Primitives = scene.Primitives.Select(p => p.Material.Name == profile.FlameMaterial
+                    ? p with { Material = p.Material with { Name = "fire" } } : p).ToArray() };
+            byte[] Materials(bool rare) => profile.NativeFlames
+                ? SvSwShFlameMaterial.NormalizeName(Donor(sourceFolder + sourceStem + (rare ? "_rare" : "") + ".trmtr"), profile.FlameMaterial)
+                : Donor(sourceFolder + sourceStem + (rare ? "_rare" : "") + ".trmtr");
+            var flameAtlas = profile.NativeFlames && SvSwShFlameMaterial.IsUndisplaced(Materials(false));
             var targetScene = UniqueMaterials(profile.CompactResources ? CompactGeometry(scene) : scene);
+            if (flameAtlas)
+                targetScene = targetScene with { Primitives = targetScene.Primitives.Select(p => p.Material.Name == "fire"
+                    ? SvSwShFlameMaterial.AtlasGeometry(p) : p).ToArray() };
             if (profile.NativeFlames)
             {
                 var flame = targetScene.Primitives.Single(p => p.Material.Name == "fire");
@@ -44,7 +54,7 @@ public sealed partial class SwShRestorationPreparationService
             var nativePack = SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0007_00.gfpak"));
             var bodyModel = Member(nativePack, "pm0007_00.gfbmdl");
             var firePack = profile.NativeFlames ? SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0004_00.gfpak")) : null;
-            var materialBytes = Donor(sourceFolder + sourceStem + ".trmtr");
+            var materialBytes = Materials(false);
             var fireModel = firePack is null ? null : Member(firePack, "pm0004_00.gfbmdl");
             var nativeModel = fireModel is null ? bodyModel : SvSwShFlameMaterial.Template(bodyModel, fireModel, materialBytes).Model;
             var nativeMetadata = new ModelBuffer(nativeModel);
@@ -55,7 +65,7 @@ public sealed partial class SwShRestorationPreparationService
             };
             foreach (var bone in scene.Rig.Bones) aliases.TryAdd(bone.Name, bone.Name.Replace(sourceStem, stem, StringComparison.Ordinal));
             var locators = profile.AuthoredMaterials
-                ? SourceLocators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_00000_eff.trskl"))
+                ? SourceLocators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_00000_eff.trskl"), profile.MouthPosition)
                 : Locators(scene, aliases);
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
             var textures = new RestorationTexturePool(members, modelFolder, profile.CompactResources);
@@ -80,7 +90,7 @@ public sealed partial class SwShRestorationPreparationService
             SwShConvertedGeometry? geometry = null;
             foreach (var rare in new[] { false, true })
             {
-                var paletteBytes = Donor(sourceFolder + sourceStem + (rare ? "_rare" : "") + ".trmtr");
+                var paletteBytes = Materials(rare);
                 var sourceMaterial = new ModelBuffer(paletteBytes);
                 var palette = BakePalette(scene, paletteBytes, rare, sourceFolder + sourceStem + ".trmtr", textures, profile.NativeFlames);
                 var flameTemplate = fireModel is null ? null : SvSwShFlameMaterial.Template(bodyModel, fireModel, paletteBytes, materialBytes);
@@ -135,11 +145,13 @@ public sealed partial class SwShRestorationPreparationService
                 var clip = PreviewRigReader.Animation(new(resource.Bytes), resource.Id, scene.Rig.Bones);
                 var warnings = new List<string>();
                 var materialAnimation = Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/'));
-                clip = profile.NativeFlames ? SvSwShFlameAnimation.Read(materialAnimation, clip) : PreviewMaterialAnimation.Read(new(materialAnimation), clip, warnings, true);
+                clip = profile.NativeFlames ? SvSwShFlameAnimation.Read(materialAnimation, clip, profile.FlameMaterial) : PreviewMaterialAnimation.Read(new(materialAnimation), clip, warnings, true);
                 if (warnings.Count > 0 || (!profile.NativeFlames && clip.Visibility.Any(v => v.Keys.Any(k => k.Value.Any(x => x == 0)))))
                     throw new InvalidDataException("Source animation needs an unsupported material or visibility adapter.");
                 if (clip.Materials.Any(t => !scene.Primitives.Any(p => p.Material.Name == t.Material)))
                     throw new InvalidDataException("Source animation has an undeclared material target.");
+                if (flameAtlas && clip.Materials.Any(t => t.Material == "fire"))
+                    throw new InvalidDataException("An animated flame atlas requires another UV adapter.");
                 clip = clip with { Materials = clip.Materials.SelectMany(track => scene.Primitives.Select((p, i) => (p, i))
                     .Where(pair => pair.p.Material.Name == track.Material)
                     .Select(pair => track with { Material = targetScene.Primitives[pair.i].Material.Name })).ToArray() };
@@ -161,8 +173,14 @@ public sealed partial class SwShRestorationPreparationService
             members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
             var globalLoop = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"),
                 materialNames.Where(n => n is not ("fire" or "fire_mask")).ToArray());
-            members[animationFolder + stem + "_gloop01.gfbanm"] = profile.NativeFlames
+            globalLoop = profile.NativeFlames
                 ? SvSwShFlameAnimation.Apply(globalLoop, clips["08201"].Decoded.Materials, clips["08201"].Decoded) : globalLoop;
+            var flameBones = profile.NativeFlames ? SvSwShFlameAnimation.LoopBones(scene, clips["08201"].Decoded) : [];
+            if (flameBones.Length > 0)
+                globalLoop = SvSwShFlameAnimation.SkeletonLoop(globalLoop,
+                    SwShAnimationWriter.Convert(clips["08201"].Skeleton, [], scene.Rig.Bones, aliases, false),
+                    flameBones.Select(b => aliases[b]).ToArray());
+            members[animationFolder + stem + "_gloop01.gfbanm"] = globalLoop;
             var facialBones = new Dictionary<string, string[]>(StringComparer.Ordinal);
             foreach (var name in new[] { "eye01", "mouth01" })
             {
@@ -174,9 +192,10 @@ public sealed partial class SwShRestorationPreparationService
             {
                 var controller = SwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
                 if (group == "battle") controller = SwShAnimationWriter.BattleIdleController(controller);
-                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = profile.NativeFlames ? SvSwShFlameAnimation.Controller(controller) : controller;
+                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = profile.NativeFlames
+                    ? SvSwShFlameAnimation.Controller(controller, flameBones.Select(b => aliases[b]).ToArray()) : controller;
             }
-            var framingGeometry = profile.AuthoredMaterials ? IdleBounds(members, modelFolder, animationFolder, stem, geometry!) : geometry!;
+            var framingGeometry = profile.AuthoredMaterials ? SwShRestorationFraming.IdleBounds(members, modelFolder, animationFolder, stem, geometry!) : geometry!;
             members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(Member(framePack, frameStem + ".gfbpokecfg"), species, framingGeometry, materialNames,
                 profile.BattleHeight, profile.FieldHeight);
             var result = new List<SwShRestorationContribution>();

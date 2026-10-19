@@ -71,8 +71,17 @@ public static class ZaSwShAnimationWriter
             throw new InvalidDataException("Z-A vector material animation needs another adapter.");
         var result = decoded.Materials.Concat(scalars).ToArray();
         if (result.GroupBy(t => (t.Material, t.Parameter)).Any(g => g.Count() != 1)) throw new InvalidDataException("Z-A material animation identity is ambiguous.");
-        if (result.GroupBy(t => t.Material).Any(g => g.Any(t => t.Parameter == "UVScaleOffset") && g.Any(t => t.Parameter == "UVScaleOffset1")))
-            throw new InvalidDataException("Independent Z-A UV channels need another material adapter.");
+        foreach (var group in result.GroupBy(t => t.Material))
+        {
+            var color = group.SingleOrDefault(t => t.Parameter == "UVScaleOffset");
+            var highlight = group.SingleOrDefault(t => t.Parameter == "UVScaleOffset1");
+            if (color is null || highlight is null) continue;
+            if (color.Channels.Length != highlight.Channels.Length || color.Channels.Zip(highlight.Channels).Any(c =>
+                c.First.Length != c.Second.Length || c.First.Zip(c.Second).Any(k => k.First.Frame != k.Second.Frame || !k.First.Value.SequenceEqual(k.Second.Value))))
+                throw new InvalidDataException("Independent Z-A UV channels need another material adapter.");
+            // Identical authored color and highlight curves share the baked image.
+            result = result.Where(t => t != highlight).ToArray();
+        }
         return decoded with { Materials = result };
     }
 

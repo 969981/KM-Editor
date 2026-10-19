@@ -6,7 +6,7 @@ namespace KM.Formats.SV;
 /// <summary>Preserves independent S/V flame scrolling on native flame materials.</summary>
 public static class SvSwShFlameAnimation
 {
-    public static PreviewClip Read(byte[] bytes, PreviewClip skeleton)
+    public static PreviewClip Read(byte[] bytes, PreviewClip skeleton, string sourceMaterial = "fire")
     {
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
         var rate = source.Value(source.Table(source.Root, 0), 2, (uint)skeleton.Rate);
@@ -18,11 +18,12 @@ public static class SvSwShFlameAnimation
             if (timeline == 0) continue;
             foreach (var material in source.Tables(timeline, 2, 128))
             {
+                if (source.Text(material, 0) == sourceMaterial && sourceMaterial != "fire") writer.Text(material, 0, "fire");
                 var vectors = source.Tables(material, 2, 256); var retained = new List<int>();
                 foreach (var vector in vectors)
                 {
                     if (source.Text(vector, 0) != "UVScaleOffset3") { retained.Add(vector); continue; }
-                    if (source.Text(material, 0) != "fire") throw new InvalidDataException("S/V displacement animation has an undeclared material.");
+                    if (source.Text(material, 0) != sourceMaterial) throw new InvalidDataException("S/V displacement animation has an undeclared material.");
                     var channels = source.Table(vector, 1);
                     var keys = Enumerable.Range(0, 4).Select(c => source.Table(channels, c) is var channel && channel != 0
                         ? source.Tables(channel, 0, 18000).Select(key =>
@@ -92,11 +93,69 @@ public static class SvSwShFlameAnimation
         return writer.Finish(source.Root);
     }
 
-    public static byte[] Controller(byte[] controller)
+    public static string[] LoopBones(PreviewScene scene, PreviewClip loop)
     {
+        bool Moves(PreviewKey[] keys) => keys.Skip(1).Any(k => !k.Value.SequenceEqual(keys[0].Value));
+        var animated = loop.Tracks.Where(t => Moves(t.Scale) || Moves(t.Rotation) || Moves(t.Translation))
+            .Select(t => t.Bone).ToHashSet();
+        var joints = scene.Rig.Bones.Select((bone, index) => (bone, index)).Where(p => p.bone.Joint >= 0)
+            .ToDictionary(p => p.bone.Joint, p => p.index);
+        var fire = new HashSet<int>(); var body = new HashSet<int>();
+        foreach (var primitive in scene.Primitives)
+            foreach (var vertex in primitive.Indices.Distinct())
+                for (var slot = 0; slot < 4; slot++)
+                {
+                    var at = checked((int)vertex * 16);
+                    if (primitive.Vertices[at + 12 + slot] <= 0) continue;
+                    var bone = joints[checked((int)primitive.Vertices[at + 8 + slot])];
+                    var targets = primitive.Material.Name == "fire" ? fire : body;
+                    // A parent overlay also moves every weighted descendant.
+                    while (bone >= 0) { targets.Add(bone); bone = scene.Rig.Bones[bone].Parent; }
+                }
+        if (animated.Any(b => !fire.Contains(b) || body.Contains(b)))
+            throw new InvalidDataException("The global flame loop animates non-flame geometry.");
+        return animated.Order().Select(b => scene.Rig.Bones[b].Name).ToArray();
+    }
+
+    public static byte[] SkeletonLoop(byte[] nativeAnimation, byte[] convertedLoop, string[] bones)
+    {
+        if (bones.Length is < 1 or > 128 || bones.Distinct(StringComparer.Ordinal).Count() != bones.Length)
+            throw new InvalidDataException("Global flame bone targets are invalid.");
+        var source = new ModelBuffer(convertedLoop); var target = new ModelBuffer(nativeAnimation);
+        var tracks = source.Tables(source.Table(source.Root, 1), 0, 4096)
+            .Where(t => bones.Contains(source.Text(t, 0), StringComparer.Ordinal)).ToArray();
+        if (tracks.Length != bones.Length) throw new InvalidDataException("Global flame bone tracks are incomplete.");
+        var writer = new ModelTableBuilder();
+        var absent = Enumerable.Range(0, 5).Where(f => f != 1 && target.Field(target.Root, f) == 0).ToHashSet();
+        var root = writer.Table(5, absent: absent); var original = writer.Append(nativeAnimation);
+        foreach (var field in Enumerable.Range(0, 5).Where(f => f != 1 && !absent.Contains(f)))
+            writer.Reference(root, field, original + target.Table(target.Root, field));
+        var skeleton = writer.Table(1);
+        writer.Reference(root, 1, skeleton); var slots = writer.Vector(skeleton, 0, tracks.Length);
+        var copy = writer.Append(convertedLoop);
+        for (var i = 0; i < tracks.Length; i++) writer.Pointer(slots[i], copy + tracks[i]);
+        return writer.Finish(root);
+    }
+
+    public static byte[] Controller(byte[] controller, string[]? flameBones = null)
+    {
+        if (flameBones is { Length: > 128 } || flameBones is not null && flameBones.Distinct(StringComparer.Ordinal).Count() != flameBones.Length)
+            throw new InvalidDataException("Global flame controller targets are invalid.");
         var source = new ModelBuffer(controller); var writer = new ModelTableBuilder(controller);
+        var globalLayers = 0;
         foreach (var layer in source.Tables(source.Table(source.Root, 0), 0, 128))
         {
+            if (source.Text(layer, 1) == "gloop01" && flameBones is { Length: > 0 })
+            {
+                globalLayers++;
+                var skeletal = writer.Table(2, new Dictionary<int, byte[]> { [0] = ModelTableBuilder.Integer(1) });
+                writer.Reference(source.Table(layer, 2), 0, skeletal);
+                var slots = writer.Vector(skeletal, 1, flameBones.Length);
+                for (var i = 0; i < slots.Length; i++)
+                {
+                    var bone = writer.Table(1); writer.Pointer(slots[i], bone); writer.Text(bone, 0, flameBones[i]);
+                }
+            }
             var masks = source.Table(source.Table(layer, 2), 1);
             foreach (var material in source.Tables(masks, 1, 128))
             {
@@ -116,6 +175,12 @@ public static class SvSwShFlameAnimation
                 for (var i = 0; i < names.Length; i++) { var item = writer.Table(1); writer.Pointer(slots[i], item); writer.Text(item, 0, names[i]); }
             }
         }
+        // Native camp and field controllers use the flame curves authored in
+        // their ordinary motions and do not bind a separate global loop.
+        var hasGlobalBinding = source.Tables(source.Table(source.Root, 6), 0, 2048)
+            .Any(t => source.Text(t, 1)?.EndsWith("_gloop01.gfbanm", StringComparison.Ordinal) == true);
+        if (flameBones is { Length: > 0 } && globalLayers != (hasGlobalBinding ? 1 : 0))
+            throw new InvalidDataException("Global flame controller layer is missing or ambiguous.");
         return writer.Finish(source.Root);
     }
 

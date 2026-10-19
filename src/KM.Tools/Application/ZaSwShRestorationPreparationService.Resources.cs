@@ -7,6 +7,21 @@ public sealed partial class ZaSwShRestorationPreparationService
 {
     private sealed partial class Preparation
     {
+        private static void SetMealVerticalOffset(byte[] data, float offset)
+        {
+            if (!float.IsFinite(offset)) throw new InvalidDataException("Camp meal vertical offset must be finite.");
+            var metadata = new ModelBuffer(data); var table = metadata.Root;
+            foreach (var field in new[] { 1, 0, 0 })
+            {
+                table = metadata.Table(table, field);
+                if (table == 0) throw new InvalidDataException("Native camp meal framing is missing.");
+            }
+            var at = metadata.Field(table, 1);
+            if (at == 0 || !float.IsFinite(metadata.Float(at)))
+                throw new InvalidDataException("Native camp meal vertical offset is invalid.");
+            System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(at, 4), offset);
+        }
+
         private static string[] ModelNames(ModelBuffer model, int field)
         {
             var (at, count) = model.Vector(model.Root, field, 4, 256);

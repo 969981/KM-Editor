@@ -37,9 +37,9 @@ public sealed partial class ZaSwShRestorationPreparationService
             var ev = 0;
             for (var i = 0; i < order.Length; i++) { var value = source.U8(yields + order[i]); if (value > 3) throw new InvalidDataException("Source EV yield is unsupported."); ev |= value << (i * 2); }
             Put16(row, 10, ev); row.AsSpan(12, 6).Clear(); var gender = source.Field(table, 10);
-            if (gender == 0 || source.U8(gender) != 0 || source.U8(gender + 1) != 50)
+            if (gender == 0 || source.U8(gender) != 0 || source.U8(gender + 1) != profile.FemalePercent)
                 throw new InvalidDataException("Z-A gender ratio needs another target adapter.");
-            row[18] = 127; row[19] = checked((byte)Scalar(14)); row[20] = checked((byte)Scalar(15));
+            row[18] = profile.GenderThreshold; row[19] = checked((byte)Scalar(14)); row[20] = checked((byte)Scalar(15));
             row[21] = checked((byte)Scalar(8)); row[22] = checked((byte)Scalar(11)); row[23] = checked((byte)Scalar(12));
             var abilities = Enumerable.Range(0, 3).Select(i => Scalar(5 + i, true)).ToArray();
             var fallbackAbility = abilities.FirstOrDefault(ability => ability is >= 1 and <= 267);
@@ -112,8 +112,12 @@ public sealed partial class ZaSwShRestorationPreparationService
                     var metadata = new ModelBuffer(data); var field = metadata.Field(metadata.Root, 2);
                     if (metadata.U32(field) != profile.NativeTemplate) throw new InvalidDataException("Native camp donor identity is invalid.");
                     BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(field), checked((uint)species));
+                    if (profile.MealVerticalOffset is { } offset) SetMealVerticalOffset(data, offset);
                 }
                 result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp, folder + Name(species), null, data));
+                if (profile.SeparateFemale && group != "common")
+                    result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp,
+                        folder + $"poke_{group}_{species:0000}_00_1.bin", null, data));
             }
             return (result, excluded.Order().ToArray());
         }

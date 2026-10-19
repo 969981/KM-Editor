@@ -8,6 +8,9 @@ internal static class SwShRestorationPartyIcons
     private static readonly IReadOnlyDictionary<int, (string Sprite, string Frame)> Profiles = new Dictionary<int, (string, string)>
     {
         // Frames use native resource IDs, which are not always National Dex IDs.
+        [152] = ("chikorita", "0001_00s"), [153] = ("bayleef", "0002_00s"), [154] = ("meganium", "0003_00m"),
+        [155] = ("cyndaquil", "0004_00s"), [156] = ("quilava", "0005_00s"), [157] = ("typhlosion", "0006_00s"),
+        [158] = ("totodile", "0007_00s"), [159] = ("croconaw", "0008_00s"), [160] = ("feraligatr", "0009_00s"),
         [13] = ("weedle", "0010_00s"), [14] = ("kakuna", "0011_00s"), [15] = ("beedrill", "0012_00m"),
         [16] = ("pidgey", "0918_00s"), [17] = ("pidgeotto", "0919_00s"), [18] = ("pidgeot", "0920_00s"),
         [23] = ("ekans", "0147_00s"), [24] = ("arbok", "0350_00m"),

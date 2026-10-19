@@ -8,6 +8,9 @@ internal static class SwShRestorationGenderAudit
     // Shared geometry is a verified property of a registered species, never a
     // fallback for an unconverted female resource in the donor catalog.
     internal static void RequireSharedModel(byte[] catalogBytes, int species, int form, string expectedModel)
+        => RequireModels(catalogBytes, species, form, new Dictionary<int, string> { [0] = expectedModel });
+
+    internal static void RequireModels(byte[] catalogBytes, int species, int form, IReadOnlyDictionary<int, string> expectedModels)
     {
         var data = new ModelBuffer(catalogBytes); var genders = new HashSet<int>(); var found = false;
         foreach (var row in data.Tables(data.Root, 1, 20000))
@@ -17,10 +20,10 @@ internal static class SwShRestorationGenderAudit
             if (Number(0, true) != species || Number(1, true) != form) continue;
             var gender = Number(2, false);
             if (!genders.Add(gender)) throw new InvalidDataException("Donor model gender identity is duplicated.");
-            if (gender != 0) throw new InvalidDataException("This restoration requires separate female model, texture, animation, icon, and context conversion.");
+            if (!expectedModels.TryGetValue(gender, out var expectedModel)) throw new InvalidDataException("This restoration requires separate female model, texture, animation, icon, and context conversion.");
             if (data.Text(row, 1) != expectedModel) throw new InvalidDataException("Donor shared model identity does not match its restoration profile.");
             found = true;
         }
-        if (!found) throw new InvalidDataException("Donor shared model identity is missing.");
+        if (!found || !genders.SetEquals(expectedModels.Keys)) throw new InvalidDataException("Donor shared model identity is missing.");
     }
 }

@@ -58,6 +58,17 @@ public static class ZaSwShMaterialBaker
         var parameters = source.Tables(table, 7, 128).ToDictionary(t => source.Text(t, 0)!, t =>
         { var at = source.Field(t, 1); return new Vector4(source.Float(at), source.Float(at + 4), source.Float(at + 8), source.Float(at + 12)); }, StringComparer.Ordinal);
         var scalarParameters = source.Tables(table, 4, 128).ToDictionary(t => source.Text(t, 0)!, t => source.Field(t, 1) is var at && at != 0 ? source.Float(at) : 0, StringComparer.Ordinal);
+        var uvTransform = parameters.GetValueOrDefault("UVScaleOffset", new(1, 1, 0, 0));
+        // -1 inherits the transformed base coordinates; 0 explicitly selects
+        // the original UV0. Croconaw's asymmetric belly mask uses the latter
+        // even though its base texture doubles and mirrors U.
+        var maskUvIndex = source.Tables(table, 9, 128).SingleOrDefault(t => source.Text(t, 0) == "UVIndexLayerMask");
+        var maskTransform = (maskUvIndex == 0 ? uint.MaxValue : source.Value(maskUvIndex, 1)) switch
+        {
+            uint.MaxValue => uvTransform,
+            0 => new Vector4(1, 1, 0, 0),
+            _ => throw new InvalidDataException("Z-A layer mask UV set needs another material adapter."),
+        };
         var normalUv = parameters.GetValueOrDefault("UVScaleOffsetNormal", new(1, 1, 0, 0));
         if (normalUv != new Vector4(1, 1, 0, 0)) throw new InvalidDataException("Z-A normal UV transform needs another material adapter.");
         var normalSource = Read(readTexture(textures["NormalMap"]));
@@ -130,7 +141,6 @@ public static class ZaSwShMaterialBaker
         var colorContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, colorWidth, colorHeight, true), templateName, colorName));
         var normalContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, width, height, false), templateName, normalName));
         var ambientContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, ambientWidth, ambientHeight, false), templateName, ambientName));
-        var uvTransform = parameters.GetValueOrDefault("UVScaleOffset", new(1, 1, 0, 0));
         var highlightTransform = parameters.GetValueOrDefault("UVScaleOffset1", new(1, 1, 0, 0));
         var baseColor = parameters.GetValueOrDefault("BaseColor", Vector4.One);
         var highlightColor = parameters.GetValueOrDefault("EmissionColorLayer5", Vector4.Zero) * scalarParameters.GetValueOrDefault("EmissionIntensityLayer5");
@@ -143,7 +153,7 @@ public static class ZaSwShMaterialBaker
             {
                 var uv = new Vector2((x + .5f) / colorWidth, (y + .5f) / colorHeight);
                 var original = Sample(baseImage, uv, uvTransform, new(primitive.Material.Wrap.X, primitive.Material.Wrap.Y)) * baseColor;
-                var mask = Sample(maskImage, uv, uvTransform, new(primitive.Material.Wrap.Z, primitive.Material.Wrap.W));
+                var mask = Sample(maskImage, uv, maskTransform, new(primitive.Material.Wrap.Z, primitive.Material.Wrap.W));
                 var rgb = original;
                 for (var layer = 0; layer < 4; layer++)
                 {
