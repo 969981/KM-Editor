@@ -7,6 +7,15 @@ namespace KM.Tools.Application;
 
 internal static class SwShRestorationFraming
 {
+    internal static void SetGiantScale(byte[] giantConfiguration, float scale)
+    {
+        var giant = new ModelBuffer(giantConfiguration);
+        var scaleAt = giant.Field(giant.Root, 4);
+        if (scaleAt == 0 || !float.IsFinite(scale) || scale <= 0)
+            throw new InvalidDataException("Giant sizing configuration is invalid.");
+        System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(giantConfiguration.AsSpan(scaleAt, 4), scale);
+    }
+
     internal static void MatchGiantHeight(byte[] giantConfiguration, byte[] nativeConfiguration, float battleHeight)
     {
         var giant = new ModelBuffer(giantConfiguration); var native = new ModelBuffer(nativeConfiguration);

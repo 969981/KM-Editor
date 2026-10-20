@@ -31,7 +31,7 @@ public static class ZaSwShAnimationWriter
 
     public static PreviewMaterialTrack[] ReadMaterials(byte[] bytes, PreviewClip skeletal) => ReadClip(bytes, skeletal).Materials;
 
-    public static PreviewClip ReadClip(byte[] bytes, PreviewClip skeletal, bool supportVisibility = false)
+    public static PreviewClip ReadClip(byte[] bytes, PreviewClip skeletal, bool supportVisibility = false, string? emissionMaterial = null)
     {
         var source = new ModelBuffer(bytes); var sanitized = new ModelTableBuilder(bytes);
         var config = source.Table(source.Root, 0);
@@ -51,7 +51,8 @@ public static class ZaSwShAnimationWriter
                 foreach (var entry in entries)
                 {
                     var parameter = source.Text(entry, 0);
-                    if (parameter != "LayerMaskScale5") throw new InvalidDataException($"Z-A scalar material animation needs another adapter: {parameter}");
+                    if (parameter != "LayerMaskScale5" && !(parameter == "EmissionIntensityLayer2" && name == emissionMaterial))
+                        throw new InvalidDataException($"Z-A scalar material animation needs another adapter: {parameter}");
                     var curve = source.Table(entry, 1);
                     var keys = source.Tables(curve, 0, 18000).Select(key =>
                     {
@@ -111,12 +112,14 @@ public static class ZaSwShAnimationWriter
             float Frame(int frame) => expression == SwShExpressionCurve.None ? frame : EyeSample(frame);
             foreach (var track in groups[i])
             {
-                if (track.Parameter == "LayerMaskScale5")
+                if (track.Parameter is "LayerMaskScale5" or "EmissionIntensityLayer2")
                 {
                     if (track.Channels.Length != 1) throw new InvalidDataException("Z-A eye override has invalid channels.");
                     Validate(track.Channels[0]);
                     if (track.Channels[0].Any(k => k.Value[0] is < 0 or > 1)) throw new InvalidDataException("Z-A eye override is outside its range.");
-                    native.Add(("ConstantColorVal", Enumerable.Range(0, frames).Select(f => 1 - Sample(track.Channels[0], Frame(f))).ToArray()));
+                    var emission = track.Parameter == "EmissionIntensityLayer2";
+                    native.Add((emission ? "EmissionMaskVal" : "ConstantColorVal", Enumerable.Range(0, frames)
+                        .Select(frame => emission ? Sample(track.Channels[0], Frame(frame)) : 1 - Sample(track.Channels[0], Frame(frame))).ToArray()));
                 }
                 else if (track.Parameter is "UVScaleOffset" or "UVScaleOffset1")
                 {

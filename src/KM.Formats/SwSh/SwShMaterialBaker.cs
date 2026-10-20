@@ -14,9 +14,10 @@ public static class SwShMaterialBaker
 {
     private sealed record Image(int Width, int Height, bool Srgb, byte[] Pixels);
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex,
-        Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool sourceNormalDimensions = false)
+        Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool sourceNormalDimensions = false, bool opaqueEyeSurface = false,
+        bool cornealEye = false)
     {
-        if (materialIndex is < 0 or > 9) throw new InvalidDataException("Material texture identity is outside the supported range.");
+        if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
         var source = new ModelBuffer(sourceMaterials);
         var tables = source.Tables(source.Root, 1, 128).Where(t => source.Text(t, 0) == primitive.Material.Name).ToArray();
@@ -24,6 +25,16 @@ public static class SwShMaterialBaker
         var table = tables[0];
         var textures = source.Tables(table, 2, 64).ToDictionary(t => source.Text(t, 0)!, t => source.Text(t, 1)!, StringComparer.Ordinal);
         var eye = primitive.Material.Name.Contains("eye", StringComparison.Ordinal);
+        if (cornealEye)
+        {
+            var shaders = source.Tables(table, 1, 16).Select(shader => source.Text(shader, 0)).ToArray();
+            var heights = source.Tables(table, 4, 256).Where(parameter => source.Text(parameter, 0) is "NormalHeight" or "NormalHeight1")
+                .Select(parameter => source.Field(parameter, 1) is var offset && offset != 0 ? source.Float(offset) : 0).ToArray();
+            if (!eye || opaqueEyeSurface || primitive.Material.Alpha != "BlendPreMultiAlpha"
+                || !shaders.SequenceEqual(new[] { "EyeClearCoat", "Eye" }) || !textures.ContainsKey("NormalMap1")
+                || heights.Length != 2 || heights.Any(height => height != 1))
+                throw new InvalidDataException("Corneal eye conversion requires the qualified paired normal surface.");
+        }
         var templatePath = textures[eye ? "LayerMaskMap" : "BaseColorMap"];
         var template = readTexture(templatePath); var container = new ModelTextureDocument(template);
         var colorWidth = container.Width; var colorHeight = container.Height;
@@ -35,7 +46,7 @@ public static class SwShMaterialBaker
             }
         template = SwShTextureAllocation.Create(template, colorWidth, colorHeight, container.Srgb);
         container = new ModelTextureDocument(template);
-        var normalBytes = readTexture(textures["NormalMap"]);
+        var normalBytes = readTexture(textures[cornealEye ? "NormalMap1" : "NormalMap"]);
         var normalSource = Read(normalBytes);
         var width = normalSource.Width;
         var height = normalSource.Height;
@@ -101,8 +112,9 @@ public static class SwShMaterialBaker
         }
         var colorName = Path.GetFileNameWithoutExtension(templatePath);
         if (!colorName.EndsWith(eye ? "_lym" : "_alb", StringComparison.Ordinal)) throw new InvalidDataException("Material texture naming needs a definition adapter.");
-        var normalName = "n" + materialIndex + colorName[2..^3] + "nor";
-        var ambientName = "a" + materialIndex + ambientTemplateName[2..^3] + "amb";
+        var identity = materialIndex.ToString("X1", System.Globalization.CultureInfo.InvariantCulture);
+        var normalName = "n" + identity + colorName[2..^3] + "nor";
+        var ambientName = "a" + identity + ambientTemplateName[2..^3] + "amb";
         var normalTemplate = SwShTextureAllocation.Create(template, width, height, false);
         var ambientTemplate = SwShTextureAllocation.Create(template, ambientWidth, ambientHeight, false);
         var normalContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(normalTemplate, colorName, normalName, linear: true));
@@ -132,6 +144,11 @@ public static class SwShMaterialBaker
             }
             colorPixels = pixels;
         }
+        if (opaqueEyeSurface && (!eye || primitive.Material.Alpha != "BlendPreMultiAlpha"
+            || Enumerable.Range(0, colorPixels.Length / 4).Any(index => colorPixels[index * 4 + 3] != 0)))
+            throw new InvalidDataException("Opaque eye conversion requires the qualified zero alpha premultiplied surface.");
+        if (primitive.Material.Alpha == "Opaque" || opaqueEyeSurface)
+            for (var index = 3; index < colorPixels.Length; index += 4) colorPixels[index] = 255;
         var color = container.EncodeMipImages(SwShTextureFiltering.Mips(colorPixels, colorWidth, colorHeight, container.MipCount, container.Srgb, sharpen: true), cancellationToken);
         return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken),
             ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts);

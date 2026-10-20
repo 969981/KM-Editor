@@ -23,7 +23,7 @@ public static class SvRestorationVoiceGraph
             return matches.Length == 1 ? matches[0] : throw new InvalidDataException("S/V voice graph is incomplete or ambiguous.");
         }
         var evt = Object(4, SwShVoiceWriter.Hash($"Play_PV_{species:0000}"));
-        var companion = species is >= 155 and <= 157;
+        var companion = evt.Payload.Length == 9 && evt.Payload[0] == 2;
         if (evt.Payload.Length != (companion ? 9 : 5) || evt.Payload[0] != (companion ? 2 : 1)) throw new InvalidDataException("S/V voice event layout is unsupported.");
         if (companion)
         {
