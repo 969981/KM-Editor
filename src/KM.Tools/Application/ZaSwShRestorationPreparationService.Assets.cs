@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.Json;
 using KM.Formats.Models;
 using KM.Formats.SwSh;
+using KM.Formats.SV;
 using KM.Formats.ZA;
 using KM.SwSh.Restoration;
 
@@ -57,6 +58,8 @@ public sealed partial class ZaSwShRestorationPreparationService
             var locators = Locators(scene, aliases, Donor(sourceFolder + $"locators/{sourceStem}_{(species == 15 ? 20000 : 0):00000}_eff.trskl"), profile.MouthPosition);
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
             var textures = new RestorationTexturePool(members, modelFolder, true);
+            if (profile.NativeFlames)
+                members[modelFolder + sourceStem + "_fire_alb.bntx"] = Donor(sourceFolder + sourceStem + "_fire_alb.bntx");
             foreach (var name in new[] { "Default_lta", "dummy_col", "projection_effect_col", "pm0007_00_Eye_amb" })
                 members[modelFolder + name + ".bntx"] = Member(nativePack, name + ".bntx");
             var shaderNames = new HashSet<string>(StringComparer.Ordinal);
@@ -90,8 +93,10 @@ public sealed partial class ZaSwShRestorationPreparationService
                         template = Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", path));
                     }
                     Report("textures", (rare ? scene.Primitives.Count : 0) + index, 2 * scene.Primitives.Count);
-                    var materialBake = ZaSwShMaterialBaker.Bake(primitive, sourceMaterialBytes, index, rare,
-                        template, templateName, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
+                    var materialBake = profile.NativeFlames && primitive.Material.Name == "fire"
+                        ? ZaSwShFlameMaterial.Bake(sourceMaterialBytes, rare, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token)
+                        : ZaSwShMaterialBaker.Bake(primitive, sourceMaterialBytes, index, rare,
+                            template, templateName, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
                     Report("textures", (rare ? scene.Primitives.Count : 0) + index + 1, 2 * scene.Primitives.Count);
                     return materialBake with
                     {
@@ -100,6 +105,11 @@ public sealed partial class ZaSwShRestorationPreparationService
                         AmbientName = textures.Add(materialBake.AmbientName, materialBake.Ambient),
                     };
                 }).ToArray();
+                var emissionIndex = profile.EmissionMaterial is null ? -1 : Array.FindIndex(variantScene.Primitives.ToArray(), primitive => primitive.Material.Name == profile.EmissionMaterial);
+                if (profile.EmissionMaterial is not null && emissionIndex < 0) throw new InvalidDataException("Z-A emission material is missing.");
+                var emission = emissionIndex < 0 ? null : ZaSwShEmissionMaterial.Bake(sourceMaterialBytes, profile.EmissionMaterial!, baked[emissionIndex],
+                    name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
+                var emissionName = emission is null ? null : textures.Add(emission.Name, emission.Bytes);
                 var bindings = variantScene.Primitives.Select((primitive, index) =>
                 {
                     var nativeMaterial = primitive.Material.Name.Contains("eye", StringComparison.Ordinal) ? 1 : 0;
@@ -108,6 +118,8 @@ public sealed partial class ZaSwShRestorationPreparationService
                     textureBindings["Col0Tex"] = baked[index].ColorName;
                     textureBindings["NormalMapTex"] = baked[index].NormalName; textureBindings["AmbientTex"] = baked[index].AmbientName;
                     textureBindings["LightTblTex"] = "Default_lta"; textureBindings["EffectTex"] = "projection_effect_col";
+                    if (profile.NativeFlames && primitive.Material.Name == "fire") textureBindings["EmissionMaskTex"] = sourceStem + "_fire_alb";
+                    if (index == emissionIndex) textureBindings["EmissionMaskTex"] = emissionName!;
                     return new SwShMaterialBinding(primitive.Material.Name, nativeMaterial, textureBindings);
                 }).ToArray();
                 var targetScene = UniqueMaterials(scene);
@@ -115,6 +127,8 @@ public sealed partial class ZaSwShRestorationPreparationService
                 Report("geometry", rare ? 1 : 0, 2);
                 var converted = SwShModelWriter.Convert(targetScene, nativeModel, bindings, aliases, locators, cancellationToken: token, preserveMeshNames: profile.MeshVisibility);
                 converted = converted with { Model = SwShRestorationMaterialResponse.Apply(converted.Model) };
+                if (profile.NativeFlames) converted = converted with { Model = ZaSwShFlameMaterial.Emission(converted.Model) };
+                if (emission is not null) converted = converted with { Model = ZaSwShFlameMaterial.Emission(converted.Model, profile.EmissionMaterial!, 0, emission.Gain) };
                 converted = converted with { Model = CompactPrograms(converted.Model) };
                 geometry ??= converted; members[modelFolder + stem + (rare ? "_rare" : "") + ".gfbmdl"] = converted.Model;
             }
@@ -144,7 +158,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 token.ThrowIfCancellationRequested();
                 var clip = PreviewRigReader.Animation(new(resource.Bytes), resource.Id, scene.Rig.Bones);
-                clip = ZaSwShAnimationWriter.ReadClip(Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/')), clip, profile.MeshVisibility);
+                clip = ZaSwShAnimationWriter.ReadClip(Donor(Path.ChangeExtension(resource.Id, ".tracm").Replace('\\', '/')), clip, profile.MeshVisibility, profile.EmissionMaterial);
                 // A material can be shared by multiple mesh sections. Each converted
                 // material needs the authored channel, including hidden mouth sections.
                 clip = clip with { Materials = clip.Materials.SelectMany(track => scene.Primitives.Select((p, i) => (p, i))
@@ -185,12 +199,24 @@ public sealed partial class ZaSwShRestorationPreparationService
             Report("packing");
             members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
             members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"), materialNames);
+            if (profile.EmissionMaterial is not null)
+                members[animationFolder + stem + "_gloop01.gfbanm"] = ZaSwShEmissionMaterial.KeepAnimationLocal(
+                    members[animationFolder + stem + "_gloop01.gfbanm"], profile.EmissionMaterial);
+            var flameBones = profile.NativeFlames ? SvSwShFlameAnimation.LoopBones(scene, clips["08201"].Decoded) : [];
+            if (profile.NativeFlames)
+            {
+                var loop = clips["08201"];
+                var convertedLoop = ZaSwShAnimationWriter.Convert(loop.Skeleton, loop.Decoded.Materials, scene.Rig.Bones, aliases, completePose: false);
+                members[animationFolder + stem + "_gloop01.gfbanm"] = flameBones.Length == 0 ? convertedLoop
+                    : SvSwShFlameAnimation.SkeletonLoop(convertedLoop, convertedLoop, flameBones.Select(name => aliases[name]).ToArray());
+            }
             var facialBones = new Dictionary<string, string[]>(StringComparer.Ordinal);
             var eyelids = scene.Rig.Bones.Where(b => b.Name.Contains("eyelid", StringComparison.OrdinalIgnoreCase)).Select(b => aliases[b.Name]).ToArray();
             if (eyelids.Length > 0) facialBones.Add("eye01", eyelids);
             foreach (var group in new[] { "battle", "camp", "field" })
             {
                 var controller = ZaSwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
+                if (profile.NativeFlames) controller = SvSwShFlameAnimation.Controller(controller, flameBones.Select(name => aliases[name]).ToArray());
                 members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = group == "battle" ? SwShAnimationWriter.BattleIdleController(controller) : controller;
             }
             var result = new List<SwShRestorationContribution>();

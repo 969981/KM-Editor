@@ -5,10 +5,13 @@ public sealed partial class ZaSwShRestorationPreparationService
 {
     private sealed record SpeciesProfile(int NativeTemplate, int HatchedSpecies, int Experience,
         float BattleHeight, float FieldHeight, string TextureSuffix, bool SourceFraming = false, bool MeshVisibility = false, int FemalePercent = 50, byte GenderThreshold = 127, bool SeparateFemale = false, bool IdleFraming = false, bool MatchNativeGiantHeight = false,
-        System.Numerics.Vector3? MouthPosition = null, float? MealVerticalOffset = null);
+        System.Numerics.Vector3? MouthPosition = null, float? MealVerticalOffset = null, bool NativeFlames = false, string? EmissionMaterial = null);
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [498] = new(220, 498, 62, 50, 50, "_body_alb", SourceFraming: true, MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31, EmissionMaterial: "body_01"),
+        [499] = new(5, 498, 146, 100, 100, "_body_alb", SourceFraming: true, MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31),
+        [500] = new(467, 498, 238, 160, 160, "_body_a_alb", MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31, IdleFraming: true, NativeFlames: true),
         [152] = new(1, 152, 64, 90, 90, "_body_alb", SourceFraming: true, MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31,
             MouthPosition: new(.023f, 0, .11f), MealVerticalOffset: 0),
         [153] = new(2, 152, 142, 120, 120, "_body_a_alb", SourceFraming: true, MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31,
