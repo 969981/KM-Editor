@@ -781,6 +781,7 @@ import {
   type OrdinaryTrainerDraftPayload
 } from './workbench/sessionLocalEditorDraftPayloads';
 import { useProjectSourceRevision } from './workbench/useProjectSourceRevision';
+import { supportsAnalysisTools } from './workbench/analysisGameSupport';
 import { AdvancedAuthoringController } from './authoring/advancedAuthoringController';
 import {
   createItemsAuthoringWorkspace,
@@ -2866,6 +2867,7 @@ export function App({
   const setWorkflows = useWorkbenchStore((state) => state.setWorkflows);
   const health = projectHealth;
   const selectedGame = draftPaths.selectedGame;
+  const analysisSupported = supportsAnalysisTools(selectedGame);
   const activeProjectId = openProject?.projectId ?? null;
   // Keep read-only analysis bound to the paths that produced the active health snapshot.
   // Project Setup drafts are not an active scope until validation accepts them.
@@ -4083,7 +4085,7 @@ export function App({
     projectSourceRevision.sourceObservationToken
       ? `${activeProjectId}:${selectedGame}:${projectSourceRevision.sourceObservationToken}`
       : null;
-  const semanticPreparationProgress = !activeProjectId
+  const semanticPreparationProgress = !activeProjectId || !analysisSupported
     ? createAnalysisPreparationProgress('semanticProject', 'waiting')
     : preparationProgressFromQueryStatuses('semanticProject', [
         projectSourceRevision.status,
@@ -20261,6 +20263,7 @@ export function App({
         <AnalysisLoadingSettings
           mode={analysisLoadingMode}
           onChange={handleChangeAnalysisLoadingMode}
+          supported={supportsAnalysisTools(showingWelcome ? welcomeGame : selectedGame)}
         />
       )}
       appVersion={appVersion}
@@ -20487,6 +20490,7 @@ export function App({
                 <AnalysisPreparationPanel
                   mode={analysisLoadingMode}
                   snapshot={analysisPreparation.snapshot}
+                  supported={analysisSupported}
                 />
               ) : null}
               draftPaths={draftPaths}

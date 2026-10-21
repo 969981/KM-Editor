@@ -13,12 +13,20 @@ import {
 
 export function AnalysisPreparationPanel({
   mode,
-  snapshot
+  snapshot,
+  supported = true
 }: {
   mode: AnalysisLoadingMode;
   snapshot: AnalysisPreparationSnapshot;
+  supported?: boolean;
 }) {
   const { t } = useLocalization();
+  if (!supported) {
+    return <LoadingProgress className="analysis-preparation-panel"
+      label={t('analysisPreparation.title')} status="idle"
+      statusLabel={t('analysisPreparation.unavailable')}
+      detail={t('analysisPreparation.unavailableDescription')} />;
+  }
   const isReady = snapshot.readyCount === snapshot.targetCount && snapshot.errorCount === 0;
   const hasError = snapshot.errorCount > 0;
   const phase = hasError ? 'error' : isReady ? 'ready' : 'preparing';
