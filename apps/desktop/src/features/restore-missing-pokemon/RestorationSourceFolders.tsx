@@ -19,7 +19,7 @@ export function RestorationSourceFolders({ sources, onChange, desktop, paths, br
   const { t } = useLocalization();
   const latest = useRef(sources); latest.current = sources;
   const active = useRef(true);
-  const versions = useRef({ donor: 0, donorZa: 0, support: 0 });
+  const versions = useRef({ donor: 0, donorZa: 0, donorPla: 0, support: 0 });
   const searchRun = useRef<object | null>(null);
   const [picking, setPicking] = useState<Partial<Record<Field, boolean>>>({});
   const [searching, setSearching] = useState(false);
@@ -73,7 +73,7 @@ export function RestorationSourceFolders({ sources, onChange, desktop, paths, br
   };
   return <>
     <div className="restoration-sources">
-      {(['donor', 'donorZa', 'support'] as const).map(field => <div className="restoration-source" key={field}>
+      {(['donor', 'donorZa', 'donorPla', 'support'] as const).map(field => <div className="restoration-source" key={field}>
         <label htmlFor={`restoration-${field}`}>{t(`restoration.${field}`)}</label>
         <div className="restoration-source-controls">
           <input id={`restoration-${field}`} value={sources[field]} onChange={event => change(field, event.target.value)} />
@@ -81,7 +81,7 @@ export function RestorationSourceFolders({ sources, onChange, desktop, paths, br
             aria-label={t('restoration.browse', { folder: t(`restoration.${field}`) })} title={t('restoration.browse', { folder: t(`restoration.${field}`) })}
             onClick={() => void browse(field, t(`restoration.${field}`))}><FolderOpen size={18} aria-hidden="true" /></button>
         </div>
-        {field !== 'support' && paths && bridge ? <RestorationDonorStatus donor={field === 'donor' ? 'ScarletViolet' : 'LegendsZA'}
+        {(field === 'donor' || field === 'donorZa') && paths && bridge ? <RestorationDonorStatus donor={field === 'donor' ? 'ScarletViolet' : 'LegendsZA'}
           path={sources[field]} support={sources.support} paths={paths} bridge={bridge} /> : null}
         {field === 'support' ? <div className="restoration-source-actions">
           <button className="secondary-button" type="button" disabled={!desktop.isAvailable || searching} aria-busy={searching || undefined}

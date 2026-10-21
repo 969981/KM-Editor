@@ -95,7 +95,8 @@ public sealed partial class ProjectBridgeDispatcher
         var stage = DeserializeRequest<StageRestorationRequest>(requestJson);
         var paths = ProjectBridgeMapper.ToCore(stage.Payload.Paths);
         var result = new SwShRestorationService().Stage(paths, stage.Payload.DefinitionId, stage.Payload.PreparedHash, stage.Payload.Enabled,
-            stage.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(stage.Payload.Session), stage.Payload.RemoveAssets, preparedAssets: stage.Payload.RemoveAssets ? restorationJobs.ActivePreparedHashes(paths, stage.Payload.DefinitionId) : null);
+            stage.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(stage.Payload.Session), stage.Payload.RemoveAssets, preparedAssets: stage.Payload.RemoveAssets ? restorationJobs.ActivePreparedHashes(paths, stage.Payload.DefinitionId) : null,
+            updateAssets: stage.Payload.UpdateAssets);
         return SerializeSuccess(new StageRestorationResponse(LoadRestoration(paths, result.Session), EditSessionBridgeMapper.ToDto(result.Session),
             result.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), stage.RequestId);
     }
@@ -223,8 +224,12 @@ public sealed partial class ProjectBridgeDispatcher
         finally { ClearCriticalSwShApplyCaches(); }
     }
 
-    private static bool IsEnable(PendingEdit edit) => JsonSerializer.Deserialize<SwShRestorationIntent>(edit.NewValue!)?.Enabled
-        ?? throw new InvalidDataException("Restoration selection is missing.");
+    private static bool IsEnable(PendingEdit edit)
+    {
+        var intent = JsonSerializer.Deserialize<SwShRestorationIntent>(edit.NewValue!)
+            ?? throw new InvalidDataException("Restoration selection is missing.");
+        return intent.Enabled || intent.UpdateAssets;
+    }
 
     private static ProjectFileReference[] RebaseRestorationSources(ProjectPaths paths, IEnumerable<ProjectFileReference> sources) => sources
         .Where(s => s.Layer != ProjectFileLayer.Pending)
