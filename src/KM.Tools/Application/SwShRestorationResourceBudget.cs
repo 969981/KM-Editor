@@ -6,8 +6,9 @@ internal static class SwShRestorationResourceBudget
     internal static void Validate(IReadOnlyDictionary<string, byte[]> resources)
     {
         var textures = resources.Where(p => p.Key.EndsWith(".bntx", StringComparison.Ordinal)).Select(p => p.Value.LongLength).ToArray();
-        if (resources.Values.Sum(b => b.LongLength) > 16L * 1024 * 1024
+        var total = resources.Values.Sum(bytes => bytes.LongLength);
+        if (total > 16L * 1024 * 1024
             || textures.Sum() > 8L * 1024 * 1024 || textures.Any(length => length > 2L * 1024 * 1024))
-            throw new InvalidDataException("Converted model resources exceed the supported loading budget.");
+            throw new InvalidDataException($"Converted model resources exceed the supported loading budget: {total} decoded bytes, {textures.Sum()} texture bytes, and {textures.DefaultIfEmpty().Max()} bytes in the largest texture.");
     }
 }

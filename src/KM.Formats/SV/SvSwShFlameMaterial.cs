@@ -160,6 +160,12 @@ public static class SvSwShFlameMaterial
     }
 
     public static SvSwShFlameTextures Textures(byte[] sourceMaterials, Func<string, byte[]> read, CancellationToken token = default)
+        => Textures(sourceMaterials, read, false, token);
+
+    public static SvSwShFlameTextures ZaTextures(byte[] sourceMaterials, Func<string, byte[]> read, CancellationToken token = default)
+        => Textures(sourceMaterials, read, true, token);
+
+    private static SvSwShFlameTextures Textures(byte[] sourceMaterials, Func<string, byte[]> read, bool zaFlame, CancellationToken token)
     {
         var source = new ModelBuffer(sourceMaterials); var flame = Flame(source);
         var textures = source.Tables(flame, 2, 64).ToDictionary(t => source.Text(t, 0)!, t => source.Text(t, 1)!, StringComparer.Ordinal);
@@ -173,7 +179,8 @@ public static class SvSwShFlameMaterial
         if (white.Pixels().Any(v => v != 255)) throw new InvalidDataException("S/V flame base color is not neutral.");
         var displacement = PreviewTexture.ReadBaseLevel(read(textures["DisplacementMap"]));
         var height = Scalar(source, flame, "DisplacementHeight");
-        if (!float.IsFinite(height) || height is < 0 or > .11f) throw new InvalidDataException("S/V flame displacement exceeds the native approximation.");
+        if (!float.IsFinite(height) || (zaFlame ? height != .12f : height is < 0 or > .11f))
+            throw new InvalidDataException("Flame displacement needs another native adapter.");
         if (displacement.Format != 0x1d01 || height != 0 && (displacement.Width != layer.Width || displacement.Height != layer.Height))
             throw new InvalidDataException("S/V flame noise requires another texture adapter.");
         var noise = height == 0 ? [] : new BcDecoder().DecodeRaw(displacement.Blocks, displacement.Width, displacement.Height, CompressionFormat.Bc4);

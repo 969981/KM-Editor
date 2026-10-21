@@ -6,7 +6,7 @@ namespace KM.Formats.SwSh;
 public static partial class SwShAnimationWriter
 {
     public static byte[] Controller(byte[] nativeController, string donorStem, string targetStem,
-        IReadOnlyList<string> materialNames, IReadOnlyDictionary<string, string[]> facialBones)
+        IReadOnlyList<string> materialNames, IReadOnlyDictionary<string, string[]> facialBones, bool compactMaterials = false)
     {
         if (materialNames.Count is < 1 or > 128 || materialNames.Distinct(StringComparer.Ordinal).Count() != materialNames.Count)
             throw new InvalidDataException("Controller material targets are invalid.");
@@ -28,13 +28,41 @@ public static partial class SwShAnimationWriter
         }
         for (var i = 0; i < materialNames.Count; i++)
         {
-            var copy = writer.Append(nativeController); var name = materialNames[i];
+            var copy = compactMaterials ? 0 : writer.Append(nativeController); var name = materialNames[i];
             foreach (var layer in layers)
             {
                 var masks = source.Table(source.Table(layer, 2), 1);
                 var entries = source.Tables(masks, 1, 128).Where(t => source.Text(t, 0) == (name.Contains("eye", StringComparison.Ordinal) ? "Eye" : "Body01Vco")).ToArray();
                 if (entries.Length != 1) throw new InvalidDataException("Native controller material mask cannot be resolved.");
-                var target = copy + entries[0]; writer.Pointer(vectors[layer][i], target); writer.Text(target, 0, name);
+                if (compactMaterials)
+                {
+                    var original = entries[0];
+                    if (source.U16(original - source.I32(original)) != 12)
+                        throw new InvalidDataException("Native material controller mask needs another adapter.");
+                    var target = writer.Table(4); writer.Pointer(vectors[layer][i], target); writer.Text(target, 0, name);
+                    for (var field = 1; field <= 3; field++)
+                    {
+                        var filter = source.Table(original, field);
+                        if (filter == 0 || source.U16(filter - source.I32(filter)) > 8)
+                            throw new InvalidDataException("Native material parameter mask needs another adapter.");
+                        var absent = Enumerable.Range(0, 2).Where(index => source.Field(filter, index) == 0).ToHashSet();
+                        var mode = absent.Contains(0) ? (byte)0 : source.U8(source.Field(filter, 0));
+                        var replacement = writer.Table(2, absent.Contains(0) ? null : new Dictionary<int, byte[]> { [0] = [mode] }, absent: absent);
+                        writer.Reference(target, field, replacement);
+                        if (absent.Contains(1)) continue;
+                        var parameters = source.Tables(filter, 1, 256);
+                        var parameterSlots = writer.Vector(replacement, 1, parameters.Length);
+                        for (var index = 0; index < parameters.Length; index++)
+                        {
+                            var parameter = writer.Table(1); writer.Pointer(parameterSlots[index], parameter);
+                            writer.Text(parameter, 0, source.Text(parameters[index], 0) ?? throw new InvalidDataException("Native parameter mask is unnamed."));
+                        }
+                    }
+                }
+                else
+                {
+                    var target = copy + entries[0]; writer.Pointer(vectors[layer][i], target); writer.Text(target, 0, name);
+                }
             }
         }
         foreach (var layer in layers)
