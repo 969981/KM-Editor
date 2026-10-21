@@ -27,12 +27,12 @@ export const prepareRestorationRequestSchema = z.strictObject({ paths: projectPa
 export const restorationPreparationRequestSchema = z.strictObject({ paths: projectPathsSchema, preparationId: z.string() });
 export const restorationPreparationResponseSchema = z.strictObject({ preparation: restorationPreparationSchema });
 export const stageRestorationRequestSchema = z.strictObject({ paths: projectPathsSchema, definitionId: z.string(), preparedHash: z.string(),
-  enabled: z.boolean(), removeAssets: z.boolean().optional(), session: editSessionSchema.nullable() });
+  enabled: z.boolean(), removeAssets: z.boolean().optional(), updateAssets: z.boolean().optional(), session: editSessionSchema.nullable() });
 export const stageRestorationResponseSchema = z.strictObject({ workflow: restorationWorkflowSchema, session: editSessionSchema,
   diagnostics: z.array(apiDiagnosticSchema) });
 export type RestorationWorkflow = z.infer<typeof restorationWorkflowSchema>;
 export type RestorationPreparation = z.infer<typeof restorationPreparationSchema>;
-export type RestorationSelection = { definitionId: string; preparedHash: string; enabled: boolean; removeAssets?: boolean };
+export type RestorationSelection = { definitionId: string; preparedHash: string; enabled: boolean; removeAssets?: boolean; updateAssets?: boolean };
 
 export const inspectRestorationDonorRequestSchema = z.strictObject({ paths: projectPathsSchema, donor: z.enum(['ScarletViolet', 'LegendsZA']),
   donorRomFsPath: z.string().min(1), compressionSupportFolderPath: z.string().nullable() });
