@@ -33,6 +33,7 @@ public sealed partial class SwShHeldItemChanceService(ProjectWorkspaceService? w
     public const string StaleCode = "KM-SWSH-HELD-ITEM-PLAN-STALE";
     public const string ApplyCode = "KM-SWSH-HELD-ITEM-APPLY-FAILED";
     private const string MainPath = "exefs/main";
+    private const string GlobalResetField = "rates-reset";
     private readonly ProjectWorkspaceService workspace = workspace ?? new ProjectWorkspaceService();
 
     public SwShWorkflowSummary CreateSummary(OpenedProject project) => new(SwShWorkflowIds.HeldItemChance,
@@ -48,7 +49,7 @@ public sealed partial class SwShHeldItemChanceService(ProjectWorkspaceService? w
         return PopulatePokemon(paths, state, session, diagnostics);
     }
 
-    public SwShHeldItemChanceResult Stage(ProjectPaths paths, IReadOnlyList<int>? rates, EditSession? session)
+    public SwShHeldItemChanceResult Stage(ProjectPaths paths, IReadOnlyList<int>? rates, EditSession? session, bool resetIndividualRates = false)
     {
         var current = session ?? EditSession.Start();
         var diagnostics = new List<ValidationDiagnostic>();
@@ -58,9 +59,9 @@ public sealed partial class SwShHeldItemChanceService(ProjectWorkspaceService? w
             "Enter six whole percentages from 0 to 100. Normal and boosted totals must each be at most 100%.", "rates"));
         if (state is not null && !HasErrors(diagnostics))
         {
-            var retained = current.PendingEdits.Where(edit => edit.Domain != Domain || edit.RecordId != "global-held-items");
-            current = current with { PendingEdits = (state.Rates.SequenceEqual(rates!)
-                ? retained : retained.Append(CreateEdit(rates!))).ToArray() };
+            var retained = current.PendingEdits.Where(edit => edit.Domain != Domain || !resetIndividualRates && edit.RecordId != "global-held-items");
+            current = current with { PendingEdits = (state.Rates.SequenceEqual(rates!) && (!resetIndividualRates || state.Overrides.Count == 0)
+                ? retained : retained.Append(CreateEdit(rates!, resetIndividualRates))).ToArray() };
         }
         return new(Load(paths, current), current, diagnostics);
     }
@@ -153,12 +154,14 @@ public sealed partial class SwShHeldItemChanceService(ProjectWorkspaceService? w
         }
     }
 
-    private static PendingEdit CreateEdit(IReadOnlyList<int> rates)
+    private static PendingEdit CreateEdit(IReadOnlyList<int> rates, bool resetIndividualRates = false)
     {
         var payload = string.Join(',', rates.Select(value => value.ToString(CultureInfo.InvariantCulture)));
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload)));
-        return new(Domain, "Stage global held item percentages.", [new(ProjectFileLayer.Pending, $"pending/held-item-chance/rates/{hash}")],
-            "global-held-items", "rates", payload);
+        var kind = resetIndividualRates ? "global-reset" : "rates";
+        return new(Domain, resetIndividualRates ? "Stage global held item percentages and clear individual overrides." : "Stage global held item percentages.",
+            [new(ProjectFileLayer.Pending, $"pending/held-item-chance/{kind}/{hash}")],
+            "global-held-items", resetIndividualRates ? GlobalResetField : "rates", payload);
     }
 
     internal static int[] Decode(EditSession session, List<ValidationDiagnostic> diagnostics)
@@ -167,7 +170,7 @@ public sealed partial class SwShHeldItemChanceService(ProjectWorkspaceService? w
         var edit = session.PendingEdits[0];
         var rates = (edit.NewValue ?? "").Split(',').Select(value => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var rate) ? rate : -1).ToArray();
         if (!SwShHeldItemChancePatcher.AreValid(rates)) { diagnostics.Add(Error(SessionCode, "The staged held item percentages are invalid. Stage them again.")); return []; }
-        var expected = CreateEdit(rates);
+        var expected = CreateEdit(rates, edit.Field == GlobalResetField);
         if (edit.Domain != Domain || edit.RecordId != expected.RecordId || edit.Field != expected.Field
             || edit.NewValue != expected.NewValue || edit.Summary != expected.Summary || !edit.Sources.SequenceEqual(expected.Sources))
             diagnostics.Add(Error(SessionCode, "The staged held item percentages are inconsistent. Stage them again."));

@@ -481,7 +481,7 @@ import type { RestorationSelection } from './bridge/restorationContracts';
 import { configureRestorationRequestContext } from './bridge/restorationRequestContext';
 import { useRestorationCatalogRefresh } from './features/restore-missing-pokemon/useRestorationCatalogRefresh';
 import { ShakingTreesSection } from './features/shaking-trees/ShakingTreesSection';
-import { type HeldItemChanceUpdate, type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
+import { getHeldItemPendingGlobal, type HeldItemChanceUpdate, type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { encodeGameOptionsSelections, getGameOptionsPendingSelections, type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
 import { encodeObedienceSelections, getObediencePendingSelections, type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { encodeMarnieBoostSelections, getMarnieBoostPendingSelections, type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
@@ -10721,7 +10721,7 @@ export function App({
       () => generation === heldItemChanceGenerationRef.current);
   };
 
-  const handleStageHeldItemChance = async (pokemon: HeldItemChanceUpdate[]) => {
+  const handleStageHeldItemChance = async (pokemon: HeldItemChanceUpdate[], rates?: number[]) => {
     const activeSession = getEditSessionForSection('heldItemChance');
     if (!activeSession) return false;
     let accepted = false;
@@ -10730,8 +10730,15 @@ export function App({
     prepareScopedEditorPanelAction('heldItemChance');
     try {
       await runEditSessionMutation(async session => {
-        const response = await bridge.stageHeldItemChance({ paths: createProjectPaths(draftPaths), session, pokemon });
-        const acknowledged = pokemon.every(update => {
+        const response = await bridge.stageHeldItemChance({ paths: createProjectPaths(draftPaths), session,
+          ...(rates ? { rates, resetIndividualRates: true } : { pokemon }) });
+        const pendingGlobal = getHeldItemPendingGlobal(response.session);
+        const acknowledged = rates ? response.workflow.rates.join(',') === rates.join(',')
+          && response.workflow.pokemon.every(row => !row.customRates && row.rates.join(',') === rates.join(','))
+          && !response.session.pendingEdits.some(edit => edit.domain === 'workflow.heldItemChance' && edit.recordId !== 'global-held-items')
+          && (!response.session.pendingEdits.some(edit => edit.domain === 'workflow.heldItemChance')
+            || pendingGlobal?.resetIndividualRates === true && pendingGlobal.rates.join(',') === rates.join(','))
+          : pokemon.every(update => {
           const row = response.workflow.pokemon.find(row => row.personalId === update.personalId);
           return row && row.items.join(',') === update.items.join(',') && (update.rates === null
             ? !row.customRates : row.customRates && row.rates.join(',') === update.rates.join(','));
@@ -22104,6 +22111,7 @@ export function App({
                 isStaging={isHeldItemChanceStaging} isEditing={getEditSessionForSection('heldItemChance') !== null}
                 isEditStarting={isEditStarting} onStartEditSession={handleStartEditSession}
                 onCancelEditSession={requestCancelEditSession} onStage={handleStageHeldItemChance}
+                onStageGlobal={rates => handleStageHeldItemChance([], rates)}
                 onDirtyStateChange={handleHeldItemChanceDirtyChange} onRefresh={handleOpenHeldItemChanceWorkflow}
                 isLoading={isHeldItemChanceLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('heldItemChance')} />
           ) : null}
@@ -36432,7 +36440,9 @@ function getPendingEditDisplayDetails(
     }
     case 'workflow.heldItemChance':
       return createPendingEditDisplayDetails(edit, {
-        editorLabel, recordLocalizationKey: 'heldItemChance.title', fieldLocalizationKey: 'heldItemChance.rates',
+        editorLabel, recordLocalizationKey: 'heldItemChance.title',
+        fieldLocalizationKey: edit.field === 'rates-reset' ? 'heldItemChance.global' : 'heldItemChance.rates',
+        summaryLocalizationKey: edit.field === 'rates-reset' ? 'heldItemChance.globalSummary' : undefined,
         newValueLabel: edit.newValue ?? ''
       });
     case 'workflow.gameOptions':

@@ -22,7 +22,9 @@ export const heldItemChanceWorkflowSchema = z.strictObject({
 export const loadHeldItemChanceRequestSchema = z.strictObject({ paths: projectPathsSchema });
 export const stageHeldItemChanceRequestSchema = z.strictObject({ paths: projectPathsSchema,
   rates: heldItemRatesSchema.optional(), pokemon: z.array(heldItemChanceUpdateSchema).min(1).max(2048).optional(),
-  session: editSessionSchema.nullable() }).refine(request => (request.rates === undefined) !== (request.pokemon === undefined));
+  resetIndividualRates: z.boolean().optional(),
+  session: editSessionSchema.nullable() }).refine(request => (request.rates === undefined) !== (request.pokemon === undefined)
+    && (!request.resetIndividualRates || request.rates !== undefined));
 export const loadHeldItemChanceResponseSchema = z.strictObject({ workflow: heldItemChanceWorkflowSchema });
 export const stageHeldItemChanceResponseSchema = z.strictObject({ workflow: heldItemChanceWorkflowSchema,
   session: editSessionSchema, diagnostics: z.array(apiDiagnosticSchema) });
@@ -34,15 +36,22 @@ export type StageHeldItemChanceResponse = z.infer<typeof stageHeldItemChanceResp
 export const encodeHeldItemRates = (rates: readonly number[]) => rates.join(',');
 
 export function getHeldItemPendingRates(session: EditSession | null): number[] | null {
+  return getHeldItemPendingGlobal(session)?.rates ?? null;
+}
+
+export function getHeldItemPendingGlobal(session: EditSession | null): { rates: number[]; resetIndividualRates: boolean } | null {
   const edits = session?.pendingEdits.filter(edit => edit.domain === 'workflow.heldItemChance' && edit.recordId === 'global-held-items') ?? [];
   if (edits.length !== 1 || !session?.hasPendingChanges || !session.sessionId.trim()) return null;
   const edit = edits[0];
+  const resetIndividualRates = edit.field === 'rates-reset';
+  const summary = resetIndividualRates ? 'Stage global held item percentages and clear individual overrides.' : 'Stage global held item percentages.';
+  const kind = resetIndividualRates ? 'global-reset' : 'rates';
   const result = heldItemRatesSchema.safeParse(edit.newValue?.split(',').map(value => /^\d+$/.test(value) ? Number(value) : NaN));
-  if (!result.success || edit.recordId !== 'global-held-items' || edit.field !== 'rates' ||
-    edit.summary !== 'Stage global held item percentages.' || edit.newValue !== encodeHeldItemRates(result.data) ||
+  if (!result.success || edit.recordId !== 'global-held-items' || edit.field !== (resetIndividualRates ? 'rates-reset' : 'rates') ||
+    edit.summary !== summary || edit.newValue !== encodeHeldItemRates(result.data) ||
     edit.sources.length !== 1 || edit.sources[0].layer !== 'pending' || edit.sources[0].relativePath !==
-      `pending/held-item-chance/rates/${calculatePendingPayloadSha256(edit.newValue)}`) return null;
-  return result.data;
+      `pending/held-item-chance/${kind}/${calculatePendingPayloadSha256(edit.newValue)}`) return null;
+  return { rates: result.data, resetIndividualRates };
 }
 
 export function parseHeldItemRateDrafts(values: readonly string[]): number[] | null {
@@ -59,9 +68,10 @@ export function getHeldItemPokemonState(row: HeldItemChanceWorkflow['pokemon'][n
     && values?.[0] === row.species && values[1] === row.form;
   const rates = valid && values ? parseHeldItemRateDrafts(values.slice(2).map(String)) : null;
   const reset = valid && values?.length === 3 && values[2] === -1;
-  const globalRates = getHeldItemPendingRates(session);
-  return { ...row, customRates: rates !== null ? true : reset ? false : row.customRates,
-    rates: rates ?? (reset || !row.customRates ? globalRates ?? (reset ? fallbackRates : row.rates) : row.rates),
+  const global = getHeldItemPendingGlobal(session);
+  const useGlobal = reset || global?.resetIndividualRates === true || !row.customRates;
+  return { ...row, customRates: rates !== null || !useGlobal,
+    rates: rates ?? (useGlobal ? global?.rates ?? (reset ? fallbackRates : row.rates) : row.rates),
     items: row.items.map((item, index) => {
       const pending = session?.pendingEdits.find(edit => edit.domain === 'workflow.pokemon' && edit.recordId === String(row.personalId)
         && edit.field === `heldItem${index + 1}`);
