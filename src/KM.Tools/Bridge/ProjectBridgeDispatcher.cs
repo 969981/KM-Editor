@@ -5686,11 +5686,12 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         var request = DeserializeRequest<StageHeldItemChanceRequest>(requestJson);
         var paths = ProjectBridgeMapper.ToCore(request.Payload.Paths);
         var session = request.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(request.Payload.Session);
-        if (request.Payload.Pokemon is not null && request.Payload.Rates is not null)
-            throw new ArgumentException("Choose either Pokemon chances or legacy global rates.");
+        if (request.Payload.Pokemon is not null && request.Payload.Rates is not null
+            || request.Payload.ResetIndividualRates && request.Payload.Rates is null)
+            throw new ArgumentException("Choose either Pokemon chances or global rates. Resetting individual chances requires global rates.");
         var result = request.Payload.Pokemon is { } pokemon
             ? heldItemChanceService.StagePokemon(paths, pokemon.Select(row => new SwShHeldItemChanceUpdate(row.PersonalId, row.Items, row.Rates)).ToArray(), session)
-            : heldItemChanceService.Stage(paths, request.Payload.Rates, session);
+            : heldItemChanceService.Stage(paths, request.Payload.Rates, session, request.Payload.ResetIndividualRates);
         return SerializeSuccess(new StageHeldItemChanceResponse(ToDto(result.Workflow), EditSessionBridgeMapper.ToDto(result.Session),
             result.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), request.RequestId);
     }

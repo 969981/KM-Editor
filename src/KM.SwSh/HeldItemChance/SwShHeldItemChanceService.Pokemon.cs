@@ -77,7 +77,8 @@ public sealed partial class SwShHeldItemChanceService
         {
             var row = workflow.Pokemon.Single(value => value.PersonalId == update.PersonalId);
             var retained = candidate.PendingEdits.Where(edit => edit.Domain != Domain || edit.RecordId != row.PersonalId.ToString(CultureInfo.InvariantCulture));
-            var existing = state.Overrides.SingleOrDefault(value => value.Species == row.Species && value.Form == row.Form);
+            var existing = current.PendingEdits.Any(edit => edit.Domain == Domain && edit.RecordId == "global-held-items" && edit.Field == GlobalResetField)
+                ? null : state.Overrides.SingleOrDefault(value => value.Species == row.Species && value.Form == row.Form);
             var equal = update.Rates is null ? existing is null : existing is not null && existing.Rates.SequenceEqual(update.Rates);
             candidate = candidate with { PendingEdits = (equal ? retained : retained.Append(CreatePokemonEdit(row.PersonalId, row.Species, row.Form, update.Rates))).ToArray() };
         }
@@ -104,7 +105,11 @@ public sealed partial class SwShHeldItemChanceService
             || edits.Select(edit => edit.RecordId).Distinct().Count() != edits.Count)
         { diagnostics.Add(Error(SessionCode, "Stage distinct Pokemon held item percentages before review.")); return (rates, rows.Values.ToArray()); }
         var global = edits.Where(edit => edit.RecordId == "global-held-items").ToArray();
-        if (global.Length > 0) rates = Decode(session with { PendingEdits = global }, diagnostics);
+        if (global.Length > 0)
+        {
+            rates = Decode(session with { PendingEdits = global }, diagnostics);
+            if (!HasErrors(diagnostics) && global[0].Field == GlobalResetField) rows.Clear();
+        }
         var pokemonEdits = edits.Where(edit => edit.RecordId != "global-held-items").ToArray();
         if (pokemonEdits.Length == 0) return (rates, rows.Values.ToArray());
         var pokemon = new SwShPokemonWorkflowService().Load(workspace.Open(paths));

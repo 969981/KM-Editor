@@ -35,3 +35,6 @@
 .held-item-chance.swsh-pokemon-section .pokemon-toolbar { margin-block-start: 1rem; grid-template-columns: minmax(0, 1fr); }
 .held-item-choices { margin-block: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); }
 .held-item-custom { display: flex; align-items: center; gap: .5rem; overflow-wrap: anywhere; }
+.held-item-global { min-width: 0; margin-block: 1rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: .75rem; }
+.held-item-global summary { cursor: pointer; font-weight: 600; }
+.held-item-global p { overflow-wrap: anywhere; }
