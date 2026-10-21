@@ -199,6 +199,7 @@ internal sealed class BurnEngineAdapter
         bootstrapper.ExecuteBegin += OnExecuteBegin;
         bootstrapper.ExecuteComplete += OnExecuteComplete;
         bootstrapper.ExecuteProgress += OnExecuteProgress;
+        bootstrapper.ExecuteMsiMessage += OnExecuteMsiMessage;
         bootstrapper.Error += OnError;
         bootstrapper.ApplyComplete += OnApplyComplete;
         bootstrapper.Shutdown += OnShutdown;
@@ -211,6 +212,8 @@ internal sealed class BurnEngineAdapter
     public event Action<DetectionOutcome>? DetectionCompleted;
 
     public event Action<int>? ProgressChanged;
+
+    public InstallerProgressDetails ProgressDetails { get; } = new();
 
     public event Action<string>? PackageChanged;
 
@@ -341,6 +344,7 @@ internal sealed class BurnEngineAdapter
 
         ResetCancellation();
         lastError = null;
+        ProgressDetails.Reset();
         ProgressChanged?.Invoke(0);
         PackageChanged?.Invoke(string.Empty);
         PlannedAction = action;
@@ -439,6 +443,7 @@ internal sealed class BurnEngineAdapter
         retryFreshInstallScopeAfterDetection = plannedFreshInstallScope;
         ResetCancellation();
         lastError = null;
+        ProgressDetails.Reset();
         ProgressChanged?.Invoke(0);
         PackageChanged?.Invoke(string.Empty);
         Detect();
@@ -997,6 +1002,7 @@ internal sealed class BurnEngineAdapter
 
     private void OnApplyBegin(object? sender, ApplyBeginEventArgs e)
     {
+        ProgressDetails.BeginCache();
         ActivityChanged?.Invoke(InstallerActivity.Caching);
         PhaseChanged?.Invoke(InstallerPhase.Applying);
     }
@@ -1015,37 +1021,56 @@ internal sealed class BurnEngineAdapter
 
     private void OnCacheAcquireProgress(object? sender, CacheAcquireProgressEventArgs e)
     {
+        ProgressDetails.CacheProgress("ProgressAcquiringPayload", e.Progress, e.Total, e.OverallPercentage);
         e.Cancel = TryDeliverCancellation();
     }
 
     private void OnCacheContainerOrPayloadVerifyProgress(object? sender, CacheContainerOrPayloadVerifyProgressEventArgs e)
     {
+        ProgressDetails.CacheProgress("ProgressVerifyingPayload", e.Progress, e.Total, e.OverallPercentage);
         e.Cancel = TryDeliverCancellation();
     }
 
     private void OnCachePayloadExtractProgress(object? sender, CachePayloadExtractProgressEventArgs e)
     {
+        ProgressDetails.CacheProgress("ProgressExtractingPayload", e.Progress, e.Total, e.OverallPercentage);
         e.Cancel = TryDeliverCancellation();
     }
 
     private void OnCacheVerifyProgress(object? sender, CacheVerifyProgressEventArgs e)
     {
+        ProgressDetails.CacheProgress("ProgressVerifyingPayload", e.Progress, e.Total, e.OverallPercentage);
         e.Cancel = TryDeliverCancellation();
     }
 
     private void OnExecuteProgress(object? sender, ExecuteProgressEventArgs e)
     {
+        ProgressDetails.ExecuteProgress(e.PackageId, e.ProgressPercentage);
         e.Cancel = TryDeliverCancellation();
+    }
+
+    private void OnExecuteMsiMessage(object? sender, ExecuteMsiMessageEventArgs e)
+    {
+        if (e.MessageType == InstallMessage.ActionStart)
+        {
+            ProgressDetails.BeginMsiAction(e.PackageId, e.Data);
+        }
+        else if (e.MessageType == InstallMessage.ActionData)
+        {
+            ProgressDetails.MsiActionData(e.PackageId, e.Data);
+        }
     }
 
     private void OnExecuteBegin(object? sender, ExecuteBeginEventArgs e)
     {
+        ProgressDetails.BeginExecution();
         ActivityChanged?.Invoke(InstallerActivity.Executing);
         e.Cancel = TryDeliverCancellation();
     }
 
     private void OnExecuteComplete(object? sender, ExecuteCompleteEventArgs e)
     {
+        ProgressDetails.Finish();
         CloseCancellation();
         ActivityChanged?.Invoke(InstallerActivity.Finalizing);
         PhaseChanged?.Invoke(InstallerPhase.Finalizing);
@@ -1053,6 +1078,7 @@ internal sealed class BurnEngineAdapter
 
     private void OnExecutePackageBegin(object? sender, ExecutePackageBeginEventArgs e)
     {
+        ProgressDetails.BeginPackage(e.PackageId, rollingBack: !e.ShouldExecute);
         var packageName = applicationData.Bundle.Packages.TryGetValue(e.PackageId, out var package)
             ? package.DisplayName
             : e.PackageId;
@@ -1087,6 +1113,7 @@ internal sealed class BurnEngineAdapter
 
     private void OnApplyComplete(object? sender, ApplyCompleteEventArgs e)
     {
+        ProgressDetails.Finish();
         CloseCancellation();
         ExitCode = e.Status;
         // A cancel request is not a terminal result. Burn can finish successfully

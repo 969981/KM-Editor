@@ -14,7 +14,7 @@ internal partial class MainWindow : Window
     private const uint MonitorDefaultToNearest = 2;
     private const double WorkAreaMargin = 12;
     private const double PreferredWidth = 760;
-    private const double PreferredHeight = 440;
+    private const double PreferredHeight = 540;
 
     private readonly InstallerViewModel viewModel;
     private bool engineApprovedClose;

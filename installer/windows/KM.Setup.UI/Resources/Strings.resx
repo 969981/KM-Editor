@@ -159,4 +159,30 @@
   <data name="InvocationBridgeFailure" xml:space="preserve"><value>The updater handoff data was invalid. Setup stopped before planning any changes.</value></data>
   <data name="FatalBootstrapperFailure" xml:space="preserve"><value>KM Editor Setup could not start its installation interface. No success was recorded; review the setup log or try a fresh installer download.</value></data>
   <data name="ShortcutPreferenceFailure" xml:space="preserve"><value>Setup found an invalid saved shortcut preference and stopped before planning changes.</value></data>
+  <data name="ProgressAcquiringPayload" xml:space="preserve"><value>Preparing installation files</value></data>
+  <data name="ProgressVerifyingPayload" xml:space="preserve"><value>Verifying installation files</value></data>
+  <data name="ProgressExtractingPayload" xml:space="preserve"><value>Extracting installation files</value></data>
+  <data name="ProgressInstallingFiles" xml:space="preserve"><value>Installing files</value></data>
+  <data name="ProgressRemovingFiles" xml:space="preserve"><value>Removing files</value></data>
+  <data name="ProgressCreatingFolders" xml:space="preserve"><value>Creating folders</value></data>
+  <data name="ProgressRemovingFolders" xml:space="preserve"><value>Removing folders</value></data>
+  <data name="ProgressCreatingShortcuts" xml:space="preserve"><value>Creating shortcuts</value></data>
+  <data name="ProgressRemovingShortcuts" xml:space="preserve"><value>Removing shortcuts</value></data>
+  <data name="ProgressRegistering" xml:space="preserve"><value>Registering the application</value></data>
+  <data name="ProgressUnregistering" xml:space="preserve"><value>Removing application registration</value></data>
+  <data name="ProgressCheckingFiles" xml:space="preserve"><value>Checking files and disk space</value></data>
+  <data name="ProgressUpdatingComponents" xml:space="preserve"><value>Updating application components</value></data>
+  <data name="ProgressRemovingPreviousVersion" xml:space="preserve"><value>Removing the previous version</value></data>
+  <data name="ProgressPreparingChanges" xml:space="preserve"><value>Preparing changes</value></data>
+  <data name="ProgressSavingChanges" xml:space="preserve"><value>Saving installation changes</value></data>
+  <data name="ProgressRollingBack" xml:space="preserve"><value>Restoring the previous installation</value></data>
+  <data name="ProgressCheckingCache" xml:space="preserve"><value>Checking cached files</value></data>
+  <data name="ProgressInstallerStep" xml:space="preserve"><value>Working on the installation</value></data>
+  <data name="ProgressRollbackHeading" xml:space="preserve"><value>Restoring your installation</value></data>
+  <data name="ProgressRollbackDescription" xml:space="preserve"><value>Windows Installer is undoing changes. Please wait until recovery finishes.</value></data>
+  <data name="ProgressBytes" xml:space="preserve"><value>{0:N0} / {1:N0} bytes</value></data>
+  <data name="ProgressElapsed" xml:space="preserve"><value>Elapsed: {0}</value></data>
+  <data name="ProgressLastUpdate" xml:space="preserve"><value>Last update: {0} ago</value></data>
+  <data name="ProgressPackageScope" xml:space="preserve"><value>Current package</value></data>
+  <data name="ProgressCacheScope" xml:space="preserve"><value>File preparation</value></data>
 </root>

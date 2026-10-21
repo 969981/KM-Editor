@@ -165,8 +165,17 @@ Authenticode signature, and the outer setup must have its Tauri/Minisign updater
 
 The progress bar is driven only by Burn engine events. Detection and planning use an
 indeterminate state because no honest completion percentage exists during those phases.
-During apply, `OverallPercentage` is shown directly. A success page is entered only after a
-successful `ApplyComplete` result.
+During file preparation, the bar shows Burn's cache percentage. During execution, it shows
+the current package's percentage, with the scope labeled above the bar. This keeps file
+progress visible when Burn's bundle counter stays at one value for an entire package.
+A success page is entered only after a successful `ApplyComplete` result.
+
+The status card shows the current installer action, the current filename when Windows
+Installer supplies one, and measured byte counts during file preparation. Elapsed time and
+the time since the last activity update remain visible during long steps. Filenames are
+shown without their containing paths. A step without a known total does not invent file
+counts or a completion estimate. Cancellation, rollback, and finalization use indeterminate
+progress until the engine reports their outcome.
 
 No timer, scripted animation, control-range override, or cosmetic assignment may synthesize
 determinate progress. The visual animation used while Burn is indeterminate carries no

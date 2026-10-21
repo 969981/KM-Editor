@@ -10,7 +10,7 @@ using WixToolset.BootstrapperApplicationApi;
 
 namespace KM.Setup.UI.ViewModels;
 
-internal sealed class InstallerViewModel : ObservableObject
+internal sealed partial class InstallerViewModel : ObservableObject
 {
     private static readonly TimeSpan MinimumVisibleProgressTime = TimeSpan.FromMilliseconds(1600);
     private static readonly TimeSpan PassiveCompletionTime = TimeSpan.FromMilliseconds(1200);
@@ -70,7 +70,7 @@ internal sealed class InstallerViewModel : ObservableObject
         adapter.PhaseChanged += OnPhaseChanged;
         adapter.ActivityChanged += OnActivityChanged;
         adapter.DetectionCompleted += OnDetectionCompleted;
-        adapter.ProgressChanged += value => Dispatch(() => ProgressPercent = value);
+        adapter.ProgressChanged += value => Interlocked.Exchange(ref reportedProgressPercent, value);
         adapter.PackageChanged += value => Dispatch(() =>
         {
             currentPackageName = value;
@@ -78,7 +78,11 @@ internal sealed class InstallerViewModel : ObservableObject
         });
         adapter.ErrorReported += value => Dispatch(() => ErrorMessage = value);
         adapter.ApplyCompleted += OnApplyCompleted;
-        adapter.ExitRequested += () => Dispatch(() => ExitRequested?.Invoke());
+        adapter.ExitRequested += () => Dispatch(() =>
+        {
+            progressTimer?.Stop();
+            ExitRequested?.Invoke();
+        });
 
         RefreshCopy();
     }
@@ -104,6 +108,8 @@ internal sealed class InstallerViewModel : ObservableObject
             {
                 progressPresentationStarted = Stopwatch.GetTimestamp();
             }
+
+            UpdateProgressClock(value);
 
             OnPropertyChanged(nameof(ShowReadyPage));
             OnPropertyChanged(nameof(ShowInstallOptions));
@@ -249,7 +255,9 @@ internal sealed class InstallerViewModel : ObservableObject
         canSafelyUninstall &&
         Phase is InstallerPhase.Ready or InstallerPhase.Blocked;
 
-    public bool IsIndeterminate => Phase is InstallerPhase.Initializing or InstallerPhase.Detecting or InstallerPhase.Planning;
+    public bool IsIndeterminate => Phase is InstallerPhase.Initializing or InstallerPhase.Detecting or
+        InstallerPhase.Planning or InstallerPhase.Cancelling || progressSnapshot.RollingBack ||
+        Phase == InstallerPhase.Finalizing && !completionPending;
 
     public bool ShowProgressPercentage => ShowProgressPage && !IsIndeterminate;
 
@@ -447,6 +455,9 @@ internal sealed class InstallerViewModel : ObservableObject
         }
 
         completionPending = true;
+        ProgressPercent = 100;
+        OnPropertyChanged(nameof(IsIndeterminate));
+        OnPropertyChanged(nameof(ShowProgressPercentage));
         activity = InstallerActivity.Finalizing;
         OnPropertyChanged(nameof(CurrentPackage));
         OnPropertyChanged(nameof(CanCancel));
@@ -480,6 +491,7 @@ internal sealed class InstallerViewModel : ObservableObject
     private void CommitApplyCompletion(ApplyOutcome outcome)
     {
         completionPending = false;
+        if (outcome.Succeeded) ProgressPercent = 100;
         ErrorMessage = outcome.ErrorMessage ?? (outcome.Succeeded ? string.Empty : strings["UnknownFailure"]);
         LogPath = outcome.LogPath ?? string.Empty;
         restartRequired = outcome.RestartRequired;
@@ -524,6 +536,8 @@ internal sealed class InstallerViewModel : ObservableObject
     {
         (Heading, Description) = Phase switch
         {
+            _ when ShowProgressPage && progressSnapshot.RollingBack =>
+                (strings["ProgressRollbackHeading"], strings["ProgressRollbackDescription"]),
             InstallerPhase.Initializing => (strings["InitializingHeading"], strings["InitializingDescription"]),
             InstallerPhase.Detecting => (strings["DetectingHeading"], strings["DetectingDescription"]),
             InstallerPhase.Ready when adapter.IsRecovery => (strings["ReadyRecoveryHeading"], strings["ReadyRecoveryDescription"]),
