@@ -1,5 +1,6 @@
 {
   "keys": {
+    "welcome.start.pla": "在项目设置中选择配套的 Legends Arceus 1.1.1 Base RomFS 和 Base ExeFS 文件夹。档案编辑器和所选模型的准备还需要 PLA 压缩支持文件夹。",
     "pla.help.mastery": "此招式可以使用迅疾和刚猛的等级。0 表示不会自动精通；其他值必须不低于习得等级。",
     "pla.help.effort": "分配给此项能力的奋斗等级。PLA 使用奋斗等级而不是努力值。",
     "pla.help.mastered": "指定招式是否已精通并可使用迅疾和刚猛。未指定的招式不能设为已精通。",

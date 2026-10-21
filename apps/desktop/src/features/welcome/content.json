@@ -2,6 +2,194 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "2.6.7",
+      "summary": {
+        "en": "Bring your ideas to Hisui with Legends Arceus editors, restore 33 more Pokemon in Sword and Shield, and customize Scarlet and Violet's Summary views and Tera Blast. KM Editor 2.6.7 also adds restoration updates that preserve assignments, global held item chances, and clearer progress in the editor and Windows setup."
+      },
+      "sections": [
+        {
+          "title": {
+            "en": "Sword And Shield"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Restore 33 more missing Pokemon, bringing the supported total to 45. The complete Johto, Sinnoh, Unova, and Kalos starter families are now available, with each Pokemon selected independently from your own compatible S/V or Z-A donor files."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Update Asset refreshes an existing restoration without removing it from encounters, trainers, or other editor assignments. Updated defaults replace unchanged stats and learnsets, while supported customizations remain intact. Conflicting model edits stop the update rather than being silently discarded."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Restoration preparation improves texture detail, material shading, battle idle behavior, static party artwork, and species specific eyes, flames, and framing. The conversions remain Testing. Froakie can briefly show blank eyes during battle entry before returning to normal."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Restoring or updating Pokemon also installs the required sound memory changes for Sword and Shield 1.3.2. Copied restoration output and its model dependencies are handled more reliably during reviewed Apply. Disable older standalone sound memory patches when using the integrated restoration output."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Set global normal and boosted held item percentages for all three slots. Stage global chances replaces existing individual chances without changing held items, and you can customize individual Pokemon again afterward, including before Apply."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Restore Missing Pokemon includes a saved PLA donor folder for future sources and lists 122 additional form candidates. Those form entries are not installable, and the folder does not add a PLA conversion adapter."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Search Shaking Trees by eligible drop item names. Trainer Whiteout now enters forced defeat recovery before battle scenes resume, and 60FPS output includes corrected field crowd animation with support for complete output transactions."
+              },
+              "audience": [
+                "swsh"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Scarlet And Violet"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Add four Summary views with the Beta IV and EV Screen: calculated stats, raw IVs, numeric EVs, and the original EV graph. The existing graph control cycles between views without changing Pokemon or save data. Raw IVs do not include Hyper Training adjustments."
+              },
+              "audience": [
+                "sv"
+              ]
+            },
+            {
+              "body": {
+                "en": "Tune seven Tera Blast settings in Moves, including type and category behavior, Stellar power, effectiveness, and Attack and Sp. Atk drops. Battle previews follow the settings, and ordinary move data and executable changes apply together through the supported output modes."
+              },
+              "audience": [
+                "sv"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Legends Arceus"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Open Legends Arceus 1.1.1 projects with dedicated Pokemon, Moves, and Text editors. Edit personal data, learnsets and mastery, supported evolutions, and move tutoring through the shared Stage, Review, Apply, and History workflow."
+              },
+              "audience": [
+                "pla"
+              ]
+            },
+            {
+              "body": {
+                "en": "Edit supported trainer teams and the available gift and static encounter fields while preserving scripted roles and protected event conditions. Familiar Pokemon layouts, contextual form choices, bulk experience changes, typed row clipboard actions, tabs, and bookmarks carry over to the new editors."
+              },
+              "audience": [
+                "pla"
+              ]
+            },
+            {
+              "body": {
+                "en": "Edit Items, Crafting, Shops, Ginkgo inventory, Pokemon Drops, Research tasks, and rank requirements. Gameplay Rules includes capture factors, friendship changes, shiny bonus rolls, all 39 bag expansion prices, and 14 charm price controls."
+              },
+              "audience": [
+                "pla"
+              ]
+            },
+            {
+              "body": {
+                "en": "Adjust existing wild encounter slots, supported Alpha traits, spawn counts, outbreaks, massive outbreaks, space time distortion encounters and items, and area weather weights. Shared tables affect every linked consumer, while protected story conditions and resource links remain intact."
+              },
+              "audience": [
+                "pla"
+              ]
+            },
+            {
+              "body": {
+                "en": "Use the familiar Type Chart grid while retaining PLA's combined damage rules. Preview Pokemon models and animations, edit supported materials and color textures, and browse recordings in Sound Studio. Audio replacement, general script editing, complete starter replacement, and unsupported model authoring are not included."
+              },
+              "audience": [
+                "pla"
+              ]
+            },
+            {
+              "body": {
+                "en": "Choose Minimal, Balanced, or Performance Data Cache modes with optional background preparation. Loose table editors work without the compression runtime; archive editors and selected model preparation require compatible Oodle support. PLA writes standalone output, with game specific source checks and preservation. Analysis Tools are unavailable for PLA and remain separate from its supported editor data cache."
+              },
+              "audience": [
+                "pla"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Workspace And Maintenance"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "More editor operations report their actual activity and measured progress. Windows setup shows current installation, repair, or uninstall work, including available file and byte progress, elapsed time, and the age of the last update."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "CSV, TSV, and TXT exports identify their UTF-8 encoding, and Sword and Shield rental exports include all named moves. Desktop build checks close their temporary watchers cleanly."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Reviewed output better preserves supported copied installations and independent editor changes. Deleted generated output can be recreated from valid current sources without replaying old History entries. Existing Gameplay Settings packages still need Refresh and Upgrade after relevant standalone changes."
+              },
+              "audience": [
+                "all"
+              ]
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "label": {
+            "en": "Full changelog"
+          },
+          "url": "https://github.com/KotMatrosk1n/KM-Editor/compare/v2.6.6...v2.6.7"
+        }
+      ]
+    },
+    {
       "version": "2.6.6",
       "summary": {
         "en": "Bring missing Pokemon back to Sword and Shield, explore with outdoor camera controls, and build your own training and reward progression. KM Editor 2.6.6 also adds clearer progress feedback, customizable editor categories, faster restoration output, and a new home for the community on Discord."
@@ -1903,6 +2091,45 @@
     }
   ],
   "announcements": [
+    {
+      "id": "create-in-hisui-2-6-7",
+      "title": {
+        "en": "Your next adventure starts in Hisui",
+        "de": "Dein nächstes Abenteuer beginnt in Hisui",
+        "es": "Tu próxima aventura empieza en Hisui",
+        "fr": "Votre prochaine aventure commence à Hisui",
+        "ru": "Ваше следующее приключение начинается в Хисуи",
+        "uk": "Ваша наступна пригода починається в Хісуї",
+        "zh": "你的下一段冒险从洗翠开始"
+      },
+      "body": {
+        "en": "Legends Arceus joins KM Editor, and more missing Pokemon are ready to return to Sword and Shield. I hope these new tools help you build something you are excited to play. Thank you for sharing your ideas, reporting issues, and helping KM Editor grow. Come share what you are making in KM Hub!",
+        "de": "Legends Arceus ist jetzt Teil von KM Editor, und weitere fehlende Pokémon können nach Schwert und Schild zurückkehren. Ich hoffe, diese neuen Werkzeuge helfen dir, etwas zu erschaffen, das du selbst gerne spielen möchtest. Danke für deine Ideen, Fehlermeldungen und deine Unterstützung bei der Weiterentwicklung von KM Editor. Zeig uns im KM Hub, woran du arbeitest!",
+        "es": "Legends Arceus se une a KM Editor, y más Pokémon ausentes pueden volver a Espada y Escudo. Espero que estas nuevas herramientas te ayuden a crear algo que te entusiasme jugar. Gracias por compartir tus ideas, informar de problemas y ayudar a que KM Editor siga creciendo. ¡Comparte lo que estás creando en KM Hub!",
+        "fr": "Legends Arceus rejoint KM Editor, et davantage de Pokémon absents peuvent revenir dans Épée et Bouclier. J’espère que ces nouveaux outils vous aideront à créer une aventure à laquelle vous aurez envie de jouer. Merci de partager vos idées, de signaler les problèmes et d’aider KM Editor à évoluer. Venez nous montrer vos créations sur KM Hub !",
+        "ru": "Legends Arceus теперь в KM Editor, а ещё больше отсутствующих покемонов могут вернуться в Sword и Shield. Надеюсь, новые инструменты помогут вам создать приключение, в которое захочется играть. Спасибо за идеи, сообщения об ошибках и помощь в развитии KM Editor. Делитесь своими проектами в KM Hub!",
+        "uk": "Legends Arceus тепер у KM Editor, а ще більше відсутніх покемонів можуть повернутися до Sword і Shield. Сподіваюся, нові інструменти допоможуть вам створити пригоду, у яку захочеться грати. Дякую за ідеї, повідомлення про помилки та допомогу в розвитку KM Editor. Діліться своїми проєктами в KM Hub!",
+        "zh": "Legends Arceus 加入 KM Editor，更多缺席的宝可梦也能重返《剑／盾》了。希望这些新工具能帮助你创造自己也迫不及待想玩的冒险。感谢你分享想法、报告问题，并帮助 KM Editor 不断成长。欢迎到 KM Hub 分享你的作品！"
+      },
+      "audience": [
+        "all"
+      ],
+      "featured": true,
+      "links": [
+        {
+          "label": {
+            "en": "Share in KM Hub",
+            "de": "Im KM Hub teilen",
+            "es": "Comparte en KM Hub",
+            "fr": "Partager sur KM Hub",
+            "ru": "Поделиться в KM Hub",
+            "uk": "Поділитися в KM Hub",
+            "zh": "在 KM Hub 分享"
+          },
+          "url": "https://discord.gg/ess4reb5eB"
+        }
+      ]
+    },
     {
       "id": "km-hub-2-6-6",
       "title": {

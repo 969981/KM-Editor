@@ -3,11 +3,11 @@
 [![Latest release](https://img.shields.io/github/v/release/KotMatrosk1n/KM-Editor?label=release)](https://github.com/KotMatrosk1n/KM-Editor/releases/latest)
 ![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D6)
 ![Built with](https://img.shields.io/badge/built%20with-.NET%2010%20%2B%20Tauri%202-512BD4)
-![Supported games](https://img.shields.io/badge/supports-SwSh%20%7C%20SV%20%7C%20Z--A-red)
+![Supported games](https://img.shields.io/badge/supports-SwSh%20%7C%20SV%20%7C%20Z--A%20%7C%20PLA-red)
 ![Localization](https://img.shields.io/badge/localized-EN%20%7C%20ES%20%7C%20FR%20%7C%20DE%20%7C%20RU%20%7C%20UKR%20%7C%20ZH-orange)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-lightgrey)](LICENSE)
 
-Create your own adventures in Pokémon Sword and Shield, Pokémon Scarlet and Violet, and Pokémon Legends Z-A. KM Editor brings game data, models, audio, and mod output together in a Windows desktop toolkit, with dedicated controls for each game and a clear review before changes reach your project.
+Create your own adventures in Pokémon Sword and Shield, Pokémon Scarlet and Violet, Pokémon Legends Z-A, and Pokémon Legends Arceus. KM Editor brings game data, models, audio, and mod output together in a Windows desktop toolkit, with dedicated controls for each game and a clear review before changes reach your project.
 
 [Download the latest release](https://github.com/KotMatrosk1n/KM-Editor/releases/latest) | [Explore the wiki](https://github.com/KotMatrosk1n/KM-Editor/wiki) | [Join KM Hub on Discord](https://discord.gg/ess4reb5eB) | [Report an issue](https://github.com/KotMatrosk1n/KM-Editor/issues/new/choose)
 
@@ -19,7 +19,7 @@ Start with a small edit and build from there. Review staged changes before writi
 
 ## Mod Merger
 
-Combine existing mods for any of the five supported games into one reviewed output. Open **Mod Merger** from the tools navigation, add mod folders or ZIP, RAR, and 7z archives, then choose your game and a separate output folder.
+Combine existing mods for Sword, Shield, Scarlet, Violet, or Legends Z-A into one reviewed output. Open **Mod Merger** from the tools navigation, add mod folders or ZIP, RAR, and 7z archives, then choose your game and a separate output folder. Mod Merger is not available for Legends Arceus.
 
 - **Basic** compares the supplied mods without an original game dump. Identical data combines automatically; differing values require a choice.
 - **Advanced** compares mods against matching original game files, allowing independent edits to the same supported record to combine automatically. Conflicting edits to the same field still require a choice.
@@ -44,6 +44,8 @@ The welcome hub shows release notes filtered by game and restores saved project 
 
 Beta Editors require their setting to be enabled. See [Project Setup](https://github.com/KotMatrosk1n/KM-Editor/wiki/Project-Setup) for supported builds, compression support, and complete path requirements.
 
+Legends Arceus supports version 1.1.1 with standalone output. Its loose table editors do not need Oodle, while archive editors and selected model preparation require compatible compression support. See the [Legends Arceus guide](https://github.com/KotMatrosk1n/KM-Editor/wiki/Legends-Arceus-Overview) for supported tools and limits.
+
 KM Editor does not include ROM dumps, RomFS, ExeFS, console keys, or save data. You are responsible for obtaining and using required game data in compliance with applicable law.
 
 Regular users do not need .NET, Node.js, Rust, Git, or a separate backend installation.
@@ -55,6 +57,7 @@ Regular users do not need .NET, Node.js, Rust, Git, or a separate backend instal
 | Pokémon Sword and Shield | [Sword and Shield Overview](https://github.com/KotMatrosk1n/KM-Editor/wiki/Sword-and-Shield-Overview) |
 | Pokémon Scarlet and Violet | [Scarlet and Violet Overview](https://github.com/KotMatrosk1n/KM-Editor/wiki/Scarlet-and-Violet-Overview) |
 | Pokémon Legends Z-A | [Legends Z-A Overview](https://github.com/KotMatrosk1n/KM-Editor/wiki/Legends-Z-A-Overview) |
+| Pokémon Legends Arceus | [Legends Arceus Overview](https://github.com/KotMatrosk1n/KM-Editor/wiki/Legends-Arceus-Overview) |
 
 Data models, supported editors, and output rules differ by game. Depending on the workflow, KM Editor can produce standard LayeredFS output or layouts for supported Trinity Mod Manager setups. Keep a separate Output Root for each game.
 

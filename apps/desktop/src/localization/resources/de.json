@@ -1,5 +1,6 @@
 {
   "keys": {
+    "welcome.start.pla": "Wähle in der Projekteinrichtung passende Base RomFS und Base ExeFS Ordner für Legends Arceus 1.1.1. Archivbasierte Editoren und die Vorbereitung ausgewählter Modelle benötigen außerdem den PLA Ordner für die Komprimierungsunterstützung.",
     "pla.help.mastery": "Das Level, ab dem diese Attacke in Tempo- und Krafttechnik eingesetzt werden kann. 0 bedeutet keine automatische Meisterung; andernfalls muss es mindestens dem Erlernlevel entsprechen.",
     "pla.help.effort": "Der Leistungslevel dieses Statuswerts. PLA verwendet Leistungslevel anstelle von EVs.",
     "pla.help.mastered": "Ob die zugewiesene Attacke gemeistert ist und Techniken nutzen kann. Eine nicht festgelegte Attacke kann nicht gemeistert sein.",
