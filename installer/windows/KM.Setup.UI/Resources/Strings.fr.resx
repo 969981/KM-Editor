@@ -61,4 +61,30 @@
   <data name="UninstallOptionsHeading" xml:space="preserve"><value>Options de désinstallation</value></data>
   <data name="DeleteUserSettingsLabel" xml:space="preserve"><value>Supprimer aussi mes paramètres KM Editor</value></data>
   <data name="DeleteUserSettingsDescription" xml:space="preserve"><value>Laissez cette case décochée pour conserver vos préférences, chemins enregistrés et autres paramètres de l’éditeur. Le cache recréable de l’éditeur est toujours supprimé.</value></data>
+  <data name="ProgressAcquiringPayload" xml:space="preserve"><value>Préparation des fichiers d’installation</value></data>
+  <data name="ProgressVerifyingPayload" xml:space="preserve"><value>Vérification des fichiers d’installation</value></data>
+  <data name="ProgressExtractingPayload" xml:space="preserve"><value>Extraction des fichiers d’installation</value></data>
+  <data name="ProgressInstallingFiles" xml:space="preserve"><value>Installation des fichiers</value></data>
+  <data name="ProgressRemovingFiles" xml:space="preserve"><value>Suppression des fichiers</value></data>
+  <data name="ProgressCreatingFolders" xml:space="preserve"><value>Création des dossiers</value></data>
+  <data name="ProgressRemovingFolders" xml:space="preserve"><value>Suppression des dossiers</value></data>
+  <data name="ProgressCreatingShortcuts" xml:space="preserve"><value>Création des raccourcis</value></data>
+  <data name="ProgressRemovingShortcuts" xml:space="preserve"><value>Suppression des raccourcis</value></data>
+  <data name="ProgressRegistering" xml:space="preserve"><value>Enregistrement de l’application</value></data>
+  <data name="ProgressUnregistering" xml:space="preserve"><value>Suppression de l’enregistrement de l’application</value></data>
+  <data name="ProgressCheckingFiles" xml:space="preserve"><value>Vérification des fichiers et de l’espace disque</value></data>
+  <data name="ProgressUpdatingComponents" xml:space="preserve"><value>Mise à jour des composants de l’application</value></data>
+  <data name="ProgressRemovingPreviousVersion" xml:space="preserve"><value>Suppression de la version précédente</value></data>
+  <data name="ProgressPreparingChanges" xml:space="preserve"><value>Préparation des modifications</value></data>
+  <data name="ProgressSavingChanges" xml:space="preserve"><value>Enregistrement des modifications de l’installation</value></data>
+  <data name="ProgressRollingBack" xml:space="preserve"><value>Restauration de l’installation précédente</value></data>
+  <data name="ProgressCheckingCache" xml:space="preserve"><value>Vérification des fichiers en cache</value></data>
+  <data name="ProgressInstallerStep" xml:space="preserve"><value>Traitement de l’installation</value></data>
+  <data name="ProgressRollbackHeading" xml:space="preserve"><value>Restauration de votre installation</value></data>
+  <data name="ProgressRollbackDescription" xml:space="preserve"><value>Windows Installer annule les modifications. Veuillez patienter jusqu’à la fin de la récupération.</value></data>
+  <data name="ProgressBytes" xml:space="preserve"><value>{0:N0} / {1:N0} octets</value></data>
+  <data name="ProgressElapsed" xml:space="preserve"><value>Temps écoulé : {0}</value></data>
+  <data name="ProgressLastUpdate" xml:space="preserve"><value>Dernière mise à jour : il y a {0}</value></data>
+  <data name="ProgressPackageScope" xml:space="preserve"><value>Paquet actuel</value></data>
+  <data name="ProgressCacheScope" xml:space="preserve"><value>Préparation des fichiers</value></data>
 </root>

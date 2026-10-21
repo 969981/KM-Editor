@@ -61,4 +61,30 @@
   <data name="UninstallOptionsHeading" xml:space="preserve"><value>卸载选项</value></data>
   <data name="DeleteUserSettingsLabel" xml:space="preserve"><value>同时删除我的 KM Editor 设置</value></data>
   <data name="DeleteUserSettingsDescription" xml:space="preserve"><value>不勾选此项可保留您的偏好、已保存的路径和其他编辑器设置。可重建的编辑器缓存始终会被删除。</value></data>
+  <data name="ProgressAcquiringPayload" xml:space="preserve"><value>正在准备安装文件</value></data>
+  <data name="ProgressVerifyingPayload" xml:space="preserve"><value>正在验证安装文件</value></data>
+  <data name="ProgressExtractingPayload" xml:space="preserve"><value>正在解压安装文件</value></data>
+  <data name="ProgressInstallingFiles" xml:space="preserve"><value>正在安装文件</value></data>
+  <data name="ProgressRemovingFiles" xml:space="preserve"><value>正在删除文件</value></data>
+  <data name="ProgressCreatingFolders" xml:space="preserve"><value>正在创建文件夹</value></data>
+  <data name="ProgressRemovingFolders" xml:space="preserve"><value>正在删除文件夹</value></data>
+  <data name="ProgressCreatingShortcuts" xml:space="preserve"><value>正在创建快捷方式</value></data>
+  <data name="ProgressRemovingShortcuts" xml:space="preserve"><value>正在删除快捷方式</value></data>
+  <data name="ProgressRegistering" xml:space="preserve"><value>正在注册应用程序</value></data>
+  <data name="ProgressUnregistering" xml:space="preserve"><value>正在移除应用程序注册信息</value></data>
+  <data name="ProgressCheckingFiles" xml:space="preserve"><value>正在检查文件和磁盘空间</value></data>
+  <data name="ProgressUpdatingComponents" xml:space="preserve"><value>正在更新应用程序组件</value></data>
+  <data name="ProgressRemovingPreviousVersion" xml:space="preserve"><value>正在删除旧版本</value></data>
+  <data name="ProgressPreparingChanges" xml:space="preserve"><value>正在准备更改</value></data>
+  <data name="ProgressSavingChanges" xml:space="preserve"><value>正在保存安装更改</value></data>
+  <data name="ProgressRollingBack" xml:space="preserve"><value>正在还原先前的安装</value></data>
+  <data name="ProgressCheckingCache" xml:space="preserve"><value>正在检查缓存文件</value></data>
+  <data name="ProgressInstallerStep" xml:space="preserve"><value>正在处理安装</value></data>
+  <data name="ProgressRollbackHeading" xml:space="preserve"><value>正在还原安装</value></data>
+  <data name="ProgressRollbackDescription" xml:space="preserve"><value>Windows Installer 正在撤销更改。请等待恢复完成。</value></data>
+  <data name="ProgressBytes" xml:space="preserve"><value>{0:N0} / {1:N0} 字节</value></data>
+  <data name="ProgressElapsed" xml:space="preserve"><value>已用时间：{0}</value></data>
+  <data name="ProgressLastUpdate" xml:space="preserve"><value>上次更新：{0} 前</value></data>
+  <data name="ProgressPackageScope" xml:space="preserve"><value>当前软件包</value></data>
+  <data name="ProgressCacheScope" xml:space="preserve"><value>文件准备</value></data>
 </root>
