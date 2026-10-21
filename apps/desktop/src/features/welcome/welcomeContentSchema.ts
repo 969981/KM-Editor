@@ -2,7 +2,7 @@
 import { z } from 'zod';
 const text = z.string().trim().min(1).max(16000);
 const localizedText = z.object({ en: text, de: text.optional(), es: text.optional(), fr: text.optional(), ru: text.optional(), uk: text.optional(), zh: text.optional() }).strict();
-const audience = z.array(z.enum(['all', 'swsh', 'sv', 'za', 'sword', 'shield', 'scarlet', 'violet'])).min(1).max(8);
+const audience = z.array(z.enum(['all', 'swsh', 'sv', 'za', 'pla', 'sword', 'shield', 'scarlet', 'violet'])).min(1).max(9);
 const safeUrl = z.string().url().max(2048).refine(value => {
   try {
     const url = new URL(value);

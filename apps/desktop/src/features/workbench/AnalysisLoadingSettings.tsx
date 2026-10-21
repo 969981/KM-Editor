@@ -9,10 +9,12 @@ import {
 
 export function AnalysisLoadingSettings({
   mode,
-  onChange
+  onChange,
+  supported = true
 }: {
   mode: AnalysisLoadingMode;
   onChange: (mode: AnalysisLoadingMode) => void;
+  supported?: boolean;
 }) {
   const { t } = useLocalization();
   return (
@@ -21,10 +23,10 @@ export function AnalysisLoadingSettings({
         <Gauge aria-hidden="true" size={18} />
         <div>
           <h3 id="analysis-loading-settings-heading">{t('analysisLoading.title')}</h3>
-          <p>{t('analysisLoading.description')}</p>
+          <p>{t(supported ? 'analysisLoading.description' : 'analysisPreparation.unavailableDescription')}</p>
         </div>
       </div>
-      <div
+      {supported ? <div
         aria-label={t('analysisLoading.groupLabel')}
         className="analysis-loading-options"
         role="radiogroup"
@@ -50,7 +52,7 @@ export function AnalysisLoadingSettings({
             </button>
           );
         })}
-      </div>
+      </div> : null}
     </section>
   );
 }

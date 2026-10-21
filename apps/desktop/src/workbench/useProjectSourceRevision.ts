@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectGame, ProjectPaths } from '../bridge/contracts';
 import type { ProjectSourceRevisionProjectBridgeApi } from '../bridge/projectSourceRevisionProjectBridge';
+import { supportsAnalysisTools } from './analysisGameSupport';
 import {
   ProjectQueryEpoch,
   runIndependentProjectRead
@@ -80,7 +81,7 @@ export function useProjectSourceRevision(options: {
 
   useEffect(() => {
     const ticket = freshness.supersede('revision');
-    if (!options.game || !options.paths || !options.projectId) {
+    if (!supportsAnalysisTools(options.game) || !options.paths || !options.projectId) {
       setState({
         error: null,
         fingerprint: null,
@@ -148,5 +149,9 @@ export function useProjectSourceRevision(options: {
     requestKey
   ]);
 
-  return { ...state, refresh };
+  // Hide a previous game's ready or failed observation before the scope effect runs.
+  const visibleState: ProjectSourceRevisionState = supportsAnalysisTools(options.game)
+    ? state
+    : { error: null, fingerprint: null, sourceObservationToken: null, status: 'idle' };
+  return { ...visibleState, refresh };
 }
