@@ -49,18 +49,31 @@ public static class SvSwShFlameAnimation
 
     public static byte[] Apply(byte[] nativeAnimation, IReadOnlyList<PreviewMaterialTrack> sourceTracks, PreviewClip? globalLoop = null)
     {
-        var source = new ModelBuffer(nativeAnimation); var writer = new ModelTableBuilder(nativeAnimation);
+        var source = new ModelBuffer(nativeAnimation);
         var info = source.Table(source.Root, 0);
         var frames = globalLoop?.Frames ?? checked((int)source.Value(info, 1));
         if (frames is < 1 or > 18000) throw new InvalidDataException("Native flame timing exceeds its limit.");
-        if (globalLoop is not null)
-            writer.Reference(source.Root, 0, writer.Table(3, new Dictionary<int, byte[]>
-            { [0] = ModelTableBuilder.Integer(1), [1] = ModelTableBuilder.Integer(frames), [2] = ModelTableBuilder.Integer(globalLoop.Rate) }));
         var material = source.Table(source.Root, 2); var existing = source.Tables(material, 0, 128);
         if (existing.Any(t => source.Text(t, 0) is "fire" or "fire_mask")) throw new InvalidDataException("Native flame animation is already bound.");
         var tracks = sourceTracks.Where(t => t.Material == "fire").ToArray();
-        if (tracks.Length == 0) return writer.Finish(source.Root);
-        var slots = writer.Vector(material, 0, existing.Length + 1); var copy = writer.Append(nativeAnimation);
+        if (tracks.Length == 0)
+        {
+            if (globalLoop is null) return nativeAnimation.ToArray();
+            var timing = new ModelTableBuilder(nativeAnimation);
+            timing.Reference(source.Root, 0, timing.Table(3, new Dictionary<int, byte[]>
+            { [0] = ModelTableBuilder.Integer(1), [1] = ModelTableBuilder.Integer(frames), [2] = ModelTableBuilder.Integer(globalLoop.Rate) }));
+            return timing.Finish(source.Root);
+        }
+        var writer = new ModelTableBuilder();
+        var root = writer.Table(5, absent: Enumerable.Range(0, 5).Where(field => field != 2 && source.Table(source.Root, field) == 0).ToHashSet());
+        var materialRoot = writer.Table(1); writer.Reference(root, 2, materialRoot);
+        var slots = writer.Vector(materialRoot, 0, existing.Length + 1);
+        var copy = writer.Append(nativeAnimation);
+        foreach (var field in new[] { 0, 1, 3, 4 })
+            if (source.Table(source.Root, field) is var table && table != 0) writer.Reference(root, field, copy + table);
+        if (globalLoop is not null)
+            writer.Reference(root, 0, writer.Table(3, new Dictionary<int, byte[]>
+            { [0] = ModelTableBuilder.Integer(1), [1] = ModelTableBuilder.Integer(frames), [2] = ModelTableBuilder.Integer(globalLoop.Rate) }));
         for (var i = 0; i < existing.Length; i++) writer.Pointer(slots[i], copy + existing[i]);
         var target = writer.Table(4); writer.Pointer(slots[^1], target); writer.Text(target, 0, "fire");
         writer.Vector(target, 1, 0); writer.Vector(target, 3, 0);
@@ -90,7 +103,7 @@ public static class SvSwShFlameAnimation
             if (constant) writer.Single(writer.Field(curve, 0), keys[0].Value[0]);
             else writer.Blob(curve, 0, ModelTableBuilder.Floats(Enumerable.Range(0, frames).Select(f => Sample(keys, f)).ToArray()), frames);
         }
-        return writer.Finish(source.Root);
+        return writer.Finish(root);
     }
 
     public static string[] LoopBones(PreviewScene scene, PreviewClip loop)

@@ -10,7 +10,7 @@ namespace KM.Formats.ZA;
 /// <summary>Bakes Legends Z-A layered colors, eye highlights, and independent normal UVs into native SwSh textures.</summary>
 public static class ZaSwShMaterialBaker
 {
-    private sealed record Image(int Width, int Height, bool Srgb, byte[] Pixels);
+    internal sealed record Image(int Width, int Height, bool Srgb, byte[] Pixels);
     public static byte[] Icon(byte[] sourceTexture, byte[] targetTemplate, CancellationToken cancellationToken = default)
     {
         var source = Read(sourceTexture); var target = new ModelTextureDocument(targetTemplate);
@@ -44,9 +44,9 @@ public static class ZaSwShMaterialBaker
         return target.EncodeMipImages(Mips(pixels, target.Width, target.Height, target.MipCount), cancellationToken);
     }
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex, bool shiny, byte[] textureTemplate, string templateName,
-        Func<string, byte[]> readTexture, CancellationToken cancellationToken = default)
+        Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool layeredEyes = false)
     {
-        if (materialIndex is < 0 or > 9) throw new InvalidDataException("Material texture identity is outside the supported range.");
+        if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
         var source = new ModelBuffer(sourceMaterials);
         var tables = source.Tables(source.Root, 1, 128).Where(t => source.Text(t, 0) == primitive.Material.Name).ToArray();
@@ -70,12 +70,25 @@ public static class ZaSwShMaterialBaker
             _ => throw new InvalidDataException("Z-A layer mask UV set needs another material adapter."),
         };
         var normalUv = parameters.GetValueOrDefault("UVScaleOffsetNormal", new(1, 1, 0, 0));
-        if (normalUv != new Vector4(1, 1, 0, 0)) throw new InvalidDataException("Z-A normal UV transform needs another material adapter.");
+        if (normalUv != new Vector4(1, 1, 0, 0) && (!layeredEyes || !eye || normalUv.X != 1 || normalUv.Y != 1
+            || !float.IsFinite(normalUv.Z + normalUv.W) || MathF.Abs(normalUv.Z) > 4 || MathF.Abs(normalUv.W) > 4))
+            throw new InvalidDataException("Z-A normal UV transform needs another material adapter.");
         var normalSource = Read(readTexture(textures["NormalMap"]));
         // Object normal images are unique to each primitive. Bound those
         // repeated allocations independently of the layered color detail.
         var width = Math.Min(512, normalSource.Width); var height = Math.Min(512, normalSource.Height);
         var tangentNormals = Resize(normalSource.Pixels, normalSource.Width, normalSource.Height, width, height);
+        if (normalUv != new Vector4(1, 1, 0, 0))
+        {
+            var wrap = primitive.Material.Surface?.Wraps[0] ?? throw new InvalidDataException("Z-A eye normal addressing is missing.");
+            for (var row = 0; row < height; row++)
+                for (var column = 0; column < width; column++)
+                {
+                    var sample = Sample(normalSource, new((column + .5f) / width, (row + .5f) / height), normalUv, new(wrap[0], wrap[1]));
+                    var offset = (row * width + column) * 4;
+                    tangentNormals[offset] = Channel(sample.X); tangentNormals[offset + 1] = Channel(sample.Y);
+                }
+        }
         var normals = new Vector3[width * height]; var covered = new bool[normals.Length]; var conflicts = 0;
         var vertices = primitive.Vertices;
         Vector3 Position(int i) => new(vertices[i * 16], vertices[i * 16 + 1], vertices[i * 16 + 2]);
@@ -130,9 +143,9 @@ public static class ZaSwShMaterialBaker
             ambientPixels[i * 4] = occlusion is null ? (byte)0 : (byte)(255 - occlusion[i * 4]);
             ambientPixels[i * 4 + 2] = eye ? (byte)166 : (byte)128; ambientPixels[i * 4 + 3] = 255;
         }
-        var colorName = $"z{materialIndex}{(shiny ? 's' : 'n')}" + templateName[3..];
-        var normalName = $"n{materialIndex}n" + templateName[3..];
-        var ambientName = $"a{materialIndex}n" + templateName[3..];
+        var colorName = $"z{materialIndex:x}{(shiny ? 's' : 'n')}" + templateName[3..];
+        var normalName = $"n{materialIndex:x}n" + templateName[3..];
+        var ambientName = $"a{materialIndex:x}n" + templateName[3..];
         var baseImage = Read(readTexture(textures["BaseColorMap"]));
         var maskImage = Read(readTexture(textures["LayerMaskMap"]));
         var highlightImage = textures.TryGetValue("HighlightMaskMap", out var highlightPath) ? Read(readTexture(highlightPath)) : null;
@@ -175,7 +188,7 @@ public static class ZaSwShMaterialBaker
             ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts);
     }
 
-    private static Image Read(byte[] bytes)
+    internal static Image Read(byte[] bytes)
     {
         var texture = PreviewTexture.ReadBaseLevel(bytes);
         var format = texture.Format switch
@@ -190,7 +203,7 @@ public static class ZaSwShMaterialBaker
             .SelectMany(p => new[] { p.r, p.g, p.b, p.a }).ToArray();
         return new(texture.Width, texture.Height, (texture.Format & 255) == 6, pixels);
     }
-    private static Vector4 Sample(Image image, Vector2 uv, Vector4 transform, Vector2 wrap)
+    internal static Vector4 Sample(Image image, Vector2 uv, Vector4 transform, Vector2 wrap)
     {
         static float Fract(float value) => value - MathF.Floor(value);
         static float Address(float value, float mode) => mode switch

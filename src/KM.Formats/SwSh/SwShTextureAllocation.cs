@@ -7,7 +7,7 @@ namespace KM.Formats.SwSh;
 /// <summary>Allocates a bounded compressed image chain while preserving native texture metadata.</summary>
 public static class SwShTextureAllocation
 {
-    public static byte[] Create(byte[] template, int width, int height, bool srgb)
+    public static byte[] Create(byte[] template, int width, int height, bool srgb, bool compressed = true)
     {
         if (width is < 4 or > 2048 || height is < 4 or > 2048 || !PowerOfTwo(width) || !PowerOfTwo(height)
             || (long)width * height > 2 * 1024 * 1024)
@@ -37,7 +37,8 @@ public static class SwShTextureAllocation
         for (var mip = 0; mip < count; mip++)
         {
             var w = Math.Max(1, width >> mip); var h = Math.Max(1, height >> mip);
-            var rows = (h + 3) / 4; var stride = (w + 3) / 4 * 16; var group = 16;
+            var rows = compressed ? (h + 3) / 4 : h;
+            var stride = compressed ? (w + 3) / 4 * 16 : w * 4; var group = 16;
             while (group > 1 && rows <= group * 4) group /= 2;
             offsets[mip] = end;
             end = checked(end + Align(stride, 64) / 64 * 512 * group * ((rows + 8 * group - 1) / (8 * group)));
@@ -75,7 +76,8 @@ public static class SwShTextureAllocation
         void U64(int at, ulong value) => BinaryPrimitives.WriteUInt64LittleEndian(output.AsSpan(at), value);
         void U16(int at, ushort value) => BinaryPrimitives.WriteUInt16LittleEndian(output.AsSpan(at), value);
         U32(24, (uint)newRelocation); U32(28, (uint)output.Length);
-        U16(info + 18, 0); U16(info + 22, (ushort)count); U32(info + 28, srgb ? 0x2006u : 0x2001u);
+        U16(info + 18, 0); U16(info + 22, (ushort)count);
+        U32(info + 28, (compressed ? 0x2000u : 0x0b00u) | (srgb ? 6u : 1u));
         U32(info + 36, (uint)width); U32(info + 40, (uint)height); U32(info + 52, 4);
         U32(info + 80, (uint)(end - firstImage)); U32(info + 84, 512); U32(info + 88, 0x05040302);
         U64(info + 112, (ulong)pointers);

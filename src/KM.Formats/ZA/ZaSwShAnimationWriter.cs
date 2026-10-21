@@ -8,9 +8,9 @@ namespace KM.Formats.ZA;
 public static class ZaSwShAnimationWriter
 {
     public static byte[] Controller(byte[] nativeController, string donorStem, string targetStem,
-        IReadOnlyList<string> materialNames, IReadOnlyDictionary<string, string[]> facialBones)
+        IReadOnlyList<string> materialNames, IReadOnlyDictionary<string, string[]> facialBones, bool layeredEyes = false)
     {
-        var bytes = SwShAnimationWriter.Controller(nativeController, donorStem, targetStem, materialNames, facialBones);
+        var bytes = SwShAnimationWriter.Controller(nativeController, donorStem, targetStem, materialNames, facialBones, layeredEyes);
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
         foreach (var layer in source.Tables(source.Table(source.Root, 0), 0, 128))
         {
@@ -21,9 +21,26 @@ public static class ZaSwShAnimationWriter
                 var floats = source.Table(material, 2);
                 var names = source.Tables(floats, 1, 256).Select(t => source.Text(t, 0)!).ToArray();
                 if (!names.Contains("ColorUVTranslateU", StringComparer.Ordinal)) continue;
-                names = names.Concat(new[] { "ColorUVScaleU", "ColorUVScaleV", "ConstantColorVal" }).Distinct(StringComparer.Ordinal).ToArray();
+                names = names.Concat(new[] { "ColorUVScaleU", "ColorUVScaleV", "ConstantColorVal" })
+                    .Concat(layeredEyes ? ZaSwShEyelidMaterial.ScalarNames : [])
+                    .Distinct(StringComparer.Ordinal).ToArray();
                 var slots = writer.Vector(floats, 1, names.Length);
                 for (var i = 0; i < names.Length; i++) { var name = writer.Table(1); writer.Pointer(slots[i], name); writer.Text(name, 0, names[i]); }
+                if (layeredEyes)
+                {
+                    var vectors = source.Table(material, 3);
+                    var vectorNames = source.Tables(vectors, 1, 256).Select(parameter => source.Text(parameter, 0)!)
+                        .Concat(ZaSwShEyelidMaterial.VectorNames).Distinct(StringComparer.Ordinal).ToArray();
+                    if (vectors == 0) throw new InvalidDataException("Eye vector controller mask is missing.");
+                    var mode = source.Field(vectors, 0);
+                    var replacement = writer.Table(2, new Dictionary<int, byte[]> { [0] = [mode == 0 ? (byte)0 : source.U8(mode)] });
+                    writer.Reference(material, 3, replacement);
+                    var vectorSlots = writer.Vector(replacement, 1, vectorNames.Length);
+                    for (var index = 0; index < vectorNames.Length; index++)
+                    {
+                        var parameter = writer.Table(1); writer.Pointer(vectorSlots[index], parameter); writer.Text(parameter, 0, vectorNames[index]);
+                    }
+                }
             }
         }
         return writer.Finish(source.Root);
@@ -31,7 +48,14 @@ public static class ZaSwShAnimationWriter
 
     public static PreviewMaterialTrack[] ReadMaterials(byte[] bytes, PreviewClip skeletal) => ReadClip(bytes, skeletal).Materials;
 
-    public static PreviewClip ReadClip(byte[] bytes, PreviewClip skeletal, bool supportVisibility = false, string? emissionMaterial = null)
+    public static PreviewClip ReadFlameClip(byte[] bytes, PreviewClip skeletal)
+    {
+        var decoded = KM.Formats.SV.SvSwShFlameAnimation.Read(bytes, skeletal);
+        return decoded with { Materials = MergeBakedHighlights(decoded.Materials) };
+    }
+
+    public static PreviewClip ReadClip(byte[] bytes, PreviewClip skeletal, bool supportVisibility = false, string? emissionMaterial = null,
+        IReadOnlyDictionary<string, ZaSwShEyelidMaterial.Contract>? eyes = null)
     {
         var source = new ModelBuffer(bytes); var sanitized = new ModelTableBuilder(bytes);
         var config = source.Table(source.Root, 0);
@@ -39,6 +63,7 @@ public static class ZaSwShAnimationWriter
         if (rate == 0) throw new InvalidDataException("Z-A material animation rate is invalid.");
         var ratio = skeletal.Rate / (float)rate;
         var scalars = new List<PreviewMaterialTrack>();
+        var eyeSources = new List<PreviewMaterialTrack>();
         foreach (var track in source.Tables(source.Root, 1, 512))
         {
             var timeline = source.Table(track, 4);
@@ -46,6 +71,18 @@ public static class ZaSwShAnimationWriter
             foreach (var material in source.Tables(timeline, 2, 128))
             {
                 var name = source.Text(material, 0) ?? throw new InvalidDataException("Z-A material track is unnamed.");
+                if (eyes?.ContainsKey(name) == true)
+                {
+                    eyeSources.AddRange(ZaSwShEyelidMaterial.ReadTracks(source, material, ratio));
+                    sanitized.Vector(material, 1, 0); sanitized.Vector(material, 2, 0);
+                    continue;
+                }
+                foreach (var vector in source.Tables(material, 2, 256))
+                {
+                    var parameter = source.Text(vector, 0);
+                    if (parameter is "UVScaleOffset" or "UVScaleOffset1") continue;
+                    throw new InvalidDataException($"Z-A material animation needs another native adapter: {name}/{parameter}.");
+                }
                 var entries = source.Tables(material, 1, 256);
                 if (entries.Length == 0) continue;
                 foreach (var entry in entries)
@@ -72,6 +109,15 @@ public static class ZaSwShAnimationWriter
             throw new InvalidDataException("Z-A vector material animation needs another adapter.");
         var result = decoded.Materials.Concat(scalars).ToArray();
         if (result.GroupBy(t => (t.Material, t.Parameter)).Any(g => g.Count() != 1)) throw new InvalidDataException("Z-A material animation identity is ambiguous.");
+        result = MergeBakedHighlights(result);
+        if (eyes is not null)
+            result = result.Concat(eyes.Values.SelectMany(contract => ZaSwShEyelidMaterial.Tracks(contract,
+                eyeSources.Where(track => track.Material == contract.Name).ToArray(), skeletal.Frames))).ToArray();
+        return decoded with { Materials = result };
+    }
+
+    private static PreviewMaterialTrack[] MergeBakedHighlights(PreviewMaterialTrack[] result)
+    {
         foreach (var group in result.GroupBy(t => t.Material))
         {
             var color = group.SingleOrDefault(t => t.Parameter == "UVScaleOffset");
@@ -83,7 +129,7 @@ public static class ZaSwShAnimationWriter
             // Identical authored color and highlight curves share the baked image.
             result = result.Where(t => t != highlight).ToArray();
         }
-        return decoded with { Materials = result };
+        return result;
     }
 
     public static byte[] Convert(byte[] skeleton, PreviewMaterialTrack[] materials, PreviewBone[] bones,
@@ -106,13 +152,47 @@ public static class ZaSwShAnimationWriter
         var nativeMaterials = writer.Table(1); writer.Reference(source.Root, 2, nativeMaterials);
         var groups = (emptyExpression ? [] : materials).GroupBy(t => t.Material, StringComparer.Ordinal).ToArray();
         var materialSlots = writer.Vector(nativeMaterials, 0, groups.Length);
+        var shared = materials.Any(track => track.Parameter.StartsWith("EyeScalar:", StringComparison.Ordinal));
+        var curves = new List<(int Slot, int Components, bool Constant, byte[] Payload)>();
+        var strings = new List<(int Slot, string Value)>();
+        void Text(int table, int field, string value)
+        {
+            if (shared) strings.Add((writer.Field(table, field), value));
+            else writer.Text(table, field, value);
+        }
+        void Curve(int table, int components, bool constant, float[] values)
+        {
+            var payload = ModelTableBuilder.Floats(values);
+            if (shared) curves.Add((writer.Field(table, 2), components, constant, payload));
+            else
+            {
+                var curve = writer.Table(1, sizes: constant ? new Dictionary<int, int> { [0] = components * 4 } : null);
+                writer.Reference(table, 2, curve);
+                if (constant) writer.Write(writer.Field(curve, 0), payload);
+                else writer.Blob(curve, 0, payload, frames);
+            }
+        }
         for (var i = 0; i < groups.Length; i++)
         {
             var native = new List<(string Name, float[] Values)>();
+            var vectors = new List<(string Name, float[][] Values)>();
             float Frame(int frame) => expression == SwShExpressionCurve.None ? frame : EyeSample(frame);
             foreach (var track in groups[i])
             {
-                if (track.Parameter is "LayerMaskScale5" or "EmissionIntensityLayer2")
+                if (track.Parameter.StartsWith("EyeScalar:", StringComparison.Ordinal))
+                {
+                    if (track.Channels.Length != 1) throw new InvalidDataException("Eye scalar channel is invalid.");
+                    Validate(track.Channels[0]);
+                    native.Add((track.Parameter["EyeScalar:".Length..], Enumerable.Range(0, frames).Select(frame => Sample(track.Channels[0], Frame(frame))).ToArray()));
+                }
+                else if (track.Parameter.StartsWith("EyeVector:", StringComparison.Ordinal))
+                {
+                    if (track.Channels.Length != 3) throw new InvalidDataException("Eye vector channels are invalid.");
+                    foreach (var channel in track.Channels) Validate(channel);
+                    vectors.Add((track.Parameter["EyeVector:".Length..], Enumerable.Range(0, frames)
+                        .Select(frame => track.Channels.Select(channel => Sample(channel, Frame(frame))).ToArray()).ToArray()));
+                }
+                else if (track.Parameter is "LayerMaskScale5" or "EmissionIntensityLayer2")
                 {
                     if (track.Channels.Length != 1) throw new InvalidDataException("Z-A eye override has invalid channels.");
                     Validate(track.Channels[0]);
@@ -121,11 +201,13 @@ public static class ZaSwShAnimationWriter
                     native.Add((emission ? "EmissionMaskVal" : "ConstantColorVal", Enumerable.Range(0, frames)
                         .Select(frame => emission ? Sample(track.Channels[0], Frame(frame)) : 1 - Sample(track.Channels[0], Frame(frame))).ToArray()));
                 }
-                else if (track.Parameter is "UVScaleOffset" or "UVScaleOffset1")
+                else if (track.Parameter is "UVScaleOffset" or "UVScaleOffset1" or "UnderlayUV")
                 {
                     if (track.Channels.Length != 4) throw new InvalidDataException("Z-A highlight UV animation has invalid channels.");
                     foreach (var channel in track.Channels) Validate(channel);
-                    string[] names = ["ColorUVScaleU", "ColorUVScaleV", "ColorUVTranslateU", "ColorUVTranslateV"];
+                    string[] names = track.Parameter == "UnderlayUV"
+                        ? ["Layer1UVScaleU", "Layer1UVScaleV", "Layer1UVTranslateU", "Layer1UVTranslateV"]
+                        : ["ColorUVScaleU", "ColorUVScaleV", "ColorUVTranslateU", "ColorUVTranslateV"];
                     for (var c = 0; c < 4; c++)
                     {
                         var component = c;
@@ -136,18 +218,37 @@ public static class ZaSwShAnimationWriter
                 }
                 else throw new InvalidDataException("Z-A material animation has no native mapping.");
             }
-            var material = writer.Table(4); writer.Pointer(materialSlots[i], material); writer.Text(material, 0, groups[i].Key);
-            writer.Vector(material, 1, 0); writer.Vector(material, 3, 0);
+            var material = writer.Table(4); writer.Pointer(materialSlots[i], material); Text(material, 0, groups[i].Key);
+            writer.Vector(material, 1, 0);
+            var vectorSlots = writer.Vector(material, 3, vectors.Count);
+            for (var index = 0; index < vectors.Count; index++)
+            {
+                var (name, values) = vectors[index]; var constant = values.All(value => value.SequenceEqual(values[0]));
+                var vector = writer.Table(3, new Dictionary<int, byte[]> { [1] = ModelTableBuilder.Integer(constant ? 1 : 2) });
+                writer.Pointer(vectorSlots[index], vector); Text(vector, 0, name);
+                Curve(vector, 3, constant, constant ? values[0] : values.SelectMany(value => value).ToArray());
+            }
             var scalarSlots = writer.Vector(material, 2, native.Count);
             for (var j = 0; j < native.Count; j++)
             {
                 var (name, values) = native[j]; var constant = values.All(v => v == values[0]);
                 var scalar = writer.Table(3, new Dictionary<int, byte[]> { [1] = ModelTableBuilder.Integer(constant ? 1 : 2) });
-                writer.Pointer(scalarSlots[j], scalar); writer.Text(scalar, 0, name);
-                var curve = writer.Table(1); writer.Reference(scalar, 2, curve);
-                if (constant) writer.Single(writer.Field(curve, 0), values[0]);
-                else writer.Blob(curve, 0, ModelTableBuilder.Floats(values), frames);
+                writer.Pointer(scalarSlots[j], scalar); Text(scalar, 0, name);
+                Curve(scalar, 1, constant, constant ? [values[0]] : values);
             }
+        }
+        foreach (var group in curves.GroupBy(curve => (curve.Components, curve.Constant, Bytes: System.Convert.ToHexString(curve.Payload))))
+        {
+            var first = group.First();
+            var curve = writer.Table(1, sizes: first.Constant ? new Dictionary<int, int> { [0] = first.Components * 4 } : null);
+            foreach (var reference in group) writer.Pointer(reference.Slot, curve);
+            if (first.Constant) writer.Write(writer.Field(curve, 0), first.Payload);
+            else writer.Blob(curve, 0, first.Payload, frames);
+        }
+        foreach (var group in strings.GroupBy(entry => entry.Value, StringComparer.Ordinal))
+        {
+            var text = writer.String(group.Key);
+            foreach (var reference in group) writer.Pointer(reference.Slot, text);
         }
         return writer.Finish(source.Root);
     }
