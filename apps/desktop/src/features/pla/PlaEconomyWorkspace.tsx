@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+import { plaFieldHelp } from './plaFieldHelp';
 import type { ReactNode } from 'react';
 import { Search, ShieldCheck } from 'lucide-react';
 import type { PlaField, PlaKind, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
@@ -19,10 +20,11 @@ type Props = {
   onQuery: (query: string) => void; onOffset: (offset: number) => void; onSelect: (id: string) => void;
   valuesFor: (record: PlaRecord) => Record<string, string>; hasDraft: (record: PlaRecord) => boolean;
   pendingIds: ReadonlySet<string>; fieldLabel: (field: PlaField) => string; renderInput: (field: PlaField) => ReactNode;
+  renderRecordInput: (record: PlaRecord, field: PlaField) => ReactNode;
 };
 
 export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loading, controls, sessionBar, actions, refresh,
-  onQuery, onOffset, onSelect, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput }: Props) {
+  onQuery, onOffset, onSelect, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput, renderRecordInput }: Props) {
   const { t, translateLiteral } = useLocalization();
   const section = kind === 'ginkgo' ? 'shops' : kind === 'drops' ? 'pokemonDrops' : kind === 'ranks' ? 'research'
     : kind === 'massiveOutbreaks' || kind === 'outbreakGroups' || kind === 'outbreakWaves' || kind === 'outbreakDurations' ? 'outbreaks'
@@ -75,6 +77,7 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
     { title: t('pla.group.rareDrop'), fields: fields.filter(field => field.key.startsWith('rare')) }
   ] : [{ title: t(`pla.kind.${kind}`), fields }];
   const selectedGroup = selected && isShop ? groups.get(selected.metadata.inventory) ?? [] : [];
+  const inspectorTitle = translateLiteral(isShop ? 'Selected Shop' : kind === 'items' ? 'Selected Item' : t('pla.selectedRecord'));
   return <section className={`panel wide-panel pla-editor pla-economy-editor pla-economy-${kind}`} aria-labelledby="pla-editor-title">
     <div className="panel-heading"><Icon size={18} aria-hidden="true" /><h2 id="pla-editor-title">{t(workbenchSectionLocalization[section].label)}</h2>{refresh}</div>
     {controls}
@@ -97,8 +100,8 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
             <span role="cell" data-localization-ignore="true">{summary(record)}</span><span role="cell">{isShop ? translateLiteral('Inventory') : status(record)}</span>
           </InteractiveTableRow>} />
       </div>
-      <aside className={isShop ? 'shop-inspector' : 'item-inspector'} aria-label={t('pla.selectedRecord')}>
-        <div className="panel-heading"><ShieldCheck size={18} aria-hidden="true" /><h3>{isShop ? translateLiteral('Selected Shop') : t('pla.selectedRecord')}</h3></div>
+      <aside className={isShop ? 'shop-inspector' : 'item-inspector'} aria-label={inspectorTitle}>
+        <div className="panel-heading"><ShieldCheck size={18} aria-hidden="true" /><h3>{inspectorTitle}</h3></div>
         {selected ? <>
           <dl className="item-provenance-list"><div><dt>{translateLiteral('Name')}</dt><dd data-localization-ignore="true">{name(selected)}</dd></div>
             <div><dt>{translateLiteral('Status')}</dt><dd>{status(selected)}</dd></div>
@@ -106,20 +109,23 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
               : key === 'category' ? t('pla.event.category.' + value) : key === 'empty' ? translateLiteral(value === '1' ? 'Yes' : 'No') : value}</dd></div>)}
           </dl>
           {isShop ? <div className="shop-inventory-editor-grid" role="table" aria-label={translateLiteral('Inventory')}>
-            <div className="items-row items-row-heading pla-shop-slot-row" role="row"><span role="columnheader">{translateLiteral('Slot')}</span><span role="columnheader">{translateLiteral('Item')}</span><span role="columnheader">{translateLiteral('Status')}</span></div>
-            {selectedGroup.map((record, index) => <InteractiveTableRow key={record.id} aria-selected={record.id === selected.id} onClick={() => onSelect(record.id)}
-              className={`items-row pla-shop-slot-row ${record.id === selected.id ? 'items-row-selected' : ''}`}>
-              <span role="cell">{index + 1}</span><span role="cell" data-localization-ignore="true">{choice('item', valuesFor(record).item)}</span><span role="cell">{status(record)}</span>
-            </InteractiveTableRow>)}
+            <div className="shop-inventory-editor-row shop-inventory-editor-heading pla-shop-slot-row" role="row"><span role="columnheader">{translateLiteral('Slot')}</span><span role="columnheader">{translateLiteral('Item')}</span><span role="columnheader">{translateLiteral('Status')}</span></div>
+            {selectedGroup.map((record, index) => <div key={record.id} role="row" onClick={() => onSelect(record.id)}
+              className={`shop-inventory-editor-row pla-shop-slot-row ${record.id === selected.id ? 'shop-inventory-editor-row-selected' : ''}`}>
+              <span role="cell">{index + 1}</span><div role="cell">{fields.map(field => <div className="path-field editable-field-control" key={field.key}>
+                <FieldLabel htmlFor={`pla-shop-${record.id}-${field.key}`} label={`${fieldLabel(field)} ${index + 1}`} />{renderRecordInput(record, field)}
+              </div>)}</div><span role="cell">{status(record)}</span>
+            </div>)}
           </div> : null}
-          <div className={isShop ? 'shop-edit-form' : 'item-edit-form'}><div className="editable-field-groups">
+          {!isShop ? <div className="item-edit-form"><div className="editable-field-groups">
             {groupFields.map(group => <fieldset className="editable-field-group" key={group.title}><legend>{group.title}</legend><div className="editable-field-grid">
-              {group.fields.map(field => <div className={`path-field editable-field-control ${selected.readOnlyFields.includes(field.key) ? 'editable-field-disabled' : ''}`} key={field.key}>
-                <FieldLabel htmlFor={`pla-field-${field.key}`} label={fieldLabel(field)} />{renderInput(field)}
+              {group.fields.map(field => <div className={`path-field editable-field-control ${selected.readOnlyFields.includes(field.key) ? 'editable-field-disabled' : ''} ${valuesFor(selected)[field.key] !== selected.values[field.key] ? 'editable-field-changed' : ''}`} key={field.key}>
+                <FieldLabel htmlFor={`pla-field-${field.key}`} label={fieldLabel(field)} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />{renderInput(field)}
                 {selected.readOnlyFields.includes(field.key) ? <small className="editable-field-status">{translateLiteral('Read-only')}</small> : null}
+                {!selected.readOnlyFields.includes(field.key) && valuesFor(selected)[field.key] !== selected.values[field.key] ? <small className="editable-field-status">{translateLiteral('Changed')}</small> : null}
               </div>)}
             </div></fieldset>)}
-          </div></div>
+          </div></div> : null}
           {selected.relatedRecords.length ? <div className="pla-related-records"><h4>{t('pla.sharedUses', { count: selected.relatedRecords.length })}</h4>
             <ul>{selected.relatedRecords.map((related, index) => <li key={`${related.kind}:${related.id}:${index}`}><span>{t(`pla.related.${related.kind}`)}</span>: <span data-localization-ignore="true">{related.label}</span></li>)}</ul>
           </div> : null}

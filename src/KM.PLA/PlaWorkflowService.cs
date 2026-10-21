@@ -38,6 +38,19 @@ public sealed partial class PlaWorkflowService
     private static bool Expected(Exception exception) => exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or OverflowException or JsonException;
     private sealed record Prepared(ChangePlan Plan, Dictionary<string, byte[]> Files);
 
+    public string CaptureRowClipboardSourceFingerprint(ProjectPaths paths)
+    {
+        using var scope = new PlaSourceScope(paths);
+        var catalog = new PlaCatalog(scope);
+        _ = Records(catalog, "learnsets", null, [], out _, out _);
+        _ = Records(catalog, "trainers", null, [], out _, out _);
+        // Fingerprint compressed source bytes without requiring its runtime for loose editors.
+        if (File.Exists(PlaSourceScope.Resolve(paths.BaseRomFsPath!, PlaWildCatalog.ArchivePath)))
+            _ = scope.Read(PlaWildCatalog.ArchivePath);
+        scope.VerifyOutput();
+        return scope.Fingerprint();
+    }
+
     public PlaPage Load(ProjectPaths paths, EditSession session, string kind, string? textFile = null, string? query = null, int offset = 0, string? messageLanguage = null)
     {
         if (offset < 0 || query?.Length > 256) throw new InvalidDataException("The PLA page request is invalid.");
@@ -167,11 +180,13 @@ public sealed partial class PlaWorkflowService
         // Load the same dependencies as a displayed page, including pending data.
         var files = BuildFiles(catalog, session);
         var records = Records(catalog, kind, kind == "text" ? SplitTextId(id).File[(scope.Language.Length + 1)..] : null, files, out _, out _);
-        var current = records.SingleOrDefault(record => record.Id == id) ?? throw new InvalidDataException("The PLA record is unavailable.");
         var fields = catalog.Fields(kind).ToDictionary(field => field.Key, StringComparer.Ordinal);
         _ = catalog.RowFields(kind);
         if (!string.Equals(revision, scope.Fingerprint(), StringComparison.Ordinal))
             throw new InvalidDataException("The PLA source changed. Reload the editor before staging.");
+        if (kind == "personal" && id == "*")
+            return StageExperienceYield(catalog, session, records, values, restoreBase);
+        var current = records.SingleOrDefault(record => record.Id == id) ?? throw new InvalidDataException("The PLA record is unavailable.");
         var edits = session.PendingEdits.ToList();
         foreach (var (key, requested) in values)
         {
@@ -184,6 +199,28 @@ public sealed partial class PlaWorkflowService
             if (value == actual) continue;
             var path = kind == "text" ? TextPath(scope, SplitTextId(id).File) : catalog.ResourcePath(kind, id);
             edits.Add(new PendingEdit(Domain(kind), $"PLA {current.Label}: {key}", [new(ProjectFileLayer.Base, PlaSourceScope.OutputPath(path))], kind + "/" + id, key, value, Owner));
+        }
+        var result = session with { PendingEdits = edits };
+        _ = BuildFiles(catalog, result);
+        return result;
+    }
+
+    private static EditSession StageExperienceYield(PlaCatalog catalog, EditSession session, IReadOnlyList<PlaRecord> records,
+        IReadOnlyDictionary<string, string> values, bool restoreBase)
+    {
+        const string field = "baseExperience";
+        if (values.Count != 1 || !values.TryGetValue(field, out var requested) || requested != "0")
+            throw new InvalidDataException("The PLA experience yield action is invalid.");
+        var edits = session.PendingEdits.ToList();
+        foreach (var record in records)
+        {
+            if (record.ReadOnlyFields.Contains(field)) continue;
+            var value = restoreBase ? BaseValue(catalog, "personal", record.Id, field) : "0";
+            edits.RemoveAll(edit => edit.Owner == Owner && edit.RecordId == "personal/" + record.Id && edit.Field == field);
+            if (value == catalog.Record("personal", record.Id).Values[field]) continue;
+            var path = catalog.ResourcePath("personal", record.Id);
+            edits.Add(new PendingEdit(Domain("personal"), $"PLA {record.Label}: {field}",
+                [new(ProjectFileLayer.Base, PlaSourceScope.OutputPath(path))], "personal/" + record.Id, field, value, Owner));
         }
         var result = session with { PendingEdits = edits };
         _ = BuildFiles(catalog, result);

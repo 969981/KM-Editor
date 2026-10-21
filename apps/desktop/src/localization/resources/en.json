@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pla.help.mastery": "The level at which this move can use Agile Style and Strong Style. Use 0 for no automatic mastery; otherwise use a level at least as high as the learn level.",
+    "pla.help.effort": "The effort level assigned to this stat. PLA uses effort levels instead of EVs.",
+    "pla.help.mastered": "Whether this assigned move is mastered and can use styles. An unspecified move cannot be mastered.",
+    "pla.keepForm": "Keep current form",
+    "pla.draftSummary": "{fields} changed fields; {records} records with drafts",
     "settings.cache.pla.title": "PLA Data Cache",
     "settings.cache.pla.modeLabel": "PLA cache mode",
     "settings.cache.pla.description": "Controls how much verified PLA editor data is reused between loads.",
@@ -5591,7 +5596,7 @@
     "pla.remove": "Remove row",
     "pla.add": "Add row",
     "pla.empty": "No matching records.",
-    "pla.invalid": "Enter valid whole numbers before staging.",
+    "pla.invalid": "Enter valid values before staging.",
     "pla.failed": "The edit could not be staged. Check Diagnostics.",
     "pla.language": "Message language",
     "pla.notice.moves": "Signature move values controlled elsewhere are protected.",

@@ -40,6 +40,7 @@ export type WorkbenchNavigationGuardState = {
 
 export type WorkbenchNavigationRequestOptions = {
   preserveSameSectionDraftScope?: boolean;
+  preserveRetainedProjectDraftScope?: boolean;
 };
 
 export type WorkbenchNavigationController = {
@@ -70,6 +71,8 @@ export function evaluateWorkbenchNavigation(
   const sharesDraftScope = locationsShareDraftScope(state.activeLocation, destination);
   const preservesDraftScope =
     sharesDraftScope ||
+    (options.preserveRetainedProjectDraftScope === true && state.activeLocation.game === destination.game
+      && state.activeLocation.projectId !== null && state.activeLocation.projectId === destination.projectId) ||
     (options.preserveSameSectionDraftScope === true &&
       locationsShareSectionDraftScope(state.activeLocation, destination));
   if (

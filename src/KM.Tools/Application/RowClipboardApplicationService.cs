@@ -442,6 +442,11 @@ public sealed class RowClipboardApplicationService
     {
         try
         {
+            if ((editor == RowClipboardAdapterCatalog.PlaLearnset.Editor || editor == RowClipboardAdapterCatalog.PlaTrainerParty.Editor
+                || editor == RowClipboardAdapterCatalog.PlaEncounterSlot.Editor) && target.Kind == editor.RowKind
+                && target.TableId is { Length: > 0 and <= 384 } && target.TableId == target.TableId.Trim() && !target.TableId.Any(char.IsControl)
+                && target.PersonalId is null && target.TrainerId is null && target.Slot is null or (>= 0 and < RowClipboardLimits.MaximumRows))
+                return new RowClipboardLogicalIdentity(editor.RowKind, target.TableId + ":slot:" + (target.Slot?.ToString(CultureInfo.InvariantCulture) ?? "record"));
             if (editor == RowClipboardAdapterCatalog.PokemonLearnset.Editor
                 && string.Equals(target.Kind, RowClipboardAdapterCatalog.PokemonLearnsetRowKind, StringComparison.Ordinal)
                 && target.PersonalId is >= 0
@@ -597,6 +602,7 @@ public sealed class RowClipboardApplicationService
     private static bool IsExpectedContractException(Exception exception) => exception is
         ArgumentException or
         InvalidOperationException or
+        InvalidDataException or
         IOException or
         UnauthorizedAccessException;
 

@@ -49,6 +49,7 @@ public sealed class RowClipboardWorkflowMutationProvider
             ProjectGame.Sword or ProjectGame.Shield => swsh.CaptureSemanticExploreSourceFingerprint(paths),
             ProjectGame.Scarlet or ProjectGame.Violet => sv.CaptureSemanticExploreSourceFingerprint(paths),
             ProjectGame.ZA => za.CaptureSemanticExploreSourceFingerprint(paths),
+            ProjectGame.PLA => PlaRowClipboardMutationProvider.CaptureSourceFingerprint(paths),
             _ => throw new InvalidOperationException("A supported game is required."),
         };
     }
@@ -64,6 +65,9 @@ public sealed class RowClipboardWorkflowMutationProvider
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(envelope);
         ArgumentNullException.ThrowIfNull(target);
+
+        if (paths.SelectedGame == ProjectGame.PLA)
+            return PlaRowClipboardMutationProvider.Mutate(paths, session, envelope, mode, target);
 
         if (envelope.Editor == RowClipboardAdapterCatalog.PokemonLearnset.Editor)
         {

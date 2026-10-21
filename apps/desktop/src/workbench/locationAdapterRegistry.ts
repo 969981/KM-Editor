@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
 import type { ProjectGame } from '../bridge/contracts';
+import { plaRecordKind, plaSectionKinds, type PlaSection } from './plaLocations';
 import { getWorkbenchCapabilityRegistration } from './capabilityRegistry';
 import {
   createWorkbenchLocation,
@@ -20,6 +21,7 @@ export type StableLocationValueKind = 'integer' | 'string';
 export type LocationAdapterTabPolicy = 'readOnly' | 'requiresDraftAdapter';
 
 export type StableLocationAdapter = {
+  games?: readonly ProjectGame[];
   recordKind: string;
   recordKindSchemaVersion: number;
   identityStability: RecordIdentityStability;
@@ -81,7 +83,10 @@ const stableLocationAdapters = [
   adapter('royalCandy', 'royal-candy-workflow', 'string'),
   adapter('royalCandy', 'royal-candy-check', 'string'),
   adapter('startingItems', 'starting-item-slot', 'integer'),
-  adapter('spreadsheetImport', 'import-profile', 'string')
+  adapter('spreadsheetImport', 'import-profile', 'string'),
+  ...Object.entries(plaSectionKinds).flatMap(([section, kinds]) => kinds.map(kind => ({
+    ...adapter(section as PlaSection, plaRecordKind(kind), 'string'), games: ['pla'] as const
+  })))
 ] as const satisfies readonly StableLocationAdapter[];
 
 const adaptersBySection = new Map<WorkbenchSection, readonly StableLocationAdapter[]>();
@@ -100,6 +105,7 @@ export function createStableEntityLocation(
   options: CreateStableEntityLocationOptions
 ): WorkbenchLocation {
   const locationAdapter = resolveAdapterForCreation(
+    options.game,
     options.section,
     options.recordKind,
     options.value
@@ -136,6 +142,7 @@ export function parseStableEntitySelection(
   const locationAdapter = candidates.find(
     (candidate) =>
       candidate.recordKind === location.entity?.recordKind.key &&
+      (!candidate.games || location.game !== null && candidate.games.includes(location.game)) &&
       candidate.recordKindSchemaVersion === location.entity.recordKind.schemaVersion
   );
   if (!locationAdapter) {
@@ -187,7 +194,8 @@ export function isStableLocationTabEligible(
   );
   return Boolean(
     locationAdapter &&
-      (locationAdapter.tabPolicy === 'readOnly' || draftSafeSections.has(selection.section))
+      (locationAdapter.tabPolicy === 'readOnly' || draftSafeSections.has(selection.section)
+        || location.game === 'pla' && selection.recordKind.startsWith('pla-'))
   );
 }
 
@@ -219,6 +227,7 @@ function adapter(
 }
 
 function resolveAdapterForCreation(
+  game: ProjectGame,
   section: WorkbenchSection,
   recordKind: string | undefined,
   value: number | string
@@ -226,6 +235,7 @@ function resolveAdapterForCreation(
   const candidates = adaptersBySection.get(section) ?? [];
   const matchingCandidates = candidates.filter(
     (candidate) =>
+      (!candidate.games || candidate.games.includes(game)) &&
       (recordKind === undefined || candidate.recordKind === recordKind) &&
       ((candidate.valueKind === 'integer' && typeof value === 'number') ||
         (candidate.valueKind === 'string' && typeof value === 'string'))

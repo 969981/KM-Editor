@@ -166,6 +166,13 @@ internal sealed class PlaCatalog
         .Select(id => new PlaChoice(id.ToString(CultureInfo.InvariantCulture), Name(names, id))).ToArray();
     internal IReadOnlyList<PlaChoice> TypeChoices => Enumerable.Range(0, 18).Select(id => new PlaChoice(id.ToString(CultureInfo.InvariantCulture), Name(typeNames, id))).ToArray();
 
+    internal PlaField FormField(Func<string, bool>? allowed = null, bool preserveForm = false) => new("form", "form", Minimum: 0, Maximum: 65535,
+        DependsOn: "species", DependentChoices: Pokemon.Keys.Where(id => allowed?.Invoke(id) ?? true)
+            .GroupBy(id => id.Split(':')[0]).ToDictionary(group => group.Key,
+                group => (IReadOnlyList<PlaChoice>)group.OrderBy(id => int.Parse(id.Split(':')[1], CultureInfo.InvariantCulture))
+                    .Select(id => new PlaChoice(id.Split(':')[1], PokemonLabel(id)))
+                    .Concat(preserveForm ? [new PlaChoice("65535", "65535")] : []).ToArray()));
+
     internal PlaField[] Fields(string kind) => kind switch
     {
         _ when PlaExecutableCatalog.Supports(kind) => PlaExecutableCatalog.Fields,
@@ -205,7 +212,7 @@ internal sealed class PlaCatalog
         "learnsets" => [new("level", "level", Minimum: 0, Maximum: 100), new("mastery", "mastery", Minimum: 0, Maximum: 100), new("move", "move", Choices: MoveChoices)],
         "evolutions" => [new("method", "method", Choices: EvolutionMethods.Select(p => new PlaChoice(p.Key.ToString(CultureInfo.InvariantCulture), p.Value)).ToArray()),
             new("argument", "argument", Minimum: 0, Maximum: 65535, ChoicesByMethod: EvolutionArgumentChoices()), new("species", "species", Choices: SpeciesChoices),
-            new("form", "form", Minimum: 0, Maximum: 65535), new("level", "level", Minimum: 0, Maximum: 100)],
+            FormField(preserveForm: true), new("level", "level", Minimum: 0, Maximum: 100)],
         _ => [],
     };
 

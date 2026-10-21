@@ -11,6 +11,17 @@ namespace KM.Core.Editing;
 /// </summary>
 public static class RowClipboardAdapterCatalog
 {
+    public const string LegendsArceusProfileId = "1.1.1";
+    public static readonly RowClipboardAdapterSchema PlaLearnset = new(
+        new("pla.pokemon.learnset", "pla.pokemon.learnset-row", 1), [ProjectGame.PLA], [LegendsArceusProfileId], [RowClipboardPasteMode.Replace, RowClipboardPasteMode.Append],
+        dependencyKinds: [], fieldPolicies: [Unsigned("level"), Unsigned("mastery"), Unsigned("move")], maximumRows: 128);
+    public static readonly RowClipboardAdapterSchema PlaTrainerParty = new(
+        new("pla.trainers.party", "pla.trainer.party-member", 1), [ProjectGame.PLA], [LegendsArceusProfileId], [RowClipboardPasteMode.Replace],
+        dependencyKinds: [], fieldPolicies: [Signed("species"), Signed("form"), Signed("battleLevel"), Signed("gender"), Signed("effortHp"), Signed("effortAttack"), Signed("effortDefense"), Signed("effortSpecialAttack"), Signed("effortSpecialDefense"), Signed("effortSpeed"), Signed("move1"), Signed("mastered1"), Signed("move2"), Signed("mastered2"), Signed("move3"), Signed("mastered3"), Signed("move4"), Signed("mastered4")], maximumRows: 1);
+    public static readonly RowClipboardAdapterSchema PlaEncounterSlot = new(
+        new("pla.encounters.slots", "pla.encounter.slot", 1), [ProjectGame.PLA], [LegendsArceusProfileId], [RowClipboardPasteMode.Replace],
+        dependencyKinds: [], fieldPolicies: [Signed("species"), Signed("form"), Signed("wildMin"), Signed("wildMax"), Signed("wildWeight"), Signed("perfectIvs"), Signed("effortHp"), Signed("effortAttack"), Signed("effortDefense"), Signed("effortSpecialAttack"), Signed("effortSpecialDefense"), Signed("effortSpeed"), new RowClipboardFieldPolicy("dawn", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("day", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("dusk", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("night", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("sunny", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("cloudy", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("rain", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("snow", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("drought", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("fog", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("rainstorm", [RowClipboardValueKind.Decimal]), new RowClipboardFieldPolicy("snowstorm", [RowClipboardValueKind.Decimal])], maximumRows: 1);
+
     public const string PokemonLearnsetEditorId = "pokemon.learnset";
     public const string PokemonLearnsetRowKind = "pokemon.learnset-row";
     public const string EncounterSlotEditorId = "encounters.slots";
@@ -81,6 +92,10 @@ public static class RowClipboardAdapterCatalog
         ArgumentNullException.ThrowIfNull(scope);
         var adapter = (editor.EditorId, scope.Game) switch
         {
+            ("pla.pokemon.learnset", ProjectGame.PLA) => PlaLearnset,
+            ("pla.trainers.party", ProjectGame.PLA) => PlaTrainerParty,
+            ("pla.encounters.slots", ProjectGame.PLA) => PlaEncounterSlot,
+
             (PokemonLearnsetEditorId, ProjectGame.Sword or ProjectGame.Shield) => PokemonLearnset,
             (PokemonLearnsetEditorId, ProjectGame.Scarlet or ProjectGame.Violet) => PokemonLearnsetScarletViolet,
             (PokemonLearnsetEditorId, ProjectGame.ZA) => PokemonLearnsetZa,
@@ -105,6 +120,7 @@ public static class RowClipboardAdapterCatalog
         ProjectGame.Sword or ProjectGame.Shield => SwordShieldProfileId,
         ProjectGame.Scarlet or ProjectGame.Violet => ScarletVioletProfileId,
         ProjectGame.ZA => LegendsZaProfileId,
+        ProjectGame.PLA => LegendsArceusProfileId,
         _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
     };
 

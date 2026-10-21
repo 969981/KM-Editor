@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pla.help.mastery": "Nivel en el que este movimiento puede usar estilo rápido y fuerte. Usa 0 para desactivar el dominio automático; en otro caso, debe ser al menos el nivel de aprendizaje.",
+    "pla.help.effort": "Nivel de esfuerzo asignado a esta estadística. PLA usa niveles de esfuerzo en lugar de EV.",
+    "pla.help.mastered": "Indica si el movimiento asignado está dominado y puede usar estilos. Un movimiento sin especificar no puede estar dominado.",
+    "pla.keepForm": "Conservar la forma actual",
+    "pla.draftSummary": "{fields} campos modificados; {records} registros con borradores",
     "settings.cache.pla.title": "Caché de datos de PLA",
     "settings.cache.pla.modeLabel": "Modo de caché de PLA",
     "settings.cache.pla.description": "Controla cuántos datos verificados de los editores de PLA se reutilizan entre cargas.",
@@ -5591,7 +5596,7 @@
     "pla.remove": "Eliminar fila",
     "pla.add": "Añadir fila",
     "pla.empty": "No hay registros coincidentes.",
-    "pla.invalid": "Introduce números enteros válidos antes de preparar.",
+    "pla.invalid": "Introduce valores válidos antes de preparar los cambios.",
     "pla.failed": "No se pudo preparar la edición. Revisa Diagnósticos.",
     "pla.language": "Idioma de mensajes",
     "pla.notice.moves": "Los valores de movimientos exclusivos controlados en otro lugar están protegidos.",

@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pla.help.mastery": "Das Level, ab dem diese Attacke in Tempo- und Krafttechnik eingesetzt werden kann. 0 bedeutet keine automatische Meisterung; andernfalls muss es mindestens dem Erlernlevel entsprechen.",
+    "pla.help.effort": "Der Leistungslevel dieses Statuswerts. PLA verwendet Leistungslevel anstelle von EVs.",
+    "pla.help.mastered": "Ob die zugewiesene Attacke gemeistert ist und Techniken nutzen kann. Eine nicht festgelegte Attacke kann nicht gemeistert sein.",
+    "pla.keepForm": "Aktuelle Form beibehalten",
+    "pla.draftSummary": "{fields} geänderte Felder; {records} Datensätze mit Entwürfen",
     "settings.cache.pla.title": "PLA-Datencache",
     "settings.cache.pla.modeLabel": "PLA-Cachemodus",
     "settings.cache.pla.description": "Legt fest, wie viele geprüfte PLA-Editordaten beim erneuten Laden wiederverwendet werden.",
@@ -5591,7 +5596,7 @@
     "pla.remove": "Zeile entfernen",
     "pla.add": "Zeile hinzufügen",
     "pla.empty": "Keine passenden Datensätze.",
-    "pla.invalid": "Vor dem Vormerken gültige ganze Zahlen eingeben.",
+    "pla.invalid": "Gib vor dem Vormerken gültige Werte ein.",
     "pla.failed": "Die Änderung konnte nicht vorgemerkt werden. Diagnose prüfen.",
     "pla.language": "Nachrichtensprache",
     "pla.notice.moves": "Anderweitig gesteuerte Werte von Spezialattacken sind geschützt.",

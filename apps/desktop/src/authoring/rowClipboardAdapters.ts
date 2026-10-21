@@ -18,10 +18,15 @@ import {
 export const rowClipboardProfileIds = {
   scarletViolet: '4.0.0',
   swordShield: '1.3.2',
-  za: '2.0.2'
+  za: '2.0.2',
+  pla: '1.1.1'
 } as const;
 
 export const rowClipboardEditorSchemas = {
+  plaLearnset: { editorId: 'pla.pokemon.learnset', rowKind: 'pla.pokemon.learnset-row', rowSchemaVersion: 1 },
+  plaTrainerParty: { editorId: 'pla.trainers.party', rowKind: 'pla.trainer.party-member', rowSchemaVersion: 1 },
+  plaEncounterSlot: { editorId: 'pla.encounters.slots', rowKind: 'pla.encounter.slot', rowSchemaVersion: 1 },
+
   encounterSlot: {
     editorId: 'encounters.slots',
     rowKind: 'encounter.slot',
@@ -160,7 +165,14 @@ const trainerRegistrations = [
   )
 ];
 
+const plaRegistrations = [
+  registration(rowClipboardEditorSchemas.plaLearnset, ['pla'], rowClipboardProfileIds.pla, ['replace', 'append'], ['level', 'mastery', 'move'].map(unsignedField)),
+  registration(rowClipboardEditorSchemas.plaTrainerParty, ['pla'], rowClipboardProfileIds.pla, ['replace'], [signedField('species'), signedField('form'), signedField('battleLevel'), signedField('gender'), signedField('effortHp'), signedField('effortAttack'), signedField('effortDefense'), signedField('effortSpecialAttack'), signedField('effortSpecialDefense'), signedField('effortSpeed'), signedField('move1'), signedField('mastered1'), signedField('move2'), signedField('mastered2'), signedField('move3'), signedField('mastered3'), signedField('move4'), signedField('mastered4')], 1),
+  registration(rowClipboardEditorSchemas.plaEncounterSlot, ['pla'], rowClipboardProfileIds.pla, ['replace'], [signedField('species'), signedField('form'), signedField('wildMin'), signedField('wildMax'), signedField('wildWeight'), signedField('perfectIvs'), signedField('effortHp'), signedField('effortAttack'), signedField('effortDefense'), signedField('effortSpecialAttack'), signedField('effortSpecialDefense'), signedField('effortSpeed'), { fieldKey: 'dawn', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'day', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'dusk', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'night', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'sunny', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'cloudy', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'rain', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'snow', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'drought', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'fog', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'rainstorm', valueKinds: ['decimal'], maximumUtf8Bytes: null }, { fieldKey: 'snowstorm', valueKinds: ['decimal'], maximumUtf8Bytes: null }], 1),
+];
+
 export const rowClipboardAdapterRegistrations = Object.freeze([
+  ...plaRegistrations,
   ...learnsetRegistrations,
   ...basicEncounterRegistrations,
   ...trainerRegistrations

@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+import { plaFieldHelp } from './plaFieldHelp';
 import type { ReactNode } from 'react';
 import { Search, ShieldCheck } from 'lucide-react';
 import type { PlaField, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
@@ -7,9 +8,11 @@ import { InteractiveTableRow, VirtualTableBody } from '../../components/VirtualT
 import { Metric } from '../../components/workflowPanels';
 import { getWorkbenchCapabilityRegistration } from '../../workbench/capabilityRegistry';
 import { useLocalization } from '../../localization';
+import type { PlaRowClipboardBinding } from './usePlaRowClipboard';
 
 export type PlaPokemonPreview = (values: Record<string, string>, name: string, spriteName: string | undefined, className: string) => ReactNode;
 type Props = {
+  clipboard?: PlaRowClipboardBinding;
   kind: 'trainers' | 'gifts' | 'static'; page: PlaPage | null; selected: PlaRecord | null;
   query: string; offset: number; loading: boolean; sessionBar: ReactNode; actions: ReactNode; refresh: ReactNode;
   onQuery: (query: string) => void; onOffset: (offset: number) => void; onSelect: (id: string) => void;
@@ -20,7 +23,7 @@ type Props = {
 const groupId = (record: PlaRecord) => record.id.slice(0, record.id.lastIndexOf(':'));
 
 export function PlaBattleWorkspace({ kind, page, selected, query, offset, loading, sessionBar, actions, refresh,
-  onQuery, onOffset, onSelect, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput, renderPokemon }: Props) {
+  onQuery, onOffset, onSelect, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput, renderPokemon, clipboard }: Props) {
   const { t, translateLiteral } = useLocalization();
   const section = kind === 'gifts' ? 'giftPokemon' : kind === 'static' ? 'staticEncounters' : 'trainers';
   const registration = getWorkbenchCapabilityRegistration(section);
@@ -101,8 +104,9 @@ export function PlaBattleWorkspace({ kind, page, selected, query, offset, loadin
             <p>{t(isProtected(selected) ? 'pla.protectedBattle' : 'pla.fixedBattleIdentity')}</p>
           </section> : null}
           <div className="trainer-edit-form">
+            {clipboard?.content}
             {kind === 'trainers' ? <div className="trainer-party-card-grid" aria-label={translateLiteral('Trainer party Pokemon')}>
-              {party.map(record => <button type="button" key={record.id} className="trainer-party-card" aria-pressed={selected.id === record.id}
+              {party.map(record => <button type="button" key={record.id} className="trainer-party-card" aria-pressed={selected.id === record.id} {...clipboard?.bind(record.id)}
                 aria-label={`${translateLiteral('Slot')} ${Number(record.id.slice(record.id.lastIndexOf(':') + 1)) + 1}: ${pokemonLabel(record)}`}
                 onClick={() => onSelect(record.id)}>
                 {renderPokemon?.(valuesFor(record), pokemonName(record), page?.pokemonSpriteNames[valuesFor(record).species], 'trainer-party-sprite')}
@@ -116,7 +120,7 @@ export function PlaBattleWorkspace({ kind, page, selected, query, offset, loadin
                   const changed = valuesFor(selected)[field.key] !== selected.values[field.key];
                   const readOnly = field.readOnly || selected.readOnlyFields.includes(field.key);
                   return <div className={`path-field editable-field-control ${changed ? 'editable-field-changed' : ''} ${readOnly ? 'editable-field-disabled' : ''}`} key={field.key}>
-                    <FieldLabel htmlFor={`pla-field-${field.key}`} label={fieldLabel(field)} help={readOnly ? t(isProtected(selected) ? 'pla.protectedBattle' : 'pla.fixedBattleIdentity') : undefined} />
+                    <FieldLabel htmlFor={`pla-field-${field.key}`} label={fieldLabel(field)} help={readOnly ? t(isProtected(selected) ? 'pla.protectedBattle' : 'pla.fixedBattleIdentity') : plaFieldHelp(t, kind, field, fieldLabel(field))} />
                     {renderInput(field)}
                     {readOnly || changed ? <small className="editable-field-status">{translateLiteral(readOnly ? 'Read-only' : 'Changed')}</small> : null}
                   </div>;

@@ -24,7 +24,8 @@ export type RowClipboardExcludedFieldKind =
 export type RowClipboardGameFamily =
   | 'swordShield'
   | 'scarletViolet'
-  | 'legendsZA';
+  | 'legendsZA'
+  | 'legendsArceus';
 
 export type RowClipboardPasteMode = 'replace' | 'insert' | 'append' | 'merge';
 

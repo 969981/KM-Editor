@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pla.help.mastery": "此招式可以使用迅疾和刚猛的等级。0 表示不会自动精通；其他值必须不低于习得等级。",
+    "pla.help.effort": "分配给此项能力的奋斗等级。PLA 使用奋斗等级而不是努力值。",
+    "pla.help.mastered": "指定招式是否已精通并可使用迅疾和刚猛。未指定的招式不能设为已精通。",
+    "pla.keepForm": "保留当前形态",
+    "pla.draftSummary": "已更改 {fields} 个字段；{records} 条记录有草稿",
     "settings.cache.pla.title": "PLA 数据缓存",
     "settings.cache.pla.modeLabel": "PLA 缓存模式",
     "settings.cache.pla.description": "控制在加载之间重复使用的已验证 PLA 编辑器数据量。",
@@ -5591,7 +5596,7 @@
     "pla.remove": "删除行",
     "pla.add": "添加行",
     "pla.empty": "没有匹配的记录。",
-    "pla.invalid": "暂存前请输入有效整数。",
+    "pla.invalid": "暂存前请输入有效值。",
     "pla.failed": "无法暂存修改，请查看诊断。",
     "pla.language": "消息语言",
     "pla.notice.moves": "由其他配置控制的专属招式数值受到保护。",

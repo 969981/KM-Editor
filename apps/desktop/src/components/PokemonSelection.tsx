@@ -5,6 +5,7 @@ import { InteractiveTableRow, VirtualTableBody } from './VirtualTable';
 
 export type PokemonSelectionRecord = {
   personalId: number;
+  displayId?: string;
   speciesId: number;
   form: number;
   name: string;
@@ -55,7 +56,7 @@ export function PokemonTable<T extends PokemonSelectionRecord>({ records, select
       renderRow={record => <InteractiveTableRow
         className={`items-row ${selectedId === record.personalId ? 'items-row-selected' : ''} ${pendingIds.has(record.personalId) ? 'moves-row-pending' : ''}`}
         onClick={() => onSelect(record.personalId)}>
-        <span role="cell">{record.personalId}</span>
+        <span role="cell">{record.displayId ?? record.personalId}</span>
         <span data-localization-ignore="true" role="cell">{formatName(record)}</span>
         <span data-localization-ignore="true" role="cell">{formatPokemonTypes(record)}</span>
       </InteractiveTableRow>} />

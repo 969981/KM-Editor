@@ -68,7 +68,8 @@ public sealed partial class ProjectBridgeDispatcher
 
     private static PlaFieldDto ToPlaFieldDto(PlaField field) => new(field.Key, field.Label, field.Kind, field.Minimum, field.Maximum,
         field.Choices?.Select(choice => new PlaChoiceDto(choice.Value, choice.Label)).ToArray(), field.ReadOnly,
-        field.ChoicesByMethod?.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<PlaChoiceDto>)pair.Value.Select(choice => new PlaChoiceDto(choice.Value, choice.Label)).ToArray()));
+        field.ChoicesByMethod?.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<PlaChoiceDto>)pair.Value.Select(choice => new PlaChoiceDto(choice.Value, choice.Label)).ToArray()), field.DependsOn,
+        field.DependentChoices?.ToDictionary(pair => pair.Key, pair => (IReadOnlyList<PlaChoiceDto>)pair.Value.Select(choice => new PlaChoiceDto(choice.Value, choice.Label)).ToArray()));
 
     private string DispatchStagePla(string requestJson)
     {

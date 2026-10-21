@@ -30,7 +30,7 @@ import {
   type RowClipboardValueKind
 } from './rowClipboardTypes';
 
-const projectGames = ['sword', 'shield', 'scarlet', 'violet', 'za'] as const;
+const projectGames = ['sword', 'shield', 'scarlet', 'violet', 'za', 'pla'] as const;
 const valueKinds = [
   'boolean',
   'signedInteger',
@@ -293,7 +293,7 @@ export function rowClipboardGameFamily(game: ProjectGame): RowClipboardGameFamil
     case 'za':
       return 'legendsZA';
     case 'pla':
-      throw new RowClipboardError('invalid-scope');
+      return 'legendsArceus';
   }
 }
 

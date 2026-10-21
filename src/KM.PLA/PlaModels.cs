@@ -6,7 +6,8 @@ public sealed record PlaChoice(string Value, string Label);
 public sealed record PlaRelatedRecord(string Kind, string Id, string Label);
 public sealed record PlaField(string Key, string Label, string Kind = "number", long? Minimum = null, long? Maximum = null,
     IReadOnlyList<PlaChoice>? Choices = null, bool ReadOnly = false,
-    IReadOnlyDictionary<string, IReadOnlyList<PlaChoice>>? ChoicesByMethod = null);
+    IReadOnlyDictionary<string, IReadOnlyList<PlaChoice>>? ChoicesByMethod = null, string? DependsOn = null,
+    IReadOnlyDictionary<string, IReadOnlyList<PlaChoice>>? DependentChoices = null);
 public sealed record PlaRecord(string Id, string Label, IReadOnlyDictionary<string, string> Values)
 {
     public IReadOnlyList<string> ReadOnlyFields { get; init; } = [];
