@@ -1,5 +1,6 @@
 {
   "keys": {
+    "welcome.start.pla": "Dans la configuration du projet, choisissez les dossiers Base RomFS et Base ExeFS correspondants de Legends Arceus 1.1.1. Les éditeurs d’archives et la préparation du modèle sélectionné nécessitent aussi le dossier de prise en charge de la compression PLA.",
     "pla.help.mastery": "Niveau auquel cette capacité peut utiliser les styles Rapide et Puissant. 0 désactive la maîtrise automatique ; sinon, le niveau doit être au moins égal au niveau d’apprentissage.",
     "pla.help.effort": "Niveau d’effort attribué à cette statistique. PLA utilise des niveaux d’effort plutôt que des EV.",
     "pla.help.mastered": "Indique si la capacité attribuée est maîtrisée et peut utiliser les styles. Une capacité non définie ne peut pas être maîtrisée.",

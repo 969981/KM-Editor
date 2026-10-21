@@ -57,7 +57,7 @@ The tag must match the desktop app version and point to a pull request merge who
 
 Finalize the welcome hub content before merging the release candidate and starting packaging. In `apps/desktop/src/features/welcome/content.json`, check the exact release version, summary, game family audiences, shared changes, developer message, and comparison link against the final changelog. Follow the [welcome content guide](../apps/desktop/src/features/welcome/README.md) and run `pnpm --filter @km-editor/desktop check:welcome`.
 
-Check the notes under all five game selections and the all games filter. Shared changes must remain visible under each game filter. Confirm the installed version selects the intended entry and that the developer card contains the approved message.
+Check the notes under all six game selections and the all games filter. Shared changes must remain visible under each game filter. Confirm the installed version selects the intended entry and that the developer card contains the approved message.
 
 Welcome content is embedded in the desktop build. Editing GitHub release notes after publication does not update an installed application's welcome hub. A correction to bundled content requires another application build. GitHub release notes remain separately editable and should contain the curated changelog and version comparison link.
 

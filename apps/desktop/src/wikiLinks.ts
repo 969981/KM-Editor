@@ -68,6 +68,7 @@ const commonWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
 };
 
 const scarletVioletWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
+  summaryStats: 'Scarlet-and-Violet-IV-And-EV-Screen',
   bbqRewards: 'BBQ-Rewards',
   supportBoard: 'Support-Board',
   snacksworth: 'Snacksworth',
@@ -108,12 +109,35 @@ const pokemonLegendsZAWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
   typeChart: 'Legends-Z-A-Type-Chart'
 };
 
+const pokemonLegendsArceusWikiSlugs: Partial<Record<WorkbenchSection, string>> = {
+  health: 'Legends-Arceus-Overview#project-setup',
+  pokemon: 'Legends-Arceus-Pokemon-Editor',
+  moves: 'Legends-Arceus-Moves-Editor',
+  text: 'Legends-Arceus-Text-Editor',
+  trainers: 'Legends-Arceus-Trainers-Editor',
+  giftPokemon: 'Legends-Arceus-Trainers-Editor#gift-pokemon',
+  staticEncounters: 'Legends-Arceus-Trainers-Editor#static-encounters',
+  items: 'Legends-Arceus-Economy-And-Research#items',
+  crafting: 'Legends-Arceus-Economy-And-Research#crafting',
+  shops: 'Legends-Arceus-Economy-And-Research#shops-and-ginkgo',
+  pokemonDrops: 'Legends-Arceus-Economy-And-Research#pokemon-drops',
+  research: 'Legends-Arceus-Economy-And-Research#research-and-ranks',
+  encounters: 'Legends-Arceus-Wild-Encounters',
+  outbreaks: 'Legends-Arceus-Outbreaks',
+  distortions: 'Legends-Arceus-Space-Time-Distortions',
+  weather: 'Legends-Arceus-Weather-And-Gameplay-Rules#weather',
+  gameplayRules: 'Legends-Arceus-Weather-And-Gameplay-Rules#gameplay-rules',
+  typeChart: 'Legends-Arceus-Type-Chart'
+};
+
 export function getSectionWikiUrl(section: WorkbenchSection, selectedGame: ProjectGame | null) {
   const gameWikiSlugs = isScarletVioletGame(selectedGame)
     ? scarletVioletWikiSlugs
-    : isPokemonLegendsZAGame(selectedGame)
-      ? pokemonLegendsZAWikiSlugs
-      : null;
+    : selectedGame === 'pla'
+      ? pokemonLegendsArceusWikiSlugs
+      : isPokemonLegendsZAGame(selectedGame)
+        ? pokemonLegendsZAWikiSlugs
+        : null;
   const slug = gameWikiSlugs?.[section] ?? commonWikiSlugs[section];
 
   return slug ? `${wikiBaseUrl}/${slug}` : null;

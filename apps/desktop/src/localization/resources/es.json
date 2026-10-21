@@ -1,5 +1,6 @@
 {
   "keys": {
+    "welcome.start.pla": "En Configuración del proyecto, elige carpetas Base RomFS y Base ExeFS correspondientes a Legends Arceus 1.1.1. Los editores de archivos y la preparación del modelo seleccionado también necesitan la carpeta de soporte de compresión de PLA.",
     "pla.help.mastery": "Nivel en el que este movimiento puede usar estilo rápido y fuerte. Usa 0 para desactivar el dominio automático; en otro caso, debe ser al menos el nivel de aprendizaje.",
     "pla.help.effort": "Nivel de esfuerzo asignado a esta estadística. PLA usa niveles de esfuerzo en lugar de EV.",
     "pla.help.mastered": "Indica si el movimiento asignado está dominado y puede usar estilos. Un movimiento sin especificar no puede estar dominado.",
