@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+import { plaFieldHelp } from './plaFieldHelp';
 import type { ReactNode } from 'react';
 import { SlidersVertical } from 'lucide-react';
 import type { PlaField, PlaPage } from '../../bridge/plaProjectBridge';
@@ -32,7 +33,7 @@ export function PlaRulesWorkspace({ kind, page, controls, sessionBar, actions, r
     <div className="editable-field-groups" aria-describedby="pla-rules-help">
       {groups.map(group => <fieldset className="editable-field-group" key={group.title}><legend>{group.title}</legend>
         <div className="editable-field-grid">{group.fields.map(field => <div className="path-field editable-field-control" key={field.key}>
-          <FieldLabel htmlFor={'pla-field-' + field.key} label={fieldLabel(field)} />{renderInput(field)}
+          <FieldLabel htmlFor={'pla-field-' + field.key} label={fieldLabel(field)} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />{renderInput(field)}
           <small className="field-note">{t(field.kind === 'factor' ? 'pla.rules.factorRange' : 'pla.rules.range', { min: field.minimum ?? 0, max: field.maximum ?? 0 })}</small>
         </div>)}</div>
       </fieldset>)}

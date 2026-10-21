@@ -35,7 +35,7 @@ internal sealed class PlaBattleCatalog(PlaCatalog catalog)
     internal PlaField[] Fields(string kind) => fields.TryGetValue(kind, out var value) ? value : fields[kind] = BuildFields(kind);
     private PlaField[] BuildFields(string kind) => [
         new("species", "species", Choices: catalog.SpeciesChoices.Where(choice => !LegendarySpecies.Contains(int.Parse(choice.Value, CultureInfo.InvariantCulture))).ToArray()),
-        new("form", "form", Minimum: 0, Maximum: 255),
+        catalog.FormField(id => !Special(id)),
         new("battleLevel", "battleLevel", Minimum: 1, Maximum: 100),
         .. kind == "trainers" ? new PlaField[] { new("gender", "gender", Choices: [new("0", "Male / genderless"), new("1", "Female")]) } : [],
         .. EffortKeys.Select(key => new PlaField(key, key, Minimum: 0, Maximum: 10)),

@@ -3,6 +3,7 @@ import { PokemonSearchBox, PokemonTable, filterPokemonRecords, formatPokemonType
 import { stageModelAsset, stageModelTexture } from './features/model-viewer/modelTextureBridge';
 /* SPDX-License-Identifier: GPL-3.0-only */
 import { PlaEditorSection, type PlaDrafts } from './features/pla/PlaEditorSection';
+import { isPlaSection, parsePlaLocation, plaLocationLoadOptions, plaRecordKind, type PlaNavigationTarget } from './workbench/plaLocations';
 import type { StagePlaRequest } from './bridge/plaProjectBridge';
 
 import { ZaBehaviorSection } from './features/behavior/ZaBehaviorSection';
@@ -526,6 +527,7 @@ import {
 } from './fieldHelpCatalog';
 import { scopedEditorPanelSectionIds, useScopedEditorPanelOutput } from './components/scopedEditorPanelOutput';
 import { completeSuccessfulApplyResult } from './applyResultDiagnostics';
+import { PokemonYieldConfirmationModal } from './components/PokemonYieldConfirmationModal';
 import { useModalDialog } from './components/useModalDialog';
 import {
   type FairyGymBoostSelection,
@@ -3178,6 +3180,9 @@ export function App({
   }, []);
   const [plaCacheRevision, setPlaCacheRevision] = useState(0);
   const [plaDrafts, setPlaDrafts] = useState<PlaDrafts>({});
+  const [plaNavigationTarget, setPlaNavigationTarget] = useState<PlaNavigationTarget | null>(null);
+  const [plaRecordLabels, setPlaRecordLabels] = useState<Record<string, string>>({});
+  useEffect(() => { setPlaNavigationTarget(null); setPlaRecordLabels({}); }, [activeProjectId, selectedGame]);
   const isPokemonLegendsZAProject = isPokemonLegendsZAGame(selectedGame);
   const isSwordShieldProject = selectedGame === 'sword' || selectedGame === 'shield';
   const supportsTrinityOutput = isScarletVioletProject || isPokemonLegendsZAProject;
@@ -5470,7 +5475,9 @@ export function App({
       };
       const effectiveRequestOptions =
         requestOptions ??
-        (recordKeyedLocalDraftSections.has(destination.section)
+        (requestScope.game === 'pla' && isPlaSection(navigationGuardStateRef.current?.activeLocation.section ?? 'health') && isPlaSection(destination.section)
+          ? { preserveRetainedProjectDraftScope: true }
+          : recordKeyedLocalDraftSections.has(destination.section)
           ? { preserveSameSectionDraftScope: true }
           : undefined);
       const decision = navigationControllerRef.current.request(
@@ -5514,6 +5521,7 @@ export function App({
 
   const resolveStableLocationCommit = useCallback(
     (location: WorkbenchLocation): (() => void) | null => {
+      if (location.game === 'pla' && location.entity) return null;
       if (!location.entity) {
         return () => undefined;
       }
@@ -5745,6 +5753,7 @@ export function App({
     request: Promise<StableLocationPreparationResult>;
   } | null>(null);
   const stableLocationSourceIsLoaded = useCallback((location: WorkbenchLocation) => {
+    if (parsePlaLocation(location)) return true;
     const selection = parseStableEntitySelection(location);
     if (!selection) {
       return true;
@@ -6736,6 +6745,7 @@ export function App({
   const activePinLocation = activeRecordLocation;
   const workspaceRecordLabelSources = useMemo<WorkspaceRecordLabelSources>(
     () => ({
+      plaRecordLabels,
       behaviorWorkflow,
       encountersWorkflow,
       exeFsPatchWorkflow,
@@ -6756,6 +6766,7 @@ export function App({
       trainersWorkflow
     }),
     [
+      plaRecordLabels,
       behaviorWorkflow,
       encountersWorkflow,
       exeFsPatchWorkflow,
@@ -12860,6 +12871,16 @@ export function App({
   };
 
   coldStableLocationCommitResolverRef.current = async (location) => {
+    const plaTarget = parsePlaLocation(location);
+    if (plaTarget) {
+      const response = await bridge.loadPla({ paths: createProjectPaths(draftPathsRef.current), session: editSessionRef.current, ...plaLocationLoadOptions(plaTarget) });
+      const record = response.page.records.find(record => record.id === plaTarget.id);
+      if (!record) return null;
+      return () => {
+        setPlaRecordLabels(current => ({ ...current, [plaRecordKind(plaTarget.kind) + '/' + plaTarget.id]: record.label }));
+        setPlaNavigationTarget(plaTarget);
+      };
+    }
     const selection = parseStableEntitySelection(location);
     if (!selection) {
       return null;
@@ -20929,6 +20950,11 @@ export function App({
             || activeSection === 'items' || activeSection === 'crafting' || activeSection === 'shops' || activeSection === 'pokemonDrops' || activeSection === 'research' || activeSection === 'encounters' || activeSection === 'outbreaks' || activeSection === 'distortions' || activeSection === 'weather' || activeSection === 'gameplayRules' || activeSection === 'typeChart') ? (
             <PlaEditorSection key={`${activeProjectId}:${activeSection}`} section={activeSection} paths={createProjectPaths(draftPaths)}
               beginLoad={beginPlaWorkflowLoad} cacheRevision={plaCacheRevision}
+              navigationTarget={plaNavigationTarget}
+              onNavigateRecord={(kind, id, label, commit) => {
+                setPlaRecordLabels(current => ({ ...current, [plaRecordKind(kind) + '/' + id]: label }));
+                void handleSelectStableLocation(activeSection, id, commit, plaRecordKind(kind));
+              }}
               session={editSession} bridge={bridge} drafts={plaDrafts} setDrafts={setPlaDrafts}
               isStarting={isEditStarting} isBusy={isEditSessionOperationBusy} onStart={handleStartEditSession}
               onStage={handleStagePla} onCancel={requestCancelEditSession}
@@ -22919,7 +22945,7 @@ function HealthSection({
               size={18}
             />
           </button>
-          {isTrinityCacheGame(selectedGame) ? (
+          {isTrinityCacheGame(selectedGame) || selectedGame === 'pla' ? (
             <button
               aria-busy={isSupportSearchRunning || undefined}
               className="secondary-button"
@@ -59206,60 +59232,6 @@ function SvCacheClearConfirmationModal({
   );
 }
 
-function PokemonYieldConfirmationModal({
-  action,
-  kind,
-  onCancel,
-  onConfirm
-}: {
-  action: Exclude<PokemonYieldConfirmationState, null>;
-  kind: PokemonYieldConfirmationKind;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const { t, translateLiteral } = useLocalization();
-  const dialogRef = useModalDialog({ onClose: onCancel });
-  const isRestore = action === 'restore';
-  const label = translateLiteral(kind === 'exp' ? 'EXP Yield' : 'EV Yield');
-  const title = t(isRestore ? 'editorText.yield.restoreTitle' : 'editorText.yield.removeTitle', { label });
-  const description = t(isRestore ? 'editorText.yield.restoreDescription' : `editorText.yield.remove.${kind}`, { label });
-  const Icon = isRestore ? RefreshCw : Trash2;
-  const headingId = `${kind}-yield-confirmation-heading`;
-
-  return (
-    <div className="modal-backdrop" role="presentation">
-      <section
-        aria-labelledby={headingId}
-        aria-modal="true"
-        className="modal-panel"
-        ref={dialogRef}
-        role="dialog"
-        tabIndex={-1}
-      >
-        <div className="panel-heading">
-          <Icon aria-hidden="true" size={18} />
-          <h2 id={headingId}>{title}</h2>
-        </div>
-        <p className="modal-copy">{description}</p>
-        <div className="modal-actions">
-          <button
-            className={isRestore ? 'primary-button' : 'danger-button'}
-            onClick={onConfirm}
-            type="button"
-          >
-            <Icon aria-hidden="true" size={16} />
-            <span>{t(isRestore ? 'editorText.yield.confirmRestore' : 'editorText.yield.confirmRemove', { label })}</span>
-          </button>
-          <button className="secondary-button" onClick={onCancel} type="button">
-            <X aria-hidden="true" size={16} />
-            <span>Cancel</span>
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function ShopItemNavigationModal({
   onCancel,
   onConfirm
@@ -64751,7 +64723,6 @@ type DependencyWarningState = {
   title: string;
 };
 
-type PokemonYieldConfirmationKind = 'ev' | 'exp';
 type PokemonYieldConfirmationState = 'remove' | 'restore' | null;
 
 function areStringArraysEqual(left: readonly string[], right: readonly string[]) {
@@ -69839,6 +69810,7 @@ function scopedWorkspaceLocationsEqual(
 }
 
 type WorkspaceRecordLabelSources = Readonly<{
+  plaRecordLabels?: Readonly<Record<string, string>>;
   behaviorWorkflow: BehaviorWorkflow | null;
   encountersWorkflow: EncountersWorkflow | null;
   exeFsPatchWorkflow: ExeFsPatchWorkflow | null;
@@ -69874,6 +69846,9 @@ function resolveWorkspaceLocationLabel(
   if (!selection) {
     return fallback;
   }
+
+  const plaTarget = parsePlaLocation(location);
+  if (plaTarget) return { ...fallback, label: sources.plaRecordLabels?.[plaRecordKind(plaTarget.kind) + '/' + plaTarget.id] ?? plaTarget.id, labelIsRawData: true };
 
   const { recordKind, value } = selection;
   let label: string | null | undefined;

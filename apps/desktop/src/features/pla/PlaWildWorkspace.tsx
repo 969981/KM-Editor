@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+import { plaFieldHelp } from './plaFieldHelp';
 import type { ReactNode } from 'react';
 import { Search, Trees } from 'lucide-react';
 import type { PlaField, PlaKind, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
@@ -7,10 +8,12 @@ import { InteractiveTableRow, VirtualTableBody } from '../../components/VirtualT
 import { Metric } from '../../components/workflowPanels';
 import { useLocalization } from '../../localization';
 import type { PlaPokemonPreview } from './PlaBattleWorkspace';
+import type { PlaRowClipboardBinding } from './usePlaRowClipboard';
 
 export type PlaWildKind = 'encounters' | 'spawns' | 'outbreakEncounters' | 'distortionEncounters' | 'distortionSpawns';
 export const isPlaWildKind = (kind: PlaKind): kind is PlaWildKind => ['encounters', 'spawns', 'outbreakEncounters', 'distortionEncounters', 'distortionSpawns'].includes(kind);
 type Props = {
+  clipboard?: PlaRowClipboardBinding;
   kind: PlaWildKind; page: PlaPage | null; selected: PlaRecord | null;
   controls?: ReactNode; title?: string;
   query: string; offset: number; loading: boolean; sessionBar: ReactNode; actions: ReactNode; refresh: ReactNode;
@@ -22,7 +25,7 @@ type Props = {
 };
 
 export function PlaWildWorkspace({ kind, page, selected, query, offset, loading, sessionBar, actions, refresh, controls, title,
-  onQuery, onOffset, onSelect, onKind, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput, renderPokemon }: Props) {
+  onQuery, onOffset, onSelect, onKind, valuesFor, hasDraft, pendingIds, fieldLabel, renderInput, renderPokemon, clipboard }: Props) {
   const { t, translateLiteral } = useLocalization();
   const records = page?.records ?? [];
   const isSpawn = kind === 'spawns' || kind === 'distortionSpawns';
@@ -80,8 +83,9 @@ export function PlaWildWorkspace({ kind, page, selected, query, offset, loading,
               <div><dt>{t('pla.wild.shared')}</dt><dd>{selected.metadata.consumers}</dd></div></> : null}
           </dl>
           {!isSpawn ? <div className="encounter-edit-form">
+            {clipboard?.content}
             <div className="trainer-party-card-grid" aria-label={translateLiteral('Encounter slots')}>
-              {records.map(record => <button type="button" key={record.id} className="trainer-party-card" aria-pressed={selected.id === record.id}
+              {records.map(record => <button type="button" key={record.id} className="trainer-party-card" aria-pressed={selected.id === record.id} {...clipboard?.bind(record.id)}
                 aria-label={translateLiteral('Slot') + ' ' + record.metadata.slot + ': ' + name(record)} onClick={() => onSelect(record.id)}>
                 {renderPokemon?.(valuesFor(record), name(record), page?.pokemonSpriteNames[valuesFor(record).species], 'trainer-party-sprite')}
                 <strong data-localization-ignore="true">{name(record)}</strong>
@@ -100,7 +104,7 @@ export function PlaWildWorkspace({ kind, page, selected, query, offset, loading,
               <fieldset className="editable-field-group" key={group.key}><legend>{group.title}</legend>
                 {group.key === 'eligibility' ? <p className="field-note">{t('pla.wild.multiplierHelp')}</p> : null}
                 <div className="editable-field-grid">{group.fields.map(field => <div className="editable-field" key={field.key}>
-                  <FieldLabel htmlFor={'pla-field-' + field.key} label={fieldLabel(field)} />
+                  <FieldLabel htmlFor={'pla-field-' + field.key} label={fieldLabel(field)} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />
                   <div className="editable-field-control">{renderInput(field)}</div>
                   {field.kind === 'decimal' && values[field.key] === '-1' ? <span className="field-note">{values.species === selected.values.species && values.form === selected.values.form
                     ? t('pla.wild.inherited', { value: selected.metadata['default.' + field.key] }) : t('pla.wild.inheritedPending')}</span> : null}

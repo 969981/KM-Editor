@@ -52,7 +52,7 @@ const decimalSchema = z
 export const rowClipboardScopeDtoSchema = z
   .strictObject({
     game: projectGameSchema,
-    gameFamily: z.enum(['swordShield', 'scarletViolet', 'legendsZA']),
+    gameFamily: z.enum(['swordShield', 'scarletViolet', 'legendsZA', 'legendsArceus']),
     profileId: stableIdentifierSchema,
     projectId: boundedText(128)
   })
@@ -62,7 +62,7 @@ export const rowClipboardScopeDtoSchema = z
         ? 'swordShield'
         : scope.game === 'scarlet' || scope.game === 'violet'
           ? 'scarletViolet'
-          : 'legendsZA';
+          : scope.game === 'pla' ? 'legendsArceus' : 'legendsZA';
     if (scope.gameFamily !== expected) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

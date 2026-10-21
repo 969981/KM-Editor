@@ -262,7 +262,8 @@ function parseSemanticRecordRef(value: string | null): SemanticRecordRef | undef
     gameFamily:
       candidate.gameFamily === 'swordShield' ||
       candidate.gameFamily === 'scarletViolet' ||
-      candidate.gameFamily === 'legendsZA'
+      candidate.gameFamily === 'legendsZA' ||
+      candidate.gameFamily === 'legendsArceus'
         ? candidate.gameFamily
         : 'swordShield',
     recordId: typeof candidate.recordId === 'string' ? candidate.recordId : '',

@@ -12,7 +12,8 @@ public sealed record StagePlaRequest(ProjectPathsDto Paths, EditSessionDto? Sess
 public sealed record StagePlaResponse(EditSessionDto Session);
 public sealed record PlaChoiceDto(string Value, string Label);
 public sealed record PlaFieldDto(string Key, string Label, string Kind, long? Minimum, long? Maximum, IReadOnlyList<PlaChoiceDto>? Choices, bool ReadOnly,
-    IReadOnlyDictionary<string, IReadOnlyList<PlaChoiceDto>>? ChoicesByMethod);
+    IReadOnlyDictionary<string, IReadOnlyList<PlaChoiceDto>>? ChoicesByMethod, string? DependsOn = null,
+    IReadOnlyDictionary<string, IReadOnlyList<PlaChoiceDto>>? DependentChoices = null);
 public sealed record PlaRelatedRecordDto(string Kind, string Id, string Label);
 public sealed record PlaRecordDto(string Id, string Label, IReadOnlyDictionary<string, string> Values, IReadOnlyList<string> ReadOnlyFields,
     IReadOnlyDictionary<string, string> Metadata, IReadOnlyList<PlaRelatedRecordDto> RelatedRecords);

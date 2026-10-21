@@ -232,7 +232,7 @@ internal sealed class PlaWildCatalog
         ? [new("spawnMin", "spawnMin", Minimum: 1, Maximum: 4), new("spawnMax", "spawnMax", Minimum: 1, Maximum: 4)]
         : [
             new("species", "species", Choices: catalog.SpeciesChoices.Where(choice => !SpecialSpecies.Contains(int.Parse(choice.Value, CultureInfo.InvariantCulture))).ToArray()),
-            new("form", "form", Minimum: 0, Maximum: 255),
+            catalog.FormField(AllowedIdentity),
             new("wildMin", "wildMin", Minimum: 0, Maximum: 100), new("wildMax", "wildMax", Minimum: 0, Maximum: 100),
             new("wildWeight", "wildWeight", Minimum: 0, Maximum: 10000),
             new("perfectIvs", "perfectIvs", Minimum: 0, Maximum: 6),

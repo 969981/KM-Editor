@@ -1046,6 +1046,7 @@ internal static class RowClipboardCanonicalSerializer
             ProjectGame.Scarlet => "scarlet",
             ProjectGame.Violet => "violet",
             ProjectGame.ZA => "za",
+            ProjectGame.PLA => "pla",
             _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
         };
     }
@@ -1057,6 +1058,7 @@ internal static class RowClipboardCanonicalSerializer
             GameFamily.SwordShield => "swordShield",
             GameFamily.ScarletViolet => "scarletViolet",
             GameFamily.LegendsZA => "legendsZA",
+            GameFamily.LegendsArceus => "legendsArceus",
             _ => throw new ArgumentOutOfRangeException(nameof(gameFamily), gameFamily, null),
         };
     }

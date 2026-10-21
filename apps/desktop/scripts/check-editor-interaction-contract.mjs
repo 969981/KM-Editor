@@ -787,7 +787,7 @@ async function checkCompiledRuntimeContracts(outputRoot) {
     ['za', rowClipboardProfileIds.za]
   ];
   for (const [schemaName, editor] of Object.entries(rowClipboardEditorSchemas)) {
-    for (const [game, profileId] of gameProfiles) {
+    for (const [game, profileId] of schemaName.startsWith('pla') ? [['pla', rowClipboardProfileIds.pla]] : gameProfiles) {
       const scope = { game, profileId, projectId: `contract-${schemaName}-${game}` };
       const registration = resolveRowClipboardAdapterRegistration(editor, scope);
       assert.ok(registration.games.includes(game));
@@ -805,7 +805,7 @@ async function checkCompiledRuntimeContracts(outputRoot) {
             ? 'swordShield'
             : game === 'scarlet' || game === 'violet'
               ? 'scarletViolet'
-              : 'legendsZA'
+              : game === 'pla' ? 'legendsArceus' : 'legendsZA'
       };
       assert.deepEqual(
         createScopedRowClipboardController(editor, bridgeScope).getSnapshot().scope,

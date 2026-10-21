@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pla.help.mastery": "Niveau auquel cette capacité peut utiliser les styles Rapide et Puissant. 0 désactive la maîtrise automatique ; sinon, le niveau doit être au moins égal au niveau d’apprentissage.",
+    "pla.help.effort": "Niveau d’effort attribué à cette statistique. PLA utilise des niveaux d’effort plutôt que des EV.",
+    "pla.help.mastered": "Indique si la capacité attribuée est maîtrisée et peut utiliser les styles. Une capacité non définie ne peut pas être maîtrisée.",
+    "pla.keepForm": "Conserver la forme actuelle",
+    "pla.draftSummary": "{fields} champs modifiés ; {records} enregistrements avec des brouillons",
     "settings.cache.pla.title": "Cache de données PLA",
     "settings.cache.pla.modeLabel": "Mode du cache PLA",
     "settings.cache.pla.description": "Détermine la quantité de données vérifiées des éditeurs PLA réutilisées entre les chargements.",
@@ -5591,7 +5596,7 @@
     "pla.remove": "Supprimer la ligne",
     "pla.add": "Ajouter une ligne",
     "pla.empty": "Aucun enregistrement correspondant.",
-    "pla.invalid": "Saisissez des nombres entiers valides avant de préparer.",
+    "pla.invalid": "Saisissez des valeurs valides avant de préparer les modifications.",
     "pla.failed": "La modification n’a pas pu être préparée. Consultez les diagnostics.",
     "pla.language": "Langue des messages",
     "pla.notice.moves": "Les valeurs des capacités signatures contrôlées ailleurs sont protégées.",

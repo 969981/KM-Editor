@@ -219,6 +219,7 @@ public static class RowClipboardBridgeMapper
         ProjectGameDto.Scarlet => ProjectGame.Scarlet,
         ProjectGameDto.Violet => ProjectGame.Violet,
         ProjectGameDto.ZA => ProjectGame.ZA,
+        ProjectGameDto.PLA => ProjectGame.PLA,
         _ => throw new ArgumentOutOfRangeException(nameof(game), game, null),
     };
 
@@ -236,6 +237,7 @@ public static class RowClipboardBridgeMapper
         GameFamily.SwordShield => "swordShield",
         GameFamily.ScarletViolet => "scarletViolet",
         GameFamily.LegendsZA => "legendsZA",
+            GameFamily.LegendsArceus => "legendsArceus",
         _ => throw new ArgumentOutOfRangeException(nameof(family), family, null),
     };
 

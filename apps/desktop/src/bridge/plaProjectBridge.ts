@@ -6,7 +6,8 @@ import { sendProjectBridgeRequest, type ProjectBridgeTransport } from './project
 const choice = z.strictObject({ value: z.string(), label: z.string() });
 const field = z.strictObject({ key: z.string(), label: z.string(), kind: z.enum(['number', 'decimal', 'factor', 'boolean', 'text', 'rows']),
   minimum: z.number().nullable(), maximum: z.number().nullable(), choices: z.array(choice).nullable(), readOnly: z.boolean(),
-  choicesByMethod: z.record(z.string(), z.array(choice)).nullable() });
+  choicesByMethod: z.record(z.string(), z.array(choice)).nullable(),
+  dependsOn: z.string().nullable().optional(), dependentChoices: z.record(z.string(), z.array(choice)).nullable().optional() });
 const record = z.strictObject({ id: z.string(), label: z.string(), values: z.record(z.string(), z.string()), readOnlyFields: z.array(z.string()),
   metadata: z.record(z.string(), z.string()).default({}), relatedRecords: z.array(z.strictObject({ kind: z.string(), id: z.string(), label: z.string() })).default([]) });
 export const plaKindSchema = z.enum(['personal', 'moves', 'learnsets', 'evolutions', 'compatibility', 'tutors', 'text', 'trainers', 'gifts', 'static',

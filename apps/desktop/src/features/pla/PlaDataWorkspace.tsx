@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
+import { plaFieldHelp } from './plaFieldHelp';
 import { useState, type ReactNode } from 'react';
 import { Search, ShieldCheck } from 'lucide-react';
 import type { PlaField, PlaKind, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
@@ -62,7 +63,7 @@ export function PlaDataWorkspace({ kind, page, selected, query, offset, loading,
     const changed = selected && valuesFor(selected)[field.key] !== selected.values[field.key];
     const readOnly = field.readOnly || selected?.readOnlyFields.includes(field.key);
     return <div className={`path-field editable-field-control ${changed ? 'editable-field-changed' : ''} ${readOnly ? 'editable-field-disabled' : ''}`} key={field.key}>
-      <FieldLabel htmlFor={`pla-field-${field.key}`} label={fieldLabel(field)} />{renderInput(field)}
+      <FieldLabel htmlFor={`pla-field-${field.key}`} label={fieldLabel(field)} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />{renderInput(field)}
       {readOnly || changed ? <small className="editable-field-status">{translateLiteral(readOnly ? 'Read-only' : 'Changed')}</small> : null}
     </div>;
   };
@@ -104,7 +105,11 @@ export function PlaDataWorkspace({ kind, page, selected, query, offset, loading,
             <div><dt>{kind === 'text' ? t('text.messageKey') : translateLiteral('Name')}</dt><dd data-localization-ignore="true">{kind === 'tutors' ? choiceLabel('move', valuesFor(selected).move) : selected.label}</dd></div>
             {kind === 'text' ? <div><dt>{translateLiteral('File')}</dt><dd>{page?.textFile}</dd></div> : <div><dt>{translateLiteral('Status')}</dt><dd>{status(selected)}</dd></div>}
           </dl>
-          <div className={kind === 'text' ? 'text-edit-form' : 'item-edit-form'}>
+          {kind === 'moves' ? <dl className="item-provenance-list">
+            <div><dt>{translateLiteral('Move ID')}</dt><dd>{selected.id}</dd></div>
+            <div><dt>{translateLiteral('Type / category')}</dt><dd>{choiceLabel('type', valuesFor(selected).type)} / {choiceLabel('category', valuesFor(selected).category)}</dd></div>
+          </dl> : null}
+          <div className={kind === 'text' ? 'text-edit-form' : kind === 'moves' ? 'item-edit-form move-edit-form' : 'item-edit-form'}>
             {kind === 'learnsets' || kind === 'evolutions' ? rowEditor : kind === 'compatibility' ? <div className="compatibility-editor">
               <h4>{t('pla.kind.compatibility')}</h4>
               <label className="search-box compatibility-search"><Search size={16} aria-hidden="true" /><input type="search" value={compatibilitySearch}
