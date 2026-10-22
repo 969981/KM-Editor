@@ -13,6 +13,11 @@ public sealed record SwShRestorationDefinition(string Id, int Version, int Conve
     IReadOnlyList<SwShPokemonIdentity> Identities, IReadOnlyDictionary<ProjectGame, SwShRestorationSupport> Support,
     IReadOnlyList<string> RequiredContexts)
 {
+    // Increment only for definitions whose generated assets change. This is independent
+    // of the storage versions so installed assets remain readable and removable.
+    public int AssetRevision { get; init; } = 1;
+    public bool HasAssetUpdate(SwShRestorationSelection? installed) =>
+        installed is { RemovalId: null } && installed.DefinitionId == Id && installed.AssetRevision < AssetRevision;
     public SwShRestorationDonor Donor { get; init; } = SwShRestorationDonor.ScarletViolet;
     public IReadOnlyList<SwShRestorationModelVariant> AdditionalModelVariants { get; init; } = [];
 }

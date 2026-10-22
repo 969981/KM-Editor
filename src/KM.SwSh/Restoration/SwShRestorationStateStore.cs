@@ -10,6 +10,7 @@ namespace KM.SwSh.Restoration;
 
 public sealed record SwShRestorationSelection(string DefinitionId, string PreparedHash, bool Enabled, string? CustomizationHash = null)
 {
+    public int AssetRevision { get; init; } = 1;
     public string? RemovalId { get; init; }
     public IReadOnlyList<string> AssetHashes { get; init; } = [];
     public IReadOnlyList<string> RemovedHashes { get; init; } = [];
@@ -114,6 +115,7 @@ public static class SwShRestorationStateStore
         foreach (var selection in state.Selections)
         {
             _ = SwShRestorationDefinitions.Get(selection.DefinitionId); ValidateHash(selection.PreparedHash);
+            if (selection.AssetRevision < 1) throw new InvalidDataException("Restoration asset revision is invalid.");
             if (selection.CustomizationHash is not null) ValidateHash(selection.CustomizationHash);
             if (selection.RemovalId is not null && (!Guid.TryParseExact(selection.RemovalId, "N", out _) || selection.Enabled || selection.CustomizationHash is not null)
                 || selection.RemovedHashes is null || selection.RemovedHashes.Count > 1024 || selection.AssetHashes is null || selection.AssetHashes.Count > 1024)
