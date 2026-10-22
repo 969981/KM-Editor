@@ -2915,8 +2915,10 @@ public sealed partial class OutputTransactionCoordinator
         OutputMutation mutation,
         string outputMode)
     {
+        // Adoption proves the freshly reviewed file independently of its historical
+        // fingerprint. Keep the exact owner and scope, and let transaction preimage
+        // validation reject any subsequent replacement of the reviewed bytes.
         return owned.RuntimeMutableDescriptor is null
-            && owned.CurrentState == mutation.ExpectedPreimage
             && string.Equals(owned.OutputMode, outputMode, StringComparison.Ordinal)
             && owned.Claims.Length == 1
             && mutation.OwnershipClaims.Length == 1
