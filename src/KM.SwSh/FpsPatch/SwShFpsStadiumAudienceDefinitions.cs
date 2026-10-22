@@ -6,7 +6,10 @@ internal static partial class SwShFpsStadiumAudiencePatcher
 {
     private const string FieldRoot = "romfs/bin/archive/field/area/other/";
     private sealed record ClipDefinition(string Name, int Frames, string[] FlipbookMaterials,
-        (string Material, string Parameter)[] SmoothParameters);
+        (string Material, string Parameter)[] SmoothParameters)
+    {
+        internal (string Material, string Parameter)[] DiscreteParameters { get; init; } = [];
+    }
 
     private static readonly ClipDefinition WyndonClip = new("a_pl0110_00.gfbanm", 705,
         ["a_pl0110_audience00_a_pl0110", "a_t0301_g0110_audience_poke01_a_pl0110", "a_pl0110_flag01"], []);

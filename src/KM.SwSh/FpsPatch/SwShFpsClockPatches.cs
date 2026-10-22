@@ -66,6 +66,8 @@ internal static class SwShFpsClockPatches
         new(0x670834, Convert.FromHexString("000000000000000000000000"), Convert.FromHexString("FF07C13C716B1C14000020D4"), "Forced movement displacement on condition-based route helper", null),
         new(0xD8B5F8, Convert.FromHexString("612AC03D"), Convert.FromHexString("1B86E317"), "Forced movement displacement on condition-based route", null),
         new(0xD8B4DC, Convert.FromHexString("E8030032"), Convert.FromHexString("48008052"), "Forced movement minimum duration in doubled units", null),
+        // The appearance task must reach its effect cleanup before its fixed-frame watchdog expires.
+        new(0x9B7654, Convert.FromHexString("E80F5BB2"), Convert.FromHexString("0878C0D2"), "Pokemon appearance watchdog at 60 FPS", null),
         new(0x9916E0, Convert.FromHexString("1FF10071"), Convert.FromHexString("1FE50171"), "Battle wait-camera inclusive dwell", null),
         new(0x670A54, Convert.FromHexString("000000000000000000000000"), Convert.FromHexString("F047BFA910423BD516000014"), "Timed fade out duration, preserving preset IDs helper", null),
         new(0x670AB4, Convert.FromHexString("000000000000000000000000"), Convert.FromHexString("3F040071007A0054CE030014"), "Timed fade out duration, preserving preset IDs helper", null),
@@ -177,6 +179,8 @@ internal static class SwShFpsClockPatches
         new(0x670834, Convert.FromHexString("000000000000000000000000"), Convert.FromHexString("FF07C13C7D6B1C14000020D4"), "Forced movement displacement on condition-based route helper", null),
         new(0xD8B628, Convert.FromHexString("612AC03D"), Convert.FromHexString("0F86E317"), "Forced movement displacement on condition-based route", null),
         new(0xD8B50C, Convert.FromHexString("E8030032"), Convert.FromHexString("48008052"), "Forced movement minimum duration in doubled units", null),
+        // The appearance task must reach its effect cleanup before its fixed-frame watchdog expires.
+        new(0x9B7654, Convert.FromHexString("E80F5BB2"), Convert.FromHexString("0878C0D2"), "Pokemon appearance watchdog at 60 FPS", null),
         new(0x9916E0, Convert.FromHexString("1FF10071"), Convert.FromHexString("1FE50171"), "Battle wait-camera inclusive dwell", null),
         new(0x670A54, Convert.FromHexString("000000000000000000000000"), Convert.FromHexString("F047BFA910423BD516000014"), "Timed fade out duration, preserving preset IDs helper", null),
         new(0x670AB4, Convert.FromHexString("000000000000000000000000"), Convert.FromHexString("3F040071007A0054CE030014"), "Timed fade out duration, preserving preset IDs helper", null),

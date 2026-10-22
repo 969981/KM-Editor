@@ -2514,6 +2514,9 @@ public sealed class SwShFpsPatchService
 
     private static bool MatchesLegacyTimingOutput(string relativePath, byte[] source, byte[] output)
     {
+        if (SwShFpsStadiumAudiencePatcher.IsManagedPath(relativePath))
+            return output.AsSpan().SequenceEqual(SwShFpsStadiumAudiencePatcher.ConvertArchive(
+                relativePath, source, includeMonitors: false));
         if (IsManagedBattleCameraPath(relativePath))
             return output.AsSpan().SequenceEqual(SwShFpsBattleCameraPatcher.ConvertAnimationToHalfSpeed(source));
         if (IsManagedBattleUiArchivePath(relativePath))
