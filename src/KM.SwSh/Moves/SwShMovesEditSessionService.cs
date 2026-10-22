@@ -1581,19 +1581,7 @@ public sealed class SwShMovesEditSessionService
 
     private static string FormatStat(int value)
     {
-        return value switch
-        {
-            0 => "None",
-            1 => "Attack",
-            2 => "Defense",
-            3 => "Sp. Atk",
-            4 => "Sp. Def",
-            5 => "Speed",
-            6 => "Accuracy",
-            7 => "Evasion",
-            8 => "All Stats",
-            _ => $"Stat {value}",
-        };
+        return SwShMovesWorkflowService.GetStatName(value);
     }
 
     private static ValidationDiagnostic CreateUnsupportedFieldDiagnostic(string field)

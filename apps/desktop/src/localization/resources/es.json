@@ -1,5 +1,6 @@
 {
   "keys": {
+    "moves.swshStats.help": "Para añadir una subida de todas las estadísticas a un movimiento de daño, elige Daño + subida de característica del usuario como tipo de efecto y, en el primer espacio, Todas las estadísticas, +1 nivel y la probabilidad deseada. Esto cambia Ataque, Defensa, Ataque Especial, Defensa Especial y Velocidad. La opción según el movimiento conserva el efecto programado original. Siguen aplicándose las condiciones normales del movimiento.",
     "welcome.start.pla": "En Configuración del proyecto, elige carpetas Base RomFS y Base ExeFS correspondientes a Legends Arceus 1.1.1. Los editores de archivos y la preparación del modelo seleccionado también necesitan la carpeta de soporte de compresión de PLA.",
     "pla.help.mastery": "Nivel en el que este movimiento puede usar estilo rápido y fuerte. Usa 0 para desactivar el dominio automático; en otro caso, debe ser al menos el nivel de aprendizaje.",
     "pla.help.effort": "Nivel de esfuerzo asignado a esta estadística. PLA usa niveles de esfuerzo en lugar de EV.",
@@ -5641,6 +5642,7 @@
     "pla.field.baseExperience": "Experiencia base"
   },
   "literals": {
+    "All Stats (move specific)": "Todas las estadísticas (según el movimiento)",
     "PLA Data Cache": "Caché de datos de PLA",
     "60FPS Patch found unsupported stadium audience animation data.": "El parche de 60 FPS encontró datos de animación del público del estadio no compatibles.",
     "Restored sounds require the selected game's supported 1.3.2 executable.": "Los sonidos restaurados requieren el ejecutable compatible de la versión 1.3.2 del juego seleccionado.",

@@ -169,18 +169,20 @@ public sealed class SwShMovesWorkflowService
         [65535] = "Move-defined / scripted effect",
     };
 
-    private static readonly IReadOnlyList<string> StatNames =
-    [
-        "None",
-        "Attack",
-        "Defense",
-        "Sp. Atk",
-        "Sp. Def",
-        "Speed",
-        "Accuracy",
-        "Evasion",
-        "All Stats",
-    ];
+    private static readonly IReadOnlyDictionary<int, string> StatNames = new Dictionary<int, string>
+    {
+        [0] = "None",
+        [1] = "Attack",
+        [2] = "Defense",
+        [3] = "Sp. Atk",
+        [4] = "Sp. Def",
+        [5] = "Speed",
+        [6] = "Accuracy",
+        [7] = "Evasion",
+        // The original value needs a move callback; 10 expands to the five battle stats directly.
+        [8] = "All Stats (move specific)",
+        [10] = "All Stats",
+    };
 
     private static readonly IReadOnlyList<string> QualityNames =
     [
@@ -228,7 +230,10 @@ public sealed class SwShMovesWorkflowService
     ];
 
     private static readonly IReadOnlyList<SwShMoveEditableFieldOption> StatOptions =
-        CreateIndexedOptions(StatNames);
+        StatNames
+            .OrderBy(entry => entry.Key)
+            .Select(entry => new SwShMoveEditableFieldOption(entry.Key, $"{entry.Key:000} {entry.Value}"))
+            .ToArray();
 
     private static readonly IReadOnlyList<SwShMoveEditableFieldOption> CritStageOptions =
     [
@@ -267,13 +272,13 @@ public sealed class SwShMovesWorkflowService
         CreateField(EffectSequenceField, "Effect sequence ID (raw)", "integer", MinimumByteValue, MaximumUnsignedShortValue),
         CreateField(RecoilField, "Drain (+) / recoil (-) (%)", "integer", MinimumSignedByteValue, MaximumSignedByteValue),
         CreateField(RawHealingField, "HP recovery (+) / HP cost (-) (%) (raw)", "integer", MinimumSignedByteValue, MaximumSignedByteValue),
-        CreateField(Stat1Field, "Stat Change 1: Stat", "integer", 0, 8, StatOptions),
+        CreateField(Stat1Field, "Stat Change 1: Stat", "integer", 0, 10, StatOptions),
         CreateField(Stat1StageField, "Stat Change 1: Stage Delta", "integer", -6, 6),
         CreateField(Stat1PercentField, "Stat Change 1: Chance (%)", "integer", 0, 100),
-        CreateField(Stat2Field, "Stat Change 2: Stat", "integer", 0, 8, StatOptions),
+        CreateField(Stat2Field, "Stat Change 2: Stat", "integer", 0, 10, StatOptions),
         CreateField(Stat2StageField, "Stat Change 2: Stage Delta", "integer", -6, 6),
         CreateField(Stat2PercentField, "Stat Change 2: Chance (%)", "integer", 0, 100),
-        CreateField(Stat3Field, "Stat Change 3: Stat", "integer", 0, 8, StatOptions),
+        CreateField(Stat3Field, "Stat Change 3: Stat", "integer", 0, 10, StatOptions),
         CreateField(Stat3StageField, "Stat Change 3: Stage Delta", "integer", -6, 6),
         CreateField(Stat3PercentField, "Stat Change 3: Chance (%)", "integer", 0, 100),
         CreateField(MakesContactField, "Makes contact", "boolean", 0, 1),
@@ -505,7 +510,7 @@ public sealed class SwShMovesWorkflowService
                 .Select(stat => new SwShMoveStatChangeRecord(
                     stat.Slot,
                     stat.Stat,
-                    GetIndexedName(stat.Stat, StatNames, "Stat"),
+                    GetStatName(stat.Stat),
                     stat.Stage,
                     stat.Percent))
                 .ToArray(),
@@ -542,6 +547,11 @@ public sealed class SwShMovesWorkflowService
             new("dance", "Dance Move", flags.Dance),
             new("metronome", "Callable By Metronome", flags.Metronome),
         ];
+    }
+
+    internal static string GetStatName(int stat)
+    {
+        return StatNames.TryGetValue(stat, out var label) ? label : $"Stat {stat}";
     }
 
     private static string GetInflictName(int inflict)
