@@ -8,16 +8,19 @@ namespace KM.SwSh.FpsPatch;
 
 internal static partial class SwShFpsStadiumAudiencePatcher
 {
-    private const string InvalidAnimation = "60FPS Patch found unsupported stadium audience animation data.";
+    private const string InvalidAnimation = "60FPS Patch found unsupported stadium animation data.";
 
-    internal static byte[] ConvertArchive(string relativePath, byte[] source)
+    internal static byte[] ConvertArchive(string relativePath, byte[] source, bool includeMonitors = true)
     {
         ArgumentNullException.ThrowIfNull(source);
         try
         {
             Require(FieldArchives.ContainsKey(relativePath));
             var archive = SwShGfPackFile.Parse(source);
-            foreach (var clip in FieldArchives[relativePath])
+            var clips = FieldArchives[relativePath].AsEnumerable();
+            if (includeMonitors && MonitorClips.TryGetValue(relativePath, out var monitors))
+                clips = clips.Concat(monitors);
+            foreach (var clip in clips)
             {
                 Require(archive.TryGetUniqueFileHash(clip.Name, out var hash));
                 var animation = archive.ReadFileByHash(hash, 4 * 1024 * 1024);
@@ -46,6 +49,7 @@ internal static partial class SwShFpsStadiumAudiencePatcher
         var sparseVectors = new Dictionary<(int Start, int Width), int>();
         var foundMaterials = new HashSet<string>(StringComparer.Ordinal);
         var foundSmooth = new HashSet<(string Material, string Parameter)>();
+        var foundDiscrete = new HashSet<(string Material, string Parameter)>();
 
         void PointTo(int field, int vector)
         {
@@ -118,13 +122,21 @@ internal static partial class SwShFpsStadiumAudiencePatcher
             {
                 var kindAt = data.Field(scalar, 1);
                 var kind = kindAt == 0 ? 0 : data.U8(kindAt);
+                var parameter = data.Text(scalar, 0) ?? string.Empty;
+                if (clip.DiscreteParameters.Contains((name, parameter)))
+                {
+                    Require(foundDiscrete.Add((name, parameter)) && kind is 3 or 4);
+                    var table = ExpandMonitorTrack(data, scalar, kind, sourceFrames, targetFrames, output);
+                    output[kindAt] = 2;
+                    PointTo(data.Field(scalar, 2), table);
+                    continue;
+                }
                 if (kind != 2)
                 {
                     RetimeSparse(scalar, 1, 4);
                     continue;
                 }
 
-                var parameter = data.Text(scalar, 0) ?? string.Empty;
                 var smooth = clip.SmoothParameters.Contains((name, parameter));
                 Require(smooth ? foundSmooth.Add((name, parameter))
                     : clip.FlipbookMaterials.Contains(name, StringComparer.Ordinal)
@@ -159,7 +171,8 @@ internal static partial class SwShFpsStadiumAudiencePatcher
                 PointTo(data.Field(value, 0), newVector);
             }
         }
-        Require(foundMaterials.SetEquals(clip.FlipbookMaterials) && foundSmooth.SetEquals(clip.SmoothParameters));
+        Require(foundMaterials.SetEquals(clip.FlipbookMaterials) && foundSmooth.SetEquals(clip.SmoothParameters)
+            && foundDiscrete.SetEquals(clip.DiscreteParameters));
         var result = output.ToArray();
         foreach (var (field, vector) in references)
             BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(field, 4), checked((uint)(vector - field)));
