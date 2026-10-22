@@ -11,8 +11,12 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
     ProjectGame Game, IReadOnlyList<SwShRestorationSourceFingerprint> Sources,
     IReadOnlyList<SwShRestorationContribution> Contributions, IReadOnlyDictionary<int, int[]> UnavailableSourceMoves)
 {
+    public int AssetRevision { get; init; } = 1;
     private sealed record Manifest(int Schema, string DefinitionId, int DefinitionVersion, int ConverterVersion,
-        ProjectGame Game, SwShRestorationSourceFingerprint[] Sources, Item[] Items, Dictionary<int, int[]> UnavailableSourceMoves);
+        ProjectGame Game, SwShRestorationSourceFingerprint[] Sources, Item[] Items, Dictionary<int, int[]> UnavailableSourceMoves)
+    {
+        public int AssetRevision { get; init; } = 1;
+    }
     private sealed record Item(string Path, SwShRestorationWriter Writer, string Key, string? Before, string After);
 
     public byte[] Encode()
@@ -37,7 +41,7 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
             var items = Contributions.OrderBy(c => c.Path, StringComparer.Ordinal).ThenBy(c => c.Key, StringComparer.Ordinal)
                 .Select(c => new Item(c.Path, c.Writer, c.Key, c.Before is null ? null : Blob(c.Before), Blob(c.After))).ToArray();
             var manifest = new Manifest(1, DefinitionId, DefinitionVersion, ConverterVersion, Game, Sources.OrderBy(s => s.Role).ThenBy(s => s.RelativePath).ToArray(), items,
-                UnavailableSourceMoves.ToDictionary());
+                UnavailableSourceMoves.ToDictionary()) { AssetRevision = AssetRevision };
             var metadata = zip.CreateEntry("manifest.json", CompressionLevel.Fastest); metadata.LastWriteTime = new(2000, 1, 1, 0, 0, 0, TimeSpan.Zero);
             using var destination = metadata.Open(); JsonSerializer.Serialize(destination, manifest);
         }
@@ -58,7 +62,7 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
             || manifest.Sources.Length is < 1 or > 10000 || manifest.Items.Any(i => i is null || i.Path is null || i.Key is null || i.After is null))
             throw new InvalidDataException("Prepared restoration manifest fields are missing.");
         var definition = SwShRestorationDefinitions.Get(manifest.DefinitionId);
-        if (manifest.Schema != 1 || manifest.DefinitionVersion != definition.Version || manifest.ConverterVersion != definition.ConverterVersion
+        if (manifest.Schema != 1 || manifest.AssetRevision < 1 || manifest.DefinitionVersion != definition.Version || manifest.ConverterVersion != definition.ConverterVersion
             || manifest.Game is not (ProjectGame.Sword or ProjectGame.Shield) || manifest.Items.Length is < 1 or > 10000)
             throw new InvalidDataException("Prepared restoration version or target is unsupported.");
         var read = new Dictionary<string, byte[]>(StringComparer.Ordinal);
@@ -84,7 +88,8 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
         }
         var contributions = manifest.Items.Select(i => new SwShRestorationContribution(i.Path, i.Writer, i.Key, i.Before is null ? null : Blob(i.Before), Blob(i.After))).ToArray();
         ValidateContributions(definition, contributions);
-        return new(manifest.DefinitionId, manifest.DefinitionVersion, manifest.ConverterVersion, manifest.Game, manifest.Sources, contributions, manifest.UnavailableSourceMoves);
+        return new(manifest.DefinitionId, manifest.DefinitionVersion, manifest.ConverterVersion, manifest.Game, manifest.Sources, contributions, manifest.UnavailableSourceMoves)
+            { AssetRevision = manifest.AssetRevision };
     }
 
     private static void ValidateContributions(SwShRestorationDefinition definition, IReadOnlyList<SwShRestorationContribution> items)

@@ -14,6 +14,7 @@ public sealed record RestorationEntryDto(int SpeciesId, string Name, string? Def
     public string? Donor { get; init; }
     public string? AssetsRemoved { get; init; }
     public bool RemovalStaged { get; init; }
+    public bool UpdateAvailable { get; init; }
 }
 public sealed record RestorationWorkflowDto(bool CanEdit, string Revision, IReadOnlyList<RestorationEntryDto> Entries,
     IReadOnlyList<ApiDiagnostic> Diagnostics);

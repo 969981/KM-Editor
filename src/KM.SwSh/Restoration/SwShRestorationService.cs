@@ -183,7 +183,7 @@ public sealed class SwShRestorationService
                 var retained = SwShRestorationStateStore.Store(paths, update.Customized);
                 using (retained.Lease) customization = retained.Hash == intent.PreparedHash ? null : retained.Hash;
                 foreach (var file in update.Files) outputs[file.Key] = file.Value;
-                selections[intent.DefinitionId] = installed with { PreparedHash = intent.PreparedHash, CustomizationHash = customization,
+                selections[intent.DefinitionId] = installed with { PreparedHash = intent.PreparedHash, CustomizationHash = customization, AssetRevision = bundle.AssetRevision,
                     AssetHashes = installed.AssetHashes.Concat(new[] { intent.PreparedHash, installed.PreparedHash, installed.CustomizationHash, customization }
                         .OfType<string>()).Distinct(StringComparer.Ordinal).ToArray() };
                 continue;
@@ -230,7 +230,8 @@ public sealed class SwShRestorationService
             }
             selections[intent.DefinitionId] = intent.RemovalId is not null ? RemovedSelection(intent, installed)
                 : new(intent.DefinitionId, intent.PreparedHash, intent.Enabled, customization)
-                { AssetHashes = (installed?.AssetHashes ?? []).Concat(new[] { intent.PreparedHash, installed?.PreparedHash, installed?.CustomizationHash, customization }.OfType<string>()).Distinct(StringComparer.Ordinal).ToArray() };
+                { AssetRevision = installed?.AssetRevision ?? bundle.AssetRevision,
+                    AssetHashes = (installed?.AssetHashes ?? []).Concat(new[] { intent.PreparedHash, installed?.PreparedHash, installed?.CustomizationHash, customization }.OfType<string>()).Distinct(StringComparer.Ordinal).ToArray() };
         }
         var state = new SwShRestorationState(1, selections.Values.OrderBy(s => s.DefinitionId, StringComparer.Ordinal).ToArray());
         foreach (var file in SwShRestorationDependencies.Reconcile(paths, snapshot.State, state, Current)) outputs[file.Key] = file.Value;

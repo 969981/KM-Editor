@@ -110,7 +110,7 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
   const prepare = async (definitionId: string, updateAssets = false) => {
     if (!canEdit || !session || removing || isStaging || isPreparing || preparation?.status === 'preparing' || !donorPath(definitionId)) return;
     const entry = entries.find(value => value.definitionId === definitionId);
-    if (updateAssets && (!entry?.preparedHash || entry.removalStaged || entry.staged || definitionId in drafts)) return;
+    if (updateAssets && (!entry?.updateAvailable || !entry.preparedHash || entry.removalStaged || entry.staged || definitionId in drafts)) return;
     const intent = { sessionId: session.sessionId, version: selectionVersions.current[definitionId] ?? 0,
       draft: updateAssets ? { enabled: entry!.selected, updateAssets: true } : { enabled: true } };
     setIsPreparing(true); setError(null);
@@ -209,7 +209,7 @@ export function RestoreMissingPokemonSection({ workflow, paths, bridge, session,
               <Trash2 size={16} aria-hidden="true" />{t('restoration.removeAssets')}</button>
               : <button className="secondary-button" type="button" disabled={!canEdit || !donorPath(id) || removing !== null || isStaging || isPreparing || preparation?.status === 'preparing'}
                 onClick={() => void prepare(id)}>{t('restoration.prepare')}</button>}
-            {entry.preparedHash && !entry.removalStaged ? <button className="secondary-button" type="button"
+            {entry.updateAvailable && entry.preparedHash && !entry.removalStaged ? <button className="secondary-button" type="button"
               disabled={!canEdit || !donorPath(id) || entry.staged || id in drafts || removing !== null || isStaging || isPreparing || preparation?.status === 'preparing'}
               onClick={() => void prepare(id, true)}><RefreshCw size={16} aria-hidden="true" />{t('restoration.updateAsset')}</button> : null}
             {entry.installation === 'NeedsRepair' && !entry.removalStaged ? <button className="secondary-button" type="button" disabled={!canEdit || isStaging}

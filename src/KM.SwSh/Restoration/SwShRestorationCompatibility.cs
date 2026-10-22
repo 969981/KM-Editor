@@ -21,7 +21,7 @@ public static class SwShRestorationCompatibility
         {
             if (selections.Any(s => s.DefinitionId == definition.Id)) throw new InvalidDataException("Family and individual restoration records overlap.");
             selections.Add(new(definition.Id, Split(paths, legacy.PreparedHash, definition.Id), legacy.Enabled,
-                legacy.CustomizationHash is { } custom ? Split(paths, custom, definition.Id) : null));
+                legacy.CustomizationHash is { } custom ? Split(paths, custom, definition.Id) : null) { AssetRevision = legacy.AssetRevision });
         }
         return state with { Selections = selections.OrderBy(s => s.DefinitionId, StringComparer.Ordinal).ToArray() };
     }

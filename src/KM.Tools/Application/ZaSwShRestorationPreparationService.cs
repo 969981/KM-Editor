@@ -34,7 +34,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             contributions.AddRange(context.Voices(definition.Identities.Select(i => i.Species).ToArray()));
             progress?.Report(new("validation", definition.Identities.Count, definition.Identities.Count));
             var prepared = new SwShPreparedRestoration(definition.Id, definition.Version, definition.ConverterVersion, target.SelectedGame.Value,
-                context.Fingerprints.Values.ToArray(), contributions, unavailableMoves);
+                context.Fingerprints.Values.ToArray(), contributions, unavailableMoves) { AssetRevision = definition.AssetRevision };
             // Validate the complete resource closure and every shared writer before
             // preparation can be offered as a stageable artifact.
             context.Verify(prepared);
