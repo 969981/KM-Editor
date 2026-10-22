@@ -1,5 +1,6 @@
 {
   "keys": {
+    "moves.swshStats.help": "To add an omniboost to a damaging move, set Effect quality to Damage + User Stat Raise and the first stat slot to All Stats, +1 stage, and your desired chance. This changes Attack, Defense, Sp. Atk, Sp. Def, and Speed. The move specific option retains the original scripted effect. Normal move conditions still apply.",
     "welcome.start.pla": "In Project Setup, choose matching Legends Arceus 1.1.1 Base RomFS and Base ExeFS folders. Archive editors and selected model preparation also need the PLA compression support folder.",
     "pla.help.mastery": "The level at which this move can use Agile Style and Strong Style. Use 0 for no automatic mastery; otherwise use a level at least as high as the learn level.",
     "pla.help.effort": "The effort level assigned to this stat. PLA uses effort levels instead of EVs.",
@@ -5641,6 +5642,7 @@
     "pla.field.baseExperience": "Base experience"
   },
   "literals": {
+    "All Stats (move specific)": "All Stats (move specific)",
     "PLA Data Cache": "PLA Data Cache",
     "60FPS Patch found unsupported stadium audience animation data.": "60FPS Patch found unsupported stadium audience animation data.",
     "Restored sounds require the selected game's supported 1.3.2 executable.": "Restored sounds require the selected game's supported 1.3.2 executable.",

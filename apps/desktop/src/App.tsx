@@ -29975,6 +29975,11 @@ function SelectedMovePanel({
                 const isRuntimeBehaviorGroup = group.group === 'Runtime Behavior';
                 const isRuntimeEffectsGroup = group.group === 'Runtime Effects';
                 const isRuntimeStatChangesGroup = group.group === 'Runtime Stat Changes';
+                const supportsSwShAllStats =
+                  (ordinaryDraftProject?.game === 'sword' || ordinaryDraftProject?.game === 'shield') &&
+                  group.group === 'Stat Changes' &&
+                  group.fields.some((field) => /^stat[123]$/.test(field.field) &&
+                    field.options.some((option) => option.value === 10));
                 const isRuntimeBattleGroup = group.fields.every((field) =>
                   field.field.startsWith('battle.')
                 );
@@ -29999,6 +30004,8 @@ function SelectedMovePanel({
                     : formatLocalizedMoveFieldGroup(group.group, t, translateLiteral);
                 const semanticMoveGroupHelp = isTeraBlastGroup
                   ? t('moves.teraBlast.help')
+                  : supportsSwShAllStats
+                    ? t('moves.swshStats.help')
                   : isPlayerDamageGroup
                   ? t(
                       move.playerDamageRows.length === 1
