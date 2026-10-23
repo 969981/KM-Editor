@@ -29,11 +29,6 @@ import {
   setTrainerIdentityDraftValue
 } from '../src/features/trainers/trainerIdentityDraftState.ts';
 import {
-  clearSavedResearchAnnotationEditorDraft,
-  discardResearchAnnotationEditorDraft,
-  setResearchAnnotationEditorDraft
-} from '../src/features/research-lab/researchAnnotationDraftState.ts';
-import {
   diagnosticListFingerprint,
   mergeEditorDiagnostics
 } from '../src/components/commonEditorDiagnosticsState.ts';
@@ -224,20 +219,11 @@ const embeddedEditableSurfaceInventory = {
   modelResolutionSettings: ['src/features/model-viewer/ModelResolutionSettings.tsx', 'ModelResolutionSettings', 'utility-input'],
   modelTextureEditor: ['src/features/model-viewer/ModelTextureEditor.tsx', 'ModelTextureEditor', 'raw-local-draft'],
   modelMaterialEditor: ['src/features/model-viewer/ModelMaterialEditor.tsx', 'ModelMaterialEditor', 'raw-local-draft'],
-  balanceLab: ['src/features/balance-lab/BalanceLabSection.tsx', 'BalanceLabSection', 'utility-input'],
-  balanceLabCharts: ['src/features/balance-lab/BalanceLabCharts.tsx', 'BalanceLabChart', 'utility-input'],
   dynamaxAdventureSeedPlanner: ['src/features/dynamax-adventures/DynamaxAdventureSeedPlanner.tsx', 'DynamaxAdventureSeedPlanner', 'raw-local-draft'],
   changeSetWorkspace: ['src/features/change-sets/ChangeSetWorkspacePanel.tsx', 'ChangeSetWorkspacePanel', 'raw-local-draft'],
   advancedAuthoring: ['src/features/change-sets/AdvancedAuthoringPanel.tsx', 'AdvancedAuthoringPanel', 'raw-local-draft'],
-  guidedDesign: ['src/features/guided-design/GuidedDesignSection.tsx', 'GuidedDesignSection', 'raw-local-draft'],
   inGameSettingsPackage: ['src/features/gameplay-settings/InGameSettingsPackagePanel.tsx', 'InGameSettingsPackagePanel', 'choice-local-draft'],
   cameraHookRequirement: ['src/features/camera-control/CameraHookRequirement.tsx', 'CameraHookRequirement', 'choice-local-draft'],
-  researchAnnotations: ['src/features/research-lab/ResearchAnnotationsView.tsx', 'ResearchAnnotationsView', 'raw-local-draft'],
-  researchCatalog: ['src/features/research-lab/ResearchCatalogViews.tsx', 'ResearchOwnershipView', 'utility-input'],
-  researchComparison: ['src/features/research-lab/ResearchComparisonView.tsx', 'ResearchComparisonView', 'utility-input'],
-  semanticExplore: ['src/features/semantic-explore/SemanticExploreSection.tsx', 'SemanticExploreSection', 'utility-input'],
-  semanticMerge: ['src/features/semantic-merge/SemanticMergeSection.tsx', 'SemanticMergeSection', 'raw-local-draft'],
-  gameModuleComparison: ['src/features/game-modules/GameModuleComparison.tsx', 'GameModuleComparison', 'utility-input'],
   outputSafety: ['src/features/output-safety/OutputSafetyPanel.tsx', 'OutputSafetyPanel', 'utility-input'],
   projectRelocation: ['src/features/output-safety/ProjectRelocationPanel.tsx', 'ProjectRelocationPanel', 'utility-input'],
   categoryDialog: ['src/features/categories/CategoryDialogs.tsx', 'CategoryDialog', 'raw-local-draft'],
@@ -355,11 +341,8 @@ const editorDraftContractInventory = {
   dynamaxAdventureSeedPlanner: 'captured-snapshot',
   changeSetWorkspace: 'source-reconciled-exact-submit',
   advancedAuthoring: 'source-reconciled',
-  guidedDesign: 'source-reconciled',
   inGameSettingsPackage: 'captured-review',
   cameraHookRequirement: 'captured-review',
-  researchAnnotations: 'keyed-exact-submit',
-  semanticMerge: 'captured-snapshot',
   mergePackages: 'captured-snapshot',
   personalizationSettings: 'immediate-choice',
   categoryDialog: 'keyed-exact-submit',
@@ -846,7 +829,6 @@ for (const relativePath of [
   'src/features/dex-layout/ZaDexLayoutSection.tsx',
   'src/features/fairy-gym-boosts/FairyGymBoostsSection.tsx',
   'src/features/game-dump/GameDumpSection.tsx',
-  'src/features/guided-design/GuidedDesignSection.tsx',
   'src/features/npc-item-gift/NpcItemGiftSection.tsx',
   'src/features/output-safety/projectRelocationDraftState.ts',
   'src/features/shiny-rate/ShinyRateSection.tsx',
@@ -904,58 +886,6 @@ assert.match(
   trainerPools,
   /const requestedSource = source;[\s\S]*?const requestedDestination = destination;[\s\S]*?sameSelection\(selectionRef\.current\.source, requestedSource\)/u,
   'Trainer Pool staging must compare its captured selection before publishing request feedback.'
-);
-
-const semanticMerge = read('src/features/semantic-merge/SemanticMergeSection.tsx');
-assert.doesNotMatch(
-  semanticMerge,
-  /setResolutionDraft\(new Map\(\)\);\s*await controller\.previewMerge/u,
-  'Semantic Merge must not discard resolution choices before a preview request succeeds.'
-);
-const outputSafety = read('src/features/output-safety/OutputSafetyPanel.tsx');
-assert.match(
-  outputSafety,
-  /const submittedLabel = checkpointLabel;[\s\S]*?if \(created\) \{[\s\S]*?current === submittedLabel \? '' : current/u,
-  'Output Safety must clear only the exact checkpoint label submitted successfully.'
-);
-const guidedDesign = read('src/features/guided-design/GuidedDesignSection.tsx');
-assert.doesNotMatch(
-  guidedDesign,
-  /<input\b[^>]*aria-invalid=\{!isValid\}[^>]*disabled=\{isBusy\}[^>]*>/u,
-  'Guided Design pin values must remain editable while an earlier preview request runs.'
-);
-const guidedDesignSourceFile = ts.createSourceFile(
-  'GuidedDesignSection.tsx',
-  guidedDesign,
-  ts.ScriptTarget.Latest,
-  true,
-  ts.ScriptKind.TSX
-);
-const existingPinConstraint = findFunctionLike(guidedDesignSourceFile, 'ExistingPinConstraint');
-assert.ok(existingPinConstraint, 'Guided Design is missing ExistingPinConstraint.');
-assert.match(
-  existingPinConstraint.getText(guidedDesignSourceFile),
-  /usePublishCommonEditorError\(\{\s*domain: 'analysis\.guidedDesign',\s*field: `pins\.\$\{key\}\.canonicalValue`,\s*message: isValid \? null : t\('guidedDesign\.diff\.pinValueInvalid'\)/u,
-  'Every invalid existing Guided Design pin value must publish its exact field diagnostic to the common bottom diagnostics.'
-);
-const mutationPinControl = findFunctionLike(guidedDesignSourceFile, 'MutationPinControl');
-assert.ok(mutationPinControl, 'Guided Design is missing MutationPinControl.');
-assert.match(
-  mutationPinControl.getText(guidedDesignSourceFile),
-  /usePublishCommonEditorError\(\{\s*domain: 'analysis\.guidedDesign',\s*field: `pins\.\$\{diagnosticPinKey\}\.canonicalValue`,\s*message: hasPinTarget && !isValid \? t\('guidedDesign\.diff\.pinValueInvalid'\) : null/u,
-  'Every invalid proposed Guided Design pin value must publish its exact field diagnostic to the common bottom diagnostics.'
-);
-const canonicalExports = findFunctionLike(guidedDesignSourceFile, 'CanonicalExports');
-assert.ok(canonicalExports, 'Guided Design is missing CanonicalExports.');
-assert.match(
-  canonicalExports.getText(guidedDesignSourceFile),
-  /usePublishCommonEditorError\(\{\s*domain: 'analysis\.guidedDesign',\s*field: 'exports',\s*message: errorMessage/u,
-  'Guided Design copy and download failures must publish their exact action diagnostic to the common bottom diagnostics.'
-);
-assert.equal(
-  [...guidedDesign.matchAll(/aria-invalid=\{!isValid\}/gu)].length,
-  2,
-  'Every Guided Design canonical pin input must remain covered by a function-scoped common diagnostic publisher.'
 );
 
 const dynamaxAdventureSeedPlanner = read(
@@ -1081,9 +1011,9 @@ assert.match(
   'WorkspaceCreateControl must not clear a create-name draft after the active project scope changes.'
 );
 assert.equal(
-  [...workbench.matchAll(/scopeKey=\{preparationScopeKey\}/gu)].length,
+  [...workbench.matchAll(/scopeKey=\{workspaceScopeKey\}/gu)].length,
   2,
-  'Bookmark and output-profile creation must both use the active preparation project scope.'
+  'Bookmark and output-profile creation must both use the active workspace project scope.'
 );
 assert.doesNotMatch(
   workbench,
@@ -1401,148 +1331,6 @@ assert.deepEqual(
   'A successful class-pair stage must preserve another trainer draft.'
 );
 
-const researchAnnotations = read('src/features/research-lab/ResearchAnnotationsView.tsx');
-assert.doesNotMatch(
-  researchAnnotations,
-  /previousDocumentIdentityRef|setTags\(''\)[\s\S]*?setText\(''\)/u,
-  'Research Annotations must not erase unsaved text when its document ETag changes.'
-);
-assert.match(
-  researchAnnotations,
-  /clearSavedResearchAnnotationEditorDraft\([\s\S]*?draftKey,[\s\S]*?stagedEditorDraft/u,
-  'Research Annotations must clear only the exact draft saved successfully.'
-);
-assert.match(
-  researchAnnotations,
-  /onDirtyStateChange\?\.\(Object\.keys\(editorDrafts\)\.length > 0\)/u,
-  'Research Annotations must expose its keyed draft state to its owning workspace.'
-);
-assert.match(
-  researchAnnotations,
-  /outstandingDraftKeys = Object\.keys\(editorDrafts\)[\s\S]*?getNextOutstandingEditorDraftKey\(outstandingDraftKeys, draftKey\)/u,
-  'Research Annotations must expose an aggregate count and deterministic next retained draft.'
-);
-const researchReviewNextDraft = between(
-  researchAnnotations,
-  'const reviewNextDraft = () => {',
-  '\n\n  return ('
-);
-assert.match(
-  researchReviewNextDraft,
-  /nextDraft\.annotationId[\s\S]*?setEditingId\(nextDraft\.annotationId\)[\s\S]*?setReviewedDraftKey\(nextDraftKey\)/u,
-  'Research Annotations must make both saved-annotation and new-target drafts reachable.'
-);
-assert.doesNotMatch(
-  researchReviewNextDraft,
-  /setEditorDrafts|upsertAnnotation|discardResearchAnnotationEditorDraft|clearSavedResearchAnnotationEditorDraft/u,
-  'Reviewing another Research Annotation draft must never save, clear, or discard draft state.'
-);
-assert.doesNotMatch(
-  researchAnnotations,
-  /<(?:input|textarea)\b[^>]*disabled=\{controller\.annotations\.isSaving\}[^>]*>/u,
-  'Research Annotation text and tags must remain editable while an earlier snapshot saves.'
-);
-assert.match(
-  researchAnnotations,
-  /const submittedDraftIsStillCurrent =[\s\S]*?if \(!submittedDraftIsStillCurrent\) \{\s*return;\s*\}\s*setEditingId\(null\)/u,
-  'Research Annotations must remain open when a newer edit supersedes an in-flight save.'
-);
-const researchDeleteAnnotation = between(
-  researchAnnotations,
-  'const deleteAnnotation = async (annotationId: string) => {',
-  '\n  const outstandingDraftKeys ='
-);
-assert.match(
-  researchDeleteAnnotation,
-  /const submittedEditorDraft = editorDraftsRef\.current\[deletedDraftKey\];[\s\S]*?await controller\.deleteAnnotation\(annotationId\)/u,
-  'Research Annotation delete must capture its exact draft snapshot before the async request.'
-);
-assert.match(
-  researchDeleteAnnotation,
-  /clearSavedResearchAnnotationEditorDraft\([\s\S]*?latestDrafts,[\s\S]*?deletedDraftKey,[\s\S]*?submittedEditorDraft/u,
-  'Research Annotation delete must clear only the unchanged snapshot that existed when deletion began.'
-);
-assert.match(
-  researchDeleteAnnotation,
-  /const newerDraft = resolvedDrafts === latestDrafts[\s\S]*?\[deletedDraftKey\]: \{[\s\S]*?\.\.\.newerDraft,[\s\S]*?annotationId: null/u,
-  'Text typed during deletion must be preserved as a new-annotation draft for the retained target.'
-);
-assert.match(
-  researchDeleteAnnotation,
-  /setEditingId\(null\);[\s\S]*?setReviewedDraftKey\(newerDraft \? deletedDraftKey : null\)/u,
-  'A newer draft must remain selected after its source annotation is deleted.'
-);
-assert.doesNotMatch(
-  researchDeleteAnnotation,
-  /discardResearchAnnotationEditorDraft\(/u,
-  'Async annotation delete must not unconditionally discard the latest keyed draft.'
-);
-const researchTarget = { kind: 'semanticRecord' };
-const researchDraftA = {
-  annotationId: 'annotation-a',
-  tags: 'balance, note',
-  target: researchTarget,
-  text: 'Unsaved analysis'
-};
-const researchDraftB = {
-  annotationId: 'annotation-b',
-  tags: '',
-  target: researchTarget,
-  text: 'Another draft'
-};
-let researchDrafts = setResearchAnnotationEditorDraft(
-  {},
-  'annotation:annotation-a',
-  researchDraftA,
-  { tags: '', text: 'Original' }
-);
-researchDrafts = setResearchAnnotationEditorDraft(
-  researchDrafts,
-  'annotation:annotation-b',
-  researchDraftB,
-  { tags: '', text: 'Other original' }
-);
-const researchChangedWhileSaving = setResearchAnnotationEditorDraft(
-  researchDrafts,
-  'annotation:annotation-a',
-  { ...researchDraftA, text: 'Newer analysis' },
-  { tags: '', text: 'Original' }
-);
-assert.equal(
-  clearSavedResearchAnnotationEditorDraft(
-    researchChangedWhileSaving,
-    'annotation:annotation-a',
-    researchDraftA
-  )['annotation:annotation-a']?.text,
-  'Newer analysis',
-  'A delayed annotation save must not erase newer text for the same target.'
-);
-researchDrafts = clearSavedResearchAnnotationEditorDraft(
-  researchDrafts,
-  'annotation:annotation-a',
-  researchDraftA
-);
-assert.deepEqual(
-  researchDrafts,
-  { 'annotation:annotation-b': researchDraftB },
-  'Saving one annotation must preserve another annotation draft.'
-);
-assert.deepEqual(
-  discardResearchAnnotationEditorDraft(
-    researchDrafts,
-    'annotation:annotation-b'
-  ),
-  {},
-  'Explicit annotation cancel must discard only the active draft.'
-);
-
-const researchComparison = read('src/features/research-lab/ResearchComparisonView.tsx');
-assert.doesNotMatch(
-  researchComparison,
-  /disabled=\{controller\.isBusy \|\| selectedPaths\.length === 0\}/u,
-  'Research Comparison must let users clear or replace a selection while an earlier comparison is loading.'
-);
-
 const exactSnapshotEquality = (left, right) =>
   left.value === right.value && left.note === right.note;
 const submittedKeyedDraft = { note: 'submitted', value: '25' };
@@ -1751,108 +1539,6 @@ const diagnosticPublisherCoverage = [
         'must publish encounter clipboard failures.'],
       [/encounterClipboardFeedback[\s\S]*?role=\{encounterClipboardFeedback\.isError \? 'alert' : 'status'\}/u,
         'must retain inline encounter clipboard feedback.']
-    ]
-  ],
-  [
-    'src/features/balance-lab/BalanceLabSection.tsx',
-    'DiagnosticList',
-    [[/usePublishCommonEditorDiagnostics\(diagnostics\)/u,
-      'must publish its custom API diagnostic list.']]
-  ],
-  [
-    'src/features/balance-lab/BalanceLabSection.tsx',
-    'BalanceLabStatusPanel',
-    [[/usePublishCommonEditorError\([\s\S]*?kind === 'error' \? label : null/u,
-      'must publish an initial load failure.']]
-  ],
-  [
-    'src/features/balance-lab/BalanceLabSection.tsx',
-    'InlineError',
-    [[/usePublishCommonEditorError\(\{ domain: 'analysis\.balanceLab', message \}\)/u,
-      'must publish a refresh or continuation failure.']]
-  ],
-  [
-    'src/features/guided-design/GuidedDesignSection.tsx',
-    'DiagnosticList',
-    [[/usePublishCommonEditorDiagnostics\(diagnostics\)/u,
-      'must publish preview, import, and receipt diagnostics.']]
-  ],
-  [
-    'src/features/guided-design/GuidedDesignSection.tsx',
-    'StatusPanel',
-    [[/usePublishCommonEditorError\([\s\S]*?message: errorMessage/u,
-      'must publish an initial query failure.']]
-  ],
-  [
-    'src/features/guided-design/GuidedDesignSection.tsx',
-    'InlineError',
-    [[/usePublishCommonEditorError\(\{ domain: 'analysis\.guidedDesign', message \}\)/u,
-      'must publish a refresh or preview failure.']]
-  ],
-  [
-    'src/features/game-modules/GameModuleResults.tsx',
-    'GameModuleDiagnostics',
-    [
-      [/usePublishCommonEditorDiagnostics\(diagnostics\)/u,
-        'must publish module query diagnostics.'],
-      [/const headingId = useId\(\)[\s\S]*?aria-labelledby=\{headingId\}[\s\S]*?id=\{headingId\}/u,
-        'must give every repeated module diagnostic block a unique heading ID.']
-    ]
-  ],
-  [
-    'src/features/game-modules/GameModulesSection.tsx',
-    'StatusPanel',
-    [[/usePublishCommonEditorError\([\s\S]*?message: errorMessage/u,
-      'must publish an initial module load failure.']]
-  ],
-  [
-    'src/features/game-modules/GameModulesSection.tsx',
-    'InlineError',
-    [[/usePublishCommonEditorError\(\{ domain: 'analysis\.gameModules', message \}\)/u,
-      'must publish a module refresh or continuation failure.']]
-  ],
-  [
-    'src/features/game-modules/GameModulesRuntime.tsx',
-    'GameModulesRuntime',
-    [[/<PublishCommonEditorError[\s\S]*?domain="analysis\.gameModules"/u,
-      'must publish capability bootstrap failures.']]
-  ],
-  [
-    'src/features/semantic-merge/SemanticMergeSection.tsx',
-    'Diagnostics',
-    [[/usePublishCommonEditorDiagnostics\(diagnostics\)/u,
-      'must publish merge and recipe preview diagnostics.']]
-  ],
-  [
-    'src/features/semantic-merge/SemanticMergeSection.tsx',
-    'QueryError',
-    [[/<PublishCommonEditorError[\s\S]*?field="query"/u,
-      'must publish source, preview, export, and validation request failures.']]
-  ],
-  [
-    'src/features/semantic-merge/SemanticMergeSection.tsx',
-    'MergeSurface',
-    [[/<PublishCommonEditorError[\s\S]*?field="proposalImport"/u,
-      'must publish invalid merge proposal imports.']]
-  ],
-  [
-    'src/features/semantic-merge/SemanticMergeSection.tsx',
-    'RecipeSurface',
-    [
-      [/<PublishCommonEditorError[\s\S]*?field="recipeFile"/u,
-        'must publish invalid recipe files.'],
-      [/<PublishCommonEditorError[\s\S]*?field="recipeImport"/u,
-        'must publish invalid recipe proposal imports.']
-    ]
-  ],
-  [
-    'src/features/semantic-merge/SemanticMergeSection.tsx',
-    'RecipeArtifactCard',
-    [
-      [/field: 'recipeExport',[\s\S]*?status === 'error'/u,
-        'must publish recipe copy and download failures.'],
-      [/role=\{status === 'error' \? 'alert' : 'status'\}/u,
-        'must retain inline recipe copy and download feedback.']
     ]
   ],
   [

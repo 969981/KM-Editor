@@ -13,6 +13,7 @@ import { LoadingProgress } from '../../components/LoadingProgress';
 import { semanticRecordRefKey } from '../../workbench/semanticContracts';
 import { TechnicalDetails } from '../workbench/AnalysisPresentation';
 import { humanizeIdentifier } from '../workbench/analysisPresentationUtils';
+import './semanticExplore.css';
 import {
   semanticExploreMaximumAccumulatedResults,
   type QueryableLayer,

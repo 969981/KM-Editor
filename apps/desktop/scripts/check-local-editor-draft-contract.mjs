@@ -229,7 +229,6 @@ for (const relativePath of [
   'src/features/dex-layout/ZaDexLayoutSection.tsx',
   'src/features/fairy-gym-boosts/FairyGymBoostsSection.tsx',
   'src/features/game-dump/GameDumpSection.tsx',
-  'src/features/guided-design/GuidedDesignSection.tsx',
   'src/features/npc-item-gift/NpcItemGiftSection.tsx',
   'src/features/output-safety/projectRelocationDraftState.ts',
   'src/features/shiny-rate/ShinyRateSection.tsx',
@@ -379,30 +378,6 @@ assert.match(
   trainerIdentitySource,
   /trainerTextTargetContextRef\.current\.trainerId === requestedTrainerId[\s\S]*?classTargetSignature ===[\s\S]*?requestedTargetSignature/u,
   'Trainer class navigation failure feedback must be scoped to the requested trainer and text target.'
-);
-
-const semanticMerge = read('src/features/semantic-merge/SemanticMergeSection.tsx');
-for (const functionName of ['discover', 'generate']) {
-  const body = new RegExp(
-    `const ${functionName} = async [\\s\\S]*?(?=\\n  const [A-Za-z])`,
-    'u'
-  ).exec(semanticMerge)?.[0] ?? '';
-  assert.ok(body, `Semantic Merge is missing ${functionName}.`);
-  assert.doesNotMatch(
-    body,
-    /setResolutionDraft\(new Map\(\)\)/u,
-    `Semantic Merge ${functionName} must not erase conflict choices before an awaited preview succeeds.`
-  );
-}
-assert.match(
-  semanticMerge,
-  /setResolutionDraft\(\(current\) => reconcileResolutionDraft\(/u,
-  'Semantic Merge must reconcile refreshed conflict choices without overwriting a newer local choice.'
-);
-assert.doesNotMatch(
-  semanticMerge,
-  /<input\s+disabled=\{isBlocked \|\| controller\.mergePreview\.status === 'loading'\}\s+id="semantic-merge-target-search"/u,
-  'Semantic Merge search input must remain editable while an earlier preview request is loading.'
 );
 
 const trainerPools = read('src/features/trainer-pools/TrainerPoolsSection.tsx');
@@ -736,23 +711,6 @@ assert.doesNotMatch(
   shortcutOverlay,
   /<input\s+autoFocus\s+disabled=\{isMutationBusy\}/u,
   'Shortcut chord input must remain editable while its earlier value is being saved.'
-);
-
-const guidedDesign = read('src/features/guided-design/GuidedDesignSection.tsx');
-assert.doesNotMatch(
-  guidedDesign,
-  /disabled=\{importState\.status === 'busy' \|\| importState\.status === 'success'\}/u,
-  'Guided Design change-set name must remain editable while its earlier value imports.'
-);
-assert.doesNotMatch(
-  guidedDesign,
-  /<fieldset disabled=\{controller\.isQuerying\}>/u,
-  'Guided Design raw proposal inputs must remain editable while an earlier preview is loading.'
-);
-assert.match(
-  guidedDesign,
-  /setSelectedRecords\(\(current\) => reconcileSourceBackedDraft\(/u,
-  'Guided Design exact-target refreshes must preserve a newer local target selection.'
 );
 
 const ordinaryEditors = read('src/App.tsx');

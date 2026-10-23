@@ -3,7 +3,8 @@
 // Historical compatibility entry point. App file-size limits were retired because
 // ownership and testability matter more than arbitrary line counts. Static UI
 // contract checks remain attached here so the existing typecheck command runs them.
-import './check-analysis-preparation-contract.mjs';
+import './check-analysis-removal-contract.mjs';
+import './check-cache-and-output-contract.mjs';
 import './check-analysis-selector-contract.mjs';
 import './check-editor-field-lock-contract.mjs';
 import './check-editor-interaction-contract.mjs';

@@ -48,6 +48,6 @@ assert.match(
 );
 assert.match(
   app,
-  /<SemanticExploreSection[\s\S]*?controller=\{semanticExploreController\}/,
-  'Explicit Semantic Explore must keep its direct controller behavior.'
+  /enabled: recordLookupRequested/,
+  'Record lookups must be requested explicitly by command search or inspector navigation.'
 );

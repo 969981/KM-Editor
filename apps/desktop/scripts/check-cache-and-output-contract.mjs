@@ -8,225 +8,8 @@ function read(relativePath) {
   return readFileSync(new URL(relativePath, import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
 }
 
-const model = read('../src/features/workbench/analysisPreparation.ts');
-assert.match(
-  model,
-  /analysisLoadingModes = \['minimal', 'balanced', 'performance'\]/,
-  'Analysis loading must use the same three user-facing mode identities as each game cache.'
-);
-assert.match(
-  model,
-  /value === 'reduced'\) return 'minimal';[\s\S]*?value === 'fastest'\) return 'performance';/,
-  'Legacy analysis loading preferences must migrate to Minimal and Performance.'
-);
-for (const unit of [
-  'balanceLab: 1',
-  'gameModules: 1',
-  'guidedDesign: 1',
-  'researchLab: 2',
-  'semanticMerge: 1',
-  'semanticProject: 2'
-]) {
-  assert.ok(model.includes(unit), `Analysis preparation lost measured unit ${unit}.`);
-}
-assert.match(
-  model,
-  /const measured = measureRealQueryUnits\(statuses\)/,
-  'Analysis preparation must count completed operations from real ready query states.'
-);
-assert.match(
-  model,
-  /allRequiredToolsReady \? 100 : Math\.min\(99, measuredPercent\)/,
-  'Analysis preparation must reserve 100 percent for complete readiness.'
-);
-assert.match(
-  model,
-  /current\.scopeKey === options\.scopeKey[\s\S]*?createAnalysisPreparationScopeState\(options\)/,
-  'A changed project or source revision must synchronously resolve to fresh preparation state.'
-);
-
-const hook = read('../src/features/workbench/useAnalysisPreparation.ts');
-assert.match(
-  hook,
-  /const visibleScopeState = useMemo\([\s\S]*?resolveAnalysisPreparationScopeState/,
-  'The preparation hook must hide stale-scope preload state before effects run.'
-);
-assert.ok(
-  [...hook.matchAll(/current\.scopeKey !== scopeKey/g)].length >= 3,
-  'Preparation callbacks and deferred mounts must reject stale project scopes.'
-);
-assert.match(
-  hook,
-  /const nextTools = nextAnalysisPreloadTools\([\s\S]*?preloadTools: \[\.\.\.current\.preloadTools, \.\.\.additions\]/,
-  'Preparation must admit the selected runtime batch without fabricating query progress.'
-);
-assert.match(
-  model,
-  /options\.mode === 'performance'[\s\S]*?return order\.filter\(\(tool\) => !options\.preloadTools\.includes\(tool\)\)/,
-  'Performance preparation must admit every independent tool together after semantic setup.'
-);
-
-const panel = read('../src/features/workbench/AnalysisPreparationPanel.tsx');
-assert.match(
-  panel,
-  /<LoadingProgress[\s\S]*?completed=\{snapshot\.completedUnitCount\} total=\{snapshot\.totalUnitCount\}/,
-  'Analysis preparation must send measured units to the shared accessible progress presentation.'
-);
-assert.match(
-  panel,
-  /status=\{hasError \? 'error' : isReady \? 'complete' : 'running'\}/,
-  'Analysis preparation must distinguish incomplete and failed work from successful completion.'
-);
-const workbenchStyles = read('../src/features/workbench/workbench.css');
-assert.match(
-  workbenchStyles,
-  /\.analysis-preparation-systems \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 13rem\), 1fr\)\);/,
-  'Analysis status cards must shrink to their actual container at narrow windows and high DPI.'
-);
-assert.match(
-  workbenchStyles,
-  /\.analysis-preparation-header \{[\s\S]*?flex-wrap: wrap;/,
-  'The analysis status header must wrap instead of clipping localized text at high DPI.'
-);
-assert.match(
-  workbenchStyles,
-  /\.analysis-preparation-systems li > small \{[\s\S]*?min-width: 0;[\s\S]*?overflow-wrap: anywhere;/,
-  'Long localized analysis states must wrap without forcing horizontal overflow.'
-);
-
-const runtimeSystems = new Map([
-  ['../src/features/balance-lab/BalanceLabRuntime.tsx', 'balanceLab'],
-  ['../src/features/game-modules/GameModulesRuntime.tsx', 'gameModules'],
-  ['../src/features/guided-design/GuidedDesignRuntime.tsx', 'guidedDesign'],
-  ['../src/features/research-lab/ResearchLabRuntime.tsx', 'researchLab'],
-  ['../src/features/semantic-merge/SemanticMergeRuntime.tsx', 'semanticMerge']
-]);
-for (const [path, system] of runtimeSystems) {
-  assert.ok(
-    read(path).includes(`preparationProgressFromQueryStatuses('${system}'`),
-    `${system} must report its actual controller query status.`
-  );
-}
-
-const workbench = read('../src/features/workbench/WorkbenchSection.tsx');
-assert.match(
-  workbench,
-  /preparationScopeKeyRef\.current = preparationScopeKey;[\s\S]*?setMountedTools\(new Set/,
-  'Workbench must replace, not union, mounted tools when the preparation scope changes.'
-);
-assert.match(
-  workbench,
-  /const visibleMountedTools = preparationScopeKeyRef\.current === preparationScopeKey[\s\S]*?visibleMountedTools\.has\(tool\.id\)/,
-  'Workbench must stop rendering obsolete-scope preload tools before its reset effect runs.'
-);
-assert.doesNotMatch(
-  workbench,
-  /cachePreparation|analysisPreparation/,
-  'Workbench must not render project setup preparation status panels.'
-);
-
 const app = read('../src/App.tsx');
-assert.match(
-  app,
-  /aria-label=\{t\('settings\.tabs\.label'\)\}[\s\S]*?className="settings-tabs"[\s\S]*?role="tablist"[\s\S]*?settingsTabs\.map/,
-  'Settings must expose its existing categories through one accessible tab list.'
-);
-assert.match(
-  app,
-  /effectiveActiveSettingsTab === 'cache'[\s\S]*?role="tabpanel"[\s\S]*?\{analysisLoadingSettings\}/,
-  'Analysis loading settings must remain a separate section inside Data Cache.'
-);
-assert.match(
-  app,
-  /\{translateLiteral\(option\.label\)\}[\s\S]*?translateLiteral\(option\.description\)/,
-  'Cache mode labels and descriptions must use the same localized presentation boundary as analysis loading.'
-);
-const settingsStyles = read('../src/styles.css');
-assert.match(
-  settingsStyles,
-  /\.settings-tabs \{[\s\S]*?overflow-x: auto;[\s\S]*?\.settings-tab\.is-selected/,
-  'Settings tabs must remain bounded, horizontally reachable, and visibly selected.'
-);
-for (const locale of ['de', 'en', 'es', 'fr', 'ru', 'uk', 'zh']) {
-  const resource = JSON.parse(read(`../src/localization/resources/${locale}.json`));
-  assert.deepEqual(
-    [
-      resource.keys['analysisLoading.mode.minimal.label'],
-      resource.keys['analysisLoading.mode.balanced.label'],
-      resource.keys['analysisLoading.mode.performance.label']
-    ],
-    [
-      resource.literals.Minimal,
-      resource.literals.Balanced,
-      resource.literals.Performance
-    ],
-    `${locale} analysis and cache modes must use identical names.`
-  );
-}
-const workbenchHomeStart = app.indexOf('<WorkbenchHomeSection');
-const workbenchHomeEnd = app.indexOf('/>', workbenchHomeStart);
-assert.ok(
-  workbenchHomeStart >= 0 && workbenchHomeEnd > workbenchHomeStart,
-  'The Workbench home invocation must remain discoverable by the contract.'
-);
-const workbenchHome = app.slice(workbenchHomeStart, workbenchHomeEnd);
-assert.doesNotMatch(
-  workbenchHome,
-  /cachePreparation|analysisPreparation|SvCacheProgressPanel|AnalysisPreparationPanel/,
-  'Workbench must not receive Project Setup cache or analysis status panels.'
-);
-const projectSetupStart = app.indexOf('function HealthSection({');
-const projectSetupEnd = app.indexOf('function SvCacheProgressPanel(', projectSetupStart);
-assert.ok(
-  projectSetupStart >= 0 && projectSetupEnd > projectSetupStart,
-  'Project Setup must remain discoverable by the preparation placement contract.'
-);
-const projectSetup = app.slice(projectSetupStart, projectSetupEnd);
-assert.match(
-  projectSetup,
-  /<SvCacheProgressPanel[\s\S]*?\{analysisPreparation\}/,
-  'Project Setup must retain the cache and analysis preparation status panels in stable order.'
-);
-assert.ok(
-  !app.includes("projectSourceRevision.sourceObservationToken ?? 'pending'"),
-  'Analysis preparation must not create a provisional source scope that later looks like a restart.'
-);
-assert.match(
-  app,
-  /projectSourceRevision\.status === 'ready' &&\s+projectSourceRevision\.sourceObservationToken/,
-  'Analysis preparation must begin its stable scope only after the source identity is resolved.'
-);
-assert.match(
-  app,
-  /const projectSourceRevision = useProjectSourceRevision\(\{[\s\S]*?bridge: analysisBridge,[\s\S]*?paths: activeProjectId \? analysisProjectPaths : null,/,
-  'Source observation must start with the active project instead of waiting behind cache bookkeeping.'
-);
-assert.match(
-  app,
-  /const analysisProjectPathsRef = useRef\(analysisProjectPaths\);[\s\S]*?createGameScopedProjectBridge\(\s*unscopedBridge,\s*\(\) => analysisProjectPathsRef\.current,\s*\(\) => projectScopeGenerationRef\.current\s*\)/,
-  'Read-only analysis must use its own current-path bridge while retaining project-generation guards.'
-);
-assert.match(
-  app,
-  /useSemanticExploreController\(\{\s*bridge: analysisBridge,\s*scope: semanticExploreScope\s*\}\)/,
-  'Semantic analysis requests must use the bridge bound to the sanitized analysis scope.'
-);
-for (const runtime of [
-  'BalanceLabRuntime',
-  'GameModulesRuntime',
-  'GuidedDesignRuntime',
-  'ResearchLabRuntime',
-  'SemanticMergeRuntime'
-]) {
-  const runtimeStart = app.indexOf(`<${runtime}`);
-  const runtimeEnd = app.indexOf('/>', runtimeStart);
-  assert.ok(
-    runtimeStart >= 0 &&
-      runtimeEnd > runtimeStart &&
-      app.slice(runtimeStart, runtimeEnd).includes('bridge={analysisBridge}'),
-    `${runtime} must use the bridge bound to the sanitized analysis scope.`
-  );
-}
+const projectSetup = app.slice(app.indexOf('function HealthSection({'), app.indexOf('function SvCacheProgressPanel('));
 assert.match(
   app,
   /const projectScope = useMemo<OutputSafetyScope \| null>[\s\S]*?const outputSafetyScope = useMemo\([\s\S]*?isValidatedOutputSafetyScope\(projectScope, health\)/,
@@ -234,12 +17,12 @@ assert.match(
 );
 assert.match(
   app,
-  /const semanticExploreScope = useMemo\([\s\S]*?analysisProjectScope &&[\s\S]*?\.\.\.analysisProjectScope,[\s\S]*?useSemanticExploreController/,
+  /const semanticExploreScope = useMemo\([\s\S]*?recordLookupProjectScope &&[\s\S]*?\.\.\.recordLookupProjectScope,[\s\S]*?useSemanticExploreController/,
   'Read-only semantic analysis must retain its validated project scope when Output Root is unavailable.'
 );
 assert.match(
   app,
-  /function resolveProjectAnalysisPaths\([\s\S]*?health\.canOpenEditableWorkflows && outputRoot\?\.status === 'valid'[\s\S]*?\? outputRoot\.path[\s\S]*?: null/,
+  /function resolveRecordLookupPaths\([\s\S]*?health\.canOpenEditableWorkflows && outputRoot\?\.status === 'valid'[\s\S]*?\? outputRoot\.path[\s\S]*?: null/,
   'Read-only analysis must ignore an absent or invalid Output Root while retaining validated source paths.'
 );
 assert.match(
@@ -856,104 +639,7 @@ assert.ok(
     && asyncPolicy.includes('keys.length !== value.length'),
   'Exact query identity must canonicalize object keys and reject lossy non-JSON identities.'
 );
-assert.ok(
-  asyncPolicy.includes('function measureRealQueryUnits')
-    && model.includes('measureRealQueryUnits(statuses)'),
-  'Determinate preparation must share the real-operation unit counter.'
-);
 
-const analysisControllerPaths = [
-  '../src/features/balance-lab/useBalanceLabController.ts',
-  '../src/features/game-modules/useGameModuleController.ts',
-  '../src/features/guided-design/useGuidedDesignController.ts',
-  '../src/features/research-lab/useResearchLabController.ts',
-  '../src/features/semantic-explore/useSemanticExploreController.ts',
-  '../src/features/semantic-merge/useSemanticMergeController.ts'
-];
-const bridgeConsumers = new Map(
-  [...analysisControllerPaths, '../src/workbench/useProjectSourceRevision.ts']
-    .map((path) => [path, read(path)])
-);
-const usedBridgeOperations = new Set();
-for (const [path, source] of bridgeConsumers) {
-  for (const match of source.matchAll(/(?:(?:this|options)\.bridge|bridge)\.([A-Za-z0-9_]+)/g)) {
-    usedBridgeOperations.add(match[1]);
-  }
-  if (analysisControllerPaths.includes(path)) {
-    assert.ok(
-      source.includes('ProjectQueryEpoch') && source.includes('useDeferredUnmountCleanup'),
-      `${path} must use the shared freshness and StrictMode cleanup policy.`
-    );
-    assert.ok(
-      !/private (?:epoch|generation|generations|flowGenerations|slotGenerations)\b/.test(source),
-      `${path} must not reintroduce a bespoke epoch or generation implementation.`
-    );
-  }
-}
-const operationPolicyMatch = asyncPolicy.match(
-  /analysisBridgeOperationPolicies = \{([\s\S]*?)\n\} as const/
-);
-assert.ok(operationPolicyMatch, 'The analysis bridge operation policy must remain discoverable.');
-const classifiedOperations = new Map(
-  [...operationPolicyMatch[1].matchAll(/^  ([A-Za-z0-9_]+): '([^']+)',?$/gm)]
-    .map((match) => [match[1], match[2]])
-);
-assert.deepEqual(
-  [...classifiedOperations.keys()].sort(),
-  [...usedBridgeOperations].sort(),
-  'Every analysis/source-revision bridge call must have one exhaustive frontend concurrency class.'
-);
-for (const [operation, classification] of classifiedOperations) {
-  const owner = [...bridgeConsumers.entries()].find(([, source]) => (
-    source.includes(`.bridge.${operation}(`) || source.includes(`bridge.${operation}(`)
-  ));
-  assert.ok(owner, `The classified ${operation} operation must have a controller owner.`);
-  const expectedRunner = classification === 'independentRead'
-    ? 'runIndependentProjectRead'
-    : 'runOrderedProjectOperation';
-  assert.ok(
-    owner[1].includes(`${expectedRunner}(\n        '${operation}'`) ||
-      owner[1].includes(`${expectedRunner}(\n      '${operation}'`),
-    `${operation} must use ${expectedRunner} for its ${classification} policy.`
-  );
-  if (classification !== 'independentRead') {
-    assert.ok(
-      owner[1].includes(`(bridge) => bridge.${operation}(`),
-      `${operation} must execute against the exact bridge owner captured at ordered admission.`
-    );
-  }
-}
-
-const balanceController = bridgeConsumers.get(
-  '../src/features/balance-lab/useBalanceLabController.ts'
-);
-const gameModuleController = bridgeConsumers.get(
-  '../src/features/game-modules/useGameModuleController.ts'
-);
-const semanticExploreController = bridgeConsumers.get(
-  '../src/features/semantic-explore/useSemanticExploreController.ts'
-);
-for (const [name, source] of [
-  ['Balance Lab', balanceController],
-  ['Game Tools', gameModuleController],
-  ['Project analysis', semanticExploreController]
-]) {
-  assert.ok(
-    source.includes('new BoundedLruCache'),
-    `${name} settled query reuse must use the shared bounded LRU.`
-  );
-}
-assert.ok(
-  semanticExploreController.includes('maximumInspectorCacheBytes = 32 * 1_024 * 1_024')
-    && semanticExploreController.includes('maximumWeight: maximumInspectorCacheBytes')
-    && semanticExploreController.includes('inspectorCacheTextEncoder.encode(JSON.stringify(value)).byteLength'),
-  'Project analysis must bound retained inspector responses by encoded byte weight as well as count.'
-);
-assert.ok(
-  hook.includes("new ProjectQueryEpoch<'preload'>()")
-    && hook.includes('preloadFreshness.isCurrent(ticket)'),
-  'Deferred Workbench admission must reject callbacks from an obsolete project scope.'
-);
 const nativeBridge = read('../src-tauri/src/lib.rs');
 const pendingRequestReservation = nativeBridge.match(
   /fn reserve_pending_request\([\s\S]*?\n    }\n\n    async fn acquire_execution_permit_for_generation/
@@ -985,11 +671,6 @@ assert.ok(
     && nativeBridge.includes('buffered_stdout'),
   'Active bridge reads must remain readiness-polled, cancelable, and correctly framed without waiting for child EOF.'
 );
-assert.match(
-  app,
-  /deferBackgroundWork: isBusy \|\| hasCriticalWriteOperation/,
-  'Cache warmup must not defer or restart independent analysis preparation.'
-);
 assert.ok(
   app.includes('observeOutputRecoveryRevision('),
   'Output recovery hydration must use the baseline-aware observation contract.'
@@ -1012,7 +693,4 @@ assert.match(
   'Output mutation notification must return only the recovery status committed for the active scope.'
 );
 
-const invokedPath = process.argv[1];
-if (invokedPath !== undefined && fileURLToPath(import.meta.url) === invokedPath) {
-  console.log('Analysis preparation contract passed.');
-}
+console.log('Record lookup, cache, concurrency, and output safety contracts passed.');
