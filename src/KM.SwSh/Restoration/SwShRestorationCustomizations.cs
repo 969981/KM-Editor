@@ -11,17 +11,8 @@ internal static class SwShRestorationCustomizations
     internal static ChangePlan AddAnchor(ProjectPaths paths, ChangePlan plan)
     {
         if (plan.Writes.Count == 0 || plan.EffectivePendingEdits?.Any(e => e.Domain == SwShRestorationDefinitions.Domain) == true) return plan;
-        // External restorations have no installation record. Their model sources
-        // must still accompany personal data into verified apply snapshots.
-        if (plan.Writes.Any(w => w.Sources.Any(s => s.RelativePath == SwShRestorationComposer.PersonalPath)))
-        {
-            var catalog = SwShEffectivePokemonCatalog.Load(paths);
-            if (catalog.Available)
-                plan = plan with { Writes = plan.Writes.Select((write, index) => index == 0
-                    ? write with { Sources = write.Sources.Concat(catalog.Sources).Distinct().ToArray() } : write).ToArray() };
-        }
         var state = SwShRestorationStateStore.Read(paths);
-        if (!state.State.Selections.Any(s => s.Enabled)) return plan;
+        if (!state.State.Selections.Any(s => s.Enabled)) return BindCatalogSources(paths, plan);
         var definitions = SwShRestorationStateStore.ReadPreparedMany(paths, state.State.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash)).Values.ToArray();
         // Species validation runs again in a verified snapshot. Bind the complete
         // installed resource closure so that snapshot sees the same capabilities.
@@ -33,13 +24,29 @@ internal static class SwShRestorationCustomizations
             ? first with { Sources = first.Sources.Concat(dependencies).Distinct().ToArray() } : write).ToArray() };
         var targets = plan.Writes.Select(w => w.TargetRelativePath).ToHashSet(StringComparer.Ordinal);
         if (!definitions.Any(d => d.Contributions.Any(c => targets.Contains(c.Path))
-            || targets.Any(p => IsLooseModel(p, SwShRestorationDefinitions.Get(d.DefinitionId))))) return plan;
-        if (targets.Contains(SwShRestorationComposer.PersonalPath)) return plan;
+            || targets.Any(p => IsLooseModel(p, SwShRestorationDefinitions.Get(d.DefinitionId))))) return BindCatalogSources(paths, plan);
+        if (targets.Contains(SwShRestorationComposer.PersonalPath)) return BindCatalogSources(paths, plan);
         var personal = SwShRestorationComposer.PersonalPath;
         var sources = new List<ProjectFileReference> { new(ProjectFileLayer.Base, personal) };
         if (File.Exists(Path.Combine(paths.OutputRootPath!, personal))) sources.Add(new(ProjectFileLayer.Layered, personal));
-        return plan with { Writes = plan.Writes.Append(new(personal, sources, sources.Count == 2,
+        plan = plan with { Writes = plan.Writes.Append(new(personal, sources, sources.Count == 2,
             "Retain restoration settings and Pokemon customizations.")).ToArray() };
+        return BindCatalogSources(paths, plan);
+    }
+
+    private static ChangePlan BindCatalogSources(ProjectPaths paths, ChangePlan plan)
+    {
+        // Installed dependencies and customization anchors can introduce personal
+        // data. Bind its catalog now so repeated captures retain the same sources.
+        // This also includes models from restorations without installation records.
+        if (plan.Writes.Any(w => w.Sources.Any(s => s.RelativePath == SwShRestorationComposer.PersonalPath)))
+        {
+            var catalog = SwShEffectivePokemonCatalog.Load(paths);
+            if (catalog.Available)
+                plan = plan with { Writes = plan.Writes.Select((write, index) => index == 0
+                    ? write with { Sources = write.Sources.Concat(catalog.Sources).Distinct().ToArray() } : write).ToArray() };
+        }
+        return plan;
     }
 
     internal static SwShRestorationStateSnapshot Capture(ProjectPaths paths, SwShRestorationStateSnapshot state,
