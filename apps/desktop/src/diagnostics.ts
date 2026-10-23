@@ -41,6 +41,9 @@ const reviewDiagnosticLocalizationKeys: Readonly<Record<string, string>> = {
 };
 
 const diagnosticLocalizationKeys: Readonly<Record<string, string>> = {
+  'KM-SWSH-POKEMON-HELD-ITEMS-INVALID': 'pokemon.heldItems.invalid',
+  'KM-SWSH-POKEMON-HELD-ITEMS-REPAIR-STAGED': 'pokemon.heldItems.repairStaged',
+  'KM-SWSH-POKEMON-HELD-ITEMS-REPAIR-FAILED': 'pokemon.heldItems.repairFailed',
   'KM-CATEGORIES-LOAD-FAILED': 'categories.error.load',
   'KM-CATEGORIES-STORED-LAYOUT-INVALID': 'categories.error.invalid',
   'KM-CATEGORIES-VERSION-UNSUPPORTED': 'categories.error.version',
@@ -149,7 +152,7 @@ const diagnosticLocalizationKeys: Readonly<Record<string, string>> = {
   'KM-BRIDGE-MISSING-COMMAND': 'outputSafety.diagnostic.requestFailed',
   'KM-BRIDGE-REQUEST-TOO-LARGE': 'outputSafety.diagnostic.limitExceeded',
   'KM-BRIDGE-RESOURCE-MISSING': 'outputSafety.diagnostic.resourceMissing',
-  'KM-BRIDGE-RESPONSE-CONTRACT-INVALID': 'outputSafety.diagnostic.dataInvalid',
+  'KM-BRIDGE-RESPONSE-CONTRACT-INVALID': 'diagnostics.condition.responseContractInvalid',
   'KM-BRIDGE-RESPONSE-JSON-INVALID': 'outputSafety.diagnostic.dataInvalid',
   'KM-BRIDGE-RESPONSE-PAYLOAD-MISSING': 'outputSafety.diagnostic.dataInvalid',
   'KM-BRIDGE-RESPONSE-REQUEST-ID-MISMATCH': 'outputSafety.diagnostic.dataInvalid',

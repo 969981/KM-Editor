@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.heldItems.invalid": "Los valores de objetos equipados no válidos se muestran como Ninguno. Al preparar un cambio en el editor de Pokémon, también se prepararán sus correcciones.",
+    "pokemon.heldItems.repairStaged": "Las correcciones de objetos equipados no válidos se han preparado como Ninguno. Revísalas y aplícalas junto con tus cambios de Pokémon.",
+    "pokemon.heldItems.repairFailed": "No se pudieron preparar las correcciones de objetos equipados. Actualiza los datos de Pokémon e inténtalo de nuevo.",
+    "diagnostics.condition.responseContractInvalid": "El editor recibió datos en un formato inesperado. Actualiza el editor e inténtalo de nuevo.",
     "moves.swshStats.help": "Para añadir una subida de todas las estadísticas a un movimiento de daño, elige Daño + subida de característica del usuario como tipo de efecto y, en el primer espacio, Todas las estadísticas, +1 nivel y la probabilidad deseada. Esto cambia Ataque, Defensa, Ataque Especial, Defensa Especial y Velocidad. La opción según el movimiento conserva el efecto programado original. Siguen aplicándose las condiciones normales del movimiento.",
     "welcome.start.pla": "En Configuración del proyecto, elige carpetas Base RomFS y Base ExeFS correspondientes a Legends Arceus 1.1.1. Los editores de archivos y la preparación del modelo seleccionado también necesitan la carpeta de soporte de compresión de PLA.",
     "pla.help.mastery": "Nivel en el que este movimiento puede usar estilo rápido y fuerte. Usa 0 para desactivar el dominio automático; en otro caso, debe ser al menos el nivel de aprendizaje.",

@@ -14,7 +14,7 @@ using System.Text;
 
 namespace KM.SwSh.Pokemon;
 
-public sealed class SwShPokemonEditSessionService
+public sealed partial class SwShPokemonEditSessionService
 {
     private const string PokemonEditDomain = "workflow.pokemon";
     private const string LearnsetFieldPrefix = "learnset";

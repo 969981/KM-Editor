@@ -2275,12 +2275,14 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 request.Payload.PersonalId,
                 request.Payload.Field,
                 request.Payload.Value))
-            : SwShBridgeMapper.ToDto(pokemonEditSessionService.UpdateField(
-                paths,
-                session,
-                request.Payload.PersonalId,
-                request.Payload.Field,
-                request.Payload.Value));
+            : SwShBridgeMapper.ToDto(WithPokemonHeldItemRepairs(
+                paths, session, request.Payload.RepairInvalidHeldItems,
+                pokemonEditSessionService.UpdateField(
+                    paths,
+                    session,
+                    request.Payload.PersonalId,
+                    request.Payload.Field,
+                    request.Payload.Value)));
 
         return SerializeSuccess(response, request.RequestId);
     }
@@ -2317,13 +2319,14 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             return SerializeSuccess(svResponse, request.RequestId);
         }
 
-        var response = SwShBridgeMapper.ToPokemonFieldsDto(
+        var response = SwShBridgeMapper.ToPokemonFieldsDto(WithPokemonHeldItemRepairs(
+            paths, session, request.Payload.RepairInvalidHeldItems,
             pokemonEditSessionService.UpdateFields(
                 paths,
                 session,
                 request.Payload.Updates
                     .Select(update => new SwShPokemonFieldUpdate(update.PersonalId, update.Field, update.Value))
-                    .ToArray()));
+                    .ToArray())));
 
         return SerializeSuccess(response, request.RequestId);
     }
@@ -2406,7 +2409,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             return SerializeSuccess(response, request.RequestId);
         }
 
-        var swShResponse = SwShBridgeMapper.ToPokemonCompositeDto(
+        var swShResponse = SwShBridgeMapper.ToPokemonCompositeDto(WithPokemonHeldItemRepairs(
+            paths, session, request.Payload.RepairInvalidHeldItems,
             pokemonEditSessionService.UpdateComposite(
                 paths,
                 session,
@@ -2434,7 +2438,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                         update.Slot,
                         update.MoveId,
                         update.Level))
-                    .ToArray()));
+                    .ToArray())));
 
         return SerializeSuccess(swShResponse, request.RequestId);
     }
@@ -2464,14 +2468,16 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 request.Payload.Slot,
                 request.Payload.MoveId,
                 request.Payload.Level))
-            : SwShBridgeMapper.ToDtoLearnsetUpdate(pokemonEditSessionService.UpdateLearnset(
-                paths,
-                session,
-                request.Payload.PersonalId,
-                request.Payload.Action,
-                request.Payload.Slot,
-                request.Payload.MoveId,
-                request.Payload.Level));
+            : SwShBridgeMapper.ToDtoLearnsetUpdate(WithPokemonHeldItemRepairs(
+                paths, session, request.Payload.RepairInvalidHeldItems,
+                pokemonEditSessionService.UpdateLearnset(
+                    paths,
+                    session,
+                    request.Payload.PersonalId,
+                    request.Payload.Action,
+                    request.Payload.Slot,
+                    request.Payload.MoveId,
+                    request.Payload.Level)));
 
         return SerializeSuccess(response, request.RequestId);
     }
@@ -2507,20 +2513,26 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 request.Payload.Species,
                 request.Payload.Form,
                 request.Payload.Level))
-            : SwShBridgeMapper.ToDtoEvolutionUpdate(pokemonEditSessionService.UpdateEvolution(
-                paths,
-                session,
-                request.Payload.PersonalId,
-                request.Payload.Action,
-                request.Payload.Slot,
-                request.Payload.Method,
-                request.Payload.Argument,
-                request.Payload.Species,
-                request.Payload.Form,
-                request.Payload.Level));
+            : SwShBridgeMapper.ToDtoEvolutionUpdate(WithPokemonHeldItemRepairs(
+                paths, session, request.Payload.RepairInvalidHeldItems,
+                pokemonEditSessionService.UpdateEvolution(
+                    paths,
+                    session,
+                    request.Payload.PersonalId,
+                    request.Payload.Action,
+                    request.Payload.Slot,
+                    request.Payload.Method,
+                    request.Payload.Argument,
+                    request.Payload.Species,
+                    request.Payload.Form,
+                    request.Payload.Level)));
 
         return SerializeSuccess(response, request.RequestId);
     }
+
+    private SwShPokemonEditResult WithPokemonHeldItemRepairs(
+        ProjectPaths paths, EditSession? previous, bool repair, SwShPokemonEditResult staged)
+        => repair ? pokemonEditSessionService.StageHeldItemRepairs(paths, previous, staged) : staged;
 
     private string DispatchSwapPokemonDexPlacement(string requestJson)
     {

@@ -486,6 +486,11 @@ public sealed class SwShPokemonWorkflowService
             var personalTable = SwShPersonalTable.Parse(
                 readAllBytes(personalSource.AbsolutePath),
                 maximumRecordCount);
+            if (personalTable.Records.Any(record => record.HeldItem1 == -1 || record.HeldItem2 == -1 || record.HeldItem3 == -1))
+                diagnostics.Add(new ValidationDiagnostic(DiagnosticSeverity.Warning,
+                    "Invalid held item values are shown as None. Staging a change in the Pokemon editor will also stage their correction.",
+                    File: PersonalDataPath, Domain: "workflow.pokemon")
+                    { Code = "KM-SWSH-POKEMON-HELD-ITEMS-INVALID" });
             SwShPersonalTable? vanillaTable = null;
             try
             {
@@ -972,9 +977,9 @@ public sealed class SwShPokemonWorkflowService
                 personal.EVYieldSpecialAttack,
                 personal.EVYieldSpecialDefense,
                 personal.EVYieldSpeed,
-                personal.HeldItem1,
-                personal.HeldItem2,
-                personal.HeldItem3,
+                personal.HeldItem1 == -1 ? 0 : personal.HeldItem1,
+                personal.HeldItem2 == -1 ? 0 : personal.HeldItem2,
+                personal.HeldItem3 == -1 ? 0 : personal.HeldItem3,
                 personal.GenderRatio,
                 personal.HatchCycles,
                 personal.BaseFriendship,

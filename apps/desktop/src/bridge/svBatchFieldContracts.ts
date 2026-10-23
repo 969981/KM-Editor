@@ -24,6 +24,7 @@ export const pokemonFieldUpdateSchema = z.strictObject({
 });
 
 export const updatePokemonFieldsRequestSchema = z.strictObject({
+  repairInvalidHeldItems: z.boolean().optional(),
   paths: projectPathsSchema,
   session: editSessionSchema.nullable(),
   updates: z.array(pokemonFieldUpdateSchema)
@@ -55,6 +56,7 @@ export const pokemonLearnsetUpdateSchema = z.strictObject({
 });
 
 export const updatePokemonCompositeRequestSchema = z.strictObject({
+  repairInvalidHeldItems: z.boolean().optional(),
   evolutionUpdates: z.array(pokemonEvolutionUpdateSchema),
   fieldUpdates: z.array(pokemonFieldUpdateSchema),
   learnsetUpdates: z.array(pokemonLearnsetUpdateSchema),

@@ -1632,6 +1632,7 @@ export const loadPokemonWorkflowResponseSchema = z.strictObject({
 });
 
 export const updatePokemonFieldRequestSchema = z.strictObject({
+  repairInvalidHeldItems: z.boolean().optional(),
   field: z.string(),
   paths: projectPathsSchema,
   personalId: z.number().int().nonnegative(),
@@ -1646,6 +1647,7 @@ export const updatePokemonFieldResponseSchema = z.strictObject({
 });
 
 export const updatePokemonLearnsetRequestSchema = z.strictObject({
+  repairInvalidHeldItems: z.boolean().optional(),
   action: z.string(),
   level: z.number().int().nonnegative().nullable(),
   moveId: z.number().int().nonnegative().nullable(),
@@ -1662,6 +1664,7 @@ export const updatePokemonLearnsetResponseSchema = z.strictObject({
 });
 
 export const updatePokemonEvolutionRequestSchema = z.strictObject({
+  repairInvalidHeldItems: z.boolean().optional(),
   action: z.string(),
   argument: z.number().int().nonnegative().nullable(),
   form: z.number().int().nonnegative().nullable(),

@@ -15,7 +15,8 @@ public sealed record UpdatePokemonFieldRequest(
     EditSessionDto? Session,
     int PersonalId,
     string Field,
-    string Value);
+    string Value,
+    bool RepairInvalidHeldItems = false);
 
 public sealed record PokemonFieldUpdateDto(
     int PersonalId,
@@ -25,7 +26,8 @@ public sealed record PokemonFieldUpdateDto(
 public sealed record UpdatePokemonFieldsRequest(
     ProjectPathsDto Paths,
     EditSessionDto? Session,
-    IReadOnlyList<PokemonFieldUpdateDto> Updates);
+    IReadOnlyList<PokemonFieldUpdateDto> Updates,
+    bool RepairInvalidHeldItems = false);
 
 public sealed record PokemonEvolutionUpdateDto(
     int PersonalId,
@@ -49,7 +51,8 @@ public sealed record UpdatePokemonCompositeRequest(
     EditSessionDto? Session,
     IReadOnlyList<PokemonFieldUpdateDto> FieldUpdates,
     IReadOnlyList<PokemonEvolutionUpdateDto> EvolutionUpdates,
-    IReadOnlyList<PokemonLearnsetUpdateDto> LearnsetUpdates);
+    IReadOnlyList<PokemonLearnsetUpdateDto> LearnsetUpdates,
+    bool RepairInvalidHeldItems = false);
 
 public sealed record UpdatePokemonLearnsetRequest(
     ProjectPathsDto Paths,
@@ -58,7 +61,8 @@ public sealed record UpdatePokemonLearnsetRequest(
     string Action,
     int? Slot,
     int? MoveId,
-    int? Level);
+    int? Level,
+    bool RepairInvalidHeldItems = false);
 
 public sealed record UpdatePokemonEvolutionRequest(
     ProjectPathsDto Paths,
@@ -70,7 +74,8 @@ public sealed record UpdatePokemonEvolutionRequest(
     int? Argument,
     int? Species,
     int? Form,
-    int? Level);
+    int? Level,
+    bool RepairInvalidHeldItems = false);
 
 public sealed record SwapPokemonDexPlacementRequest(
     ProjectPathsDto Paths,

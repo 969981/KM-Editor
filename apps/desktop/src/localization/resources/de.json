@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.heldItems.invalid": "Ungültige Werte für getragene Items werden als Keine angezeigt. Wenn du eine Änderung im Pokémon-Editor vormerkst, werden auch die Korrekturen vorgemerkt.",
+    "pokemon.heldItems.repairStaged": "Korrekturen ungültiger Werte für getragene Items wurden als Keine vorgemerkt. Prüfe sie und wende sie zusammen mit deinen Pokémon-Änderungen an.",
+    "pokemon.heldItems.repairFailed": "Die Item-Korrekturen konnten nicht vorgemerkt werden. Lade die Pokémon-Daten neu und versuche es erneut.",
+    "diagnostics.condition.responseContractInvalid": "Der Editor hat Daten in einem unerwarteten Format erhalten. Aktualisiere den Editor und versuche es erneut.",
     "moves.swshStats.help": "Um einer Schadensattacke eine Erhöhung aller Statuswerte hinzuzufügen, wähle als Effektart Schaden + Erhöhung eines Anwender-Statuswerts und im ersten Statuswertfeld Alle Statuswerte, +1 Stufe sowie die gewünschte Chance. Dies ändert Angriff, Verteidigung, Spezial-Angriff, Spezial-Verteidigung und Initiative. Die attackenspezifische Option behält den ursprünglichen Skripteffekt bei. Die normalen Bedingungen der Attacke gelten weiterhin.",
     "welcome.start.pla": "Wähle in der Projekteinrichtung passende Base RomFS und Base ExeFS Ordner für Legends Arceus 1.1.1. Archivbasierte Editoren und die Vorbereitung ausgewählter Modelle benötigen außerdem den PLA Ordner für die Komprimierungsunterstützung.",
     "pla.help.mastery": "Das Level, ab dem diese Attacke in Tempo- und Krafttechnik eingesetzt werden kann. 0 bedeutet keine automatische Meisterung; andernfalls muss es mindestens dem Erlernlevel entsprechen.",
