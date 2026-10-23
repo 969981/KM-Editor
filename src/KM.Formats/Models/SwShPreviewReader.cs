@@ -40,6 +40,22 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
         {
             var name = data.Text(material, 0) ?? throw new InvalidDataException("Material identity is missing.");
             var surface = PreviewSurface.Read(data, material, true);
+            var layerEmission = SwShPreviewLayerEmission.UsesProgram(data, material);
+            if (layerEmission)
+            {
+                surface = surface with { LayerEmission = true };
+                surface.Values[32] = [1, 1, 1, 1]; surface.Values[33] = [0, 0, 0, 0];
+                foreach (var parameter in data.Tables(material, 13, 256))
+                {
+                    var channel = Array.IndexOf(KM.Formats.SV.SvSwShLayerEmission.Scalars, data.Text(parameter, 0));
+                    if (channel >= 0) surface.Values[13][channel] = data.Float(data.Field(parameter, 1));
+                }
+                foreach (var parameter in data.Tables(material, 14, 256))
+                {
+                    var channel = Array.IndexOf(KM.Formats.SV.SvSwShLayerEmission.Vectors, data.Text(parameter, 0));
+                    if (channel >= 0) for (var c = 0; c < 3; c++) surface.Values[14 + channel][c] = data.Float(data.Field(parameter, 1) + c * 4);
+                }
+            }
             var fire = SwShPreviewFire.Kind(data.Text(material, 1));
             var switches = data.Tables(material, 12, 256).ToDictionary(p => data.Text(p, 0) ?? "",
                 p => data.Field(p, 1) is var at && at != 0 ? data.U8(at) : 0, StringComparer.Ordinal);
@@ -106,11 +122,12 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             {
                 var role = data.Text(binding, 0);
                 if (fire != 0) role = SwShPreviewFire.TextureRole(fire, role ?? "");
+                else if (role == "EmissionMaskTex" && layerEmission) role = "Col0ColChangeTex";
                 else if (role == "EmissionMaskTex" && emission) role = "EmissionMap";
                 var surfaceSlot = PreviewSurface.TextureSlot(role ?? "");
                 if (role is not ("Col0Tex" or "LyCol0Tex" or "Col0ColChangeTex") && surfaceSlot < 0) continue;
                 // An identity color change does not consume its placeholder mask.
-                if (fire == 0 && role == "Col0ColChangeTex" && layers.Take(3).All(layer => layer == Vector4.One)) continue;
+                if (fire == 0 && !layerEmission && role == "Col0ColChangeTex" && layers.Take(3).All(layer => layer == Vector4.One)) continue;
                 var index = checked((int)data.Value(binding, 1));
                 if (index >= names.Length) throw new InvalidDataException("Material texture index is invalid.");
                 var textureName = names[index] + ".bntx";
@@ -139,7 +156,7 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             color = fire != 0 ? Vector4.One : new(surface.Values[39][0], surface.Values[39][1], surface.Values[39][2], color.W);
             return new PreviewMaterial(name, texture, mask, color, layers,
                 uv, data.Value(material, 6) == 0 ? "Opaque" : "Blend")
-            { Surface = surface, Wrap = wrap, MaskUv = maskUv, UvOrigins = origins, MaskChannels = new(1, 1, 1, 0), Underlay = underlay, UnderlayUv = underlayUv, UnderlayWrap = underlayWrap };
+            { Surface = surface, Wrap = wrap, MaskUv = maskUv, UvOrigins = origins, MaskChannels = new(1, 1, 1, layerEmission ? 1 : 0), Underlay = underlay, UnderlayUv = underlayUv, UnderlayWrap = underlayWrap };
         }).ToArray();
     }
 

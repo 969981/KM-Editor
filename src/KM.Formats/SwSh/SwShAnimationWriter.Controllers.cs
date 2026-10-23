@@ -110,9 +110,13 @@ public static partial class SwShAnimationWriter
         return writer.Finish(source.Root);
     }
 
-    public static byte[] GlobalMaterialLoop(byte[] nativeAnimation, IReadOnlyList<string> materialNames)
+    public static byte[] GlobalMaterialLoop(byte[] nativeAnimation, IReadOnlyList<string> materialNames,
+        IReadOnlyDictionary<string, System.Numerics.Vector2>? normalUvScales = null)
     {
         if (materialNames.Count is < 1 or > 128) throw new InvalidDataException("Global material animation target count is invalid.");
+        if (normalUvScales?.Any(pair => !materialNames.Contains(pair.Key, StringComparer.Ordinal)
+            || pair.Value.X is not (1 or 2) || pair.Value.Y is not (1 or 2)) == true)
+            throw new InvalidDataException("Global normal UV scale or material is unsupported.");
         var source = new ModelBuffer(nativeAnimation); var writer = new ModelTableBuilder(nativeAnimation);
         var skeleton = source.Table(source.Root, 1); if (skeleton != 0) writer.Vector(skeleton, 0, 0);
         var material = source.Table(source.Root, 2);
@@ -134,11 +138,20 @@ public static partial class SwShAnimationWriter
                     "ColorBaseU" or "ColorBaseV" or "ColorUVTranslateU" or "ColorUVTranslateV" => 0f,
                     _ => (float?)null,
                 };
+                if (normalUvScales?.TryGetValue(name, out var normalScale) == true)
+                {
+                    if (normalScale.X is not (1 or 2) || normalScale.Y is not (1 or 2))
+                        throw new InvalidDataException("Global normal UV scale is unsupported.");
+                    if (parameter == "NormalMapUVScaleU") value = normalScale.X;
+                    if (parameter == "NormalMapUVScaleV") value = normalScale.Y;
+                }
                 if (value is null) continue;
                 var kindAt = source.Field(scalar, 1);
                 if (kindAt == 0 || source.U8(kindAt) != 1) throw new InvalidDataException("Native global UV parameter is not constant.");
                 var curve = source.Table(scalar, 2); var field = source.Field(curve, 0);
-                if (field == 0)
+                // Native scalar tracks can share one constant curve. A cropped
+                // normal map needs its own value without changing those aliases.
+                if (field == 0 || normalUvScales?.ContainsKey(name) == true)
                 {
                     var replacement = writer.Table(1, new Dictionary<int, byte[]> { [0] = ModelTableBuilder.Floats(value.Value) });
                     writer.Reference(copy + scalar, 2, replacement);

@@ -4,7 +4,7 @@ namespace KM.Formats.Models;
 public static class SwShPreviewAnimation
 {
     public static PreviewClip Read(ModelBuffer data, PreviewClip clip, ICollection<string> warnings,
-        IReadOnlySet<string>? fireMaterials = null, IReadOnlySet<string>? emissionMaterials = null)
+        IReadOnlySet<string>? fireMaterials = null, IReadOnlySet<string>? emissionMaterials = null, IReadOnlySet<string>? layerEmissionMaterials = null)
     {
         var visibility = new List<PreviewVisibility>();
         var materials = new List<PreviewMaterialTrack>();
@@ -34,11 +34,15 @@ public static class SwShPreviewAnimation
                     var channels = Keys(data, vector, 1, 3, false, clip.Frames);
                     materials.Add(new(name, "BaseColor", [channels[0], channels[1], channels[2], []]));
                 }
+                PreviewKey[][] layeredEmission = [[], [], [], []];
                 PreviewKey[][] uv = [[], [], [], []];
                 PreviewKey[][] underlayUv = [[], [], [], []];
                 PreviewKey[][] origins = [[], [], [], []];
                 foreach (var scalar in data.Tables(material, 2, 256))
                 {
+                    var emissionLayer = layerEmissionMaterials?.Contains(name) == true
+                        ? Array.IndexOf(KM.Formats.SV.SvSwShLayerEmission.Scalars, data.Text(scalar, 0)) : -1;
+                    if (emissionLayer >= 0) { layeredEmission[emissionLayer] = Keys(data, scalar, 1, 1, false, clip.Frames)[0]; continue; }
                     if (emissionMaterials?.Contains(name) == true && data.Text(scalar, 0) is "EmissionMaskVal" or "OnGameEmissionVal")
                     {
                         var target = data.Text(scalar, 0) == "EmissionMaskVal" ? "EmissionGain" : "EmissionScale";
@@ -78,6 +82,7 @@ public static class SwShPreviewAnimation
                     if (channel < 0) { warnings.Add("materialAnimationUnsupported"); continue; }
                     (channel < 4 ? uv : channel < 8 ? underlayUv : origins)[channel % 4] = Keys(data, scalar, 1, 1, false, clip.Frames)[0];
                 }
+                if (layeredEmission.Any(channel => channel.Length > 0)) materials.Add(new(name, "LayerEmission", layeredEmission));
                 if (uv.Any(channel => channel.Length > 0)) materials.Add(new(name, "UVScaleOffset", uv));
                 if (underlayUv.Any(channel => channel.Length > 0)) materials.Add(new(name, "UnderlayUV", underlayUv));
                 if (origins.Any(channel => channel.Length > 0)) materials.Add(new(name, "UvOrigins", origins));

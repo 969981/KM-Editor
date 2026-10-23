@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using KM.SwSh.Pokemon;
+using KM.Core.Projects;
 
 namespace KM.SwSh.Restoration;
 
-/// <summary>Display candidates only. These entries do not register installable definitions or allocate game rows.</summary>
+/// <summary>Combines planned forms with the status of registered form restorations.</summary>
 internal static class SwShRestorationFormCandidates
 {
     private sealed record FormCandidate(int Species, int Form, string Label, SwShRestorationDonor? Donor);
@@ -146,17 +147,24 @@ internal static class SwShRestorationFormCandidates
     };
 
     public static IReadOnlyList<SwShRestorationCatalogEntry> Include(IEnumerable<SwShRestorationCatalogEntry> speciesEntries,
-        SwShEffectivePokemonCatalog catalog, IReadOnlyList<string> names)
+        SwShEffectivePokemonCatalog catalog, IReadOnlyList<string> names, ProjectGame? game, SwShRestorationState state)
     {
         var current = catalog.Entries.ToDictionary(e => e.Identity);
         var forms = Forms.Where(f => !current.TryGetValue(new(f.Species, f.Form), out var entry) || entry.Origin != SwShPokemonOrigin.Native)
-            .Select(f => new SwShRestorationCatalogEntry(f.Species,
+            .Select(f =>
+            {
+                var definition = SwShRestorationDefinitions.All.SingleOrDefault(d => d.Identities.Contains(new(f.Species, f.Form)));
+                var selection = state.Selections.SingleOrDefault(s => s.DefinitionId == definition?.Id);
+                current.TryGetValue(new(f.Species, f.Form), out var entry);
+                var complete = entry?.Capabilities.HasFlag(SwShPokemonCapability.Assignment) == true;
+                return new SwShRestorationCatalogEntry(f.Species,
                 f.Species < names.Count && !string.IsNullOrWhiteSpace(names[f.Species]) ? names[f.Species] : $"Pokemon {f.Species}",
-                null, SwShRestorationSupport.NotSupported,
-                current.TryGetValue(new(f.Species, f.Form), out var entry) && entry.Personal.IsPresentInGame
-                    ? SwShRestorationInstallation.External : SwShRestorationInstallation.Disabled, [f.Species])
+                definition?.Id, game is { } edition && definition is not null ? definition.Support.GetValueOrDefault(edition) : SwShRestorationSupport.NotSupported,
+                selection?.Enabled == true ? complete ? SwShRestorationInstallation.Enabled : SwShRestorationInstallation.NeedsRepair
+                    : entry?.Personal.IsPresentInGame == true ? SwShRestorationInstallation.External : SwShRestorationInstallation.Disabled, [f.Species])
                 { Form = f.Form, FormLabel = f.Label, Donor = f.Donor,
-                    PlannedPersonalId = SwShRestorationFormSlots.PlannedPersonalRow(f.Species, f.Form) });
+                    PlannedPersonalId = SwShRestorationFormSlots.PlannedPersonalRow(f.Species, f.Form) };
+            });
         return SwShRestorationFamilyOrder.Sort(speciesEntries.Concat(forms));
     }
 }

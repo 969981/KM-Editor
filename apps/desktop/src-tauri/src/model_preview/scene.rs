@@ -212,6 +212,7 @@ impl Scene {
         for mesh in &rig.meshes {
             if let Some(surface) = &mesh.surface {
                 if surface.values.len() != 41
+                    || surface.layer_emission && surface.effect != 0
                     || surface.effect > 2
                     || surface.effect_link > 254
                     || surface.textures.len() != 12

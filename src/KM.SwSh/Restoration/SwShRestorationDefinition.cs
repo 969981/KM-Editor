@@ -60,6 +60,8 @@ public static class SwShRestorationDefinitions
         Species("frogadier", 657) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("greninja", 658) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("ekans", 23), Species("arbok", 24),
+        Species("geodude", 74), Species("graveler", 75), Species("golem", 76),
+        Species("alolan-geodude", 74, 1), Species("alolan-graveler", 75, 1), Species("alolan-golem", 76, 1),
         Species("turtwig", 387), Species("grotle", 388), Species("torterra", 389),
         Species("chimchar", 390), Species("monferno", 391), Species("infernape", 392),
         Species("weedle", 13) with { Donor = SwShRestorationDonor.LegendsZA },
@@ -70,8 +72,8 @@ public static class SwShRestorationDefinitions
         Species("pidgeot", 18) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("kecleon", 352) with { Donor = SwShRestorationDonor.LegendsZA },
     }).ToArray());
-    private static SwShRestorationDefinition Species(string id, int species) => Piplup with
-        { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, 0) }) };
+    private static SwShRestorationDefinition Species(string id, int species, int form = 0) => Piplup with
+        { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, form) }) };
     public static SwShRestorationDefinition Get(string id) => id == Piplup.Id ? Piplup : All.SingleOrDefault(d => d.Id == id)
         ?? throw new InvalidDataException("This restoration definition is not supported.");
 }
@@ -113,6 +115,6 @@ public sealed record SwShRestorationCatalog(string Revision, IReadOnlyList<SwShR
                         : group.Any(e => e.Personal.IsPresentInGame) ? SwShRestorationInstallation.External : SwShRestorationInstallation.Disabled,
                     definition?.Identities.Select(i => i.Species).Distinct().ToArray() ?? [group.Key]) { Donor = definition?.Donor };
             });
-        return new(catalog.Revision + ":forms-1", SwShRestorationFormCandidates.Include(entries, catalog, names), null);
+        return new(catalog.Revision + ":forms-1", SwShRestorationFormCandidates.Include(entries, catalog, names, paths.SelectedGame, state.State), null);
     }
 }

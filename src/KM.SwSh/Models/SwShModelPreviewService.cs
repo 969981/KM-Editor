@@ -110,7 +110,8 @@ public sealed class SwShModelPreviewService
                 clip = SwShPreviewAnimation.Read(data, clip, warnings, scene.Primitives
                     .Where(p => p.Material.Surface?.Effect > 0).Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal), scene.Primitives
                     .Where(p => p.Material.Surface is { Effect: 0 } surface && surface.Textures[3] >= 0)
-                    .Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal));
+                    .Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal), scene.Primitives
+                    .Where(p => p.Material.Surface?.LayerEmission == true).Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal));
             }
             catch (IOException) { warnings.Add("animationUnsupported"); }
         }

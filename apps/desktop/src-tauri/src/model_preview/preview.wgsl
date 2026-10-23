@@ -111,7 +111,7 @@ fn game_highlight(value: vec3<f32>) -> vec3<f32> {
     return value / (1.0 + peak / .22);
 }
 @fragment fn fs_main(input: VertexOutput, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
-    if material.flags.w > 0.0 {
+    if material.flags.w > 0.0 && material.flags.w < 3.0 {
         // Fire masks write only stencil coverage. The linked core uses its own
         // color textures; the mask mesh must never become an opaque white shell.
         let first_uv = transform_uv(input.uv, material.uv);
@@ -222,7 +222,7 @@ fn game_highlight(value: vec3<f32>) -> vec3<f32> {
         let shadow_map_color = mix(shadow_tint, vec3<f32>(1.0), clamp((1.0 - shadow_weight) * material.surface[25].w, 0.0, 1.0));
         var shadow_color = material.surface[6].rgb * shadow_map_color;
         for (var i = 0u; i < 4u; i++) {
-            let weight = clamp(mask[i], 0.0, 1.0);
+            let weight = select(clamp(mask[i], 0.0, 1.0), 0.0, material.flags.w == 3.0);
             roughness = mix(roughness, material.surface[12][i] * rough_texel.r, weight);
             metallic = mix(metallic, material.surface[11][i], weight);
             specular = mix(specular, vec3<f32>(material.surface[22][i], material.surface[23][i], material.surface[24][i]), weight);
@@ -261,6 +261,15 @@ fn game_highlight(value: vec3<f32>) -> vec3<f32> {
         if material.surface[39].w > 0.0 {
             let emission_weight = emission * max(material.surface[1].z * material.surface[5].w, 0.0);
             rgb = lit * (vec3<f32>(1.0) - clamp(emission_weight, vec3<f32>(0.0), vec3<f32>(1.0))) + albedo * emission_weight;
+        }
+        if material.flags.w == 3.0 {
+            var remaining = 1.0;
+            for (var layer = 4u; layer > 0u; layer--) {
+                let i = layer - 1u;
+                let weight = clamp(mask[i], 0.0, 1.0);
+                rgb += (albedo + material.surface[14u + i].rgb) * material.surface[13][i] * weight * remaining;
+                remaining *= 1.0 - weight;
+            }
         }
         if base.a < max(.001, material.surface[1].w) || any(cutout < material.surface[40]) { discard; }
         var inspected = rgb;

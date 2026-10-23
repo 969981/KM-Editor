@@ -31,12 +31,15 @@ public sealed partial class SwShRestorationPreparationService
             return scene.Primitives.Select((primitive, index) =>
             {
                 if (nativeFlames && primitive.Material.Name == "fire") return null;
-                if (Profiles[currentSpecies].SharedMaterialTextures && shared.TryGetValue(primitive.Material.Name, out var previous)) return previous;
+                var normalScale = Profile(currentIdentity).NormalUvScales?.GetValueOrDefault(primitive.Name, Vector2.One) ?? Vector2.One;
+                var share = Profile(currentIdentity).SharedMaterialTextures && normalScale == Vector2.One;
+                if (share && shared.TryGetValue(primitive.Material.Name, out var previous)) return previous;
                 var bakingPrimitive = primitive;
-                if (Profiles[currentSpecies].SharedMaterialTextures)
+                if (share)
                 {
                     var vertices = new List<float>(); var indices = new List<uint>();
-                    foreach (var section in scene.Primitives.Where(section => section.Material.Name == primitive.Material.Name))
+                    foreach (var section in scene.Primitives.Where(section => section.Material.Name == primitive.Material.Name
+                        && (Profile(currentIdentity).NormalUvScales?.GetValueOrDefault(section.Name, Vector2.One) ?? Vector2.One) == Vector2.One))
                     {
                         var offset = checked((uint)(vertices.Count / 16));
                         indices.AddRange(section.Indices.Select(vertex => checked(vertex + offset)));
@@ -46,10 +49,13 @@ public sealed partial class SwShRestorationPreparationService
                 }
                 Report("textures", (rare ? scene.Primitives.Count : 0) + index, scene.Primitives.Count * 2);
                 var material = SwShMaterialBaker.Bake(bakingPrimitive, materialBytes, index,
-                    name => Donor(TrinityPreviewReader.Resolve(sourcePath, name)), token, sourceNormalDimensions: Profiles[currentSpecies].CompactResources,
-                    opaqueEyeSurface: Profiles[currentSpecies].OpaqueEyeSurface && primitive.Material.Name.Contains("eye", StringComparison.Ordinal),
-                    cornealEye: Profiles[currentSpecies].CornealEyes && primitive.Material.Name.Contains("eye", StringComparison.Ordinal));
-                if (Profiles[currentSpecies].SharedMaterialTextures && material.ConflictingSamples != 0)
+                    name => Donor(TrinityPreviewReader.Resolve(sourcePath, name)), token, sourceNormalDimensions: Profile(currentIdentity).CompactResources,
+                    opaqueEyeSurface: Profile(currentIdentity).OpaqueEyeSurface && primitive.Material.Name.Contains("eye", StringComparison.Ordinal),
+                    cornealEye: Profile(currentIdentity).CornealEyes && primitive.Material.Name.Contains("eye", StringComparison.Ordinal),
+                    cornealNormalHeight: Profile(currentIdentity).CornealNormalHeights?.GetValueOrDefault(primitive.Material.Name, 1) ?? 1,
+                    normalUvScale: normalScale,
+                    normalUvVerticalTile: Profile(currentIdentity).NormalUvVerticalTiles?.GetValueOrDefault(primitive.Name) ?? 0);
+                if (share && material.ConflictingSamples != 0)
                     throw new InvalidDataException("Shared material normal coordinates require another target adapter.");
                 // Eyes can share a layer mask while having different palette colors.
                 // Give each material and palette its own native texture identity.
@@ -65,7 +71,7 @@ public sealed partial class SwShRestorationPreparationService
                 Report("textures", (rare ? scene.Primitives.Count : 0) + index + 1, scene.Primitives.Count * 2);
                 var result = material with { ColorName = color.Name, Color = color.Bytes, NormalName = normal.Name, Normal = normal.Bytes,
                     AmbientName = ambient.Name, Ambient = ambient.Bytes };
-                if (Profiles[currentSpecies].SharedMaterialTextures) shared.Add(primitive.Material.Name, result);
+                if (share) shared.Add(primitive.Material.Name, result);
                 return result;
             }).ToArray();
         }

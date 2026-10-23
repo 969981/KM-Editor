@@ -94,7 +94,7 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
 
     private static void ValidateContributions(SwShRestorationDefinition definition, IReadOnlyList<SwShRestorationContribution> items)
     {
-        var species = definition.Identities.Select(i => i.Species).ToHashSet();
+        var rows = definition.Identities.Select(SwShRestorationForms.PersonalRow).ToHashSet();
         var variants = definition.Identities.Select(i => new SwShRestorationModelVariant(i, 0, $"pm{i.Species:0000}_{i.Form:00}"))
             .Concat(definition.AdditionalModelVariants).ToArray();
         foreach (var item in items)
@@ -102,12 +102,13 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
             SwShRestorationComposer.ValidatePath(item.Path, item.Writer);
             var valid = item.Writer switch
             {
-                SwShRestorationWriter.Personal or SwShRestorationWriter.Learnset or SwShRestorationWriter.Icons =>
-                    int.TryParse(item.Key, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) && species.Contains(id),
+                SwShRestorationWriter.Personal or SwShRestorationWriter.Learnset =>
+                    int.TryParse(item.Key, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) && rows.Contains(id),
+                SwShRestorationWriter.Icons => definition.Identities.Any(i => item.Key == SwShRestorationComposer.IconKey(i.Species, i.Form)),
                 SwShRestorationWriter.File => item.Key.Length == 0 && definition.Identities.Any(i =>
                     item.Path == $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx"
-                    || item.Path == $"romfs/bin/pml/evolution/evo_{i.Species:000}.bin"
-                    || item.Path == $"romfs/bin/pml/tamagowaza/tamagowaza_{i.Species:0000}.bin"
+                    || item.Path == $"romfs/bin/pml/evolution/evo_{SwShRestorationForms.PersonalRow(i):000}.bin"
+                    || item.Path == $"romfs/bin/pml/tamagowaza/tamagowaza_{SwShRestorationForms.PersonalRow(i):0000}.bin"
                     || variants.Where(v => v.Identity == i).Any(v => item.Path == $"romfs/bin/archive/pokemon/{v.ResourceStem}.gfpak"
                         || item.Path == $"romfs/bin/archive/pokemon/{v.ResourceStem}_rare.gfpak"
                         || item.Path == $"romfs/bin/archive/gpokemon/{v.ResourceStem}.gfpak"

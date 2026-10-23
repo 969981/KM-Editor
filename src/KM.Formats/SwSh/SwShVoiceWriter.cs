@@ -14,11 +14,11 @@ public static class SwShVoiceWriter
         { "INDEX", "GLAD1", "GLAD2", "GLAD3", "ANGER", "SAD", "ATK", "SPATK", "EX1", "EX2", "EX3", "EX4", "ENV" });
     private static readonly string[] NativeStates = ["INDEX", "GLAD1", "ANGER", "SAD", "ATK"];
 
-    public static IReadOnlySet<uint> ObjectIds(int species)
+    public static IReadOnlySet<uint> ObjectIds(int species, int form = 0)
     {
-        if (species is < 1 or > 898) throw new ArgumentOutOfRangeException(nameof(species));
+        if (form is < 0 or > 255 || species is < 1 or > 898) throw new ArgumentOutOfRangeException(nameof(species));
         var result = new HashSet<uint>();
-        uint Owned(string suffix) => Hash(string.Create(CultureInfo.InvariantCulture, $"KM_Restoration_v1_{species}_{suffix}"));
+        uint Owned(string suffix) => Hash(OwnedName(species, form, suffix));
         foreach (var family in new[] { "", "EV_", "Btl_" })
         {
             var label = family.TrimEnd('_');
@@ -28,19 +28,26 @@ public static class SwShVoiceWriter
                 var prefix = family.Length == 0 ? state : label + "_" + state;
                 result.Add(Owned(prefix + "_sound")); result.Add(Owned(prefix + "_action"));
                 var variant = Array.IndexOf(NativeStates, state);
-                result.Add(Hash(variant >= 0 ? string.Create(CultureInfo.InvariantCulture, $"Play_PV_{family}{species:000}_00_{variant:00}")
-                    : string.Create(CultureInfo.InvariantCulture, $"Play_KM_PV_{species:000}_{state}")));
+                result.Add(Hash(variant >= 0 ? string.Create(CultureInfo.InvariantCulture, $"Play_PV_{family}{species:000}_{form:00}_{variant:00}")
+                    : ExtraEvent(species, form, state)));
             }
         }
         return result;
     }
 
-    public static uint MediaId(int species, string state)
+    public static uint MediaId(int species, string state, int form = 0)
     {
-        if (species is < 1 or > 898 || !States.Contains(state))
+        if (form is < 0 or > 255 || species is < 1 or > 898 || !States.Contains(state))
             throw new ArgumentOutOfRangeException(nameof(species), "Choose a supported species and cry state.");
-        return Hash(string.Create(CultureInfo.InvariantCulture, $"KM_Restoration_v1_{species}_{state}_media")) & 0x3fffffff;
+        return Hash(OwnedName(species, form, state + "_media")) & 0x3fffffff;
     }
+
+    private static string OwnedName(int species, int form, string suffix) => form == 0
+        ? string.Create(CultureInfo.InvariantCulture, $"KM_Restoration_v1_{species}_{suffix}")
+        : string.Create(CultureInfo.InvariantCulture, $"KM_Restoration_v1_{species}_form{form}_{suffix}");
+    private static string ExtraEvent(int species, int form, string state) => form == 0
+        ? string.Create(CultureInfo.InvariantCulture, $"Play_KM_PV_{species:000}_{state}")
+        : string.Create(CultureInfo.InvariantCulture, $"Play_KM_PV_{species:000}_{form:00}_{state}");
 
     public static uint Hash(string name)
     {
@@ -48,9 +55,9 @@ public static class SwShVoiceWriter
         foreach (var character in System.Text.Encoding.UTF8.GetBytes(name.ToLowerInvariant())) hash = unchecked(hash * 16777619) ^ character;
         return hash;
     }
-    public static SwShVoiceContribution Create(SoundBankDocument native, int species, int donor, IReadOnlyDictionary<string, byte[]> pcmMedia)
+    public static SwShVoiceContribution Create(SoundBankDocument native, int species, int donor, IReadOnlyDictionary<string, byte[]> pcmMedia, int form = 0)
     {
-        if (species is < 1 or > 898 || donor is < 1 or > 898 || pcmMedia.Count != States.Count || States.Any(s => !pcmMedia.ContainsKey(s)))
+        if (form is < 0 or > 255 || species is < 1 or > 898 || donor is < 1 or > 898 || pcmMedia.Count != States.Count || States.Any(s => !pcmMedia.ContainsKey(s)))
             throw new InvalidDataException("Voice restoration requires all declared cry states.");
         var objects = new List<SoundBankObject>(); var media = new List<SoundBankMedia>();
         var used = native.Objects.Select(o => o.Id).Concat(native.Media.Select(m => m.Id)).ToHashSet();
@@ -60,7 +67,7 @@ public static class SwShVoiceWriter
             if (!used.Add(id)) throw new InvalidDataException("Restored voice identity collides with existing audio.");
             return id;
         }
-        uint New(string suffix) => Identity(string.Create(CultureInfo.InvariantCulture, $"KM_Restoration_v1_{species}_{suffix}"));
+        uint New(string suffix) => Identity(OwnedName(species, form, suffix));
         SoundBankObject Find(byte type, uint id)
         {
             var found = native.Objects.Where(o => o.Type == type && o.Id == id).ToArray();
@@ -80,7 +87,7 @@ public static class SwShVoiceWriter
             var bytes = pcmMedia[state];
             if (bytes.Length < 68 || !bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) || BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(20)) != 0xfffe)
                 throw new InvalidDataException("Restored cry must use native extensible PCM.");
-            media.Add(new(Identity(string.Create(CultureInfo.InvariantCulture, $"KM_Restoration_v1_{species}_{state}_media"), true), bytes));
+            media.Add(new(Identity(OwnedName(species, form, state + "_media"), true), bytes));
         }
         foreach (var family in new[] { "", "EV_", "Btl_" })
         {
@@ -103,8 +110,8 @@ public static class SwShVoiceWriter
                 objects.Add(new(2, sound, payload));
                 var action = New(prefix + "_action"); var actionBytes = donorGraph.Action.Payload.ToArray(); Write(actionBytes, 2, sound);
                 objects.Add(new(3, action, actionBytes));
-                var eventName = variant >= 0 ? string.Create(CultureInfo.InvariantCulture, $"Play_PV_{family}{species:000}_00_{variant:00}")
-                    : string.Create(CultureInfo.InvariantCulture, $"Play_KM_PV_{species:000}_{state}");
+                var eventName = variant >= 0 ? string.Create(CultureInfo.InvariantCulture, $"Play_PV_{family}{species:000}_{form:00}_{variant:00}")
+                    : ExtraEvent(species, form, state);
                 var eventBytes = new byte[5]; eventBytes[0] = 1; Write(eventBytes, 1, action);
                 objects.Add(new(4, Identity(eventName), eventBytes));
             }

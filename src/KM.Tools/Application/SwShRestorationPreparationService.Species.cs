@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
+using KM.SwSh.Pokemon;
+
 namespace KM.Tools.Application;
 
 public sealed partial class SwShRestorationPreparationService
@@ -7,10 +9,46 @@ public sealed partial class SwShRestorationPreparationService
         int FemalePercent, byte GenderThreshold, float BattleHeight, float FieldHeight, bool AuthoredMaterials = false, int FramingTemplate = 0,
         string BattleIdle = "00001", bool NativeFlames = false, string? ResourceStem = null, bool CompactResources = true, string FlameMaterial = "fire",
         System.Numerics.Vector3? MouthPosition = null, bool MeshVisibility = false, bool SharedMaterialTextures = false, bool OpaqueEyeSurface = false,
-        bool CornealEyes = false, float? GiantScale = null);
+        bool CornealEyes = false, float? GiantScale = null, int AnimationOffset = 0,
+        IReadOnlyDictionary<string, float>? CornealNormalHeights = null,
+        IReadOnlyDictionary<string, System.Numerics.Vector2>? NormalUvScales = null, float? GiantVerticalOffset = null, string? SourceStem = null, int HatchedForm = 0,
+        IReadOnlyDictionary<string, int>? NormalUvVerticalTiles = null, int? SourceVoiceForm = null, bool LayerEmission = false);
+
+    private static readonly IReadOnlyDictionary<SwShPokemonIdentity, SpeciesProfile> FormProfiles = new Dictionary<SwShPokemonIdentity, SpeciesProfile>
+    {
+        [new(74, 1)] = new(109, 74, 60, 50, 127, 50, 40, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            AnimationOffset: 20000, CornealEyes: true, GiantVerticalOffset: 0, SourceStem: "pm0074_00_11", HatchedForm: 1, SourceVoiceForm: 0),
+        [new(75, 1)] = new(525, 74, 137, 50, 127, 100, 100, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            CornealEyes: true, SourceStem: "pm0075_00_11", HatchedForm: 1, SourceVoiceForm: 0, LayerEmission: true),
+        [new(76, 1)] = new(112, 74, 223, 50, 127, 170, 170, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            CornealEyes: true, SourceStem: "pm0076_00_11", HatchedForm: 1,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .01f, ["r_eye"] = .01f },
+            NormalUvScales: new Dictionary<string, System.Numerics.Vector2>
+            {
+                ["pm0076_00_11_bodyinc_mesh_shape"] = new(1, 2),
+                ["pm0076_00_11_bodybinc_mesh_shape"] = new(1, 2),
+            }, NormalUvVerticalTiles: new Dictionary<string, int> { ["pm0076_00_11_bodybinc_mesh_shape"] = 1 }, SourceVoiceForm: 0, LayerEmission: true),
+    };
+    private static bool TryProfile(SwShPokemonIdentity identity, out SpeciesProfile profile) => identity.Form == 0
+        ? Profiles.TryGetValue(identity.Species, out profile!) : FormProfiles.TryGetValue(identity, out profile!);
+    private static SpeciesProfile Profile(SwShPokemonIdentity identity) => TryProfile(identity, out var profile) ? profile
+        : throw new InvalidDataException("Restoration form profile is missing.");
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [74] = new(109, 74, 60, 50, 127, 50, 40, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, AnimationOffset: 20000, CornealEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .05f }, GiantVerticalOffset: 0),
+        [75] = new(525, 74, 137, 50, 127, 100, 100, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [76] = new(112, 74, 223, 50, 127, 140, 140, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .01f, ["r_eye"] = .01f },
+            NormalUvScales: new Dictionary<string, System.Numerics.Vector2>
+            {
+                ["pm0076_00_00_face_mesh_shape"] = new(1, 2),
+                ["pm0076_00_00_leftfoot_mesh_shape"] = new(2, 1),
+                ["pm0076_00_00_rightfoot_mesh_shape"] = new(2, 1),
+                ["pm0076_00_00_lefthand_mesh_shape"] = new(2, 1),
+                ["pm0076_00_00_righthand_mesh_shape"] = new(2, 1),
+            }),
         [495] = new(252, 495, 62, 12, 31, 60, 60, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true),
         [496] = new(253, 495, 145, 12, 31, 80, 80, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, OpaqueEyeSurface: true),
         [497] = new(350, 495, 238, 12, 31, 160, 330, AuthoredMaterials: true, BattleIdle: "00000", MeshVisibility: true, SharedMaterialTextures: true, GiantScale: 12),
