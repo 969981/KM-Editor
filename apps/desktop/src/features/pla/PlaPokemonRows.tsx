@@ -43,7 +43,7 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
     const id = `pla-${kind}-row-${rowIndex}-${column}`;
     const inlineClass = inline ? `learnset-inline-field ${column === 0 ? 'learnset-level-field' : column === 1 ? 'learnset-inline-metadata' : 'learnset-move-field'}` : '';
     return <div className={`path-field editable-field-control ${inlineClass} ${locked(row) ? 'editable-field-disabled' : ''}`} key={field.key}>
-      <FieldLabel htmlFor={id} label={`${fieldLabel(field)} ${rowIndex + 1}`} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />
+      <FieldLabel htmlFor={id} label={`${isEvolution && field.key === 'level' ? t('pla.evolutionLevel') : fieldLabel(field)} ${rowIndex + 1}`} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />
       {renderInput(resolvePlaField(field, rowValues(row)), row[column] ?? '', value => {
         const updated = updatePlaDependentValues(fields, rowValues(row), field.key, value);
         onChange(rows.map((item, i) => i === rowIndex ? fields.map(field => updated[field.key]) : item));
@@ -94,7 +94,7 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
           }} onDragEnd={() => { drag.current = null; }}><GripVertical size={15} /></span> : null}
           <span className="learnset-slot-cell">#{rowIndex + 1}</span>
           {!isEvolution ? <><span className="learnset-level-cell">{t('pla.field.level')}: {row[0]}</span><span className="learnset-mastery-cell">{t('pla.field.mastery')}: {row[1]}</span><strong className="learnset-move-name" data-localization-ignore="true">{choiceLabel('move', row[2])}</strong><span>{row[2]}</span></>
-            : <><strong data-localization-ignore="true">{choiceLabel('species', row[2])}</strong><span>{editableEvolutionMethods.has(Number(row[0])) ? t(`pla.choice.method.${row[0]}`) : row[0]}</span><span>{t('pla.field.form')}: {row[3]}</span></>}
+            : <><strong data-localization-ignore="true">{choiceLabel('species', row[2])}</strong><span>{editableEvolutionMethods.has(Number(row[0])) ? t(`pla.choice.method.${row[0]}`) : t('pla.preservedMethod', { id: row[0] })}</span><span>{row[3] === '65535' ? t('pla.keepForm') : `${t('pla.field.form')}: ${row[3]}`}</span></>}
           {locked(row) ? <span>{translateLiteral('Read-only')}</span> : null}
         </button>}
       </li>)}
@@ -104,7 +104,7 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
     </div> : !selected ? <p className="empty-copy">{t('pla.empty')}</p> : null}
     <div className={`learnset-add-grid ${isEvolution ? 'evolution-edit-grid' : ''}`}>
       {fields.map(field => <div className="path-field editable-field-control" key={field.key}>
-        <FieldLabel htmlFor={`pla-${kind}-new-${field.key}`} label={fieldLabel(field)} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />
+        <FieldLabel htmlFor={`pla-${kind}-new-${field.key}`} label={isEvolution && field.key === 'level' ? t('pla.evolutionLevel') : fieldLabel(field)} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />
         {renderInput(resolvePlaField(field, newRow), newRow[field.key] ?? '', value => setNewRow(current => updatePlaDependentValues(fields, current, field.key, value)), !canEdit, `pla-${kind}-new-${field.key}`)}
       </div>)}
       <div className="learnset-button-row"><button className="secondary-button" type="button" disabled={!canAdd} onClick={() => {

@@ -3,6 +3,7 @@
 namespace KM.PLA;
 
 public sealed record PlaChoice(string Value, string Label);
+public sealed record PlaGroup(string Value, string Label, string Area, string Table);
 public sealed record PlaRelatedRecord(string Kind, string Id, string Label);
 public sealed record PlaField(string Key, string Label, string Kind = "number", long? Minimum = null, long? Maximum = null,
     IReadOnlyList<PlaChoice>? Choices = null, bool ReadOnly = false,
@@ -18,5 +19,5 @@ public sealed record PlaPage(string Kind, string Revision, IReadOnlyList<PlaFiel
     IReadOnlyList<PlaRecord> Records, int Total, IReadOnlyList<string> TextFiles, string? TextFile, IReadOnlyList<string> Notices)
 {
     public IReadOnlyDictionary<string, string> PokemonSpriteNames { get; init; } = new Dictionary<string, string>();
-    public IReadOnlyList<PlaChoice> Groups { get; init; } = [];
+    public IReadOnlyList<PlaGroup> Groups { get; init; } = [];
 }

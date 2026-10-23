@@ -38,7 +38,9 @@ export function PlaPokemonEditor(props: PlaEditorProps) {
     if (field.choices) return <SearchableOptionInput id={id} ariaLabel={fieldLabel(field)} ariaInvalid={invalid || undefined} value={value} disabled={disabled} onChange={change}
       options={(field.choices.some(choice => choice.value === value) ? field.choices : [{ value, label: value }, ...field.choices]).map(choice =>
         ['method', 'growthRate'].includes(field.key) && field.choices?.some(item => item.value === choice.value)
-          ? { ...choice, label: t(`pla.choice.${field.key}.${choice.value}`) } : field.key === 'form' && choice.value === '65535' ? { ...choice, label: t('pla.keepForm') } : choice)} isFiniteCatalog localizeOptions={false} />;
+          ? { ...choice, label: t(`pla.choice.${field.key}.${choice.value}`) }
+          : field.key === 'method' ? { ...choice, label: t('pla.preservedMethod', { id: choice.value }) }
+          : field.key === 'form' && choice.value === '65535' ? { ...choice, label: t('pla.keepForm') } : choice)} isFiniteCatalog localizeOptions={false} />;
     return <input type="text" inputMode="numeric" id={id} aria-invalid={invalid || undefined} value={value} disabled={disabled} onChange={event => change(event.target.value)} />;
   };
   const renderField = (kind: PlaPokemonKind, field: PlaField) => {
@@ -58,7 +60,7 @@ export function PlaPokemonEditor(props: PlaEditorProps) {
     : pages.personal?.fields.find(field => field.key === key)?.choices?.find(choice => choice.value === value)?.label ?? value;
   const records = editor.matchingRecords.map(record => {
     const [species, form] = record.id.split(':').map(Number), values = valuesFor('personal', record);
-    return { ...record, personalId: species * 256 + form, speciesId: species, form, name: recordName(record.label), formLabel: String(form),
+    return { ...record, personalId: species * 256 + form, speciesId: species, form, name: recordName(record.label), formLabel: record.metadata?.formName ? `${record.metadata.formName} (${form})` : String(form),
       displayId: record.id, type1: choiceLabel('type1', values.type1), type2: choiceLabel('type2', values.type2) };
   });
   const pending = new Set(records.filter(record => currentKinds.some(kind => editor.hasDraft(kind, record))

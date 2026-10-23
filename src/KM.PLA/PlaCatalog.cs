@@ -70,6 +70,8 @@ internal sealed class PlaCatalog
     private readonly string[] moveNames;
     private readonly string[] typeNames;
     private readonly IReadOnlyDictionary<string, byte[]>? displayFiles;
+    private readonly Dictionary<string, PlaMessageFile> messages = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Dictionary<ulong, string>> messageLabels = new(StringComparer.Ordinal);
     private readonly Dictionary<string, (PlaFlatBuffer Buffer, Dictionary<string, int> References)> tables = new(StringComparer.Ordinal);
 
     internal PlaCatalog(PlaSourceScope scope, IReadOnlyDictionary<string, byte[]>? displayFiles = null)
@@ -120,18 +122,40 @@ internal sealed class PlaCatalog
         return result;
     }
 
-    internal string[] Labels(string file)
+    private PlaMessageFile Message(string file)
     {
-        var path = $"bin/message/{Scope.Language}/common/{file}";
+        if (messages.TryGetValue(file, out var message)) return message;
+        var path = $"bin/message/{Scope.Language}/{(file.Contains('/') ? file : "common/" + file)}";
         byte[] Read(string relative) => displayFiles?.TryGetValue(relative, out var bytes) == true ? bytes : Scope.Read(relative);
-        return new PlaMessageFile(Read(path + ".dat"), Read(path + ".tbl")).Lines.Select(line => line.Text).ToArray();
+        return messages[file] = new(Read(path + ".dat"), Read(path + ".tbl"));
     }
+    internal string[] Labels(string file) => Message(file).Lines.Select(line => line.Text).ToArray();
+    internal string MessageLabel(string file, ulong hash)
+    {
+        if (!messageLabels.TryGetValue(file, out var labels))
+        {
+            var message = Message(file);
+            labels = message.Lines.Select((line, index) => (message.Keys[index].Hash, line.Text)).ToDictionary(pair => pair.Hash, pair => pair.Text);
+            messageLabels.Add(file, labels);
+        }
+        return labels.GetValueOrDefault(hash) ?? "";
+    }
+    internal string AreaLabel(string area) => area.StartsWith("ha_area", StringComparison.Ordinal)
+        ? MessageLabel("place_name_indirect", PlaFieldArchive.HashPath("PLACENAME_" + area[3..].ToUpperInvariant())) : "";
+    internal string TypeLabel(int id) => Name(typeNames, id);
+    internal string SpeciesLabel(int id) => Name(names, id);
     internal static string Identity(PlaFlatBuffer buffer, int row) => $"{buffer.Scalar(row, 0)}:{buffer.Scalar(row, 1)}";
     internal string PokemonLabel(string identity)
     {
         var parts = identity.Split(':');
         var species = int.Parse(parts[0], CultureInfo.InvariantCulture);
-        return $"{species:D3} {Name(names, species)}" + (parts[1] == "0" ? "" : $" ({parts[1]})");
+        var form = FormLabel(identity);
+        return $"{species:D3} {Name(names, species)}" + (form.Length > 0 ? $" ({form}, {parts[1]})" : parts[1] == "0" ? "" : $" ({parts[1]})");
+    }
+    internal string FormLabel(string identity)
+    {
+        var parts = identity.Split(':');
+        return MessageLabel("zkn_form", PlaFieldArchive.HashPath($"ZKN_FORM_{int.Parse(parts[0], CultureInfo.InvariantCulture):D3}_{int.Parse(parts[1], CultureInfo.InvariantCulture):D3}"));
     }
     internal string MoveLabel(int id) => $"{id:D3} {Name(moveNames, id)}";
     internal IReadOnlyDictionary<string, string> PokemonSpriteNames()
@@ -306,6 +330,8 @@ internal sealed class PlaCatalog
         }
         return new PlaRecord(id, kind == "moves" ? MoveLabel(int.Parse(id, CultureInfo.InvariantCulture))
             : kind == "tutors" ? $"{id}: {MoveLabel(Tutors[int.Parse(id, CultureInfo.InvariantCulture)].Move)}" : PokemonLabel(id), values)
-        { ReadOnlyFields = kind == "moves" && id is "459" or "460" or "467" ? SpecialMoveFields : [] };
+        { ReadOnlyFields = kind == "moves" && id is "459" or "460" or "467" ? SpecialMoveFields : [],
+            Metadata = kind is "personal" or "learnsets" or "evolutions" or "compatibility"
+                ? new Dictionary<string, string> { ["formName"] = FormLabel(id) } : new Dictionary<string, string>() };
     }
 }

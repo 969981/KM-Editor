@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 import { plaFieldHelp } from './plaFieldHelp';
+import { plaAreaLabel } from './plaLabels';
 import type { ReactNode } from 'react';
 import { Search, ShieldCheck } from 'lucide-react';
 import type { PlaField, PlaKind, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
@@ -46,7 +47,8 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
   const choice = (key: string, value: string) => value === '0' && /[Ii]tem|ingredient/u.test(key) ? translateLiteral('None')
     : fields.find(field => field.key === key)?.choices?.find(option => option.value === value)?.label ?? value;
   const name = (record: PlaRecord) => kind === 'ranks' ? t('pla.rankLabel', { rank: record.id })
-    : kind === 'weather' ? t('pla.area.' + record.id)
+    : kind === 'weather' ? plaAreaLabel(t, record.id)
+    : kind === 'outbreaks' || kind === 'massiveOutbreaks' ? plaAreaLabel(t, record.metadata.area)
     : kind === 'outbreakDurations' ? t('pla.event.durationLabel', { seconds: valuesFor(record).durationSeconds })
       : record.metadata.empty === '1' ? t('pla.event.emptySelection') : record.label;
   const summary = (record: PlaRecord) => {
@@ -55,11 +57,20 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
     if (isShop) return String(groups.get(record.metadata.inventory)?.length ?? 0);
     if (kind === 'items' || kind === 'ginkgo') return values.price;
     if (kind === 'crafting') return `${choice('resultItem', values.resultItem)} × ${values.resultQuantity}`;
-    if (kind === 'research') return t([0, 1, 2, 3, 4, 5, 13, 14, 15, 18, 19].includes(Number(record.metadata.task)) ? `pla.task.${record.metadata.task}` : 'pla.protectedTask');
+    if (kind === 'research') {
+      const task = [0, 1, 2, 3, 4, 5, 13, 14, 15, 18, 19].includes(Number(record.metadata.task))
+        ? t(`pla.task.${record.metadata.task}`) : t('pla.unknownTask', { id: record.metadata.task });
+      return [task, record.metadata.move, record.metadata.moveType].filter(Boolean).join(': ');
+    }
     if (kind === 'ranks') return values.requiredPoints;
     if (values.selectionWeight !== undefined) return values.selectionWeight;
     if (values.outbreakChance !== undefined) return values.outbreakChance + '%';
     return String(record.relatedRecords.length);
+  };
+  const groupStatus = (record: PlaRecord) => {
+    const inventory = isShop ? groups.get(record.metadata.inventory) ?? [record] : [record];
+    return status(inventory.find(hasDraft) ?? inventory.find(record => pendingIds.has(record.id))
+      ?? inventory.find(record => !isProtected(record)) ?? record);
   };
   const groupFields = kind === 'massiveOutbreaks' ? [
     { title: t('pla.kind.massiveOutbreaks'), fields: fields.filter(field => ['outbreakChance', 'locationsMin', 'locationsMax', 'rareOneCount', 'rareTwoCount'].includes(field.key)) },
@@ -96,24 +107,24 @@ export function PlaEconomyWorkspace({ kind, page, selected, query, offset, loadi
             className={`items-row pla-economy-row ${(isShop ? selected?.metadata.inventory === record.metadata.inventory : selected?.id === record.id) ? 'items-row-selected' : ''}`}
             onClick={() => onSelect(record.id)}>
             <span role="cell" data-localization-ignore="true" title={record.id}>{isShop ? record.metadata.inventory : record.id}</span>
-            <span role="cell" data-localization-ignore="true">{isShop ? t('pla.shopLabel', { id: record.metadata.inventory }) : name(record)}</span>
-            <span role="cell" data-localization-ignore="true">{summary(record)}</span><span role="cell">{isShop ? translateLiteral('Inventory') : status(record)}</span>
+            <span role="cell" data-localization-ignore="true" title={isShop ? t('pla.shopLabel', { id: record.metadata.inventory }) : name(record)}>{isShop ? t('pla.shopLabel', { id: record.metadata.inventory }) : name(record)}</span>
+            <span role="cell" data-localization-ignore="true" title={summary(record)}>{summary(record)}</span><span role="cell">{groupStatus(record)}</span>
           </InteractiveTableRow>} />
       </div>
       <aside className={isShop ? 'shop-inspector' : 'item-inspector'} aria-label={inspectorTitle}>
         <div className="panel-heading"><ShieldCheck size={18} aria-hidden="true" /><h3>{inspectorTitle}</h3></div>
         {selected ? <>
           <dl className="item-provenance-list"><div><dt>{translateLiteral('Name')}</dt><dd data-localization-ignore="true">{name(selected)}</dd></div>
-            <div><dt>{translateLiteral('Status')}</dt><dd>{status(selected)}</dd></div>
-            {Object.entries(selected.metadata).filter(([key]) => key !== 'protected').map(([key, value]) => <div key={key}><dt>{t(`pla.meta.${key}`)}</dt><dd data-localization-ignore="true">{key === 'task' ? summary(selected)
-              : key === 'category' ? t('pla.event.category.' + value) : key === 'empty' ? translateLiteral(value === '1' ? 'Yes' : 'No') : value}</dd></div>)}
+            <div><dt>{translateLiteral('Status')}</dt><dd>{groupStatus(selected)}</dd></div>
+            {Object.entries(selected.metadata).filter(([key]) => !['protected', 'areaName'].includes(key)).map(([key, value]) => <div key={key}><dt>{t(`pla.meta.${key}`)}</dt><dd data-localization-ignore="true">{key === 'task' ? summary(selected)
+              : key === 'area' ? plaAreaLabel(t, value) : key === 'category' ? t('pla.event.category.' + value) : key === 'empty' ? translateLiteral(value === '1' ? 'Yes' : 'No') : value}</dd></div>)}
           </dl>
           {isShop ? <div className="shop-inventory-editor-grid" role="table" aria-label={translateLiteral('Inventory')}>
             <div className="shop-inventory-editor-row shop-inventory-editor-heading pla-shop-slot-row" role="row"><span role="columnheader">{translateLiteral('Slot')}</span><span role="columnheader">{translateLiteral('Item')}</span><span role="columnheader">{translateLiteral('Status')}</span></div>
             {selectedGroup.map((record, index) => <div key={record.id} role="row" onClick={() => onSelect(record.id)}
               className={`shop-inventory-editor-row pla-shop-slot-row ${record.id === selected.id ? 'shop-inventory-editor-row-selected' : ''}`}>
               <span role="cell">{index + 1}</span><div role="cell">{fields.map(field => <div className="path-field editable-field-control" key={field.key}>
-                <FieldLabel htmlFor={`pla-shop-${record.id}-${field.key}`} label={`${fieldLabel(field)} ${index + 1}`} />{renderRecordInput(record, field)}
+                <FieldLabel htmlFor={`pla-shop-${record.id}-${field.key}`} label={`${fieldLabel(field)} ${index + 1}`} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />{renderRecordInput(record, field)}
               </div>)}</div><span role="cell">{status(record)}</span>
             </div>)}
           </div> : null}

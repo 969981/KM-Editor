@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 .pla-controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-block: 1rem; }
+.pla-record-detail { display: block; color: var(--color-text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pla-editor .editable-field-groups,
 .pla-battle-editor .editable-field-groups,
 .pla-wild-editor .editable-field-groups { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); }

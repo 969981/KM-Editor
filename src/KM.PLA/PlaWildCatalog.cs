@@ -35,6 +35,7 @@ internal sealed class PlaWildCatalog
     private readonly Dictionary<string, Entry> spawns = new(StringComparer.Ordinal);
     private readonly Dictionary<string, float[]> defaults = new(StringComparer.Ordinal);
     private readonly Dictionary<PlaFlatBuffer, Dictionary<ulong, int>> tableCache = [];
+    private readonly Dictionary<(string Area, string Table), string> encounterPaths = [];
     internal static bool IsEncounter(string kind) => kind is "encounters" or "outbreakEncounters" or "distortionEncounters";
     internal static bool IsSpawn(string kind) => kind is "spawns" or "distortionSpawns";
     internal static bool Supports(string kind) => IsEncounter(kind) || IsSpawn(kind);
@@ -106,6 +107,7 @@ internal sealed class PlaWildCatalog
             var area = path.Split('/')[2];
             foreach (var (hash, reference) in baseRows)
             {
+                encounterPaths.Add((area, Hex(hash)), path);
                 var table = b.TableAtReference(reference);
                 var slots = b.VectorReferences(table, 3, 100);
                 var currentSlots = now.VectorReferences(now.TableAtReference(currentRows[hash]), 3, 100);
@@ -243,27 +245,37 @@ internal sealed class PlaWildCatalog
     {
         var archive = edited.TryGetValue(ArchivePath, out var data) ? new PlaFieldArchive(data) : current;
         var members = new Dictionary<string, PlaFlatBuffer>(StringComparer.Ordinal);
+        PlaFlatBuffer Read(string path) => members.TryGetValue(path, out var buffer) ? buffer : members[path] = new(archive.Read(path, Runtime));
         return Entries(kind).Select(pair =>
         {
-            if (!members.TryGetValue(pair.Value.Path, out var b)) members[pair.Value.Path] = b = new(archive.Read(pair.Value.Path, Runtime));
-            return Record(kind, pair.Key, pair.Value, b);
+            return Record(kind, pair.Key, pair.Value, Read(pair.Value.Path), Read);
         }).ToArray();
     }
     internal PlaRecord Record(string kind, string id, byte[]? edited)
     {
         var entry = Get(kind, id);
-        var b = edited is null ? Buffer(entry.Path) : new PlaFlatBuffer(new PlaFieldArchive(edited).Read(entry.Path, Runtime));
-        return Record(kind, id, entry, b);
+        var archive = edited is null ? current : new PlaFieldArchive(edited);
+        PlaFlatBuffer Read(string path) => edited is null ? Buffer(path) : new(archive.Read(path, Runtime));
+        return Record(kind, id, entry, Read(entry.Path), Read);
     }
-    private PlaRecord Record(string kind, string id, Entry entry, PlaFlatBuffer b)
+    private PlaRecord Record(string kind, string id, Entry entry, PlaFlatBuffer b, Func<string, PlaFlatBuffer>? read = null)
     {
         var row = b.TableAtReference(IsSpawn(kind) ? b.VectorReferences(b.Root, 0, 4096)[entry.Slot] : Tables(b)[entry.Table]);
         if (b.Hash(row, 0) != entry.Table) throw new InvalidDataException("The PLA field identity changed.");
         var metadata = new Dictionary<string, string> { ["area"] = entry.Area, ["table"] = Hex(entry.Table), ["alpha"] = entry.Alpha,
+            ["areaName"] = catalog.AreaLabel(entry.Area),
             ["consumers"] = Number(entry.Consumers.Length), ["protected"] = entry.Protected ? "1" : "0" };
         var values = new Dictionary<string, string>();
         var label = entry.Area + " / " + Hex(entry.Table);
-        if (IsSpawn(kind)) { values["spawnMin"] = Number(Int(b, row, 7)); values["spawnMax"] = Number(Int(b, row, 8)); }
+        var related = entry.Consumers.Select(key => new PlaRelatedRecord(IsSpawn(kind) ? "table" : "spawner", key, key)).ToArray();
+        if (IsSpawn(kind))
+        {
+            values["spawnMin"] = Number(Int(b, row, 7)); values["spawnMax"] = Number(Int(b, row, 8));
+            related = entry.Consumers.Select(key => new PlaRelatedRecord("table", key,
+                encounterPaths.TryGetValue((entry.Area, key), out var path)
+                    ? EncounterLabel((read ?? Buffer)(path), ulong.Parse(key, NumberStyles.HexNumber, CultureInfo.InvariantCulture)) : key)).ToArray();
+            metadata["pokemon"] = string.Join("; ", related.Select(record => record.Label).Distinct(StringComparer.Ordinal));
+        }
         else
         {
             metadata["defaultMin"] = Number(Int(b, row, 1)); metadata["defaultMax"] = Number(Int(b, row, 2));
@@ -283,11 +295,14 @@ internal sealed class PlaWildCatalog
                 metadata["default." + Multipliers[i]] = inherited?[i].ToString("R", CultureInfo.InvariantCulture) ?? "?";
             }
             metadata["slot"] = Number(entry.Slot + 1);
+            metadata["pokemon"] = catalog.PokemonLabel(Identity(b, row));
+            metadata["speciesName"] = catalog.SpeciesLabel(Int(b, row, 0));
+            metadata["formName"] = catalog.FormLabel(Identity(b, row));
             metadata["condition"] = OrdinaryCondition(b, eligibility, 0, 2) ? "none" : QualifiedCondition(b, eligibility) ? "progression" : "protected";
             label = entry.Area + " / " + Hex(entry.Table) + " / " + catalog.PokemonLabel(Identity(b, row));
         }
         return new(id, label, values) { Metadata = metadata, ReadOnlyFields = entry.Protected ? Fields(kind).Select(field => field.Key).ToArray() : [],
-            RelatedRecords = entry.Consumers.Select(key => new PlaRelatedRecord(IsSpawn(kind) ? "table" : "spawner", key, key)).ToArray() };
+            RelatedRecords = related };
     }
 
     internal byte[] Compose(IReadOnlyDictionary<string, byte[]> members) => current.Compose(members, Runtime);
@@ -306,10 +321,13 @@ internal sealed class PlaWildCatalog
     }
     internal string EncounterLabel(string path, ulong hash)
     {
-        var b = Buffer(path);
+        return EncounterLabel(Buffer(path), hash);
+    }
+    internal string EncounterLabel(PlaFlatBuffer b, ulong hash)
+    {
         if (!Tables(b).TryGetValue(hash, out var reference)) throw new InvalidDataException("The PLA event encounter table is missing.");
         var slots = b.VectorReferences(b.TableAtReference(reference), 3, 100);
-        return slots.Length == 0 ? Hex(hash) : catalog.PokemonLabel(Identity(b, b.TableAtReference(slots[0])));
+        return slots.Length == 0 ? Hex(hash) : string.Join(", ", slots.Select(slot => catalog.PokemonLabel(Identity(b, b.TableAtReference(slot)))).Distinct(StringComparer.Ordinal));
     }
     internal Dictionary<string, byte[]> EditMembers(IReadOnlyDictionary<(string Kind, string Id), Dictionary<string, string>> edits)
     {

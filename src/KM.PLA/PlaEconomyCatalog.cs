@@ -198,6 +198,17 @@ internal sealed class PlaEconomyCatalog
                 values["item"] = detail == 0 ? "0" : Number(buffer.Scalar(detail, 0));
                 values["quantity"] = detail == 0 ? "0" : Number(buffer.Scalar(detail, 1));
                 label = detail == 0 ? id : ItemLabel(int.Parse(values["item"], CultureInfo.InvariantCulture));
+                var offerName = catalog.MessageLabel("script/icho_rare_shop", buffer.Hash(row, 1));
+                if (!string.IsNullOrWhiteSpace(offerName)) label = offerName;
+                var reward = buffer.String(row, 3);
+                if (reward.Length > 0) metadata["rewardEvent"] = reward;
+                else
+                {
+                    metadata["contents"] = string.Join(", ", details.Select(reference => {
+                        var item = buffer.TableAtReference(reference);
+                        return $"{ItemLabel(checked((int)buffer.Scalar(item, 0)))} × {buffer.Scalar(item, 1)}";
+                    }));
+                }
                 metadata["inventory"] = id; metadata["selectionCount"] = Number(inventoryUses.GetValueOrDefault(id));
                 if (details.Length != 1 || baseDetails.Length != 1 || original.String(originalRow, 3).Length != 0 || buffer.String(row, 3).Length != 0
                     || !supportedItems.Contains(checked((int)original.Scalar(original.TableAtReference(baseDetails[0]), 0))) || !inventoryUses.ContainsKey(id))
@@ -213,8 +224,9 @@ internal sealed class PlaEconomyCatalog
                 var species = Number(buffer.Scalar(row, 0, 4));
                 label = catalog.Pokemon.ContainsKey(species + ":0") ? catalog.PokemonLabel(species + ":0") : species;
                 var task = buffer.Scalar(row, 1, 4, true);
-                metadata["task"] = Number(task); metadata["move"] = catalog.MoveLabel(checked((int)buffer.Scalar(row, 3, 4)));
-                metadata["moveType"] = Number(buffer.Scalar(row, 4, 4));
+                metadata["task"] = Number(task);
+                if (task == 1) metadata["move"] = catalog.MoveLabel(checked((int)buffer.Scalar(row, 3, 4)));
+                if (task == 2) metadata["moveType"] = catalog.TypeLabel(checked((int)buffer.Scalar(row, 4, 4)));
                 var move = buffer.Scalar(row, 3, 4);
                 var moveType = buffer.Scalar(row, 4, 4);
                 var understood = task is 0 or 1 or 2 or 3 or 4 or 5 or 13 or 14 or 15 or 18 or 19

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 import { plaFieldHelp } from './plaFieldHelp';
+import { plaPokemonLabel } from './plaLabels';
 import type { ReactNode } from 'react';
 import { Search, ShieldCheck } from 'lucide-react';
 import type { PlaField, PlaPage, PlaRecord } from '../../bridge/plaProjectBridge';
@@ -39,15 +40,13 @@ export function PlaBattleWorkspace({ kind, page, selected, query, offset, loadin
   const selectedGroup = selected ? groupId(selected) : null;
   const party = kind === 'trainers' ? groups.get(selectedGroup ?? '') ?? [] : [];
   const pageSize = kind === 'trainers' ? 16 : 100;
+  const trainerName = (record: PlaRecord) => record.metadata.trainerName?.trim() || t('pla.unnamedTrainer');
   const pokemonName = (record: PlaRecord) => {
     const value = valuesFor(record);
     return page?.fields.find(field => field.key === 'species')?.choices?.find(choice => choice.value === value.species)?.label
       ?? record.label.slice(record.label.indexOf(']: ') + 3).replace(/^\d+\s+/u, '').replace(/ \(\d+\)$/u, '');
   };
-  const pokemonLabel = (record: PlaRecord) => {
-    const value = valuesFor(record);
-    return pokemonName(record) + (value.form === '0' ? '' : ` (${value.form})`);
-  };
+  const pokemonLabel = (record: PlaRecord) => plaPokemonLabel(page?.fields ?? [], valuesFor(record), record.label.split(']: ').at(-1) ?? record.label);
   const isProtected = (record: PlaRecord) => record.readOnlyFields.includes('battleLevel');
   const status = (record: PlaRecord) => translateLiteral(hasDraft(record) ? 'Draft' : pendingIds.has(record.id) ? 'Pending changes' : isProtected(record) ? 'Read-only' : 'Editable');
   const source = selected ? kind === 'trainers' ? `bin/trainer/${selectedGroup}.bin`
@@ -83,8 +82,9 @@ export function PlaBattleWorkspace({ kind, page, selected, query, offset, loadin
           return <InteractiveTableRow className={`trainers-row pla-battle-row ${active ? 'trainers-row-selected' : ''} ${pending ? 'trainers-row-pending' : ''} ${row.party.every(isProtected) ? 'trainers-row-read-only' : ''}`}
             aria-selected={active} onClick={() => onSelect(row.first.id)}>
             <span role="cell" title={row.id}>{offset + index + 1}</span>
-            <span role="cell" data-localization-ignore="true" title={kind === 'trainers' ? row.id : pokemonLabel(row.first)}>{kind === 'trainers' ? row.id : pokemonLabel(row.first)}</span>
-            <span role="cell">{kind === 'trainers' ? row.party.length : valuesFor(row.first).battleLevel}</span>
+            <span role="cell" data-localization-ignore="true" title={kind === 'trainers' ? row.id : pokemonLabel(row.first)}>{kind === 'trainers'
+              ? <>{trainerName(row.first)}<small className="pla-record-detail">{row.first.metadata.trainerClass}</small></> : pokemonLabel(row.first)}</span>
+            <span role="cell" title={kind === 'trainers' ? row.party.map(pokemonLabel).join(', ') : undefined}>{kind === 'trainers' ? <>{row.party.length}<small className="pla-record-detail">{row.party.map(pokemonLabel).join(', ')}</small></> : valuesFor(row.first).battleLevel}</span>
             <span role="cell" title={kind === 'trainers' ? level : groupId(row.first)}>{kind === 'trainers' ? level : groupId(row.first)}</span>
             <span role="cell">{status(row.party.find(hasDraft) ?? row.party.find(record => pendingIds.has(record.id)) ?? row.first)}</span>
           </InteractiveTableRow>;
@@ -98,8 +98,11 @@ export function PlaBattleWorkspace({ kind, page, selected, query, offset, loadin
             <div className="pokemon-summary-main"><strong className="pokemon-summary-title">{pokemonLabel(selected)}</strong>
               <span className="pokemon-summary-subtitle">{translateLiteral('Level')} {valuesFor(selected).battleLevel}</span></div>
           </div> : null}
-          <dl className="item-provenance-list"><div><dt>{translateLiteral(kind === 'trainers' ? 'Name' : 'Event label')}</dt><dd>{selectedGroup}</dd></div>
+          <dl className="item-provenance-list"><div><dt>{translateLiteral(kind === 'trainers' ? 'Name' : 'Event label')}</dt><dd>{kind === 'trainers' ? trainerName(selected) : selectedGroup}</dd></div>
+            {kind === 'trainers' ? <><div><dt>{t('pla.trainerClass')}</dt><dd>{selected.metadata.trainerClass || t('pla.unresolvedTrainerClass')}</dd></div>
+              <div><dt>{translateLiteral('ID')}</dt><dd>{selectedGroup}</dd></div></> : null}
             <div><dt>{translateLiteral('Data file')}</dt><dd>{source}</dd></div></dl>
+          {kind === 'trainers' && !selected.metadata.trainerName?.trim() ? <p className="field-note">{t('pla.unnamedTrainerHelp')}</p> : null}
           {selected.readOnlyFields.length > 0 ? <section className="technical-tool-notice technical-tool-notice-info pla-battle-notice">
             <p>{t(isProtected(selected) ? 'pla.protectedBattle' : 'pla.fixedBattleIdentity')}</p>
           </section> : null}

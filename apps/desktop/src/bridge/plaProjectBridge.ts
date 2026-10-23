@@ -17,7 +17,8 @@ export const plaKindSchema = z.enum(['personal', 'moves', 'learnsets', 'evolutio
 export const plaPageSchema = z.strictObject({ kind: plaKindSchema, revision: z.string().regex(/^[A-F0-9]{64}$/u),
   fields: z.array(field), rowFields: z.array(field), records: z.array(record).max(100), total: z.number().int().nonnegative(),
   textFiles: z.array(z.string()).max(1024), textFile: z.string().nullable(), notices: z.array(z.string()),
-  pokemonSpriteNames: z.record(z.string(), z.string()).default({}), groups: z.array(choice).max(4096).default([]) });
+  pokemonSpriteNames: z.record(z.string(), z.string()).default({}),
+  groups: z.array(choice.extend({ area: z.string().optional(), table: z.string().optional() })).max(4096).default([]) });
 export type PlaKind = z.infer<typeof plaKindSchema>;
 export type PlaPage = z.infer<typeof plaPageSchema>;
 export type PlaField = z.infer<typeof field>;

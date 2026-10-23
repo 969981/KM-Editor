@@ -61,7 +61,7 @@ internal sealed class PlaEventCatalog
                 var row = b.TableAtReference(rows[index]); var hash = b.Hash(row, 0);
                 var area = regions.GetValueOrDefault(hash) ?? Hex(hash);
                 var known = regions.ContainsKey(hash);
-                Add(kind, path, index, -1, 0, area, !known, new() { ["area"] = area });
+                Add(kind, path, index, -1, 0, area, !known, new() { ["area"] = area, ["areaName"] = catalog.AreaLabel(area) });
             }
         }
         Regions("outbreaks", Prefix + "huge_outbreak.bin", ordinary);
@@ -75,12 +75,14 @@ internal sealed class PlaEventCatalog
             var row = groups.TableAtReference(groupRows[index]); var hash = groups.Hash(row, 0); var initial = groups.Hash(row, 2);
             var follows = groups.VectorReferences(row, 1, 64);
             var guarded = !links.Groups.ContainsKey(hash) || follows.Any(reference => !EmptyCondition(groups, groups.TableAtReference(reference)));
-            var label = links.Groups.TryGetValue(hash, out var paths) ? catalog.Wild.EncounterLabel(paths.First(), initial) : Hex(hash);
+            var label = links.Groups.TryGetValue(hash, out var paths)
+                ? string.Join("; ", paths.Order(StringComparer.Ordinal).Select(path => catalog.Wild.EncounterLabel(path, initial)).Distinct(StringComparer.Ordinal)) : Hex(hash);
             if (!groupInfo.TryAdd(hash, (label, guarded, Hex(initial)))) throw new InvalidDataException("The PLA outbreak group identity is ambiguous.");
             for (var child = 0; child < follows.Length; child++)
             {
                 var detail = groups.TableAtReference(follows[child]); var table = groups.Hash(detail, 7);
-                var followLabel = paths is { Count: > 0 } ? catalog.Wild.EncounterLabel(paths.First(), table) : Hex(table);
+                var followLabel = paths is { Count: > 0 }
+                    ? string.Join("; ", paths.Order(StringComparer.Ordinal).Select(path => catalog.Wild.EncounterLabel(path, table)).Distinct(StringComparer.Ordinal)) : Hex(table);
                 Add("outbreakWaves", PlaEventLinks.GroupPath, index, 1, child, label + " / " + followLabel, guarded,
                     new() { ["group"] = Hex(hash), ["initialTable"] = Hex(initial), ["table"] = Hex(table), ["wave"] = "2" },
                     [new("initial", Hex(initial), label), new("followup", Hex(table), followLabel)]);
@@ -120,7 +122,7 @@ internal sealed class PlaEventCatalog
                     var item = Number(Int(items, items.TableAtReference(slots[child]), 0));
                     var label = itemChoices.FirstOrDefault(choice => choice.Value == item)?.Label;
                     Add("distortionItems", path, index, 1, child, label ?? item, !tables.Contains(hash) || label is null,
-                        new() { ["area"] = path.Split('/')[4], ["table"] = Hex(hash), ["slot"] = Number(child + 1) });
+                        new() { ["area"] = path.Split('/')[4], ["areaName"] = catalog.AreaLabel(path.Split('/')[4]), ["table"] = Hex(hash), ["slot"] = Number(child + 1) });
                 }
             }
         }
@@ -180,6 +182,15 @@ internal sealed class PlaEventCatalog
     internal IReadOnlyList<PlaRecord> Records(string kind, IReadOnlyDictionary<string, byte[]> files)
     {
         var cache = new Dictionary<string, PlaFlatBuffer>(StringComparer.Ordinal);
+        var archive = files.TryGetValue(PlaWildCatalog.ArchivePath, out var pending) ? new PlaFieldArchive(pending) : null;
+        var labels = new Dictionary<(string Path, ulong Table), string>();
+        string EncounterName(string path, string table)
+        {
+            var hash = ulong.Parse(table, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            if (labels.TryGetValue((path, hash), out var label)) return label;
+            if (!cache.TryGetValue(path, out var buffer)) cache[path] = buffer = new(archive!.Read(path, catalog.Scope.Compression));
+            return labels[(path, hash)] = catalog.Wild.EncounterLabel(buffer, hash);
+        }
         return entries.Values.Where(entry => entry.Kind == kind).Select(entry =>
         {
             if (!cache.TryGetValue(entry.Path, out var b))
@@ -187,7 +198,15 @@ internal sealed class PlaEventCatalog
                 var resource = resources[entry.Path]; var data = files.GetValueOrDefault(PathFor(kind, entry.Id));
                 cache[entry.Path] = b = data is null ? resource.Current : new(resource.Archive ? new PlaFieldArchive(data).Read(entry.Path, catalog.Scope.Compression) : data);
             }
-            return Record(entry, b);
+            var record = Record(entry, b);
+            if (archive is not null && kind is "outbreakGroups" or "outbreakWaves" && entry.Related.Length > 0
+                && catalog.Wild.EventLinks.Groups.TryGetValue(ulong.Parse(entry.Metadata["group"], NumberStyles.HexNumber, CultureInfo.InvariantCulture), out var paths))
+            {
+                var related = entry.Related.Select(link => link with { Label = string.Join("; ", paths.Order(StringComparer.Ordinal)
+                    .Select(path => EncounterName(path, link.Id)).Distinct(StringComparer.Ordinal)) }).ToArray();
+                record = record with { Label = string.Join(" / ", related.Select(link => link.Label)), RelatedRecords = related };
+            }
+            return record;
         }).ToArray();
     }
 

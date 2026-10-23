@@ -66,7 +66,7 @@ public sealed record PlaCacheArtifactDescriptor(
 public sealed partial class PlaCacheManager
 {
     public const int CacheSchemaVersion = 1;
-    public const string ParserVersion = "pla-cache-parser-v2";
+    public const string ParserVersion = "pla-cache-parser-v3";
     public const long DefaultMaxCacheSizeBytes = 512L * 1024 * 1024;
     public const long MinimumMaxCacheSizeBytes = 128L * 1024 * 1024;
     public const long MaximumMaxCacheSizeBytes = 2L * 1024 * 1024 * 1024;
