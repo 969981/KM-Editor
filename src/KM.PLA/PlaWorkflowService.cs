@@ -71,11 +71,13 @@ public sealed partial class PlaWorkflowService
         var records = listing.Records;
         bool Matches(PlaRecord record) => string.IsNullOrEmpty(query) || record.Label.Contains(query, StringComparison.OrdinalIgnoreCase)
             || record.Id.Contains(query, StringComparison.OrdinalIgnoreCase) || kind == "text" && record.Values["text"].Contains(query, StringComparison.OrdinalIgnoreCase)
+            || record.Metadata.Any(pair => pair.Key is "area" or "areaName" or "move" or "moveType" or "contents"
+                && pair.Value.Contains(query, StringComparison.OrdinalIgnoreCase))
             || record.RelatedRecords.Any(related => related.Label.Contains(query, StringComparison.OrdinalIgnoreCase));
         var matching = records.Where(Matches).ToArray();
         var total = matching.Length;
         var visible = matching.Skip(offset).Take(100).ToArray();
-        PlaChoice[] groupChoices = [];
+        PlaGroup[] groupChoices = [];
         if (kind == "trainers")
         {
             // Keep complete parties together while bounding the response to 96 slots.
@@ -93,7 +95,9 @@ public sealed partial class PlaWorkflowService
         if (PlaWildCatalog.IsEncounter(kind))
         {
             var groups = records.GroupBy(record => record.Metadata["area"] + "/" + record.Metadata["table"]).Where(group => group.Any(Matches)).ToArray();
-            groupChoices = groups.Select((group, index) => new PlaChoice(index.ToString(CultureInfo.InvariantCulture), group.Key)).ToArray();
+            groupChoices = groups.Select((group, index) => new PlaGroup(index.ToString(CultureInfo.InvariantCulture),
+                string.Join(", ", group.Select(record => record.Metadata["pokemon"]).Distinct(StringComparer.Ordinal)),
+                group.First().Metadata["area"], group.First().Metadata["table"])).ToArray();
             total = groups.Length;
             visible = groups.Skip(offset).Take(1).SelectMany(group => group).ToArray();
         }

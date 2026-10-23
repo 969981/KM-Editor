@@ -38,7 +38,9 @@ export function PlaDataWorkspace({ kind, page, selected, query, offset, loading,
   const choiceLabel = (key: string, value: string) => key === 'category' ? t(`pla.choice.category.${value}`)
     : page?.fields.find(field => field.key === key)?.choices?.find(choice => choice.value === value)?.label ?? value;
   const recordName = (record: PlaRecord) => record.label.replace(/^\d+[:\s]+/u, '');
-  const status = (record: PlaRecord) => translateLiteral(hasDraft(record) ? 'Draft' : pendingIds.has(record.id) ? 'Pending changes' : 'Editable');
+  const status = (record: PlaRecord) => hasDraft(record) ? translateLiteral('Draft') : pendingIds.has(record.id) ? translateLiteral('Pending changes')
+    : page?.fields.every(field => field.readOnly || record.readOnlyFields.includes(field.key)) ? translateLiteral('Read-only')
+    : record.readOnlyFields.length ? t('pla.partiallyEditable') : translateLiteral('Editable');
   const columns = kind === 'text' ? ['Message key', 'File', 'Line', 'Value', 'Status']
     : kind === 'moves' ? ['ID', 'Name', 'Type', 'Category', 'Power', 'Accuracy', 'PP', 'Status']
     : kind === 'tutors' ? ['Slot', 'Move', 'Price', 'Status'] : ['ID', 'Name', kind === 'personal' ? 'Types' : 'Form'];

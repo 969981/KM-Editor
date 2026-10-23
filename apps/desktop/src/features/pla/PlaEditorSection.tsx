@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { plaAreaQuery } from './plaLabels';
 import { RefreshCw, RotateCcw, Save, X } from 'lucide-react';
 import type { EditSession, ProjectPaths } from '../../bridge/contracts';
 import type { ProjectBridge } from '../../bridge/projectBridge';
@@ -74,7 +75,9 @@ function PlaRecordEditor({ section, paths, session, bridge, drafts, setDrafts, i
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const requestKey = JSON.stringify({ paths, session, kind, query, offset, textFile, messageLanguage: kind === 'text' ? messageLanguage : null, refresh, cacheRevision });
+  const searchQuery = ['encounters', 'spawns', 'outbreaks', 'massiveOutbreaks', 'outbreakEncounters', 'distortionEncounters', 'distortionSpawns', 'distortionItems'].includes(kind)
+    ? plaAreaQuery(t, query) : query;
+  const requestKey = JSON.stringify({ paths, session, kind, query: searchQuery, offset, textFile, messageLanguage: kind === 'text' ? messageLanguage : null, refresh, cacheRevision });
   const dirty = Object.keys(drafts).some(key => key.startsWith(section + '/'));
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => {
@@ -205,11 +208,14 @@ function PlaRecordEditor({ section, paths, session, bridge, drafts, setDrafts, i
   };
   const rows = useMemo(() => parseRows(values.entries ?? '[]'), [values.entries]);
   const changeRows = (next: string[][]) => setValue('entries', JSON.stringify(next.map(row => row.map(value => /^\d+$/u.test(value) ? Number(value) : value))));
-  const input = (unresolvedField: PlaField, value: string, change: (value: string) => void, disabled: boolean, id: string) => {
+  const input = (unresolvedField: PlaField, value: string, change: (value: string) => void, disabled: boolean, id: string, record = selected) => {
     const field = resolvePlaField(unresolvedField, values);
+    const preservedLabel = record?.values[field.key] === value ? field.key === 'species' ? record.metadata?.speciesName
+      : field.key === 'form' ? record.metadata?.formName || (value === '0' ? translateLiteral('Default') : undefined)
+      : field.key === 'item' && kind === 'shops' ? record.label : undefined : undefined;
     return     field.kind === 'boolean' ? <input id={id} type="checkbox" aria-label={label(field)} checked={value === '1'} disabled={disabled} onChange={event => change(event.target.checked ? '1' : '0')} />
       : field.choices ? <SearchableOptionInput id={id} ariaLabel={label(field)} value={value} disabled={disabled} onChange={change}
-          options={(field.choices.some(choice => choice.value === value) ? field.choices : [{ value, label: value }, ...field.choices])
+          options={(field.choices.some(choice => choice.value === value) ? field.choices : [{ value, label: preservedLabel ? `${preservedLabel} (${value})` : value }, ...field.choices])
             .map(choice => ['method', 'category', 'growthRate', 'gender'].includes(field.key) && field.choices?.some(item => item.value === choice.value)
               ? { ...choice, label: t(`pla.choice.${field.key}.${choice.value}`) }
               : /^move[1-4]$/u.test(field.key) && choice.value === '0' ? { ...choice, label: t('pla.unspecifiedMove') } : choice)} isFiniteCatalog localizeOptions={false} />
@@ -299,7 +305,7 @@ function PlaRecordEditor({ section, paths, session, bridge, drafts, setDrafts, i
       query={query} offset={offset} loading={loading} onQuery={value => { setQuery(value); setOffset(0); }} onOffset={setOffset} onSelect={selectRecord}
       refresh={refreshButton} actions={actions} fieldLabel={label}
       renderRecordInput={(record, field) => input(field, { ...record.values, ...drafts[recordDraftKey(record)]?.values }[field.key] ?? '',
-        value => setRecordValue(record, field.key, value), !enabled || field.readOnly || record.readOnlyFields.includes(field.key), `pla-shop-${record.id}-${field.key}`)}
+        value => setRecordValue(record, field.key, value), !enabled || field.readOnly || record.readOnlyFields.includes(field.key), `pla-shop-${record.id}-${field.key}`, record)}
       sessionBar={<EditorSessionBar canEdit={visiblePage !== null && !loading} isEditing={session !== null} isStarting={isStarting}
         label={t(workbenchSectionLocalization[section].label)} onStart={onStart} />}
       valuesFor={record => ({ ...record.values, ...drafts[recordDraftKey(record)]?.values })} hasDraft={record => Boolean(drafts[recordDraftKey(record)])}

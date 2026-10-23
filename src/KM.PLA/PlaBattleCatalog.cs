@@ -166,8 +166,18 @@ internal sealed class PlaBattleCatalog(PlaCatalog catalog)
                 values.Add($"move{slot}", Number(buffer.Scalar(move, 0, 4, true)));
                 values.Add($"mastered{slot}", Number(buffer.Scalar(move, 1, 1)));
             }
-        return new(id, $"{entry.Key} [{entry.Slot + 1}/{entry.Count}]: {catalog.PokemonLabel(values["species"] + ":" + values["form"])}", values)
-        { ReadOnlyFields = entry.Protected ? values.Keys.ToArray() : entry.FixedIdentity ? ["species", "form"] : [] };
+        var metadata = new Dictionary<string, string> {
+            ["speciesName"] = catalog.SpeciesLabel(int.Parse(values["species"], CultureInfo.InvariantCulture)),
+            ["formName"] = catalog.FormLabel(values["species"] + ":" + values["form"]),
+        };
+        if (kind == "trainers")
+        {
+            metadata["trainerName"] = catalog.MessageLabel("trname", buffer.Hash(buffer.Root, 1));
+            metadata["trainerClass"] = catalog.MessageLabel("trtype", buffer.Hash(buffer.Root, 2));
+        }
+        var title = string.Join(" / ", new[] { metadata.GetValueOrDefault("trainerName"), metadata.GetValueOrDefault("trainerClass") }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        return new(id, $"{(title.Length == 0 ? entry.Key : title)} [{entry.Slot + 1}/{entry.Count}]: {catalog.PokemonLabel(values["species"] + ":" + values["form"])}", values)
+        { Metadata = metadata, ReadOnlyFields = entry.Protected ? values.Keys.ToArray() : entry.FixedIdentity ? ["species", "form"] : [] };
     }
 
     internal byte[] Edit(string kind, string id, byte[] bytes, IReadOnlyDictionary<string, string> values)
