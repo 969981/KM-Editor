@@ -5,6 +5,7 @@ using KM.Formats.Audio;
 using KM.Formats.SwSh;
 using KM.Formats.SV;
 using KM.SwSh.Restoration;
+using KM.SwSh.Pokemon;
 
 namespace KM.Tools.Application;
 
@@ -12,7 +13,7 @@ public sealed partial class SwShRestorationPreparationService
 {
     private sealed partial class Preparation
     {
-        internal IReadOnlyList<SwShRestorationContribution> Voices(int[] species)
+        internal IReadOnlyList<SwShRestorationContribution> Voices(IReadOnlyList<SwShPokemonIdentity> identities)
         {
             var audioRoot = Path.Combine(donorRoot, "audio", "wwise", "bin");
             var directories = Directory.EnumerateDirectories(audioRoot).Take(33).ToArray();
@@ -36,9 +37,11 @@ public sealed partial class SwShRestorationPreparationService
                     if (!packages.TryAdd(item.Id, (path, item))) throw new InvalidDataException("Donor voice media identity exists in multiple packages.");
             }
             var result = new List<SwShRestorationContribution>();
-            foreach (var id in species)
+            foreach (var identity in identities)
             {
-                var states = SvRestorationVoiceGraph.ResolvePlayback(source, id);
+                var sourceForm = Profile(identity).SourceVoiceForm ?? identity.Form;
+                var states = SvRestorationVoiceGraph.ResolvePlayback(source, identity.Species, sourceForm,
+                    requireSharedForm: identity.Form != 0 && sourceForm == 0);
                 var media = new Dictionary<string, byte[]>(StringComparer.Ordinal);
                 foreach (var state in SwShVoiceWriter.States)
                 {
@@ -50,8 +53,8 @@ public sealed partial class SwShRestorationPreparationService
                     Fingerprint("donor-media", Path.GetRelativePath(donorRoot, entry.Path).Replace('\\', '/') + "/" + mediaId.ToString(CultureInfo.InvariantCulture), encoded);
                     var decoded = PtAdpcmDecoder.Decode(encoded, token); media.Add(state, SoundBankDocument.EncodePcm16(decoded.Samples, decoded.Channels, decoded.SampleRate));
                 }
-                var contribution = SwShVoiceWriter.Create(targetBank, id, 7, media);
-                var playback = states.ToDictionary(p => SwShVoiceWriter.MediaId(id, p.Key), p => p.Value);
+                var contribution = SwShVoiceWriter.Create(targetBank, identity.Species, 7, media, identity.Form);
+                var playback = states.ToDictionary(p => SwShVoiceWriter.MediaId(identity.Species, p.Key, identity.Form), p => p.Value);
                 result.AddRange(contribution.Objects.Select(o => o.Type == 2 ? Playback(o, playback[BinaryPrimitives.ReadUInt32LittleEndian(o.Payload.AsSpan(5))]) : o).Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,
                     string.Create(CultureInfo.InvariantCulture, $"{o.Type}:{o.Id}"), null, o.Payload)));
                 result.AddRange(contribution.Media.Select(m => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,

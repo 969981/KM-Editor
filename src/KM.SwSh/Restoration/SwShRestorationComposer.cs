@@ -53,7 +53,7 @@ public static class SwShRestorationComposer
                     foreach (var item in items)
                     {
                         var row = Number(item.Key);
-                        if (row is < 1 or > 898 || row >= result.Length / size || item.After.Length != size || item.Before?.Length != size)
+                        if (!SwShRestorationForms.IsRegisteredRow(row) || row >= result.Length / size || item.After.Length != size || item.Before?.Length != size)
                             throw new InvalidDataException("Restoration record identity or length is invalid.");
                         Select(item, current.AsSpan(row * size, size).ToArray())!.CopyTo(result, row * size);
                     }
@@ -65,8 +65,8 @@ public static class SwShRestorationComposer
                     var rows = Enumerable.Range(0, current.Length / 8).Select(i => current.AsSpan(i * 8, 8).ToArray()).ToList();
                     foreach (var item in items)
                     {
-                        var species = Number(item.Key); var matches = rows.Where(r => BinaryPrimitives.ReadUInt16LittleEndian(r) == species).ToArray();
-                        if (matches.Length > 1 || item.After.Length != 8 || BinaryPrimitives.ReadUInt16LittleEndian(item.After) != species)
+                        var identity = IconIdentity(item.Key); var matches = rows.Where(r => r.AsSpan().SequenceEqual(identity)).ToArray();
+                        if (matches.Length > 1 || item.After.Length != 8 || !item.After.AsSpan().SequenceEqual(identity))
                             throw new InvalidDataException("Restored icon identity is ambiguous.");
                         var replacement = Select(item, matches.SingleOrDefault());
                         if (matches.Length == 1) { var at = rows.IndexOf(matches[0]); if (replacement is null) rows.RemoveAt(at); else rows[at] = replacement; }
@@ -148,6 +148,16 @@ public static class SwShRestorationComposer
             if (!enable && current is not null) retained.Add(item with { After = current });
             return desired;
         }
+    }
+    public static string IconKey(int species, int form = 0) => form == 0 ? species.ToString(CultureInfo.InvariantCulture)
+        : string.Create(CultureInfo.InvariantCulture, $"{species}:{form}:0:0");
+    private static byte[] IconIdentity(string key)
+    {
+        var parts = key.Split(':');
+        if (parts.Length is not (1 or 4)) throw new InvalidDataException("Icon identity is invalid.");
+        var bytes = new byte[8];
+        for (var i = 0; i < parts.Length; i++) BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(i * 2), checked((ushort)Number(parts[i])));
+        return bytes;
     }
     public static string CatalogKey(SwShPokemonResourceIdentity identity) => string.Create(CultureInfo.InvariantCulture,
         $"{identity.Species}:{identity.Form}:{identity.Gender}:{(identity.Shiny ? 1 : 0)}");

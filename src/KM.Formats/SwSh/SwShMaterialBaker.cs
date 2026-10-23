@@ -7,7 +7,10 @@ using KM.Formats.Models;
 namespace KM.Formats.SwSh;
 
 public sealed record SwShBakedMaterial(string ColorName, byte[] Color, string NormalName, byte[] Normal,
-    string AmbientName, byte[] Ambient, double CoveredFraction, int ConflictingSamples);
+    string AmbientName, byte[] Ambient, double CoveredFraction, int ConflictingSamples)
+{
+    public Vector2 NormalUvScale { get; init; } = Vector2.One;
+}
 
 /// <summary>Bakes source material channels into a native object normal and ambient shader contract.</summary>
 public static class SwShMaterialBaker
@@ -15,7 +18,7 @@ public static class SwShMaterialBaker
     private sealed record Image(int Width, int Height, bool Srgb, byte[] Pixels);
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex,
         Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool sourceNormalDimensions = false, bool opaqueEyeSurface = false,
-        bool cornealEye = false)
+        bool cornealEye = false, float cornealNormalHeight = 1, Vector2? normalUvScale = null, int normalUvVerticalTile = 0)
     {
         if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
@@ -29,12 +32,15 @@ public static class SwShMaterialBaker
         {
             var shaders = source.Tables(table, 1, 16).Select(shader => source.Text(shader, 0)).ToArray();
             var heights = source.Tables(table, 4, 256).Where(parameter => source.Text(parameter, 0) is "NormalHeight" or "NormalHeight1")
-                .Select(parameter => source.Field(parameter, 1) is var offset && offset != 0 ? source.Float(offset) : 0).ToArray();
+                .Select(parameter => (Name: source.Text(parameter, 0), Value: source.Field(parameter, 1) is var offset && offset != 0 ? source.Float(offset) : 0)).ToArray();
             if (!eye || opaqueEyeSurface || primitive.Material.Alpha != "BlendPreMultiAlpha"
                 || !shaders.SequenceEqual(new[] { "EyeClearCoat", "Eye" }) || !textures.ContainsKey("NormalMap1")
-                || heights.Length != 2 || heights.Any(height => height != 1))
+                || !float.IsFinite(cornealNormalHeight) || cornealNormalHeight is < 0 or > 1
+                || heights.Length != 2 || heights.Select(height => height.Name).Distinct().Count() != 2
+                || heights.Any(height => height.Value != (height.Name == "NormalHeight1" ? cornealNormalHeight : 1)))
                 throw new InvalidDataException("Corneal eye conversion requires the qualified paired normal surface.");
         }
+        else if (cornealNormalHeight != 1) throw new InvalidDataException("Corneal normal strength requires an eye conversion profile.");
         var templatePath = textures[eye ? "LayerMaskMap" : "BaseColorMap"];
         var template = readTexture(templatePath); var container = new ModelTextureDocument(template);
         var colorWidth = container.Width; var colorHeight = container.Height;
@@ -81,6 +87,7 @@ public static class SwShMaterialBaker
                 var t = Unit(tangent - normal * Vector3.Dot(normal, tangent)); var bt = Unit(Vector3.Cross(normal, t));
                 if (Vector3.Dot(bt, bitangent) < 0) bt = -bt;
                 var index = y * width + x; var nx = tangentNormals[index * 4] / 127.5f - 1; var ny = tangentNormals[index * 4 + 1] / 127.5f - 1;
+                if (cornealEye) { nx *= cornealNormalHeight; ny *= cornealNormalHeight; }
                 var value = Unit(t * nx + bt * ny + normal * MathF.Sqrt(MathF.Max(0, 1 - nx * nx - ny * ny)));
                 if (covered[index] && Vector3.Dot(normals[index], value) < .8f) conflicts++;
                 normals[index] = value; covered[index] = true;
@@ -104,6 +111,29 @@ public static class SwShMaterialBaker
         {
             var n = normals[nearest[i]];
             normalPixels[i * 4] = Channel((n.X + 1) / 2); normalPixels[i * 4 + 1] = Channel((n.Y + 1) / 2); normalPixels[i * 4 + 2] = Channel((n.Z + 1) / 2); normalPixels[i * 4 + 3] = 255;
+        }
+        var normalScale = normalUvScale ?? Vector2.One;
+        if (normalUvVerticalTile is not (0 or 1) || normalUvVerticalTile != 0 && normalScale == Vector2.One)
+            throw new InvalidDataException("Normal texture tile requires a declared static crop.");
+        if (normalScale != Vector2.One)
+        {
+            // A native repeating normal sampler can address one exact UV tile
+            // without changing geometry, pixel density, or the other material maps.
+            if (cornealEye || normalScale.X is not (1 or 2) || normalScale.Y is not (1 or 2))
+                throw new InvalidDataException("Normal texture cropping requires a supported static tile.");
+            var uvs = primitive.Indices.Distinct().Select(index => Uv(checked((int)index)) - new Vector2(0, normalUvVerticalTile)).ToArray();
+            var tileX = (int)MathF.Floor(uvs.Min(uv => uv.X) * normalScale.X);
+            var tileY = (int)MathF.Floor(uvs.Min(uv => 1 - uv.Y) * normalScale.Y);
+            if (tileX < 0 || tileY < 0 || tileX >= normalScale.X || tileY >= normalScale.Y
+                || uvs.Any(uv => uv.X * normalScale.X <= tileX || uv.X * normalScale.X >= tileX + 1
+                    || (1 - uv.Y) * normalScale.Y <= tileY || (1 - uv.Y) * normalScale.Y >= tileY + 1))
+                throw new InvalidDataException("Normal texture crop would remove authored UV coverage.");
+            var croppedWidth = width / (int)normalScale.X; var croppedHeight = height / (int)normalScale.Y;
+            var cropped = new byte[croppedWidth * croppedHeight * 4];
+            for (var row = 0; row < croppedHeight; row++)
+                normalPixels.AsSpan(((tileY * croppedHeight + row) * width + tileX * croppedWidth) * 4, croppedWidth * 4)
+                    .CopyTo(cropped.AsSpan(row * croppedWidth * 4));
+            normalPixels = cropped; width = croppedWidth; height = croppedHeight;
         }
         for (var i = 0; i < ambientWidth * ambientHeight; i++)
         {
@@ -151,7 +181,8 @@ public static class SwShMaterialBaker
             for (var index = 3; index < colorPixels.Length; index += 4) colorPixels[index] = 255;
         var color = container.EncodeMipImages(SwShTextureFiltering.Mips(colorPixels, colorWidth, colorHeight, container.MipCount, container.Srgb, sharpen: true), cancellationToken);
         return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken),
-            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts);
+            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts)
+            { NormalUvScale = normalScale };
     }
 
     public static byte[] Icon(byte[] sourceTexture, byte[] targetTemplate, CancellationToken cancellationToken = default)

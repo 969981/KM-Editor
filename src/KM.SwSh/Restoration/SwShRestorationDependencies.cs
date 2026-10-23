@@ -2,15 +2,16 @@
 using System.Buffers.Binary;
 using KM.Core.Projects;
 using KM.Formats.SwSh;
+using KM.SwSh.Pokemon;
 
 namespace KM.SwSh.Restoration;
 
 /// <summary>Suspends default gameplay links while another restored identity is absent.</summary>
 internal static class SwShRestorationDependencies
 {
-    internal static HashSet<int> Enabled(SwShRestorationState state) => state.Selections.Where(s => s.Enabled)
-        .SelectMany(s => SwShRestorationDefinitions.Get(s.DefinitionId).Identities).Select(i => i.Species).ToHashSet();
-    private static readonly HashSet<int> Restorable = SwShRestorationDefinitions.All.SelectMany(d => d.Identities).Select(i => i.Species).ToHashSet();
+    internal static HashSet<SwShPokemonIdentity> Enabled(SwShRestorationState state) => state.Selections.Where(s => s.Enabled)
+        .SelectMany(s => SwShRestorationDefinitions.Get(s.DefinitionId).Identities).ToHashSet();
+    private static readonly HashSet<SwShPokemonIdentity> Restorable = SwShRestorationDefinitions.All.SelectMany(d => d.Identities).ToHashSet();
 
     internal static IReadOnlyDictionary<string, byte[]> Reconcile(ProjectPaths paths, SwShRestorationState before,
         SwShRestorationState after, Func<string, byte[]?> read)
@@ -24,10 +25,10 @@ internal static class SwShRestorationDependencies
             {
                 var source = result.GetValueOrDefault(item.Path) ?? read(item.Path)
                     ?? throw new InvalidDataException("Restored gameplay dependency source is missing.");
-                var species = SwShRestorationDefinitions.Get(selection.DefinitionId).Identities.Single().Species;
-                var offset = item.Writer == SwShRestorationWriter.Personal ? species * SwShPersonalTable.RecordSize : 0;
+                var identity = SwShRestorationDefinitions.Get(selection.DefinitionId).Identities.Single();
+                var offset = item.Writer == SwShRestorationWriter.Personal ? SwShRestorationForms.PersonalRow(identity) * SwShPersonalTable.RecordSize : 0;
                 var current = source.AsSpan(offset, item.After.Length).ToArray();
-                var expected = oldEnabled.Contains(species) ? Resolve(item, oldEnabled) : item.After;
+                var expected = oldEnabled.Contains(identity) ? Resolve(item, oldEnabled) : item.After;
                 var desired = Resolve(item, enabled);
                 foreach (var (at, size) in Fields(item))
                     if (current.AsSpan(at, size).SequenceEqual(expected.AsSpan(at, size))
@@ -45,6 +46,14 @@ internal static class SwShRestorationDependencies
     {
         if (!IsDependency(original) || captured.After.Length != original.After.Length) return captured;
         var expected = Resolve(original, Enabled(state)); var result = captured.After.ToArray();
+        if (original.Writer == SwShRestorationWriter.Personal
+            && int.TryParse(original.Key, out var row)
+            && SwShRestorationForms.EnabledForms(state).Where(i => i.Species == row).ToArray() is { Length: > 0 } forms)
+        {
+            var first = forms.Select(i => SwShRestorationForms.PersonalRow(i) - i.Form + 1).Distinct().Single();
+            if (BinaryPrimitives.ReadUInt16LittleEndian(result.AsSpan(30)) == first && result[32] == forms.Max(i => i.Form) + 1)
+                original.After.AsSpan(30, 3).CopyTo(result.AsSpan(30));
+        }
         foreach (var (at, size) in Fields(original))
             if (!expected.AsSpan(at, size).SequenceEqual(original.After.AsSpan(at, size))
                 && result.AsSpan(at, size).SequenceEqual(expected.AsSpan(at, size)))
@@ -62,14 +71,18 @@ internal static class SwShRestorationDependencies
         if (item.Writer == SwShRestorationWriter.Personal) { yield return (22, 2); yield return (86, 2); }
         else for (var at = 0; at < item.After.Length; at += 8) yield return (at, 8);
     }
-    private static byte[] Resolve(SwShRestorationContribution item, IReadOnlySet<int> enabled)
+    private static byte[] Resolve(SwShRestorationContribution item, IReadOnlySet<SwShPokemonIdentity> enabled)
     {
         var bytes = item.After.ToArray();
         if (item.Writer == SwShRestorationWriter.Personal)
         {
             if (bytes.Length != SwShPersonalTable.RecordSize) throw new InvalidDataException("Restored personal dependency length is invalid.");
             var hatch = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(86));
-            if (Restorable.Contains(hatch) && !enabled.Contains(hatch))
+            var localForm = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(88));
+            var regional = (BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(90)) & 1) != 0;
+            var everstoneForm = regional ? BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(94)) : localForm;
+            bool Missing(int form) => Restorable.Contains(new(hatch, form)) && !enabled.Contains(new(hatch, form));
+            if (Missing(localForm) || Missing(everstoneForm))
             { bytes[22] = 15; bytes[23] = 15; bytes.AsSpan(86, 2).Clear(); }
         }
         else
@@ -78,7 +91,8 @@ internal static class SwShRestorationDependencies
             for (var at = 0; at < bytes.Length; at += 8)
             {
                 var destination = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(at + 4));
-                if (Restorable.Contains(destination) && !enabled.Contains(destination)) bytes.AsSpan(at, 8).Clear();
+                var identity = new SwShPokemonIdentity(destination, bytes[at + 6]);
+                if (Restorable.Contains(identity) && !enabled.Contains(identity)) bytes.AsSpan(at, 8).Clear();
             }
         }
         return bytes;

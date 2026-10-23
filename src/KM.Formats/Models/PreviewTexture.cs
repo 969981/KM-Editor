@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 using System.Buffers.Binary;
+using BCnEncoder.Decoder;
+using BCnEncoder.Shared;
 
 namespace KM.Formats.Models;
 
@@ -98,6 +100,37 @@ public sealed record PreviewTexture(int Width, int Height, uint Format, byte[] B
         {
             for (var i = 0; i < result.Length; i += 4) (result[i], result[i + 2]) = (result[i + 2], result[i]);
             format -= 0x100;
+        }
+        var channels = data.U32(info + 88);
+        if (channels != 0x05040302)
+        {
+            if ((long)width * height > 4 * 1024 * 1024
+                || Enumerable.Range(0, 4).Any(c => (channels >> (c * 8) & 255) > 5))
+                throw new InvalidDataException("Texture channel mapping is unsupported.");
+            // Compressed storage channels and sampled color channels can differ.
+            // Resolve the declared mapping before baking or uploading the preview.
+            var compression = format switch
+            {
+                0x0b01 or 0x0b06 => CompressionFormat.Rgba,
+                0x1a01 or 0x1a06 => CompressionFormat.Bc1WithAlpha,
+                0x1b01 or 0x1b06 => CompressionFormat.Bc2,
+                0x1c01 or 0x1c06 => CompressionFormat.Bc3,
+                0x1d01 => CompressionFormat.Bc4,
+                0x1e01 => CompressionFormat.Bc5,
+                0x2001 or 0x2006 => CompressionFormat.Bc7,
+                _ => throw new InvalidDataException("Mapped texture compression is unsupported.")
+            };
+            var pixels = compression == CompressionFormat.Rgba
+                ? Enumerable.Range(0, width * height).Select(i => new ColorRgba32(result[i * 4], result[i * 4 + 1], result[i * 4 + 2], result[i * 4 + 3])).ToArray()
+                : new BcDecoder().DecodeRaw(result, width, height, compression);
+            result = new byte[checked(width * height * 4)];
+            for (var i = 0; i < pixels.Length; i++) for (var c = 0; c < 4; c++)
+                result[i * 4 + c] = (channels >> (c * 8) & 255) switch
+                {
+                    0 => 0, 1 => 255, 2 => pixels[i].r, 3 => pixels[i].g, 4 => pixels[i].b, 5 => pixels[i].a,
+                    _ => throw new InvalidDataException("Texture channel selector is unsupported.")
+                };
+            format = 0x0b00 | (format & 255);
         }
         return new PreviewTexture(width, height, format, result);
     }

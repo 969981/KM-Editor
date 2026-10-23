@@ -13,7 +13,7 @@ public static class SvRestorationVoiceGraph
     public static IReadOnlyDictionary<string, uint> Resolve(SoundBankDocument bank, int species, int form = 0)
         => ResolvePlayback(bank, species, form).ToDictionary(p => p.Key, p => p.Value.MediaId, StringComparer.Ordinal);
 
-    public static IReadOnlyDictionary<string, SvRestorationVoice> ResolvePlayback(SoundBankDocument bank, int species, int form = 0)
+    public static IReadOnlyDictionary<string, SvRestorationVoice> ResolvePlayback(SoundBankDocument bank, int species, int form = 0, bool requireSharedForm = false)
     {
         if (bank.Version != 140 || species is < 1 or > 1025 || form is < 0 or > 99)
             throw new InvalidDataException("S/V voice bank version or identity is unsupported.");
@@ -44,6 +44,7 @@ public static class SvRestorationVoiceGraph
         var gain = choice.Gain;
         if (choice.Group == SwShVoiceWriter.Hash("FORM"))
         {
+            if (requireSharedForm) throw new InvalidDataException("S/V voice source no longer has the declared shared form graph.");
             if (!choice.States.TryGetValue(SwShVoiceWriter.Hash($"FORM{form:00}"), out var children) || children.Length != 1)
                 throw new InvalidDataException("S/V voice form requires another conversion adapter.");
             choice = Switch(Object(6, children[0]).Payload);

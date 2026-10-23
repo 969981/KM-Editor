@@ -154,7 +154,7 @@ internal static class SoundStudioBridge
                     foreach (var identity in SwShRestorationDefinitions.Get(selection.DefinitionId).Identities)
                         foreach (var voice in SwShVoiceWriter.States)
                         {
-                            var id = SwShVoiceWriter.MediaId(identity.Species, voice);
+                            var id = SwShVoiceWriter.MediaId(identity.Species, voice, identity.Form);
                             if (keys.Contains("media:" + id.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                                 restoredVoices.TryAdd(id, (identity.Species, voice));
                         }

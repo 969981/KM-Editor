@@ -88,6 +88,8 @@ pub struct SurfaceInfo {
     pub wraps: Vec<[f32; 4]>,
     #[serde(default, rename = "tintSubsurfaceByBaseColor")]
     pub tint_subsurface_by_base_color: bool,
+    #[serde(default, rename = "layerEmission")]
+    pub layer_emission: bool,
     #[serde(default)]
     pub effect: u32,
     #[serde(default, rename = "effectLink")]
@@ -157,6 +159,7 @@ impl Rig {
                     "UVScaleOffset1" if values.len() >= 44 => 40,
                     "UnderlayUV" if values.len() >= 60 => 48,
                     "MaskUV" if values.len() >= 36 => 32,
+                    "LayerEmission" if values.len() >= 120 && self.meshes[index].surface.as_ref().is_some_and(|s| s.layer_emission) => 116,
                     "EmissionGain" if values.len() >= 74 => 70,
                     "EmissionScale" if values.len() >= 91 => 87,
                     parameter if self.meshes[index].surface.as_ref().is_some_and(|s| s.effect > 0)

@@ -5,6 +5,7 @@ namespace KM.Formats.Models;
 /// <summary>Declared surface properties evaluated under the preview's studio lighting.</summary>
 public sealed record PreviewSurface(float[][] Values, int[] Textures, float[][] Wraps)
 {
+    public bool LayerEmission { get; init; }
     public bool TintSubsurfaceByBaseColor { get; init; }
     public int Effect { get; init; }
     public int EffectLink { get; init; }

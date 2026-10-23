@@ -5,7 +5,10 @@ using KM.Formats.Models;
 
 namespace KM.Formats.SwSh;
 
-public sealed record SwShMaterialBinding(string Name, int NativeMaterial, IReadOnlyDictionary<string, string> Textures);
+public sealed record SwShMaterialBinding(string Name, int NativeMaterial, IReadOnlyDictionary<string, string> Textures)
+{
+    public Vector2 NormalUvScale { get; init; } = Vector2.One;
+}
 public sealed record SwShEffectLocator(string Name, string Parent, Vector3 Translation)
 {
     public Quaternion Rotation { get; init; } = Quaternion.Identity;
@@ -153,6 +156,17 @@ public static class SwShModelWriter
 
     private static int Material(ModelTableBuilder writer, ModelBuffer source, int original, SwShMaterialBinding binding, string[] names)
     {
+        if (binding.NormalUvScale.X is not (1 or 2) || binding.NormalUvScale.Y is not (1 or 2))
+            throw new InvalidDataException("Native normal UV scale is unsupported.");
+        if (binding.NormalUvScale != Vector2.One)
+        {
+            var parameters = source.Tables(original, 13, 256).Select(parameter => source.Text(parameter, 0)).ToHashSet();
+            var normal = source.Tables(original, 11, 64).Single(texture => source.Text(texture, 0) == "NormalMapTex");
+            var sampler = source.Table(normal, 2);
+            if (!parameters.Contains("NormalMapUVScaleU") || !parameters.Contains("NormalMapUVScaleV")
+                || source.Value(sampler, 1) is not (0 or 2) || source.Value(sampler, 2) is not (0 or 2))
+                throw new InvalidDataException("Native normal texture cropping requires a supported scaled sampler.");
+        }
         var scalarFields = Enumerable.Range(2, 9).Concat(Enumerable.Range(15, 5)).ToArray();
         int Width(int field) => field is 3 or 4 or >= 15 ? 1 : 4;
         var missing = scalarFields.Where(f => source.Field(original, f) == 0).ToHashSet();
@@ -167,6 +181,8 @@ public static class SwShModelWriter
                 var at = source.Field(entries[i], 1); var name = source.Text(entries[i], 0) ?? throw new InvalidDataException("Native material parameter is unnamed.");
                 var value = at == 0 ? new byte[width] : source.Slice(at, width).ToArray();
                 if (width == 4 && name is "ColorUVScaleU" or "ColorUVScaleV" or "NormalMapUVScaleU" or "NormalMapUVScaleV") value = ModelTableBuilder.Floats(1);
+                if (width == 4 && name == "NormalMapUVScaleU") value = ModelTableBuilder.Floats(binding.NormalUvScale.X);
+                if (width == 4 && name == "NormalMapUVScaleV") value = ModelTableBuilder.Floats(binding.NormalUvScale.Y);
                 if (width == 4 && name is "ColorBaseU" or "ColorBaseV" or "ColorUVTranslateU" or "ColorUVTranslateV") value = ModelTableBuilder.Floats(0);
                 var item = writer.Table(2, new Dictionary<int, byte[]> { [1] = value }, new Dictionary<int, int> { [1] = Math.Max(4, width) });
                 writer.Pointer(slots[i], item); writer.Text(item, 0, name);
@@ -185,8 +201,12 @@ public static class SwShModelWriter
             writer.Pointer(textureSlots[i], texture); writer.Text(texture, 0, role);
             var sampler = source.Table(textures[i], 2);
             var absent = Enumerable.Range(0, 9).Where(f => source.Field(sampler, f) == 0).ToHashSet();
-            writer.Reference(texture, 2, writer.Table(9, Enumerable.Range(0, 9).Where(f => !absent.Contains(f))
-                .ToDictionary(f => f, f => source.Slice(source.Field(sampler, f), 4).ToArray()), absent: absent));
+            var samplerValues = Enumerable.Range(0, 9).Where(f => !absent.Contains(f))
+                .ToDictionary(f => f, f => source.Slice(source.Field(sampler, f), 4).ToArray());
+            if (role == "NormalMapTex")
+                foreach (var axis in new[] { (Field: 1, Scale: binding.NormalUvScale.X), (Field: 2, Scale: binding.NormalUvScale.Y) })
+                    if (axis.Scale != 1) { absent.Remove(axis.Field); samplerValues[axis.Field] = ModelTableBuilder.Integer(0); }
+            writer.Reference(texture, 2, writer.Table(9, samplerValues, absent: absent));
         }
         return table;
     }

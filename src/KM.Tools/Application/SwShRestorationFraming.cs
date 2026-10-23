@@ -7,6 +7,17 @@ namespace KM.Tools.Application;
 
 internal static class SwShRestorationFraming
 {
+    internal static void SetGiantVerticalOffset(byte[] giantConfiguration, float offset)
+    {
+        var giant = new ModelBuffer(giantConfiguration);
+        var offsetAt = giant.Field(giant.Root, 8);
+        if (!float.IsFinite(offset) || (offsetAt == 0 && offset != 0))
+            throw new InvalidDataException("Giant vertical placement configuration is invalid.");
+        // Floating native actors can carry an offset that is inappropriate for the imported rig.
+        if (offsetAt != 0)
+            System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(giantConfiguration.AsSpan(offsetAt, 4), offset);
+    }
+
     internal static void SetGiantScale(byte[] giantConfiguration, float scale)
     {
         var giant = new ModelBuffer(giantConfiguration);

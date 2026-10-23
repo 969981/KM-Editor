@@ -150,6 +150,15 @@ public sealed class SwShRestorationService
             if (outputs.TryGetValue(path, out var value)) return value;
             return ReadEffective(paths, path, sources);
         }
+        var hasForms = SwShRestorationForms.EnabledForms(snapshot.State).Any()
+            || edits.Any(e => SwShRestorationDefinitions.Get(Parse(e).DefinitionId).Identities.Any(i => i.Form != 0));
+        if (hasForms)
+        {
+            sources.Add(new(ProjectFileLayer.Base, SwShRestorationComposer.PersonalPath));
+            var nativePersonal = BoundedRead(Path.Combine(paths.BaseRomFsPath, SwShRestorationComposer.PersonalPath[6..]));
+            outputs[SwShRestorationComposer.PersonalPath] = SwShRestorationForms.NormalizeHeaders(nativePersonal,
+                Current(SwShRestorationComposer.PersonalPath) ?? throw new InvalidDataException("Personal data is missing."), snapshot.State);
+        }
         foreach (var edit in edits.OrderBy(e => e.RecordId, StringComparer.Ordinal))
         {
             var intent = Parse(edit);
@@ -209,7 +218,18 @@ public sealed class SwShRestorationService
                 if (!nativeFallback && (installed is null || !owned.Contains(item.Path)))
                     throw new InvalidDataException($"Restoration cannot replace or remove an externally supplied file: {item.Path}.");
             }
-            var composition = SwShRestorationComposer.Compose(effective.Contributions, Current, intent.Enabled,
+            // A camp common member is shared by a species and its forms. Keep it
+            // while another installed identity still owns the identical member.
+            var contributions = effective.Contributions;
+            if (!intent.Enabled)
+            {
+                var otherCommon = selections.Values.Where(s => s.Enabled && s.DefinitionId != intent.DefinitionId)
+                    .SelectMany(s => SwShRestorationStateStore.ReadPrepared(paths, s.CustomizationHash ?? s.PreparedHash).Contributions)
+                    .Where(c => c.Writer == SwShRestorationWriter.Camp && c.Key.Contains("/common/", StringComparison.Ordinal))
+                    .Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
+                contributions = contributions.Where(c => c.Writer != SwShRestorationWriter.Camp || !otherCommon.Contains(c.Key)).ToArray();
+            }
+            var composition = SwShRestorationComposer.Compose(contributions, Current, intent.Enabled,
                 allowOwnedCustomizations: installed?.Enabled == true, ownedPaths: owned);
             foreach (var file in composition.Files) outputs[file.Key] = file.Value;
             if (installed?.Enabled == true && defaultUpdates.Length > 0)
@@ -235,6 +255,8 @@ public sealed class SwShRestorationService
         }
         var state = new SwShRestorationState(1, selections.Values.OrderBy(s => s.DefinitionId, StringComparer.Ordinal).ToArray());
         foreach (var file in SwShRestorationDependencies.Reconcile(paths, snapshot.State, state, Current)) outputs[file.Key] = file.Value;
+        if (hasForms) outputs[SwShRestorationComposer.PersonalPath] = SwShRestorationForms.ApplyHeaders(
+            Current(SwShRestorationComposer.PersonalPath)!, SwShRestorationForms.EnabledForms(state));
         if (needsSoundMemory) AddSoundMemory(paths, outputs, sources);
         var storedState = SwShRestorationStateStore.Store(paths, state); using (storedState.Lease) { }
         if (!outputs.ContainsKey(SwShRestorationComposer.PersonalPath)) outputs.Add(SwShRestorationComposer.PersonalPath, Current(SwShRestorationComposer.PersonalPath)

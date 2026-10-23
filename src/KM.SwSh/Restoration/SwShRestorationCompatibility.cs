@@ -9,9 +9,9 @@ namespace KM.SwSh.Restoration;
 public static class SwShRestorationCompatibility
 {
     private static readonly IReadOnlyDictionary<int, IReadOnlySet<uint>> VoiceObjects = SwShRestorationDefinitions.All
-        .SelectMany(d => d.Identities).ToDictionary(i => i.Species, i => SwShVoiceWriter.ObjectIds(i.Species));
+        .SelectMany(d => d.Identities).Where(i => i.Form == 0).ToDictionary(i => i.Species, i => SwShVoiceWriter.ObjectIds(i.Species));
     private static readonly IReadOnlyDictionary<int, HashSet<uint>> VoiceMedia = SwShRestorationDefinitions.All
-        .SelectMany(d => d.Identities).ToDictionary(i => i.Species, i => SwShVoiceWriter.States.Select(s => SwShVoiceWriter.MediaId(i.Species, s)).ToHashSet());
+        .SelectMany(d => d.Identities).Where(i => i.Form == 0).ToDictionary(i => i.Species, i => SwShVoiceWriter.States.Select(s => SwShVoiceWriter.MediaId(i.Species, s)).ToHashSet());
     public static SwShRestorationState Normalize(ProjectPaths paths, SwShRestorationState state)
     {
         var legacy = state.Selections.SingleOrDefault(s => s.DefinitionId == SwShRestorationDefinitions.Piplup.Id);

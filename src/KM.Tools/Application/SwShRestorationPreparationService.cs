@@ -5,6 +5,7 @@ using KM.Formats.Models;
 using KM.Formats.SV;
 using KM.Formats.SwSh;
 using KM.SwSh.Restoration;
+using KM.SwSh.Pokemon;
 
 namespace KM.Tools.Application;
 
@@ -26,7 +27,7 @@ public sealed partial class SwShRestorationPreparationService
         if (definition.Donor == SwShRestorationDonor.LegendsZA)
             return new ZaSwShRestorationPreparationService().Prepare(target, donorRomFs, compressionSupport, definitionId, progress, cancellationToken, donorSession);
         if (target.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || string.IsNullOrWhiteSpace(target.BaseRomFsPath)
-            || definition.Identities.Any(i => !Profiles.ContainsKey(i.Species) || i.Form != 0)) throw new InvalidDataException("This restoration is not supported for the selected target.");
+            || definition.Identities.Any(i => !TryProfile(i, out _))) throw new InvalidDataException("This restoration is not supported for the selected target.");
         var context = new Preparation(target, donorRomFs, compressionSupport, definition, progress, cancellationToken, donorSession);
         using (context)
         {
@@ -35,12 +36,12 @@ public sealed partial class SwShRestorationPreparationService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 progress?.Report(new("models", unavailableMoves.Count, definition.Identities.Count) { Species = identity.Species, Activity = "reading" });
-                contributions.AddRange(context.Assets(identity.Species));
+                contributions.AddRange(context.Assets(identity));
                 progress?.Report(new("gameplay", unavailableMoves.Count, definition.Identities.Count) { Species = identity.Species });
-                var gameplay = context.Gameplay(identity.Species); contributions.AddRange(gameplay.Contributions); unavailableMoves.Add(identity.Species, gameplay.ExcludedMoves);
+                var gameplay = context.Gameplay(identity); contributions.AddRange(gameplay.Contributions); unavailableMoves.Add(identity.Species, gameplay.ExcludedMoves);
             }
             progress?.Report(new("voices", definition.Identities.Count, definition.Identities.Count));
-            contributions.AddRange(context.Voices(definition.Identities.Select(i => i.Species).ToArray()));
+            contributions.AddRange(context.Voices(definition.Identities));
             progress?.Report(new("validation", definition.Identities.Count, definition.Identities.Count));
             var prepared = new SwShPreparedRestoration(definition.Id, definition.Version, definition.ConverterVersion, target.SelectedGame.Value,
                 context.Fingerprints.Values.ToArray(), contributions, unavailableMoves) { AssetRevision = definition.AssetRevision };
@@ -60,6 +61,7 @@ public sealed partial class SwShRestorationPreparationService
         private readonly IProgress<SwShRestorationPreparationProgress>? progress;
         private readonly int totalSpecies;
         private int currentSpecies;
+        private SwShPokemonIdentity currentIdentity;
         private void Report(string activity, int completed = 0, int? total = null) => progress?.Report(
             new("models", 0, totalSpecies) { Species = currentSpecies, Activity = activity, CompletedUnits = completed, TotalUnits = total });
         private readonly CancellationToken token;
