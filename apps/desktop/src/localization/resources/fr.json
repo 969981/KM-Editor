@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.heldItems.invalid": "Les valeurs invalides des objets tenus sont affichées comme Aucun. Préparer une modification dans l’éditeur de Pokémon préparera aussi leur correction.",
+    "pokemon.heldItems.repairStaged": "Les corrections des objets tenus invalides ont été préparées avec la valeur Aucun. Vérifiez-les et appliquez-les avec vos modifications de Pokémon.",
+    "pokemon.heldItems.repairFailed": "Les corrections des objets tenus n’ont pas pu être préparées. Actualisez les données Pokémon et réessayez.",
+    "diagnostics.condition.responseContractInvalid": "L’éditeur a reçu des données dans un format inattendu. Actualisez l’éditeur et réessayez.",
     "moves.swshStats.help": "Pour ajouter une hausse de toutes les stats à une capacité offensive, choisis Dégâts + hausse de stat du lanceur comme type d'effet, puis Toutes les stats, +1 niveau et la probabilité souhaitée dans le premier emplacement. Cela modifie l'Attaque, la Défense, l'Attaque Spéciale, la Défense Spéciale et la Vitesse. L'option selon la capacité conserve l'effet scripté d'origine. Les conditions normales de la capacité restent applicables.",
     "welcome.start.pla": "Dans la configuration du projet, choisissez les dossiers Base RomFS et Base ExeFS correspondants de Legends Arceus 1.1.1. Les éditeurs d’archives et la préparation du modèle sélectionné nécessitent aussi le dossier de prise en charge de la compression PLA.",
     "pla.help.mastery": "Niveau auquel cette capacité peut utiliser les styles Rapide et Puissant. 0 désactive la maîtrise automatique ; sinon, le niveau doit être au moins égal au niveau d’apprentissage.",

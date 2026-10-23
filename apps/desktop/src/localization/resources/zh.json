@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.heldItems.invalid": "无效的携带道具值会显示为“无”。在宝可梦编辑器中暂存更改时，也会暂存这些值的修正。",
+    "pokemon.heldItems.repairStaged": "已将无效携带道具值修正为“无”并暂存。请与宝可梦更改一起审核并应用。",
+    "pokemon.heldItems.repairFailed": "无法暂存携带道具修正。请刷新宝可梦数据后重试。",
+    "diagnostics.condition.responseContractInvalid": "编辑器收到的数据格式不符合预期。请刷新编辑器后重试。",
     "moves.swshStats.help": "要为造成伤害的招式添加全能力提升，请将效果类型设为“伤害 + 提高使用者能力”，并将第一个能力变化栏设为“所有能力值”、+1 级和所需概率。这会改变攻击、防御、特攻、特防和速度。“招式专用”选项保留原有的脚本效果。招式原本的生效条件仍然适用。",
     "welcome.start.pla": "在项目设置中选择配套的 Legends Arceus 1.1.1 Base RomFS 和 Base ExeFS 文件夹。档案编辑器和所选模型的准备还需要 PLA 压缩支持文件夹。",
     "pla.help.mastery": "此招式可以使用迅疾和刚猛的等级。0 表示不会自动精通；其他值必须不低于习得等级。",

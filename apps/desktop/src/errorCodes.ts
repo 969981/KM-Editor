@@ -16,6 +16,9 @@ export const kmErrorCodeSchema = z
   );
 
 export const projectBridgeErrorCodes = {
+  pokemonHeldItemsInvalid: "KM-SWSH-POKEMON-HELD-ITEMS-INVALID",
+  pokemonHeldItemsRepairStaged: "KM-SWSH-POKEMON-HELD-ITEMS-REPAIR-STAGED",
+  pokemonHeldItemsRepairFailed: "KM-SWSH-POKEMON-HELD-ITEMS-REPAIR-FAILED",
   plaInvalidData: "KM-PLA-INVALID-DATA",
   plaStaleReview: "KM-PLA-STALE-REVIEW",
   plaApplyFailed: "KM-PLA-APPLY-FAILED",

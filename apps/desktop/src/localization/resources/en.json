@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.heldItems.invalid": "Invalid held item values are shown as None. Staging a change in the Pokemon editor will also stage their correction.",
+    "pokemon.heldItems.repairStaged": "Corrections to invalid held item values have been staged as None. Review and apply them with your Pokemon edits.",
+    "pokemon.heldItems.repairFailed": "Held item corrections could not be staged. Refresh Pokemon data and try again.",
+    "diagnostics.condition.responseContractInvalid": "The editor received data in an unexpected format. Refresh the editor and try again.",
     "moves.swshStats.help": "To add an omniboost to a damaging move, set Effect quality to Damage + User Stat Raise and the first stat slot to All Stats, +1 stage, and your desired chance. This changes Attack, Defense, Sp. Atk, Sp. Def, and Speed. The move specific option retains the original scripted effect. Normal move conditions still apply.",
     "welcome.start.pla": "In Project Setup, choose matching Legends Arceus 1.1.1 Base RomFS and Base ExeFS folders. Archive editors and selected model preparation also need the PLA compression support folder.",
     "pla.help.mastery": "The level at which this move can use Agile Style and Strong Style. Use 0 for no automatic mastery; otherwise use a level at least as high as the learn level.",

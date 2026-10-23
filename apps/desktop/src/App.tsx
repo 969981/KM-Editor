@@ -15750,6 +15750,7 @@ export function App({
       const response = await runEditSessionMutation(
         async (session) => {
           const updateResponse = await bridge.updatePokemonField({
+            repairInvalidHeldItems: true,
             field,
             paths: createProjectPaths(draftPaths),
             personalId,
@@ -15834,6 +15835,7 @@ export function App({
           const originalSession = session;
           const originalWorkflow = pokemonWorkflow;
           const updateResponse = await bridge.updatePokemonComposite({
+            repairInvalidHeldItems: true,
             evolutionUpdates: evolutionChanges.map((change) => ({
               ...change,
               personalId
@@ -16145,6 +16147,7 @@ export function App({
       const response = await runEditSessionMutation(
         async (session) => {
           const updateResponse = await bridge.updatePokemonLearnset({
+            repairInvalidHeldItems: true,
             action,
             level,
             moveId,
@@ -16199,6 +16202,7 @@ export function App({
       const response = await runEditSessionMutation(
         async (session) => {
           const updateResponse = await bridge.updatePokemonEvolution({
+            repairInvalidHeldItems: true,
             action,
             argument,
             form,
