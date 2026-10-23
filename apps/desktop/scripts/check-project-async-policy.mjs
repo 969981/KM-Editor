@@ -18,27 +18,6 @@ import {
   runOrderedProjectOperation,
   stableProjectQueryKey
 } from '../src/utils/projectAsyncPolicy.ts';
-const preparationSource = readFileSync(
-  new URL('../src/features/workbench/analysisPreparation.ts', import.meta.url),
-  'utf8'
-).replace(
-  "'../../utils/projectAsyncPolicy'",
-  `'${new URL('../src/utils/projectAsyncPolicy.ts', import.meta.url).href}'`
-);
-const preparationModule = await import(`data:text/javascript;base64,${Buffer.from(
-  ts.transpileModule(preparationSource, {
-    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 }
-  }).outputText
-).toString('base64')}`);
-const {
-  analysisToolIds,
-  createAnalysisPreparationProgress,
-  createAnalysisPreparationSnapshot,
-  emptyAnalysisPreparationProgress,
-  mergeAnalysisPreparationProgress,
-  nextAnalysisPreloadTools,
-  resolveAnalysisPreparationScopeState
-} = preparationModule;
 const gameScopedBridgeSource = readFileSync(
   new URL('../src/bridge/gameScopedProjectBridge.ts', import.meta.url),
   'utf8'
@@ -412,88 +391,6 @@ function checkStableIdentityAndProgress() {
   );
 }
 
-function checkPreparationModesAndMonotonicity() {
-  const waitingStates = Object.fromEntries([
-    'semanticProject',
-    ...analysisToolIds
-  ].map((system) => [system, 'waiting']));
-  const readySemanticStates = { ...waitingStates, semanticProject: 'ready' };
-  assert.deepEqual(
-    nextAnalysisPreloadTools({
-      deferBackgroundWork: false,
-      mode: 'minimal',
-      preloadTools: [],
-      semanticState: 'ready',
-      states: readySemanticStates
-    }),
-    [],
-    'Minimal mode must retain on-demand admission.'
-  );
-  assert.deepEqual(
-    nextAnalysisPreloadTools({
-      deferBackgroundWork: false,
-      mode: 'balanced',
-      preloadTools: [],
-      semanticState: 'ready',
-      states: readySemanticStates
-    }),
-    ['balanceLab'],
-    'Balanced mode must admit one real tool at a time.'
-  );
-  assert.deepEqual(
-    nextAnalysisPreloadTools({
-      deferBackgroundWork: false,
-      mode: 'performance',
-      preloadTools: [],
-      semanticState: 'ready',
-      states: readySemanticStates
-    }),
-    analysisToolIds,
-    'Performance mode must admit all independent tools together.'
-  );
-  assert.deepEqual(
-    nextAnalysisPreloadTools({
-      deferBackgroundWork: true,
-      mode: 'balanced',
-      preloadTools: [],
-      semanticState: 'ready',
-      states: readySemanticStates
-    }),
-    [],
-    'Balanced mode must defer background work while interactive work owns the host.'
-  );
-
-  const completed = createAnalysisPreparationProgress('researchLab', 'ready');
-  assert.deepEqual(
-    mergeAnalysisPreparationProgress(
-      completed,
-      createAnalysisPreparationProgress('researchLab', 'loading', 0)
-    ),
-    completed,
-    'A remount must not make completed measured work look like it restarted.'
-  );
-  const almostReady = emptyAnalysisPreparationProgress();
-  for (const system of ['semanticProject', ...analysisToolIds]) {
-    almostReady[system] = createAnalysisPreparationProgress(system, 'ready');
-  }
-  almostReady.researchLab = createAnalysisPreparationProgress('researchLab', 'loading', 1);
-  const incomplete = createAnalysisPreparationSnapshot({
-    mode: 'performance',
-    progressBySystem: almostReady
-  });
-  assert.equal(incomplete.percent, 87);
-  assert.ok(incomplete.percent < 100, 'Incomplete real units must never report 100 percent.');
-  const resetScope = resolveAnalysisPreparationScopeState(
-    { preloadTools: analysisToolIds, progressBySystem: almostReady, scopeKey: 'old' },
-    {
-      scopeKey: 'new',
-      semanticProgress: createAnalysisPreparationProgress('semanticProject', 'loading')
-    }
-  );
-  assert.equal(resetScope.scopeKey, 'new');
-  assert.deepEqual(resetScope.preloadTools, []);
-}
-
 function checkOperationPolicy() {
   const expectedOperations = [
     'closeResearchSource',
@@ -540,7 +437,6 @@ checkFreshness();
 await checkDeferredCleanup();
 await checkSerialAdmission();
 checkStableIdentityAndProgress();
-checkPreparationModesAndMonotonicity();
 checkOperationPolicy();
 
 console.log('Project async policy contract passed.');

@@ -1280,15 +1280,6 @@ function checkStaticWiringContract() {
     'Battle Cafe item search must retain its localized no-results feedback.'
   );
 
-  const semanticExploreSource = read(
-    'src/features/semantic-explore/SemanticExploreSection.tsx'
-  );
-  assert.match(
-    semanticExploreSource,
-    /const resolvedTo = layers\.includes\(to\)[\s\S]*?data-km-source-site="semantic-explore-changes-to"\s*disabled=\{resolvedTo === ''\}\s*id="semantic-explore-changes-to"[\s\S]*?value=\{resolvedTo\}/u,
-    'Semantic Changes must show a disabled blank destination instead of a stale unavailable layer.'
-  );
-
   const localValidationPublisher = getFunctionLike(
     appSource,
     'PublishedLocalEditorValidationDiagnostics'

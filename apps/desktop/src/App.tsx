@@ -627,23 +627,10 @@ import {
 import { TrinityOutputConfirmationModal } from './features/trinity-output/TrinityOutputConfirmationModal';
 import { WorkflowsSection } from './features/workflows/WorkflowsSection';
 import {
-  WorkbenchSection as WorkbenchHomeSection,
-  type WorkbenchToolId
+  WorkbenchSection as WorkbenchHomeSection
 } from './features/workbench/WorkbenchSection';
+import { observeOutputRecoveryRevision, type ObservedOutputRecoveryRevision } from './workbench/outputRecoveryRevision';
 import { ModelResolutionSettings } from './features/model-viewer/ModelResolutionSettings';
-import { AnalysisLoadingSettings } from './features/workbench/AnalysisLoadingSettings';
-import { AnalysisPreparationPanel } from './features/workbench/AnalysisPreparationPanel';
-import {
-  createAnalysisPreparationProgress,
-  observeOutputRecoveryRevision,
-  preparationProgressFromQueryStatuses,
-  readAnalysisLoadingMode,
-  writeAnalysisLoadingMode,
-  type AnalysisLoadingMode,
-  type AnalysisPreparationProgress,
-  type ObservedOutputRecoveryRevision
-} from './features/workbench/analysisPreparation';
-import { useAnalysisPreparation } from './features/workbench/useAnalysisPreparation';
 import {
   CommandPalette
 } from './features/workbench/CommandPalette';
@@ -655,7 +642,6 @@ import {
 } from './features/workbench/AdaptiveInspector';
 import { CapabilityDiscoveryDialog } from './features/workbench/CapabilityDiscoveryDialog';
 import { OutputProfileSwitchDialog } from './features/workbench/OutputProfileSwitchDialog';
-import { SemanticExploreSection } from './features/semantic-explore/SemanticExploreSection';
 import {
   isPassiveSemanticInspectorRecordEligible,
   useSemanticInspectorTabs
@@ -664,10 +650,6 @@ import {
   useSemanticExploreController,
   type QueryableLayer
 } from './features/semantic-explore/useSemanticExploreController';
-import { BalanceLabRuntime } from './features/balance-lab/BalanceLabRuntime';
-import type { BalanceLabLayer } from './features/balance-lab/useBalanceLabController';
-import { GuidedDesignRuntime } from './features/guided-design/GuidedDesignRuntime';
-import { SemanticMergeRuntime } from './features/semantic-merge/SemanticMergeRuntime';
 import { ChangeSetWorkspacePanel } from './features/change-sets/ChangeSetWorkspacePanel';
 import { useChangeSetWorkspaceController } from './features/change-sets/useChangeSetWorkspaceController';
 import {
@@ -704,14 +686,11 @@ import {
 } from './workbench/semanticContracts';
 import { createSemanticExploreLocation } from './workbench/semanticExploreNavigation';
 import {
-  createBalanceLabLocation,
   parseBalanceLabSlotSubrecord
 } from './workbench/balanceLabNavigation';
 import {
-  createGuidedDesignLocation,
   parseGuidedDesignEvolutionSubrecord
 } from './workbench/guidedDesignNavigation';
-import { createSemanticMergeLocation } from './workbench/semanticMergeNavigation';
 import { DiagnosticNavigationProvider } from './diagnosticActions';
 import { PerformanceDiagnosticsPanel } from './features/settings/PerformanceDiagnosticsPanel';
 import { ProcessMemoryPanel } from './features/settings/ProcessMemoryPanel';
@@ -781,7 +760,6 @@ import {
   type OrdinaryTrainerDraftPayload
 } from './workbench/sessionLocalEditorDraftPayloads';
 import { useProjectSourceRevision } from './workbench/useProjectSourceRevision';
-import { supportsAnalysisTools } from './workbench/analysisGameSupport';
 import { AdvancedAuthoringController } from './authoring/advancedAuthoringController';
 import {
   createItemsAuthoringWorkspace,
@@ -813,7 +791,6 @@ import type {
   CaptureChangeSetSessionResponse,
   ChangeSetMaterialization,
   ChangeSetWorkspaceSnapshot,
-  NamedChangeSet
 } from './bridge/changeSetContracts';
 import {
   workspaceGameDumpDestinationSchema,
@@ -829,8 +806,6 @@ import {
   captureWorkspaceView
 } from './workbench/viewAdapterRegistry';
 
-const GameModulesRuntime = lazy(() => import('./features/game-modules/GameModulesRuntime'));
-const ResearchLabRuntime = lazy(() => import('./features/research-lab/ResearchLabRuntime'));
 const ModelViewerSection = lazy(() => import('./features/model-viewer/ModelViewerSection'));
 const SoundStudioSection = lazy(() => import('./features/sound-studio/SoundStudioSection'));
 
@@ -2867,21 +2842,20 @@ export function App({
   const setWorkflows = useWorkbenchStore((state) => state.setWorkflows);
   const health = projectHealth;
   const selectedGame = draftPaths.selectedGame;
-  const analysisSupported = supportsAnalysisTools(selectedGame);
   const activeProjectId = openProject?.projectId ?? null;
-  // Keep read-only analysis bound to the paths that produced the active health snapshot.
+  // Keep record lookups bound to the paths that produced the active health snapshot.
   // Project Setup drafts are not an active scope until validation accepts them.
-  const analysisProjectPaths = useMemo(
-    () => resolveProjectAnalysisPaths(gameDumpPaths, health),
+  const recordLookupProjectPaths = useMemo(
+    () => resolveRecordLookupPaths(gameDumpPaths, health),
     [gameDumpPaths, health]
   );
-  const analysisProjectPathsRef = useRef(analysisProjectPaths);
-  analysisProjectPathsRef.current = analysisProjectPaths;
-  const analysisBridge = useMemo(
+  const recordLookupProjectPathsRef = useRef(recordLookupProjectPaths);
+  recordLookupProjectPathsRef.current = recordLookupProjectPaths;
+  const recordLookupBridge = useMemo(
     () =>
       createGameScopedProjectBridge(
         unscopedBridge,
-        () => analysisProjectPathsRef.current,
+        () => recordLookupProjectPathsRef.current,
         () => projectScopeGenerationRef.current
       ),
     [unscopedBridge]
@@ -2913,12 +2887,6 @@ export function App({
     isCurrentSvCacheScope && hasSvCacheRequestError;
   const currentSvCacheWarmupError =
     isCurrentSvCacheScope && hasSvCacheWarmupError;
-  const projectSourceRevision = useProjectSourceRevision({
-    bridge: analysisBridge,
-    game: selectedGame,
-    paths: activeProjectId ? analysisProjectPaths : null,
-    projectId: activeProjectId
-  });
   const ordinaryDraftProjectContext = useMemo<OrdinaryDraftProjectContext | null>(
     () =>
       selectedGame && activeProjectId
@@ -2989,70 +2957,59 @@ export function App({
     () => isValidatedOutputSafetyScope(projectScope, health) ? projectScope : null,
     [health, projectScope]
   );
-  const analysisProjectScope = useMemo<OutputSafetyScope | null>(
+  const recordLookupProjectScope = useMemo<OutputSafetyScope | null>(
     () => activeProjectId
       ? {
-          paths: analysisProjectPaths,
+          paths: recordLookupProjectPaths,
           projectId: activeProjectId
         }
       : null,
-    [activeProjectId, analysisProjectPaths]
+    [activeProjectId, recordLookupProjectPaths]
   );
   const outputSafetyScopeRef = useRef(outputSafetyScope);
   outputSafetyScopeRef.current = outputSafetyScope;
-  const semanticExploreScope = useMemo(
-    () =>
-      analysisProjectScope &&
-      selectedGame &&
-      projectSourceRevision.status === 'ready' &&
-      projectSourceRevision.sourceObservationToken
-      ? {
-          ...analysisProjectScope,
-          pendingSession: editSession,
-          sourceObservationToken: projectSourceRevision.sourceObservationToken
-        }
-      : null,
-    [
-      editSession,
-      analysisProjectScope,
-      projectSourceRevision.sourceObservationToken,
-      projectSourceRevision.status,
-      selectedGame
-    ]
-  );
-  const semanticExploreController = useSemanticExploreController({
-    bridge: analysisBridge,
-    scope: semanticExploreScope
-  });
-  const handleBalanceLabStaleRevision = useCallback(() => {
-    semanticExploreController.invalidate();
-    void semanticExploreController.refreshCapabilities();
-  }, [
-    semanticExploreController.invalidate,
-    semanticExploreController.refreshCapabilities
-  ]);
-  const balanceLabRevision =
-    semanticExploreController.capabilities.status === 'ready'
-      ? semanticExploreController.capabilities.data?.revision ?? null
-      : null;
-  const balanceLabAvailableLayers = useMemo<readonly BalanceLabLayer[]>(() => {
-    const available = new Set(
-      semanticExploreController.capabilities.data?.snapshots.map(
-        (snapshot) => snapshot.layer.kind
-      ) ?? []
-    );
-    return (['base', 'layered', 'pending'] as const).filter(
-      (layer): layer is BalanceLabLayer => available.has(layer)
-    );
-  }, [semanticExploreController.capabilities.data?.snapshots]);
-  const semanticExploreIsQueryingRef = useRef(semanticExploreController.isQuerying);
-  semanticExploreIsQueryingRef.current = semanticExploreController.isQuerying;
   const [activeLocation, setActiveLocation] = useState<WorkbenchLocation>(() =>
     createSectionLocation(activeSection, {
       game: selectedGame,
       projectId: activeProjectId
     })
   );
+  const requestedInspectorTab = activeLocation.inspectorTab ?? null;
+  const isSemanticInspectorRequested = Boolean(
+    activeLocation.entity && requestedInspectorTab
+  );
+  const recordLookupRequested = isCommandPaletteOpen || isSemanticInspectorRequested;
+  const projectSourceRevision = useProjectSourceRevision({
+    bridge: recordLookupBridge,
+    enabled: recordLookupRequested,
+    game: selectedGame,
+    paths: activeProjectId ? recordLookupProjectPaths : null,
+    projectId: activeProjectId
+  });
+  const semanticExploreScope = useMemo(
+    () =>
+      recordLookupProjectScope &&
+      selectedGame &&
+      projectSourceRevision.status === 'ready' &&
+      projectSourceRevision.sourceObservationToken
+      ? {
+          ...recordLookupProjectScope,
+          pendingSession: editSession,
+          sourceObservationToken: projectSourceRevision.sourceObservationToken
+        }
+      : null,
+    [
+      editSession,
+      recordLookupProjectScope,
+      projectSourceRevision.sourceObservationToken,
+      projectSourceRevision.status,
+      selectedGame
+    ]
+  );
+  const semanticExploreController = useSemanticExploreController({
+    bridge: recordLookupBridge,
+    scope: semanticExploreScope
+  });
   const [workspaceShellState, setWorkspaceShellState] = useState(() =>
     createWorkspaceShellState(
       createSectionLocation(activeSection, {
@@ -3870,7 +3827,7 @@ export function App({
       outputRecoveryRevision
     );
     observedSemanticOutputRevisionRef.current = observation.next;
-    if (observation.shouldInvalidateAnalysis) {
+    if (observation.shouldInvalidateQueries) {
       semanticExploreController.invalidate();
       projectSourceRevision.refresh();
     }
@@ -3880,7 +3837,7 @@ export function App({
     projectSourceRevision.refresh,
     semanticExploreController.invalidate
   ]);
-  const notifySemanticOutputMutation = useCallback(async () => {
+  const notifyOutputMutation = useCallback(async () => {
     let refreshedRecovery: OutputRecoveryStatus | null = null;
     try {
       refreshedRecovery = await outputSafety.notifyOutputMutation();
@@ -3900,7 +3857,7 @@ export function App({
     projectSourceRevision.refresh,
     semanticExploreController.invalidate
   ]);
-  const notifySemanticOutputFailure = useCallback(async (error: unknown) => {
+  const notifyOutputFailure = useCallback(async (error: unknown) => {
     let refreshedRecovery: OutputRecoveryStatus | null = null;
     try {
       refreshedRecovery = await outputSafety.notifyOutputFailure(error);
@@ -4010,16 +3967,6 @@ export function App({
     projectWorkspaceDocument?.activeOutputProfileId ?? null,
     projectWorkspaceETag
   ]);
-  const guidedDesignAuthoringContextRevision = JSON.stringify([
-    outputProfileBindingRevision,
-    ...(userFacingFeatureVisibility.namedChangeSets
-      ? [
-          changeSetWorkspace.effective?.outputProfileId ?? null,
-          changeSetWorkspace.effective?.outputMode ?? null,
-          changeSetWorkspace.effective?.workspaceFingerprint ?? null
-        ]
-      : [])
-  ]);
   const semanticOutputProfileRevision = projectWorkspaceDocument?.activeOutputProfileId ?? null;
   const observedSemanticOutputProfileRevisionRef = useRef(semanticOutputProfileRevision);
   useEffect(() => {
@@ -4055,9 +4002,6 @@ export function App({
   const [editorLayout, setEditorLayout] = useState<EditorLayoutPreference>(
     readEditorLayoutPreference
   );
-  const [analysisLoadingMode, setAnalysisLoadingMode] = useState<AnalysisLoadingMode>(
-    readAnalysisLoadingMode
-  );
   const [isSidebarOverlayOpen, setIsSidebarOverlayOpen] = useState(false);
   const { groups: personalizedWorkflowGroups } = useEditorCategories();
   const [suppressedActiveWorkflowGroup, setSuppressedActiveWorkflowGroup] = useState<
@@ -4074,61 +4018,6 @@ export function App({
     setEditorLayout(nextLayout);
     writeEditorLayoutPreference(nextLayout);
   }, []);
-  const handleChangeAnalysisLoadingMode = useCallback((nextMode: AnalysisLoadingMode) => {
-    setAnalysisLoadingMode(nextMode);
-    writeAnalysisLoadingMode(nextMode);
-  }, []);
-  const analysisPreparationScopeKey =
-    activeProjectId &&
-    selectedGame &&
-    projectSourceRevision.status === 'ready' &&
-    projectSourceRevision.sourceObservationToken
-      ? `${activeProjectId}:${selectedGame}:${projectSourceRevision.sourceObservationToken}`
-      : null;
-  const semanticPreparationProgress = !activeProjectId || !analysisSupported
-    ? createAnalysisPreparationProgress('semanticProject', 'waiting')
-    : preparationProgressFromQueryStatuses('semanticProject', [
-        projectSourceRevision.status,
-        semanticExploreScope ? semanticExploreController.capabilities.status : 'idle'
-      ]);
-  const analysisPreparation = useAnalysisPreparation({
-    deferBackgroundWork: isBusy || hasCriticalWriteOperation,
-    mode: analysisLoadingMode,
-    scopeKey: analysisPreparationScopeKey,
-    semanticProgress: semanticPreparationProgress
-  });
-  const analysisPreloadTools: readonly WorkbenchToolId[] = analysisPreparation.preloadTools;
-  const reportAnalysisPreparationProgress = analysisPreparation.reportProgress;
-  const handleBalanceLabPreparationState = useCallback(
-    (progress: AnalysisPreparationProgress) => (
-      reportAnalysisPreparationProgress('balanceLab', progress)
-    ),
-    [reportAnalysisPreparationProgress]
-  );
-  const handleGuidedDesignPreparationState = useCallback(
-    (progress: AnalysisPreparationProgress) => (
-      reportAnalysisPreparationProgress('guidedDesign', progress)
-    ),
-    [reportAnalysisPreparationProgress]
-  );
-  const handleSemanticMergePreparationState = useCallback(
-    (progress: AnalysisPreparationProgress) => (
-      reportAnalysisPreparationProgress('semanticMerge', progress)
-    ),
-    [reportAnalysisPreparationProgress]
-  );
-  const handleGameModulesPreparationState = useCallback(
-    (progress: AnalysisPreparationProgress) => (
-      reportAnalysisPreparationProgress('gameModules', progress)
-    ),
-    [reportAnalysisPreparationProgress]
-  );
-  const handleResearchLabPreparationState = useCallback(
-    (progress: AnalysisPreparationProgress) => (
-      reportAnalysisPreparationProgress('researchLab', progress)
-    ),
-    [reportAnalysisPreparationProgress]
-  );
   const handleRememberGameplaySettingsDestination = useCallback(async (target: 'ryujinx' | 'eden', path: string) => {
     const snapshot = await personalWorkspaceRegistry.setGameplaySettingsDestination(target, path);
     setApplicationWorkspaceSnapshot(snapshot);
@@ -4220,8 +4109,6 @@ export function App({
   const supportSearchRunRef = useRef(0);
   const supportSearchOperationRef = useRef<object | null>(null);
   const projectPathPickerOperationRef = useRef<object | null>(null);
-  const semanticExternalPickerOperationRef = useRef<object | null>(null);
-  const researchSourcePickerOperationRef = useRef<object | null>(null);
   const updateCheckRunRef = useRef(0);
   const updateCheckOperationRef = useRef<object | null>(null);
   const sidebarNavigationScrollRef = useRef<HTMLDivElement | null>(null);
@@ -4558,10 +4445,6 @@ export function App({
     (isDirty: boolean) => registerEditorDraftDirty('gameplaySettings', isDirty),
     [registerEditorDraftDirty]
   );
-  const handleResearchLabDirtyChange = useCallback(
-    (isDirty: boolean) => registerEditorDraftDirty('workbench', isDirty),
-    [registerEditorDraftDirty]
-  );
   const handleCameraControlDirtyChange = useCallback(
     (isDirty: boolean) => registerEditorDraftDirty('cameraControl', isDirty),
     [registerEditorDraftDirty]
@@ -4627,7 +4510,7 @@ export function App({
       clearScopedEditorPanelState();
       clearDynamaxAdventurePanelState();
       setBridgeDiagnostics([]);
-      await notifySemanticOutputMutation();
+      await notifyOutputMutation();
     },
     [
       clearDynamaxAdventurePanelState,
@@ -4635,7 +4518,7 @@ export function App({
       clearVisibleChangePlanRefs,
       gameplaySettingsScopeIsCurrent,
       invalidateEditSessionReview,
-      notifySemanticOutputMutation,
+      notifyOutputMutation,
       setApplyResult,
       setBridgeDiagnostics,
       setChangePlan,
@@ -4650,13 +4533,13 @@ export function App({
     ) => {
       if (!gameplaySettingsScopeIsCurrent(scope)) return;
       if (operation === 'apply') {
-        await notifySemanticOutputFailure(error);
+        await notifyOutputFailure(error);
       }
 
     },
     [
       gameplaySettingsScopeIsCurrent,
-      notifySemanticOutputFailure
+      notifyOutputFailure
     ]
   );
   const handleGameplaySettingsRecoveryRequired = useCallback(
@@ -4672,7 +4555,7 @@ export function App({
       clearScopedEditorPanelState();
       clearDynamaxAdventurePanelState();
       setBridgeDiagnostics([]);
-      await notifySemanticOutputFailure(
+      await notifyOutputFailure(
         new Error('Gameplay settings output requires recovery.')
       );
     },
@@ -4682,7 +4565,7 @@ export function App({
       clearVisibleChangePlanRefs,
       gameplaySettingsScopeIsCurrent,
       invalidateEditSessionReview,
-      notifySemanticOutputFailure,
+      notifyOutputFailure,
       setApplyResult,
       setBridgeDiagnostics,
       setChangePlan,
@@ -6012,110 +5895,6 @@ export function App({
     },
     [activeProjectId, handleNavigateWorkspaceTarget, selectedGame, setBridgeDiagnostics, t]
   );
-  const handleNavigateBalanceLabFinding = useCallback(
-    (record: SemanticExploreRecordRef) => {
-      if (!activeProjectId || !selectedGame) {
-        return;
-      }
-      const location = createBalanceLabLocation({
-        game: selectedGame,
-        projectId: activeProjectId,
-        record
-      });
-      if (!location) {
-        setBridgeDiagnostics([
-          {
-            domain: 'workspace.navigation',
-            message: t('workbench.navigation.targetUnavailable'),
-            severity: 'warning'
-          }
-        ]);
-        return;
-      }
-      handleNavigateWorkspaceTarget(location);
-    },
-    [activeProjectId, handleNavigateWorkspaceTarget, selectedGame, setBridgeDiagnostics, t]
-  );
-  const canNavigateGameModuleRecord = useCallback(
-    (record: SemanticExploreRecordRef) => Boolean(
-      activeProjectId &&
-      selectedGame &&
-      createBalanceLabLocation({
-        game: selectedGame,
-        projectId: activeProjectId,
-        record
-      })
-    ),
-    [activeProjectId, selectedGame]
-  );
-  const canNavigateGuidedDesignRecord = useCallback(
-    (record: SemanticExploreRecordRef) => Boolean(
-      activeProjectId &&
-      selectedGame &&
-      createGuidedDesignLocation({
-        game: selectedGame,
-        projectId: activeProjectId,
-        record
-      })
-    ),
-    [activeProjectId, selectedGame]
-  );
-  const handleNavigateGuidedDesignRecord = useCallback(
-    (record: SemanticExploreRecordRef) => {
-      if (!activeProjectId || !selectedGame) {
-        return;
-      }
-      const location = createGuidedDesignLocation({
-        game: selectedGame,
-        projectId: activeProjectId,
-        record
-      });
-      if (!location) {
-        setBridgeDiagnostics([
-          {
-            domain: 'workspace.navigation',
-            message: t('workbench.navigation.targetUnavailable'),
-            severity: 'warning'
-          }
-        ]);
-        return;
-      }
-      handleNavigateWorkspaceTarget(location);
-    },
-    [activeProjectId, handleNavigateWorkspaceTarget, selectedGame, setBridgeDiagnostics, t]
-  );
-  const canNavigateSemanticMergeRecord = useCallback(
-    (record: SemanticExploreRecordRef) => Boolean(
-      activeProjectId &&
-      selectedGame &&
-      createSemanticMergeLocation({
-        game: selectedGame,
-        projectId: activeProjectId,
-        record
-      })
-    ),
-    [activeProjectId, selectedGame]
-  );
-  const handleNavigateSemanticMergeRecord = useCallback(
-    (record: SemanticExploreRecordRef) => {
-      if (!activeProjectId || !selectedGame) return;
-      const location = createSemanticMergeLocation({
-        game: selectedGame,
-        projectId: activeProjectId,
-        record
-      });
-      if (!location) {
-        setBridgeDiagnostics([{
-          domain: 'workspace.navigation',
-          message: t('workbench.navigation.targetUnavailable'),
-          severity: 'warning'
-        }]);
-        return;
-      }
-      handleNavigateWorkspaceTarget(location);
-    },
-    [activeProjectId, handleNavigateWorkspaceTarget, selectedGame, setBridgeDiagnostics, t]
-  );
   const semanticEntitySearch = useCallback<WorkspaceEntityCommandSearch>(
     async (request) => {
       if (!activeProjectId || !selectedGame || !semanticExploreScope) {
@@ -6157,150 +5936,6 @@ export function App({
       semanticExploreScope
     ]
   );
-  const handlePickSemanticExternalMod = useCallback(async () => {
-    if (
-      !desktopServices.isAvailable ||
-      criticalWriteOperationRef.current ||
-      projectScopeTransitionRef.current !== null ||
-      supportSearchOperationRef.current !== null ||
-      changeSetWorkspaceOperationCheckRef.current() ||
-      semanticExternalPickerOperationRef.current !== null ||
-      semanticExploreIsQueryingRef.current
-    ) {
-      return null;
-    }
-    const operation = {};
-    semanticExternalPickerOperationRef.current = operation;
-    const scopeGeneration = projectScopeGenerationRef.current;
-    try {
-      const selectedPath = await desktopServices.pickFolder({
-        title: t('semanticExplore.external.action')
-      });
-      if (
-        semanticExternalPickerOperationRef.current !== operation ||
-        projectScopeGenerationRef.current !== scopeGeneration ||
-        criticalWriteOperationRef.current ||
-        projectScopeTransitionRef.current !== null ||
-        supportSearchOperationRef.current !== null ||
-        changeSetWorkspaceOperationCheckRef.current() ||
-        semanticExploreIsQueryingRef.current
-      ) {
-        return null;
-      }
-      return selectedPath;
-    } catch {
-      if (
-        semanticExternalPickerOperationRef.current !== operation ||
-        projectScopeGenerationRef.current !== scopeGeneration ||
-        criticalWriteOperationRef.current ||
-        projectScopeTransitionRef.current !== null ||
-        supportSearchOperationRef.current !== null ||
-        changeSetWorkspaceOperationCheckRef.current() ||
-        semanticExploreIsQueryingRef.current
-      ) {
-        return null;
-      }
-      setBridgeDiagnostics([
-        {
-          domain: 'desktop',
-          message: t('semanticExplore.query.error.generic'),
-          severity: 'error'
-        }
-      ]);
-      return null;
-    } finally {
-      if (semanticExternalPickerOperationRef.current === operation) {
-        semanticExternalPickerOperationRef.current = null;
-      }
-    }
-  }, [
-    desktopServices,
-    setBridgeDiagnostics,
-    t
-  ]);
-  const handlePickSemanticMergeSource = useCallback(async (slot: 'a' | 'b') => {
-    if (
-      !desktopServices.isAvailable ||
-      criticalWriteOperationRef.current ||
-      projectScopeTransitionRef.current !== null ||
-      supportSearchOperationRef.current !== null ||
-      changeSetWorkspaceOperationCheckRef.current()
-    ) return null;
-    const scopeGeneration = projectScopeGenerationRef.current;
-    try {
-      const selectedPath = await desktopServices.pickFolder({
-        title: t(slot === 'a' ? 'semanticMerge.source.a' : 'semanticMerge.source.b')
-      });
-      if (
-        projectScopeGenerationRef.current !== scopeGeneration ||
-        criticalWriteOperationRef.current ||
-        projectScopeTransitionRef.current !== null ||
-        supportSearchOperationRef.current !== null ||
-        changeSetWorkspaceOperationCheckRef.current()
-      ) return null;
-      return selectedPath;
-    } catch {
-      if (
-        projectScopeGenerationRef.current !== scopeGeneration ||
-        criticalWriteOperationRef.current ||
-        projectScopeTransitionRef.current !== null ||
-        supportSearchOperationRef.current !== null ||
-        changeSetWorkspaceOperationCheckRef.current()
-      ) return null;
-      setBridgeDiagnostics([{
-        domain: 'desktop',
-        message: t('semanticMerge.error.generic'),
-        severity: 'error'
-      }]);
-      return null;
-    }
-  }, [desktopServices, setBridgeDiagnostics, t]);
-  const handlePickResearchSource = useCallback(async (slot: 0 | 1) => {
-    if (
-      !desktopServices.isAvailable ||
-      criticalWriteOperationRef.current ||
-      projectScopeTransitionRef.current !== null ||
-      supportSearchOperationRef.current !== null ||
-      changeSetWorkspaceOperationCheckRef.current() ||
-      researchSourcePickerOperationRef.current !== null
-    ) return null;
-    const operation = {};
-    researchSourcePickerOperationRef.current = operation;
-    const scopeGeneration = projectScopeGenerationRef.current;
-    try {
-      const selectedPath = await desktopServices.pickFolder({
-        title: t(slot === 0 ? 'researchLab.source.a' : 'researchLab.source.b')
-      });
-      if (
-        researchSourcePickerOperationRef.current !== operation ||
-        projectScopeGenerationRef.current !== scopeGeneration ||
-        criticalWriteOperationRef.current ||
-        projectScopeTransitionRef.current !== null ||
-        supportSearchOperationRef.current !== null ||
-        changeSetWorkspaceOperationCheckRef.current()
-      ) return null;
-      return selectedPath;
-    } catch {
-      if (
-        researchSourcePickerOperationRef.current !== operation ||
-        projectScopeGenerationRef.current !== scopeGeneration ||
-        criticalWriteOperationRef.current ||
-        projectScopeTransitionRef.current !== null ||
-        supportSearchOperationRef.current !== null ||
-        changeSetWorkspaceOperationCheckRef.current()
-      ) return null;
-      setBridgeDiagnostics([{
-        domain: 'desktop',
-        message: t('researchLab.error.generic'),
-        severity: 'error'
-      }]);
-      return null;
-    } finally {
-      if (researchSourcePickerOperationRef.current === operation) {
-        researchSourcePickerOperationRef.current = null;
-      }
-    }
-  }, [desktopServices, setBridgeDiagnostics, t]);
   useEffect(() => {
     const handleWorkspaceShortcut = (event: KeyboardEvent) => {
       if (
@@ -6336,10 +5971,6 @@ export function App({
     handleNavigateLocation,
     selectedGame
   });
-
-  const handleOpenGuidedDesignChanges = useCallback(() => {
-    void handleNavigateSection('changes');
-  }, [handleNavigateSection]);
 
   const handleSelectStableLocation = useCallback(
     (
@@ -7497,16 +7128,6 @@ export function App({
     }
   }, [openProject?.projectId, personalProjectTarget, personalWorkspaceRegistry]);
   const inspectorAvailable = activeScopedLocation !== null;
-  const requestedInspectorTab = activeLocation.inspectorTab ?? null;
-  const isSemanticInspectorRequested = Boolean(
-    activeLocation.entity &&
-    (
-      requestedInspectorTab === 'compare' ||
-      requestedInspectorTab === 'references' ||
-      requestedInspectorTab === 'impact' ||
-      requestedInspectorTab === 'provenance'
-    )
-  );
   useEffect(() => {
     if (
       isSemanticInspectorRequested &&
@@ -14029,9 +13650,9 @@ export function App({
         );
       }
       if (response.recoveryRequired) {
-        await notifySemanticOutputFailure(response.applyResult);
+        await notifyOutputFailure(response.applyResult);
       } else if (response.applyResult.writtenFiles.length > 0) {
-        await notifySemanticOutputMutation();
+        await notifyOutputMutation();
       }
       if (applySucceeded && response.applyResult.writtenFiles.length > 0) {
         setWorkProgress(createIndeterminateWorkProgress(
@@ -14043,7 +13664,7 @@ export function App({
         await refreshLoadedWorkflowsAfterApply(paths);
       }
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       setBridgeDiagnostics(toBridgeDiagnostics(error));
     } finally {
       setIsFpsPatchApplying(false);
@@ -14091,9 +13712,9 @@ export function App({
         );
       }
       if (response.recoveryRequired) {
-        await notifySemanticOutputFailure(response.applyResult);
+        await notifyOutputFailure(response.applyResult);
       } else if (response.applyResult.writtenFiles.length > 0) {
-        await notifySemanticOutputMutation();
+        await notifyOutputMutation();
       }
       if (restoreSucceeded && response.applyResult.writtenFiles.length > 0) {
         setWorkProgress(createIndeterminateWorkProgress(
@@ -14105,7 +13726,7 @@ export function App({
         await refreshLoadedWorkflowsAfterApply(paths);
       }
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       setBridgeDiagnostics(toBridgeDiagnostics(error));
     } finally {
       setIsFpsPatchApplying(false);
@@ -14123,12 +13744,12 @@ export function App({
     try {
       const response = await bridge.applyTrainerDynamax(request);
       setApplyResult(response.applyResult);
-      await notifySemanticOutputMutation();
+      await notifyOutputMutation();
       if (!response.applyResult.diagnostics.some(item => item.severity === 'error') && response.applyResult.writtenFiles.length > 0)
         await refreshLoadedWorkflowsAfterApply(createProjectPaths(draftPaths));
       return response;
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       setBridgeDiagnostics(toBridgeDiagnostics(error));
       throw error;
     } finally {
@@ -14187,7 +13808,7 @@ export function App({
       const response = await bridge.applyProfanityFilter({ paths });
       setProfanityFilterStatus(response.status);
       setApplyResult(response.applyResult);
-      await notifySemanticOutputMutation();
+      await notifyOutputMutation();
 
       const hasApplyErrors = response.applyResult.diagnostics.some(
         (diagnostic) => diagnostic.severity === 'error'
@@ -14202,7 +13823,7 @@ export function App({
         await refreshLoadedWorkflowsAfterApply(paths);
       }
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       setBridgeDiagnostics(toBridgeDiagnostics(error));
     } finally {
       setIsProfanityFilterApplying(false);
@@ -14231,7 +13852,7 @@ export function App({
       const response = await bridge.restoreProfanityFilter({ paths });
       setProfanityFilterStatus(response.status);
       setApplyResult(response.applyResult);
-      await notifySemanticOutputMutation();
+      await notifyOutputMutation();
 
       const hasApplyErrors = response.applyResult.diagnostics.some(
         (diagnostic) => diagnostic.severity === 'error'
@@ -14246,7 +13867,7 @@ export function App({
         await refreshLoadedWorkflowsAfterApply(paths);
       }
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       setBridgeDiagnostics(toBridgeDiagnostics(error));
     } finally {
       setIsProfanityFilterApplying(false);
@@ -14301,7 +13922,7 @@ export function App({
         paths
       });
       setApplyResult(response.applyResult);
-      await notifySemanticOutputMutation();
+      await notifyOutputMutation();
 
       const hasApplyErrors = response.applyResult.diagnostics.some(
         (diagnostic) => diagnostic.severity === 'error'
@@ -14328,7 +13949,7 @@ export function App({
       ));
       return response;
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       throw error;
     } finally {
       setIsRandomizerApplying(false);
@@ -14356,7 +13977,7 @@ export function App({
       ));
       const response = await bridge.restoreRandomizer({ paths });
       setApplyResult(response.applyResult);
-      await notifySemanticOutputMutation();
+      await notifyOutputMutation();
 
       const hasApplyErrors = response.applyResult.diagnostics.some(
         (diagnostic) => diagnostic.severity === 'error'
@@ -14393,7 +14014,7 @@ export function App({
       ));
       return response;
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       throw error;
     } finally {
       setIsRandomizerApplying(false);
@@ -17893,7 +17514,7 @@ export function App({
           response.applyResult.outputTransaction !== null ||
           response.applyResult.writtenFiles.length > 0
         ) {
-          await notifySemanticOutputMutation();
+          await notifyOutputMutation();
         }
         return;
       }
@@ -17959,10 +17580,10 @@ export function App({
         completedApplyResult.outputTransaction !== null ||
         completedApplyResult.writtenFiles.length > 0
       ) {
-        await notifySemanticOutputMutation();
+        await notifyOutputMutation();
       }
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       if (isCurrentProjectOperation()) {
         setBridgeDiagnostics(toBridgeDiagnostics(error));
       }
@@ -18967,7 +18588,7 @@ export function App({
           response.applyResult.outputTransaction !== null ||
           response.applyResult.writtenFiles.length > 0
         ) {
-          await notifySemanticOutputMutation();
+          await notifyOutputMutation();
         }
         return;
       }
@@ -19025,7 +18646,7 @@ export function App({
 
       if (!isCurrentProjectOperation()) {
         if (didWriteFiles || completedApplyResult.outputTransaction !== null) {
-          await notifySemanticOutputMutation();
+          await notifyOutputMutation();
         }
         return;
       }
@@ -19043,14 +18664,14 @@ export function App({
       }
 
       if (didWriteFiles || completedApplyResult.outputTransaction !== null) {
-        await notifySemanticOutputMutation();
+        await notifyOutputMutation();
       }
 
       if (!shouldRetainApplyResult) {
         setApplyResult(null);
       }
     } catch (error) {
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       if (isCurrentProjectOperation()) {
         setChangePlan(null);
         visibleChangePlanRef.current = null;
@@ -19996,7 +19617,7 @@ export function App({
           response.applyResult.outputTransaction !== null ||
           response.applyResult.writtenFiles.length > 0
         ) {
-          await notifySemanticOutputMutation();
+          await notifyOutputMutation();
         }
         return;
       }
@@ -20064,7 +19685,7 @@ export function App({
           response.applyResult.outputTransaction !== null ||
           response.applyResult.writtenFiles.length > 0
         ) {
-          await notifySemanticOutputMutation();
+          await notifyOutputMutation();
         }
         return;
       }
@@ -20082,11 +19703,11 @@ export function App({
         response.applyResult.outputTransaction !== null ||
         response.applyResult.writtenFiles.length > 0
       ) {
-        await notifySemanticOutputMutation();
+        await notifyOutputMutation();
       }
     } catch (error) {
       const refreshDiagnostics = toBridgeDiagnostics(error);
-      await notifySemanticOutputFailure(error);
+      await notifyOutputFailure(error);
       if (!isCurrentProjectOperation()) {
         return;
       }
@@ -20263,13 +19884,6 @@ export function App({
   }, [welcomeCache.error]);
   const settingsSection = (
     <SettingsSection
-      analysisLoadingSettings={(
-        <AnalysisLoadingSettings
-          mode={analysisLoadingMode}
-          onChange={handleChangeAnalysisLoadingMode}
-          supported={supportsAnalysisTools(showingWelcome ? welcomeGame : selectedGame)}
-        />
-      )}
       appVersion={appVersion}
       availableUpdateKind={availableUpdate?.kind ?? null}
       personalizationSettings={
@@ -20490,13 +20104,6 @@ export function App({
           >
           {activeSection === 'health' ? (
             <HealthSection
-              analysisPreparation={activeProjectId ? (
-                <AnalysisPreparationPanel
-                  mode={analysisLoadingMode}
-                  snapshot={analysisPreparation.snapshot}
-                  supported={analysisSupported}
-                />
-              ) : null}
               draftPaths={draftPaths}
               health={health}
               isDesktopAvailable={desktopServices.isAvailable}
@@ -20542,180 +20149,9 @@ export function App({
           <div className="km-retained-workbench" hidden={activeSection !== 'workbench'}>
             <CommonEditorDiagnosticsPublishingScope enabled={activeSection === 'workbench'}>
             <WorkbenchHomeSection
-              balanceLab={
-                semanticExploreScope ? (
-                  <BalanceLabRuntime
-                    availableLayers={balanceLabAvailableLayers}
-                    bridge={analysisBridge}
-                    capabilityError={semanticExploreController.capabilities.error}
-                    capabilityStatus={semanticExploreController.capabilities.status}
-                    onEnsureCapabilities={semanticExploreController.ensureCapabilities}
-                    onNavigateFinding={handleNavigateBalanceLabFinding}
-                    onPreparationStateChange={handleBalanceLabPreparationState}
-                    onRefreshCapabilities={semanticExploreController.refreshCapabilities}
-                    onStaleRevision={handleBalanceLabStaleRevision}
-                    revision={balanceLabRevision}
-                    scope={semanticExploreScope}
-                  />
-                ) : null
-              }
-              guidedDesign={
-                semanticExploreScope ? (
-                  <GuidedDesignRuntime
-                    authoringContextRevision={guidedDesignAuthoringContextRevision}
-                    bridge={analysisBridge}
-                    capabilityError={semanticExploreController.capabilities.error}
-                    capabilityStatus={semanticExploreController.capabilities.status}
-                    canImportChangeSet={
-                      userFacingFeatureVisibility.namedChangeSets &&
-                      changeSetWorkspace.controller.readiness === 'ready' &&
-                      changeSetWorkspace.snapshot !== null &&
-                      changeSetWorkspace.controller.busyAction === null &&
-                      !changeSetWorkspace.controller.externalBusy
-                    }
-                    canNavigateRecord={canNavigateGuidedDesignRecord}
-                    expectedChangeSetETag={
-                      userFacingFeatureVisibility.namedChangeSets
-                        ? changeSetWorkspace.snapshot?.etag ?? null
-                        : null
-                    }
-                    isChangeSetWorkspaceBusy={
-                      userFacingFeatureVisibility.namedChangeSets &&
-                      (changeSetWorkspace.controller.busyAction !== null ||
-                        changeSetWorkspace.controller.externalBusy)
-                    }
-                    isChangeSetWorkspaceReady={
-                      !userFacingFeatureVisibility.namedChangeSets || (
-                        changeSetWorkspace.controller.readiness === 'ready' &&
-                        changeSetWorkspace.snapshot !== null
-                      )
-                    }
-                    onEnsureCapabilities={semanticExploreController.ensureCapabilities}
-                    onImportProposal={changeSetWorkspace.importGuidedDesignProposal}
-                    onNavigateRecord={handleNavigateGuidedDesignRecord}
-                    onOpenChanges={handleOpenGuidedDesignChanges}
-                    onPreparationStateChange={handleGuidedDesignPreparationState}
-                    onRefreshCapabilities={semanticExploreController.refreshCapabilities}
-                    onStaleRevision={handleBalanceLabStaleRevision}
-                    revision={balanceLabRevision}
-                    scope={semanticExploreScope}
-                  />
-                ) : null
-              }
-              gameModules={
-                semanticExploreScope ? (
-                  <Suspense
-                    fallback={(
-                      <LoadingProgress
-                        className="km-workbench-empty"
-                        label={t('gameModules.loading')}
-                      />
-                    )}
-                  >
-                    <GameModulesRuntime
-                      bridge={analysisBridge}
-                      canNavigateRecord={canNavigateGameModuleRecord}
-                      canOpenSection={(section) => availableWorkflowSectionIds.has(section)}
-                      capabilityError={semanticExploreController.capabilities.error}
-                      capabilityStatus={semanticExploreController.capabilities.status}
-                      onEnsureCapabilities={semanticExploreController.ensureCapabilities}
-                      onNavigateRecord={handleNavigateBalanceLabFinding}
-                      onOpenSection={handleNavigateSection}
-                      onPreparationStateChange={handleGameModulesPreparationState}
-                      onRefreshCapabilities={semanticExploreController.refreshCapabilities}
-                      onStaleRevision={handleBalanceLabStaleRevision}
-                      revision={balanceLabRevision}
-                      scope={semanticExploreScope}
-                    />
-                  </Suspense>
-                ) : null
-              }
-              researchLab={
-                semanticExploreScope ? (
-                  <Suspense
-                    fallback={(
-                      <LoadingProgress
-                        className="km-workbench-empty"
-                        label={t('researchLab.loading')}
-                      />
-                    )}
-                  >
-                    <ResearchLabRuntime
-                      bridge={analysisBridge}
-                      canNavigateRecord={canNavigateGameModuleRecord}
-                      capabilityError={semanticExploreController.capabilities.error}
-                      capabilityStatus={semanticExploreController.capabilities.status}
-                      onEnsureCapabilities={semanticExploreController.ensureCapabilities}
-                      onDirtyStateChange={handleResearchLabDirtyChange}
-                      onNavigateRecord={handleNavigateBalanceLabFinding}
-                      onPickSource={handlePickResearchSource}
-                      onPreparationStateChange={handleResearchLabPreparationState}
-                      onRefreshCapabilities={semanticExploreController.refreshCapabilities}
-                      onStaleRevision={handleBalanceLabStaleRevision}
-                      revision={balanceLabRevision}
-                      scope={semanticExploreScope}
-                    />
-                  </Suspense>
-                ) : null
-              }
-              semanticMerge={
-                semanticExploreScope ? (
-                  <SemanticMergeRuntime
-                    authoringContextRevision={guidedDesignAuthoringContextRevision}
-                    bridge={analysisBridge}
-                    capabilityError={semanticExploreController.capabilities.error}
-                    capabilityStatus={semanticExploreController.capabilities.status}
-                    canImportChangeSet={
-                      userFacingFeatureVisibility.namedChangeSets &&
-                      changeSetWorkspace.controller.readiness === 'ready' &&
-                      changeSetWorkspace.snapshot !== null &&
-                      changeSetWorkspace.controller.busyAction === null &&
-                      !changeSetWorkspace.controller.externalBusy
-                    }
-                    canNavigateRecord={canNavigateSemanticMergeRecord}
-                    changeSets={userFacingFeatureVisibility.namedChangeSets
-                      ? (changeSetWorkspace.snapshot?.document.changeSets ?? []).map(
-                          (changeSet) => ({
-                            archived: changeSet.archived,
-                            changeSetId: changeSet.changeSetId,
-                            dependencyIds: changeSet.dependencyIds,
-                            enabled: changeSet.enabled,
-                            name: changeSet.name,
-                            operationCount: changeSet.operations.length,
-                            ...getRecipeExportEligibility(changeSet)
-                          })
-                        )
-                      : []}
-                    expectedChangeSetETag={
-                      userFacingFeatureVisibility.namedChangeSets
-                        ? changeSetWorkspace.snapshot?.etag ?? null
-                        : null
-                    }
-                    isChangeSetWorkspaceBusy={
-                      userFacingFeatureVisibility.namedChangeSets &&
-                      (changeSetWorkspace.controller.busyAction !== null ||
-                        changeSetWorkspace.controller.externalBusy)
-                    }
-                    isChangeSetWorkspaceReady={
-                      !userFacingFeatureVisibility.namedChangeSets || (
-                        changeSetWorkspace.controller.readiness === 'ready' &&
-                        changeSetWorkspace.snapshot !== null
-                      )
-                    }
-                    onEnsureCapabilities={semanticExploreController.ensureCapabilities}
-                    onImportRecipe={changeSetWorkspace.importKmRecipe}
-                    onImportSemanticMerge={changeSetWorkspace.importSemanticMerge}
-                    onNavigateRecord={handleNavigateSemanticMergeRecord}
-                    onOpenChanges={handleOpenGuidedDesignChanges}
-                    onPickSource={handlePickSemanticMergeSource}
-                    onPreparationStateChange={handleSemanticMergePreparationState}
-                    onRefreshCapabilities={semanticExploreController.refreshCapabilities}
-                    onStaleRevision={handleBalanceLabStaleRevision}
-                    revision={balanceLabRevision}
-                    scope={semanticExploreScope}
-                  />
-                ) : null
-              }
+              workspaceScopeKey={activeProjectId
+                ? JSON.stringify([activeProjectId, selectedGame, draftPaths.outputRootPath])
+                : null}
               bookmarks={workspaceBookmarks}
               capabilities={capabilityDiscovery}
               note={activeNoteViewModel}
@@ -20731,7 +20167,6 @@ export function App({
               onNavigateTarget={handleNavigateWorkspaceTarget}
               onNoteChange={setNoteDraft}
               onOpenCapability={handleNavigateSection}
-              onOpenTool={analysisPreparation.requestTool}
               onOpenRecentProject={(projectId) => void handleOpenRecentProject(projectId)}
               onOpenSavedView={handleOpenSavedView}
               onRemovePin={(bookmarkId) => void handleRemoveBookmark(bookmarkId)}
@@ -20740,24 +20175,9 @@ export function App({
               onSelectOutputProfile={setPendingOutputProfileId}
               outputProfiles={workspaceOutputProfiles}
               pins={workspacePins}
-              preparationScopeKey={analysisPreparationScopeKey}
-              preloadTools={analysisPreloadTools}
               recentProjects={workspaceRecentProjects}
               recents={workspaceRecentTargets}
               savedViews={workspaceSavedViews}
-              semanticExplore={
-                semanticExploreScope ? (
-                  <SemanticExploreSection
-                    controller={semanticExploreController}
-                    externalComparisonDisabled={
-                      hasCriticalWriteOperation || semanticExploreController.isQuerying
-                    }
-                    onNavigateEntity={handleNavigateSemanticEntity}
-                    onPickExternalMod={handlePickSemanticExternalMod}
-                    scope={semanticExploreScope}
-                  />
-                ) : null
-              }
               workflowHome={
                 <WorkflowsSection
               draftWorkflowIds={[
@@ -22754,7 +22174,6 @@ function WorkflowLoadingPanel({ label }: { label: string }) {
 }
 
 function HealthSection({
-  analysisPreparation,
   bridgeDiagnostics,
   draftPaths,
   hasSvCacheRequestError,
@@ -22780,7 +22199,6 @@ function HealthSection({
   selectedGame,
   svCacheStatus
 }: {
-  analysisPreparation: ReactNode;
   bridgeDiagnostics: ApiDiagnostic[];
   draftPaths: ProjectPathDraft;
   hasSvCacheRequestError: boolean;
@@ -22985,7 +22403,6 @@ function HealthSection({
             status={svCacheStatus}
           />
         ) : null}
-        {analysisPreparation}
       </section>
 
       <section aria-labelledby="health-heading" className="panel">
@@ -58121,7 +57538,6 @@ type SettingsTabId =
 
 function SettingsSection({
   isWelcome = false,
-  analysisLoadingSettings,
   appVersion,
   availableUpdateKind,
   personalizationSettings,
@@ -58148,7 +57564,6 @@ function SettingsSection({
   svCacheStatus
 }: {
   isWelcome?: boolean;
-  analysisLoadingSettings: ReactNode;
   appVersion: string;
   availableUpdateKind: AvailableUpdate['kind'] | null;
   personalizationSettings: ReactNode;
@@ -58492,7 +57907,7 @@ function SettingsSection({
                   <span>
                     <Icon aria-hidden="true" className="settings-mode-icon" size={20} />
                     {translateLiteral(option.label)}
-                    {option.recommended ? <small>{t('analysisLoading.recommended')}</small> : null}
+                    {option.recommended ? <small>{t('cache.mode.recommended')}</small> : null}
                     {isSelected ? (
                       <small className="sv-cache-mode-selected-label">
                         {t('settings.language.selected')}
@@ -58590,7 +58005,6 @@ function SettingsSection({
           </div>
         </section> : null}
           <ModelResolutionSettings />
-          {analysisLoadingSettings}
         </div>
       ) : null}
 
@@ -68448,7 +67862,7 @@ function hasValidPokemonLegendsZASupportFolder(health: ProjectHealth) {
   );
 }
 
-function resolveProjectAnalysisPaths(
+function resolveRecordLookupPaths(
   paths: OutputSafetyScope['paths'],
   health: ProjectHealth | null
 ): OutputSafetyScope['paths'] {
@@ -70221,91 +69635,6 @@ function createSafeWorkspaceShortcutRegistry(
   } catch {
     return createWorkspaceShortcutRegistry();
   }
-}
-
-const recipeExportDomains = new Set([
-  'workflow.items',
-  'workflow.pokemon',
-  'workflow.moves'
-]);
-
-function getRecipeExportEligibility(changeSet: NamedChangeSet): {
-  recipeExportDomain: string | null;
-  recipeExportEligibility: 'eligible' | 'empty' | 'binding' | 'payload' | 'mixedDomain';
-  recipeExportFieldKeys: readonly string[];
-  recipeExportTargetKeys: readonly string[];
-} {
-  if (changeSet.operations.length === 0) {
-    return {
-      recipeExportDomain: null,
-      recipeExportEligibility: 'empty',
-      recipeExportFieldKeys: [],
-      recipeExportTargetKeys: []
-    };
-  }
-  if (changeSet.operations.some((operation) => operation.sourceBindingKind !== 'reviewedPlan')) {
-    return {
-      recipeExportDomain: null,
-      recipeExportEligibility: 'binding',
-      recipeExportFieldKeys: [],
-      recipeExportTargetKeys: []
-    };
-  }
-  const domains = new Set(changeSet.operations.map((operation) => operation.pendingEdit.domain));
-  if (
-    domains.size !== 1 ||
-    [...domains].some((domain) => !recipeExportDomains.has(domain))
-  ) {
-    return {
-      recipeExportDomain: null,
-      recipeExportEligibility: 'mixedDomain',
-      recipeExportFieldKeys: [],
-      recipeExportTargetKeys: []
-    };
-  }
-  const targetKeys: string[] = [];
-  if (changeSet.operations.some((operation) => {
-    const { domain, field, newValue, recordId } = operation.pendingEdit;
-    const numericRecordId = recordId === undefined || recordId === null
-      ? Number.NaN
-      : Number(recordId);
-    const numericValue = newValue === undefined || newValue === null
-      ? Number.NaN
-      : Number(newValue);
-    const minimumRecordId = domain === 'workflow.moves' ? 0 : 1;
-    if (
-      field == null ||
-      !/^[a-z][A-Za-z0-9]*$/u.test(field) ||
-      field.length > 128 ||
-      recordId == null ||
-      !Number.isInteger(numericRecordId) ||
-      numericRecordId < minimumRecordId ||
-      numericRecordId > 2_147_483_647 ||
-      String(numericRecordId) !== recordId ||
-      newValue == null ||
-      !Number.isInteger(numericValue) ||
-      numericValue < -2_147_483_648 ||
-      numericValue > 2_147_483_647 ||
-      String(numericValue) !== newValue
-    ) return true;
-    targetKeys.push(JSON.stringify([domain, recordId, field]));
-    return false;
-  }) || new Set(targetKeys).size !== targetKeys.length) {
-    return {
-      recipeExportDomain: null,
-      recipeExportEligibility: 'payload',
-      recipeExportFieldKeys: [],
-      recipeExportTargetKeys: []
-    };
-  }
-  return {
-    recipeExportDomain: [...domains][0] ?? null,
-    recipeExportEligibility: 'eligible',
-    recipeExportFieldKeys: [...new Set(changeSet.operations.map(
-      (operation) => operation.pendingEdit.field!
-    ))].sort(),
-    recipeExportTargetKeys: targetKeys.sort()
-  };
 }
 
 function toErrorMessage(error: unknown, fallback: UiDiagnosticFallback) {

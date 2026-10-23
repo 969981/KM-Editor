@@ -14,10 +14,7 @@ const apiContract = read('../../src/KM.Api/GuidedDesign/GuidedDesignContracts.cs
 const provider = read('../../src/KM.Tools/Application/GuidedDesignProviders.cs');
 const application = read('../../src/KM.Tools/Application/GuidedDesignApplicationService.cs');
 const bridgeContract = read('src/bridge/guidedDesignContracts.ts');
-const guidedSection = read('src/features/guided-design/GuidedDesignSection.tsx');
 const semanticContract = read('src/bridge/semanticMergeContracts.ts');
-const semanticSection = read('src/features/semantic-merge/SemanticMergeSection.tsx');
-const workbenchStyles = read('src/features/workbench/workbench.css');
 
 assert.match(
   apiContract,
@@ -57,60 +54,9 @@ assert.match(
   'The desktop bridge must reject unsupported game/proposal field catalogs.'
 );
 assert.match(
-  guidedSection,
-  /function GuidedFieldSelector\([\s\S]*?<details>[\s\S]*?catalog\.fieldKeys\.map/u,
-  'Guided Design must render the provider field catalog as a bounded selector.'
-);
-assert.doesNotMatch(
-  guidedSection,
-  /placeholder=\{t\('guidedDesign\.inputs\.fieldsPlaceholder'\)\}/u,
-  'Guided Design must not require comma-separated field identifiers.'
-);
-assert.match(
-  semanticSection,
-  /eligibleFieldKeys = useMemo\([\s\S]*?capability\?\.domains[\s\S]*?fieldKeys=\{eligibleFieldKeys\}/u,
-  'Semantic Merge field filters must come from complete capability catalogs, not one result page.'
-);
-assert.match(
   semanticContract,
   /kmRecipeCompatibilityStateValues = \[[\s\S]*?'compatible'[\s\S]*?'alreadyApplied'[\s\S]*?'conflict'[\s\S]*?'unsupported'/u,
   'Recipe compatibility filters must retain every contract-valid state.'
 );
-assert.match(
-  workbenchStyles,
-  /\.analysis-preparation-header strong \{[\s\S]*?color: var\(--color-text\);[\s\S]*?font-weight: 900;/u,
-  'Analysis Tools must use the same strong title treatment as Settings data-cache headings.'
-);
-
-for (const locale of ['de', 'en', 'es', 'fr', 'ru', 'uk', 'zh']) {
-  const resource = JSON.parse(read(`src/localization/resources/${locale}.json`)).keys;
-  assert.ok(resource['analysisPreparation.title'], `${locale} is missing the Analysis Tools title.`);
-  for (const key of [
-    'guidedDesign.inputs.fieldsSelected',
-    'guidedDesign.inputs.fieldsFixedHelp',
-    'guidedDesign.inputs.fieldsSubsetHelp',
-    'guidedDesign.field.level',
-    'guidedDesign.field.levelMin',
-    'guidedDesign.field.levelMax',
-    'guidedDesign.field.probability',
-    'guidedDesign.field.weight',
-    'guidedDesign.field.price',
-    'guidedDesign.field.buyPrice',
-    'guidedDesign.field.hp',
-    'guidedDesign.field.attack',
-    'guidedDesign.field.defense',
-    'guidedDesign.field.specialAttack',
-    'guidedDesign.field.specialDefense',
-    'guidedDesign.field.speed',
-    'guidedDesign.field.evHp',
-    'guidedDesign.field.evAttack',
-    'guidedDesign.field.evDefense',
-    'guidedDesign.field.evSpecialAttack',
-    'guidedDesign.field.evSpecialDefense',
-    'guidedDesign.field.evSpeed'
-  ]) {
-    assert.ok(resource[key], `${locale} is missing ${key}.`);
-  }
-}
 
 console.log('Analysis selector contract passed.');

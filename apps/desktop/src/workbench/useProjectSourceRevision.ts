@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ProjectGame, ProjectPaths } from '../bridge/contracts';
 import type { ProjectSourceRevisionProjectBridgeApi } from '../bridge/projectSourceRevisionProjectBridge';
-import { supportsAnalysisTools } from './analysisGameSupport';
+import { supportsSemanticRecordLookup } from './semanticRecordSupport';
 import {
   ProjectQueryEpoch,
   runIndependentProjectRead
@@ -44,6 +44,7 @@ export function projectSourceRevisionObservationIdentity(options: {
 
 export function useProjectSourceRevision(options: {
   bridge: ProjectSourceRevisionProjectBridgeApi;
+  enabled?: boolean;
   game: ProjectGame | null;
   paths: ProjectPaths | null;
   projectId: string | null;
@@ -63,6 +64,7 @@ export function useProjectSourceRevision(options: {
   const observationIdentity = projectSourceRevisionObservationIdentity(options);
   const requestKey = JSON.stringify([
     'project.sourceRevision.read',
+    options.enabled !== false,
     observationIdentity,
     refreshRevision
   ]);
@@ -81,7 +83,7 @@ export function useProjectSourceRevision(options: {
 
   useEffect(() => {
     const ticket = freshness.supersede('revision');
-    if (!supportsAnalysisTools(options.game) || !options.paths || !options.projectId) {
+    if (options.enabled === false || !supportsSemanticRecordLookup(options.game) || !options.paths || !options.projectId) {
       setState({
         error: null,
         fingerprint: null,
@@ -150,7 +152,7 @@ export function useProjectSourceRevision(options: {
   ]);
 
   // Hide a previous game's ready or failed observation before the scope effect runs.
-  const visibleState: ProjectSourceRevisionState = supportsAnalysisTools(options.game)
+  const visibleState: ProjectSourceRevisionState = options.enabled !== false && supportsSemanticRecordLookup(options.game)
     ? state
     : { error: null, fingerprint: null, sourceObservationToken: null, status: 'idle' };
   return { ...visibleState, refresh };
