@@ -1218,7 +1218,7 @@ public sealed class SwShPlacementWorkflowService
             source.AbsolutePath,
             length,
             lastWriteTimeUtcTicks,
-            CreateCatalogContentFingerprint(source.AbsolutePath),
+            CreateCatalogContentFingerprint(source.AbsolutePath, cacheLength),
             source.GraphEntry.LayeredFile is null
                 ? ProjectFileLayer.Base
                 : ProjectFileLayer.Layered,
@@ -1226,7 +1226,7 @@ public sealed class SwShPlacementWorkflowService
             cacheLastWriteTimeUtc);
     }
 
-    private static string CreateCatalogContentFingerprint(string absolutePath)
+    private static string CreateCatalogContentFingerprint(string absolutePath, long? length)
     {
         try
         {
@@ -1235,7 +1235,7 @@ public sealed class SwShPlacementWorkflowService
                 FileMode.Open,
                 FileAccess.Read,
                 FileShare.Read,
-                bufferSize: 128 * 1024,
+                bufferSize: (int)Math.Clamp(length ?? 128 * 1024, 1, 128 * 1024),
                 FileOptions.SequentialScan);
             return Convert.ToHexString(SHA256.HashData(stream));
         }

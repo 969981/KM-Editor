@@ -218,6 +218,9 @@ export function useOutputSafetyController({
     }
   }, [beginAction, bridge, commitRecovery, endAction, isCurrent, scope, scopeKey, t]);
 
+  const refreshRecoveryRef = useRef(refreshRecovery);
+  refreshRecoveryRef.current = refreshRecovery;
+
   useEffect(() => {
     generationRef.current += 1;
     recoveryRequestRef.current += 1;
@@ -235,11 +238,11 @@ export function useOutputSafetyController({
     busyActionRef.current = null;
     setMutationBusy(false);
     setBusyAction(null);
-    setReadiness(scope ? 'checking' : 'unavailable');
-    if (scope) {
-      void refreshRecovery();
+    setReadiness(scopeKey !== null ? 'checking' : 'unavailable');
+    if (scopeKey !== null) {
+      void refreshRecoveryRef.current();
     }
-  }, [refreshRecovery, scopeKey, setMutationBusy]);
+  }, [bridge, scopeKey, setMutationBusy]);
 
   const runScopedAction = useCallback(async <T,>(
     action: OutputSafetyAction,
