@@ -192,7 +192,9 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             loaded.Targets.Add(receiptFile.Path.CanonicalKey, receiptFile);
             var journal = await Track(loaded, loaded.JournalPath, token).ConfigureAwait(false);
             if (journal.Exists) ValidateOrRecognizeJournal(loaded, journal);
-            sourceReceipt ??= await RecognizeOutput(loaded, token).ConfigureAwait(false);
+            var recognized = sourceReceipt is null
+                ? await RecognizeOutput(loaded, token).ConfigureAwait(false) : null;
+            sourceReceipt ??= recognized?.Receipt;
             loaded.Receipt = sourceReceipt;
             loaded.Installed = sourceReceipt?.Package;
             // Battle Items works without settings. Keep the delivery choice of
@@ -205,7 +207,7 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
             if (sourceReceipt is not null)
             {
                 foreach (var file in sourceReceipt.Files) await Track(loaded, new(file.Path), token).ConfigureAwait(false);
-                normalized = sourceReceipt.RemoveFrom(loaded.Targets.Values.ToDictionary(file => file.Path.Value,
+                normalized = recognized?.NormalizedSources ?? sourceReceipt.RemoveFrom(loaded.Targets.Values.ToDictionary(file => file.Path.Value,
                     file => file.Exists ? file.Bytes.ToArray() : null, StringComparer.Ordinal));
                 loaded.Restored = normalized;
                 var runtime = loaded.Targets["EXEFS/SUBSDK9"];
@@ -220,7 +222,12 @@ internal sealed partial class SharedGameplayMenuApplicationService : IDisposable
                     && sourceReceipt.Files.All(file => loaded.Targets[new RelativeOutputPath(file.Path).CanonicalKey].Exists);
             var features = remainingFeatures ?? (registrationRequired
                 ? priorFeatures : priorFeatures | requestedFeature);
-            var resolution = await provider.ResolveSharedAsync(context.Source.Paths, context.Paths.SelectedGame.Value, normalized, token, features).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            // Recognition already rebuilt and checked this package during this load.
+            // Reuse that result only for the same features, retaining dependency checks below.
+            var resolution = recognized is not null && features == recognized.Receipt.Features
+                ? recognized.Resolution
+                : await provider.ResolveSharedAsync(context.Source.Paths, context.Paths.SelectedGame.Value, normalized, token, features).ConfigureAwait(false);
             loaded.ExternalDependencies = loaded.ExternalDependencies.AddRange(resolution.ExternalSourceDependencies ?? []);
             foreach (var dependency in resolution.SourceDependencies ?? [])
             {
