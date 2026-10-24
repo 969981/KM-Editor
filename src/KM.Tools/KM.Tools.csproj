@@ -19,6 +19,12 @@
     <None Update="Resources/PartySprites/NOTICE.txt" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Desktop workers repeatedly inspect large archives and executables. Reclaim
+         temporary large-object allocations without waiting for system-wide pressure. -->
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>

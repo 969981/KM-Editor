@@ -12,6 +12,31 @@ public sealed partial class OutputTransactionCoordinator
     public Task<byte[]> ReadPreservationArtifactAsync(string sha256, CancellationToken cancellationToken = default) =>
         ExecuteExclusiveOutputOperationAsync(token => ReadPreservationArtifactCoreAsync(sha256, token), cancellationToken);
 
+    /// <summary>
+    /// Acquires verified immutable artifacts one at a time under one recovery and workspace lease.
+    /// After a successful callback the caller owns that artifact's read lease and must bound any
+    /// retained buffers. Return false to stop prefetching; remaining artifacts are not read.
+    /// </summary>
+    public Task VisitPreservationArtifactsAsync(IReadOnlyCollection<string> hashes,
+        Func<string, byte[], FileStream, bool> accept, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(hashes);
+        ArgumentNullException.ThrowIfNull(accept);
+        if (hashes.Count > 468) throw new OutputLimitExceededException("The restoration artifact set exceeds its supported size.");
+        if (hashes.Count == 0) return Task.CompletedTask;
+        return ExecuteExclusiveOutputOperationAsync(async token =>
+        {
+            foreach (var hash in hashes.Distinct(StringComparer.Ordinal))
+            {
+                token.ThrowIfCancellationRequested();
+                var artifact = await AcquirePreservationArtifactCoreAsync(hash, token).ConfigureAwait(false);
+                try { if (!accept(hash, artifact.Bytes, artifact.Lease)) break; }
+                catch { artifact.Lease.Dispose(); throw; }
+            }
+            return true;
+        }, cancellationToken);
+    }
+
     /// <summary>Verifies artifacts and keeps read leases until the caller finishes using their contents.</summary>
     public async Task<IReadOnlyDictionary<string, (byte[] Bytes, FileStream Lease)>> AcquirePreservationArtifactsAsync(
         IReadOnlyCollection<string> hashes, CancellationToken cancellationToken = default)

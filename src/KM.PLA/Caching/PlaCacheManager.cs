@@ -121,6 +121,7 @@ public sealed partial class PlaCacheManager
     private long retainedMemorySizeBytes;
     private long? retainedPersistentCacheSizeBytes;
     private bool tempCleanupCompleted;
+    private bool publishingArtifact;
 
     public PlaCacheManager(string? cacheRoot = null)
     {
@@ -448,9 +449,22 @@ public sealed partial class PlaCacheManager
                     ComputeSha256(payload),
                     createdUtc);
 
-                WriteTrackedBytesAtomic(artifactPath, payload);
-                WriteTrackedJsonAtomic(metadataPath, metadata);
-                TouchIdentity(identityKey, now, force: true);
+                // One durable dirty ledger covers this artifact's publication. Each
+                // file is still flushed and atomically replaced before the clean ledger.
+                BeginTrackedMutation();
+                publishingArtifact = true;
+                try
+                {
+                    WriteTrackedBytesAtomic(artifactPath, payload);
+                    WriteTrackedJsonAtomic(metadataPath, metadata);
+                    TouchIdentity(identityKey, now, force: true);
+                    publishingArtifact = false;
+                    CompleteTrackedMutation(0);
+                }
+                finally
+                {
+                    publishingArtifact = false;
+                }
                 TryPrune(settings, source);
             }
             catch (Exception exception) when (IsDisposableCacheException(exception))
@@ -1386,6 +1400,7 @@ public sealed partial class PlaCacheManager
 
     private void BeginTrackedMutation()
     {
+        if (publishingArtifact) return;
         var size = GetPersistentCacheSize();
         WriteSizeLedger(new SizeLedgerDocument(CacheSchemaVersion, size, IsDirty: true, DateTime.UtcNow));
     }
@@ -1394,6 +1409,7 @@ public sealed partial class PlaCacheManager
     {
         var current = retainedPersistentCacheSizeBytes ?? 0;
         retainedPersistentCacheSizeBytes = Math.Max(0, current + delta);
+        if (publishingArtifact) return;
         WriteSizeLedger(new SizeLedgerDocument(
             CacheSchemaVersion,
             retainedPersistentCacheSizeBytes.Value,

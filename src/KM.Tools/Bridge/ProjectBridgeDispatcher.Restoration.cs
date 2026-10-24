@@ -21,6 +21,16 @@ public sealed partial class ProjectBridgeDispatcher
 {
     private readonly SwShRestorationPreparationJobs restorationJobs = new();
 
+    private static IDisposable? OpenRestorationReadScope(string json, ProjectGame? game)
+    {
+        if (game is not (ProjectGame.Sword or ProjectGame.Shield)) return null;
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("payload", out var payload) || payload.ValueKind != JsonValueKind.Object
+            || !payload.TryGetProperty("paths", out var rawPaths) || rawPaths.ValueKind != JsonValueKind.Object) return null;
+        var paths = rawPaths.Deserialize<ProjectPathsDto>(RequestSerializerOptions);
+        return paths is null ? null : SwShRestorationReadScope.Begin(ProjectBridgeMapper.ToCore(paths));
+    }
+
     private static KM.SwSh.DynamaxAdventures.SwShDynamaxAdventuresEditResult MergeDynamaxSession(
         KM.SwSh.DynamaxAdventures.SwShDynamaxAdventuresEditResult result, EditSession? original) => original is null ? result : result with
         { Session = result.Session with { PendingEdits = original.PendingEdits.Where(e => e.Domain != "workflow.dynamaxAdventures").Concat(result.Session.PendingEdits).ToArray() } };

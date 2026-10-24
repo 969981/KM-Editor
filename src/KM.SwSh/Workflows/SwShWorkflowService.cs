@@ -869,21 +869,21 @@ public sealed class SwShWorkflowService
                 $"Sword/Shield cache warmup step must be between 0 and {Math.Max(0, targets.Count - 1)}.");
         }
 
-        CacheWarmupTarget? selectedTarget = null;
+        CacheWarmupTarget[] selectedTargets;
         lock (cacheWarmupSyncRoot)
         {
-            for (var offset = 0; offset < targets.Count; offset++)
-            {
-                var candidate = targets[(stepIndex + offset) % targets.Count];
-                if (!warmedCacheKeys.Contains(candidate.Key))
-                {
-                    selectedTarget = candidate;
-                    break;
-                }
-            }
+            selectedTargets = Enumerable.Range(0, targets.Count)
+                .Select(offset => targets[(stepIndex + offset) % targets.Count])
+                .Where(target => !warmedCacheKeys.Contains(target.Key))
+                .Take(8)
+                .ToArray();
         }
 
-        if (selectedTarget is not null)
+        // Amortize source verification and status bookkeeping across a small batch,
+        // then yield the bridge to foreground editor work as the other games do.
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var timeBudget = status.Settings.Mode == SwShCacheMode.Performance ? 250 : 100;
+        foreach (var selectedTarget in selectedTargets)
         {
             if (selectedTarget.TextTarget is null)
             {
@@ -897,6 +897,7 @@ public sealed class SwShWorkflowService
                     MarkCacheTargetWarmed(selectedTarget.Key);
                 }
             }
+            if (stopwatch.ElapsedMilliseconds >= timeBudget) break;
         }
 
         return AddCacheWarmupStatus(cacheManager.GetStatus(activeSource), project, activeSource);

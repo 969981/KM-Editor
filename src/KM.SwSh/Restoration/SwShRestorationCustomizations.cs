@@ -13,18 +13,27 @@ internal static class SwShRestorationCustomizations
         if (plan.Writes.Count == 0 || plan.EffectivePendingEdits?.Any(e => e.Domain == SwShRestorationDefinitions.Domain) == true) return plan;
         var state = SwShRestorationStateStore.Read(paths);
         if (!state.State.Selections.Any(s => s.Enabled)) return BindCatalogSources(paths, plan);
-        var definitions = SwShRestorationStateStore.ReadPreparedMany(paths, state.State.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash)).Values.ToArray();
+        var targets = plan.Writes.Select(w => w.TargetRelativePath).ToHashSet(StringComparer.Ordinal);
+        var resourcePaths = new HashSet<string>(StringComparer.Ordinal);
+        var needsAnchor = false;
+        // The installed set can be larger than the operation cache. Consume one
+        // package at a time so its size is not an editing limit for the project.
+        foreach (var selection in state.State.Selections.Where(s => s.Enabled))
+        {
+            var prepared = SwShRestorationStateStore.ReadPrepared(paths, selection.PreparedHash);
+            foreach (var contribution in prepared.Contributions) resourcePaths.Add(contribution.Path);
+            needsAnchor |= prepared.Contributions.Any(c => targets.Contains(c.Path))
+                || targets.Any(p => IsLooseModel(p, SwShRestorationDefinitions.Get(prepared.DefinitionId)));
+        }
         // Species validation runs again in a verified snapshot. Bind the complete
         // installed resource closure so that snapshot sees the same capabilities.
-        var dependencies = definitions.SelectMany(d => d.Contributions).Select(c => c.Path).Distinct(StringComparer.Ordinal)
+        var dependencies = resourcePaths
             .Where(p => File.Exists(Path.Combine(paths.OutputRootPath!, p)) || File.Exists(Path.Combine(paths.BaseRomFsPath!, p[6..])))
             .Select(p => new ProjectFileReference(File.Exists(Path.Combine(paths.OutputRootPath!, p)) ? ProjectFileLayer.Layered : ProjectFileLayer.Base, p)).ToArray();
         var first = plan.Writes[0];
         plan = plan with { Writes = plan.Writes.Select((write, index) => index == 0
             ? first with { Sources = first.Sources.Concat(dependencies).Distinct().ToArray() } : write).ToArray() };
-        var targets = plan.Writes.Select(w => w.TargetRelativePath).ToHashSet(StringComparer.Ordinal);
-        if (!definitions.Any(d => d.Contributions.Any(c => targets.Contains(c.Path))
-            || targets.Any(p => IsLooseModel(p, SwShRestorationDefinitions.Get(d.DefinitionId))))) return BindCatalogSources(paths, plan);
+        if (!needsAnchor) return BindCatalogSources(paths, plan);
         if (targets.Contains(SwShRestorationComposer.PersonalPath)) return BindCatalogSources(paths, plan);
         var personal = SwShRestorationComposer.PersonalPath;
         var sources = new List<ProjectFileReference> { new(ProjectFileLayer.Base, personal) };
@@ -53,13 +62,12 @@ internal static class SwShRestorationCustomizations
         IReadOnlySet<string> changed, Func<string, byte[]?> readOutput)
     {
         var selections = new List<SwShRestorationSelection>(); var any = false;
-        var prepared = SwShRestorationStateStore.ReadPreparedMany(paths, state.State.Selections.Where(s => s.Enabled)
-            .SelectMany(s => s.CustomizationHash is { } hash ? new[] { s.PreparedHash, hash } : new[] { s.PreparedHash }));
+        SwShRestorationReadScope.Find(paths)?.Prefetch(state.State.Selections.Where(s => s.Enabled)
+            .Select(s => s.CustomizationHash ?? s.PreparedHash));
         foreach (var selection in state.State.Selections)
         {
             if (!selection.Enabled) { selections.Add(selection); continue; }
-            var original = prepared[selection.PreparedHash];
-            var previous = selection.CustomizationHash is { } hash ? prepared[hash] : original;
+            var previous = SwShRestorationStateStore.ReadPrepared(paths, selection.CustomizationHash ?? selection.PreparedHash);
             var items = previous.Contributions.ToDictionary(c => (c.Path, c.Key));
             var touched = items.Values.Where(c => changed.Contains(c.Path) && readOutput(c.Path) is not null).ToArray();
             if (touched.Length > 0)
@@ -72,6 +80,15 @@ internal static class SwShRestorationCustomizations
                 else items.Remove((path, ""));
             }
             if (touched.Length == 0 && !changed.Any(p => IsLooseModel(p, definition))) { selections.Add(selection); continue; }
+            if (items.Count == previous.Contributions.Count && previous.Contributions.All(before =>
+                items.TryGetValue((before.Path, before.Key), out var after) && before.Writer == after.Writer
+                && ((before.Before is null && after.Before is null) || (before.Before is not null && after.Before is not null
+                    && before.Before.AsSpan().SequenceEqual(after.Before)))
+                && before.After.AsSpan().SequenceEqual(after.After)))
+            {
+                selections.Add(selection);
+                continue;
+            }
             var stored = SwShRestorationStateStore.Store(paths, previous with { Contributions = items.Values.ToArray() });
             using (stored.Lease) { }
             selections.Add(selection with { CustomizationHash = stored.Hash,

@@ -30,7 +30,7 @@ export function PlaPokemonEditor(props: PlaEditorProps) {
   const { pages, loading, staging, recordFor, valuesFor, setValue, currentKinds } = editor;
   const selected = recordFor('personal');
   const enabled = props.session !== null && editor.isCurrentScope;
-  const busy = staging || props.isBusy;
+  const busy = loading || staging || props.isBusy;
   const fieldLabel = (field: PlaField) => field.key.startsWith('tutor.') ? field.label : t(`pla.field.${field.key}`);
   const input = (field: PlaField, value: string, change: (value: string) => void, disabled: boolean, id: string) => {
     const invalid = !isPlaFieldValueValid(field, value);

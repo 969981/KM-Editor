@@ -33,6 +33,7 @@ public static class SwShRestorationBaseline
     private static IEnumerable<SwShRestorationContribution> Contributions(ProjectPaths paths)
     {
         var state = SwShRestorationStateStore.Read(paths).State;
+        SwShRestorationReadScope.Find(paths)?.Prefetch(state.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash));
         foreach (var selection in state.Selections.Where(s => s.Enabled))
         {
             var prepared = SwShRestorationStateStore.ReadPrepared(paths, selection.PreparedHash);
