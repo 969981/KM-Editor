@@ -1442,7 +1442,7 @@ internal sealed class OutputPathSafety
         {
             // Cloud Files placeholders are reparse entries without a link target.
             // Symbolic links and junctions expose a target and remain forbidden.
-            return !string.IsNullOrEmpty(entry.LinkTarget);
+            return FileSystemPathBoundary.HasLinkTarget(entry);
         }
         catch (Exception exception) when (exception is
             IOException or
