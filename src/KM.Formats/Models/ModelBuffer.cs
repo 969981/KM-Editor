@@ -8,9 +8,10 @@ namespace KM.Formats.Models;
 /// <summary>Bounded, read-only access to model metadata.</summary>
 public sealed class ModelBuffer
 {
-    private readonly byte[] bytes;
+    private readonly ReadOnlyMemory<byte> bytes;
     private static readonly UTF8Encoding Utf8 = new(false, true);
-    public ModelBuffer(byte[] bytes)
+    public ModelBuffer(byte[] bytes) : this((ReadOnlyMemory<byte>)bytes) { }
+    public ModelBuffer(ReadOnlyMemory<byte> bytes)
     {
         if (bytes.Length is < 8 or > 64 * 1024 * 1024) throw new InvalidDataException("Model metadata size is unsupported.");
         this.bytes = bytes;
@@ -23,7 +24,7 @@ public sealed class ModelBuffer
     public byte U8(int at) => Slice(at, 1)[0];
     public float Float(int at) => BitConverter.Int32BitsToSingle(I32(at));
     public int Offset(int at) => Check(checked(at + checked((int)U32(at))), 4);
-    public ReadOnlySpan<byte> Slice(int at, int count) => bytes.AsSpan(Check(at, count), count);
+    public ReadOnlySpan<byte> Slice(int at, int count) => bytes.Span.Slice(Check(at, count), count);
     private int Check(int at, int count)
     {
         if (at < 0 || count < 0 || at > bytes.Length - count) throw new InvalidDataException("Model metadata is truncated.");

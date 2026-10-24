@@ -6,17 +6,30 @@ public static class ModelAssetGraph
 {
     public static ModelTextureResource[] Read(IEnumerable<(string Path, string? Archive)> roots, Func<string, string?, byte[]> read)
     {
+        var assets = new List<ModelTextureResource>();
+        Validate(roots, (path, archive) =>
+        {
+            var bytes = read(path, archive);
+            assets.Add(new(path, [], bytes, archive));
+            return bytes;
+        });
+        return assets.OrderBy(a => a.Id, StringComparer.Ordinal).ToArray();
+    }
+
+    /// <summary>Checks the full dependency graph without making mutable copies of its resources.</summary>
+    public static void Validate(IEnumerable<(string Path, string? Archive)> roots, Func<string, string?, ReadOnlyMemory<byte>> read)
+    {
         var pending = new Queue<(string Path, string? Archive)>(roots);
-        var assets = new Dictionary<string, ModelTextureResource>(StringComparer.Ordinal);
+        var visited = new HashSet<string>(StringComparer.Ordinal);
         long total = 0;
         while (pending.TryDequeue(out var item))
         {
-            if (assets.ContainsKey(item.Path)) continue;
+            if (visited.Contains(item.Path)) continue;
             if (TrinityPreviewReader.Resolve("catalog", item.Path) != item.Path) throw new InvalidDataException("Model asset path is invalid.");
             var bytes = read(item.Path, item.Archive);
             total += bytes.Length;
-            if (assets.Count >= 2048 || total > 256L * 1024 * 1024) throw new InvalidDataException("Model asset budget exceeded.");
-            assets.Add(item.Path, new(item.Path, [], bytes, item.Archive));
+            if (visited.Count >= 2048 || total > 256L * 1024 * 1024) throw new InvalidDataException("Model asset budget exceeded.");
+            visited.Add(item.Path);
             var extension = Path.GetExtension(item.Path);
             if (extension is ".bntx" or ".trmbf" or ".trskl" or ".tranm" or ".tracm" or ".tracp" or ".tracl" or ".gfbanm") continue;
             if (extension is not (".trmdl" or ".trmsh" or ".trmtr" or ".trmmt" or ".tracn" or ".tracr" or ".gfbanmcfg" or ".gfbmdl")) continue;
@@ -64,6 +77,5 @@ public static class ModelAssetGraph
                 for (var i = 0; i < count; i++) Add("../tex/" + data.StringAt(start + i * 4) + ".bntx");
             }
         }
-        return assets.Values.OrderBy(a => a.Id, StringComparer.Ordinal).ToArray();
     }
 }
