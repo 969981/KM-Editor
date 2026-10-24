@@ -126,21 +126,21 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
             var rows = catalog.Identities.Where(i => i.Species == identity.Species && i.Form == identity.Form).Select(catalog.Read).ToArray();
             if (!rows.Any(r => !r.Identity.Shiny) || !rows.Any(r => r.Identity.Shiny)) return false;
             var packs = new Dictionary<string, SwShGfPackFile>(StringComparer.Ordinal);
-            byte[] Resource(string relative, string? archive)
+            ReadOnlyMemory<byte> Resource(string relative, string? archive)
             {
                 _ = new KM.Core.Semantics.RelativeOutputPath(relative);
                 if (File.Exists(Path.Combine(paths.OutputRootPath ?? "", "romfs", relative))
                     || File.Exists(Path.Combine(paths.BaseRomFsPath!, relative))) return read("romfs/" + relative);
                 if (archive is null) throw new InvalidDataException("Restored model archive is missing.");
                 if (!packs.TryGetValue(archive, out var pack)) packs.Add(archive, pack = SwShGfPackFile.ParseBoundedReadOnly(read("romfs/" + archive), 4096, 64L * 1024 * 1024));
-                return pack.TryGetFileByName(Path.GetFileName(relative), 32 * 1024 * 1024, out var bytes)
+                return pack.TryGetFileMemoryByName(Path.GetFileName(relative), 32 * 1024 * 1024, out var bytes)
                     ? bytes : throw new InvalidDataException("Restored model dependency is missing.");
             }
             foreach (var row in rows)
             {
                 if (row.Controllers.Count == 0) return false;
                 var roots = row.Controllers.Values.Append(row.Model).Append(row.Configuration).Select(p => (p, (string?)row.Archive));
-                _ = ModelAssetGraph.Read(roots, Resource);
+                ModelAssetGraph.Validate(roots, Resource);
             }
             return true;
         }

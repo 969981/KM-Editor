@@ -302,6 +302,22 @@ public sealed partial class SwShGfPackFile
         return true;
     }
 
+    /// <summary>Returns a read-only view retained by this archive, without copying the member payload.</summary>
+    public bool TryGetFileMemoryByName(string fileName, int maximumDecompressedBytes, out ReadOnlyMemory<byte> data)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumDecompressedBytes);
+        var index = FindFileNameIndex(fileName);
+        if (index < 0)
+        {
+            data = default;
+            return false;
+        }
+
+        data = GetFileMemory(index, maximumDecompressedBytes);
+        return true;
+    }
+
     public void SetFileByName(string fileName, byte[] data)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
@@ -438,25 +454,29 @@ public sealed partial class SwShGfPackFile
         return hash;
     }
 
-    private byte[] GetFile(int index, int? maximumDecompressedBytes = null)
+    private byte[] GetFile(int index, int? maximumDecompressedBytes = null) =>
+        GetFileMemory(index, maximumDecompressedBytes).ToArray();
+
+    private ReadOnlyMemory<byte> GetFileMemory(int index, int? maximumDecompressedBytes)
     {
         var entry = entries[index];
+        var size = entry.DecompressedData?.Length ?? entry.SizeDecompressed;
         if (maximumDecompressedBytes is not null
-            && (entry.SizeDecompressed < 0 || entry.SizeDecompressed > maximumDecompressedBytes.Value))
+            && (size < 0 || size > maximumDecompressedBytes.Value))
         {
             throw new InvalidDataException("GFPAK member exceeds the bounded decompressed-size limit.");
         }
 
         if (entry.DecompressedData is not null)
         {
-            return entry.DecompressedData.ToArray();
+            return entry.DecompressedData;
         }
 
         EnsureCanDecompress(entry.CompressionType);
         var decompressed = Decompress(entry.CompressedData, entry.SizeDecompressed, entry.CompressionType);
         entries[index] = entry with { DecompressedData = decompressed };
 
-        return decompressed.ToArray();
+        return decompressed;
     }
 
     private static byte[] GetOriginalFile(FileEntry entry)
