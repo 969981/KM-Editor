@@ -179,6 +179,12 @@ public sealed class SwShMovesEditSessionService
 
         var project = projectWorkspaceService.Open(paths);
         var workflow = movesWorkflowService.Load(project);
+        return Validate(project, workflow, session);
+    }
+
+    private static SwShEditSessionValidation Validate(
+        OpenedProject project, SwShMovesWorkflow workflow, EditSession session)
+    {
         var diagnostics = new List<ValidationDiagnostic>();
 
         CanEditMoves(project, workflow, diagnostics);
@@ -209,7 +215,9 @@ public sealed class SwShMovesEditSessionService
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(session);
 
-        var validation = Validate(paths, session);
+        var project = projectWorkspaceService.Open(paths);
+        var workflow = movesWorkflowService.Load(project);
+        var validation = Validate(project, workflow, session);
         var diagnostics = validation.Diagnostics.ToList();
 
         if (session.PendingEdits.Count == 0)
@@ -225,8 +233,6 @@ public sealed class SwShMovesEditSessionService
             return new ChangePlan(session.Id, Array.Empty<PlannedFileWrite>(), diagnostics);
         }
 
-        var project = projectWorkspaceService.Open(paths);
-        var workflow = movesWorkflowService.Load(project);
         var writes = CreatePlannedWrites(workflow, paths, session.PendingEdits, diagnostics);
         if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {

@@ -2,6 +2,7 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using KM.Core.Output;
 
 namespace KM.Core.Projects;
 
@@ -10,7 +11,11 @@ internal static class ProjectFileSystemStamp
     private const int MaximumOutputEntries = 20_000;
 
     // This stamp expires read caches. Apply still validates exact source and output bytes.
-    public static string? Capture(ProjectPaths paths)
+    public static string? Capture(ProjectPaths paths) => CaptureCore(paths, ignoreTransientLocks: false);
+
+    public static string? CaptureFileGraph(ProjectPaths paths) => CaptureCore(paths, ignoreTransientLocks: true);
+
+    private static string? CaptureCore(ProjectPaths paths, bool ignoreTransientLocks)
     {
         try
         {
@@ -32,7 +37,9 @@ internal static class ProjectFileSystemStamp
                 }
             }
 
-            AddRoot(paths.OutputRootPath);
+            // Payload entries below capture additions, removals and replacements.
+            // The root timestamp also changes for transient output coordination locks.
+            AddRoot(paths.OutputRootPath, includeLastWriteTime: !ignoreTransientLocks);
             if (!string.IsNullOrWhiteSpace(paths.OutputRootPath) && Directory.Exists(paths.OutputRootPath))
             {
                 var pending = new Stack<string>();
@@ -45,6 +52,14 @@ internal static class ProjectFileSystemStamp
                         .OrderBy(entry => entry.Name, StringComparer.Ordinal))
                     {
                         if (++count > MaximumOutputEntries) return null;
+                        if (ignoreTransientLocks && directory == paths.OutputRootPath
+                            && OutputMetadataNamespace.ContainsReservedSegment(entry.Name))
+                        {
+                            // Legacy state or pending working data must still force a fresh
+                            // read. Only the ordinary empty lock scaffolding is disposable.
+                            if (!IsTransientLockDirectory(entry)) return null;
+                            continue;
+                        }
                         Add(entry);
                         if ((entry.Attributes & FileAttributes.ReparsePoint) != 0) return null;
                         if (entry is DirectoryInfo) pending.Push(entry.FullName);
@@ -53,16 +68,16 @@ internal static class ProjectFileSystemStamp
             }
             return Convert.ToHexString(hash.GetHashAndReset());
 
-            void AddRoot(string? path)
+            void AddRoot(string? path, bool includeLastWriteTime = true)
             {
                 if (string.IsNullOrWhiteSpace(path)) { Append("unset"); return; }
                 if (File.Exists(path)) { Add(new FileInfo(path)); return; }
                 var entry = new DirectoryInfo(path);
-                Add(entry);
+                Add(entry, includeLastWriteTime);
                 if (entry.Exists && (entry.Attributes & FileAttributes.ReparsePoint) != 0)
                     throw new IOException("A cache source is not a physical directory.");
             }
-            void Add(FileSystemInfo entry)
+            void Add(FileSystemInfo entry, bool includeLastWriteTime = true)
             {
                 // Every entry is newly constructed or freshly enumerated for this capture.
                 // Enumeration already supplies metadata; Refresh would stat every file again.
@@ -70,7 +85,8 @@ internal static class ProjectFileSystemStamp
                 Append(entry.Exists.ToString());
                 if (!entry.Exists) return;
                 Append(((int)entry.Attributes).ToString(System.Globalization.CultureInfo.InvariantCulture));
-                Append(entry.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                if (includeLastWriteTime)
+                    Append(entry.LastWriteTimeUtc.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
                 if (entry is FileInfo file) Append(file.Length.ToString(System.Globalization.CultureInfo.InvariantCulture));
             }
             void Append(string value)
@@ -83,5 +99,24 @@ internal static class ProjectFileSystemStamp
         {
             return null;
         }
+    }
+
+    private static bool IsTransientLockDirectory(FileSystemInfo entry)
+    {
+        if (entry is not DirectoryInfo directory
+            || !string.Equals(entry.Name, OutputMetadataNamespace.DirectoryName, StringComparison.OrdinalIgnoreCase)
+            || (entry.Attributes & FileAttributes.ReparsePoint) != 0) return false;
+
+        var count = 0;
+        foreach (var child in directory.EnumerateFileSystemInfos())
+        {
+            if (++count > 4 || (child.Attributes & FileAttributes.ReparsePoint) != 0) return false;
+            if (child is DirectoryInfo folder)
+            {
+                if (child.Name is not ("transactions" or "checkpoints") || folder.EnumerateFileSystemInfos().Any()) return false;
+            }
+            else if (child.Name is not ("output.lock" or "output-store.marker")) return false;
+        }
+        return true;
     }
 }
