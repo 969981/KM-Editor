@@ -613,7 +613,10 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 semanticExploreApplicationService.ClearMemoryCaches();
             }
 
-            using var restorationReads = OpenRestorationReadScope(requestJson, selectedGame);
+            // Apply owns a scope inside its serialized operation and releases it before
+            // pruning removed artifacts. An outer owner would keep those files leased.
+            using var restorationReads = command == KmCommandNames.ApplyChangePlan
+                ? null : OpenRestorationReadScope(requestJson, selectedGame);
             using var speciesView = OpenRestorationReadView(requestJson, command, selectedGame);
             var response = command switch
             {
