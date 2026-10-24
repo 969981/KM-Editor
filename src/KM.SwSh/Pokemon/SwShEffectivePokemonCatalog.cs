@@ -76,17 +76,17 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
             var state = SwShRestorationStateStore.Read(paths);
             SwShRestorationReadScope.Find(paths)?.Prefetch(state.State.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash));
             var managed = new Dictionary<SwShPokemonIdentity, bool>();
+            var presence = new SwShRestorationComposer.PresenceValidator();
             foreach (var selection in state.State.Selections.Where(s => s.Enabled))
             {
                 var prepared = SwShRestorationStateStore.ReadPrepared(paths, selection.PreparedHash);
                 var complete = true;
                 try
                 {
-                    var captured = SwShRestorationComposer.Compose(prepared.Contributions, path =>
+                    complete = presence.HasAllContributions(prepared.Contributions, path =>
                     {
                         try { return ReadResource(path); } catch (InvalidDataException) { return null; }
-                    }, false, captureOnly: true);
-                    complete = captured.RetainedCustomizations.Count == prepared.Contributions.Count;
+                    });
                     foreach (var file in prepared.Contributions.Where(c => c.Writer == SwShRestorationWriter.File && c.Path.EndsWith(".gfpak", StringComparison.Ordinal)))
                         complete &= SwShGfPackFile.ParseBoundedReadOnly(ReadResource(file.Path), 4096, 64L * 1024 * 1024).FileCount > 0;
                 }

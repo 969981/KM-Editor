@@ -22,9 +22,49 @@ public static class SwShRestorationComposer
     public const string CampPath = "romfs/bin/archive/pokemon_data/pokecamp.gfpak";
     public const string VoicesPath = "romfs/bin/sound/NX64/wwise/bank/Common.bnk";
 
+    /// <summary>Checks presence against immutable source buffers owned by one catalog load.</summary>
+    internal sealed class PresenceValidator
+    {
+        private byte[]? voiceSource;
+        private HashSet<uint> media = [];
+        private Dictionary<(byte Type, uint Id), int> objects = [];
+
+        internal bool HasAllContributions(IReadOnlyList<SwShRestorationContribution> contributions, Func<string, byte[]?> readEffective)
+            => ComposeCore(contributions, readEffective, false, false, null, true, this).RetainedCustomizations.Count == contributions.Count;
+
+        internal void ReadVoices(byte[] source)
+        {
+            if (ReferenceEquals(source, voiceSource)) return;
+            voiceSource = null;
+            media.Clear(); objects.Clear();
+            var bank = new SoundBankDocument(source);
+            foreach (var item in bank.Media) media.Add(item.Id);
+            foreach (var item in bank.Objects)
+            {
+                var key = (item.Type, item.Id);
+                objects[key] = objects.GetValueOrDefault(key) + 1;
+            }
+            // Retain only identities, never the parsed document or its copied audio payloads.
+            voiceSource = source;
+        }
+
+        internal bool HasVoice(byte? type, uint id)
+        {
+            if (type is null) return media.Contains(id);
+            var count = objects.GetValueOrDefault((type.Value, id));
+            if (count > 1) throw new InvalidDataException("Owned voice object identity is ambiguous.");
+            return count == 1;
+        }
+    }
+
     public static SwShRestorationComposition Compose(IReadOnlyList<SwShRestorationContribution> contributions,
         Func<string, byte[]?> readEffective, bool enable, bool allowOwnedCustomizations = false,
         IReadOnlySet<string>? ownedPaths = null, bool captureOnly = false)
+        => ComposeCore(contributions, readEffective, enable, allowOwnedCustomizations, ownedPaths, captureOnly, null);
+
+    private static SwShRestorationComposition ComposeCore(IReadOnlyList<SwShRestorationContribution> contributions,
+        Func<string, byte[]?> readEffective, bool enable, bool allowOwnedCustomizations,
+        IReadOnlySet<string>? ownedPaths, bool captureOnly, PresenceValidator? presenceValidator)
     {
         if (contributions.Count is < 1 or > 10000) throw new InvalidDataException("Restoration contribution count is invalid.");
         var outputs = new Dictionary<string, byte[]?>(StringComparer.OrdinalIgnoreCase);
@@ -104,26 +144,32 @@ public static class SwShRestorationComposer
                 }
                 case SwShRestorationWriter.Voices:
                 {
-                    var bank = new SoundBankDocument(current); var addObjects = new List<SoundBankObject>(); var removeObjects = new List<SoundBankObject>();
+                    var bank = presenceValidator is null ? new SoundBankDocument(current) : null;
+                    presenceValidator?.ReadVoices(current);
+                    var addObjects = new List<SoundBankObject>(); var removeObjects = new List<SoundBankObject>();
                     var addMedia = new List<SoundBankMedia>(); var removeMedia = new List<SoundBankMedia>();
                     foreach (var item in items)
                     {
-                        var key = item.Key.Split(':');
-                        if (key.Length != 2 || !uint.TryParse(key[1], NumberStyles.None, CultureInfo.InvariantCulture, out var id)) throw new InvalidDataException("Voice contribution identity is invalid.");
-                        if (key[0] == "media")
+                        var (type, id) = VoiceIdentity(item.Key);
+                        if (presenceValidator is not null)
                         {
-                            var existing = bank.Media.SingleOrDefault(m => m.Id == id); var replacement = Select(item, existing?.Bytes);
+                            Select(item, presenceValidator.HasVoice(type, id) ? [] : null);
+                            continue;
+                        }
+                        if (type is null)
+                        {
+                            var existing = bank!.Media.SingleOrDefault(m => m.Id == id); var replacement = Select(item, existing?.Bytes);
                             if (existing is not null) removeMedia.Add(existing); if (replacement is not null) addMedia.Add(new(id, replacement));
                         }
                         else
                         {
-                            var type = checked((byte)Number(key[0])); var matches = bank.Objects.Where(o => o.Type == type && o.Id == id).ToArray();
+                            var matches = bank!.Objects.Where(o => o.Type == type.Value && o.Id == id).ToArray();
                             if (matches.Length > 1) throw new InvalidDataException("Owned voice object identity is ambiguous.");
                             var existing = matches.SingleOrDefault(); var replacement = Select(item, existing?.Payload);
-                            if (existing is not null) removeObjects.Add(existing); if (replacement is not null) addObjects.Add(new(type, id, replacement));
+                            if (existing is not null) removeObjects.Add(existing); if (replacement is not null) addObjects.Add(new(type.Value, id, replacement));
                         }
                     }
-                    outputs.Add(group.Key, captureOnly ? current : bank.Compose(addObjects, addMedia, removeObjects, removeMedia)); break;
+                    outputs.Add(group.Key, captureOnly ? current : bank!.Compose(addObjects, addMedia, removeObjects, removeMedia)); break;
                 }
                 default: throw new InvalidDataException("Restoration writer is not registered.");
             }
@@ -162,6 +208,13 @@ public static class SwShRestorationComposer
     public static string CatalogKey(SwShPokemonResourceIdentity identity) => string.Create(CultureInfo.InvariantCulture,
         $"{identity.Species}:{identity.Form}:{identity.Gender}:{(identity.Shiny ? 1 : 0)}");
     private static bool Equal(byte[]? a, byte[]? b) => a is null ? b is null : b is not null && a.AsSpan().SequenceEqual(b);
+    private static (byte? Type, uint Id) VoiceIdentity(string key)
+    {
+        var parts = key.Split(':');
+        if (parts.Length != 2 || !uint.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out var id))
+            throw new InvalidDataException("Voice contribution identity is invalid.");
+        return (parts[0] == "media" ? null : checked((byte)Number(parts[0])), id);
+    }
     private static int Number(string value) => int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var result)
         ? result : throw new InvalidDataException("Restoration record key is invalid.");
     internal static void ValidatePath(string path, SwShRestorationWriter kind)
