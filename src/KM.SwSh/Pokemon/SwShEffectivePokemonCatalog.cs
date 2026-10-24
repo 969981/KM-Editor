@@ -40,13 +40,38 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
             var modelCatalog = new SwShPokemonResourceCatalog(catalogBytes);
             var models = modelCatalog.Identities.Select(i => new SwShPokemonIdentity(i.Species, i.Form)).ToHashSet();
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            var observed = new Dictionary<string, byte[]>(StringComparer.Ordinal); long observedBytes = 0;
+            const long maximumCachedBytes = 384L * 1024 * 1024;
+            var observed = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            var fingerprints = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            var cacheOrder = new Queue<string>();
+            long observedBytes = 0;
             byte[] ReadResource(string path)
             {
                 if (observed.TryGetValue(path, out var cached)) return cached;
-                var bytes = Read(paths, path, sources: sources); observedBytes += bytes.Length;
-                if (observedBytes > 384L * 1024 * 1024) throw new InvalidDataException("Restoration catalog exceeds its resource budget.");
-                observed.Add(path, bytes); hash.AppendData(System.Text.Encoding.UTF8.GetBytes(path)); hash.AppendData(bytes); return bytes;
+                var bytes = Read(paths, path, sources: sources);
+                var fingerprint = SHA256.HashData(bytes);
+                if (fingerprints.TryGetValue(path, out var previous))
+                {
+                    if (!fingerprint.AsSpan().SequenceEqual(previous))
+                        throw new InvalidDataException("Restored Pokemon resources changed while reading the catalog.");
+                }
+                else
+                {
+                    fingerprints.Add(path, fingerprint);
+                    hash.AppendData(System.Text.Encoding.UTF8.GetBytes(path));
+                    hash.AppendData(bytes);
+                }
+                // Bound retained bytes without making the total installed asset size
+                // an eligibility limit. Revisited sources must retain their identity.
+                while (observedBytes + bytes.LongLength > maximumCachedBytes && cacheOrder.TryDequeue(out var oldest))
+                {
+                    observedBytes -= observed[oldest].LongLength;
+                    observed.Remove(oldest);
+                }
+                observed.Add(path, bytes);
+                cacheOrder.Enqueue(path);
+                observedBytes += bytes.LongLength;
+                return bytes;
             }
             var state = SwShRestorationStateStore.Read(paths);
             SwShRestorationReadScope.Find(paths)?.Prefetch(state.State.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash));
