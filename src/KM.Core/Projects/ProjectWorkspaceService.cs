@@ -36,14 +36,14 @@ public sealed class ProjectWorkspaceService
             {
                 if (cachedProject is not null && Equals(cachedPaths, paths)
                     && cachedFileSystemStamp is not null
-                    && cachedFileSystemStamp == ProjectFileSystemStamp.Capture(paths))
+                    && cachedFileSystemStamp == ProjectFileSystemStamp.CaptureFileGraph(paths))
                 {
                     return cachedProject;
                 }
             }
         }
 
-        var fileSystemStamp = ProjectFileSystemStamp.Capture(paths);
+        var fileSystemStamp = ProjectFileSystemStamp.CaptureFileGraph(paths);
         var (health, fileGraph) = ValidateAndBuildFileGraph(paths);
         var project = new OpenedProject(
             projectIdentityFactory(paths),
@@ -74,7 +74,7 @@ public sealed class ProjectWorkspaceService
         ArgumentNullException.ThrowIfNull(paths);
 
         ClearMemoryCache();
-        var fileSystemStamp = ProjectFileSystemStamp.Capture(paths);
+        var fileSystemStamp = ProjectFileSystemStamp.CaptureFileGraph(paths);
         var (health, fileGraph) = ValidateAndBuildFileGraph(paths);
         return CacheOpenedProject(paths, health, fileGraph, fileSystemStamp);
     }
@@ -84,7 +84,7 @@ public sealed class ProjectWorkspaceService
         ArgumentNullException.ThrowIfNull(paths);
 
         ClearMemoryCache();
-        var fileSystemStamp = ProjectFileSystemStamp.Capture(paths);
+        var fileSystemStamp = ProjectFileSystemStamp.CaptureFileGraph(paths);
         var (health, fileGraph) = ValidateAndBuildFileGraph(paths);
         CacheOpenedProject(paths, health, fileGraph, fileSystemStamp);
 
@@ -111,7 +111,7 @@ public sealed class ProjectWorkspaceService
             // Reuse the refreshed graph only when its inputs remained stable during
             // validation. The next reader still captures a fresh stamp before reuse.
             cachedFileSystemStamp = fileSystemStamp is not null
-                && fileSystemStamp == ProjectFileSystemStamp.Capture(paths)
+                && fileSystemStamp == ProjectFileSystemStamp.CaptureFileGraph(paths)
                     ? fileSystemStamp : null;
         }
 

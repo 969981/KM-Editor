@@ -297,6 +297,12 @@ public sealed class SwShTrainersEditSessionService
     private SwShEditSessionValidation Validate(OpenedProject project, EditSession session)
     {
         var workflow = trainersWorkflowService.Load(project);
+        return Validate(project, workflow, session);
+    }
+
+    private SwShEditSessionValidation Validate(
+        OpenedProject project, SwShTrainersWorkflow workflow, EditSession session)
+    {
         var abilityResolver = SwShPokemonAbilityOptionResolver.Load(project);
         var diagnostics = new List<ValidationDiagnostic>();
         var effectiveSession = CanonicalizePendingTrainerEdits(workflow, session);
@@ -404,7 +410,8 @@ public sealed class SwShTrainersEditSessionService
 
         projectWorkspaceService.ClearMemoryCache();
         var project = projectWorkspaceService.Open(paths);
-        var validation = Validate(project, session);
+        var workflow = trainersWorkflowService.Load(project);
+        var validation = Validate(project, workflow, session);
         var diagnostics = validation.Diagnostics.ToList();
         var effectiveSession = validation.Session;
         var trainerEdits = effectiveSession.PendingEdits.Where(IsTrainerEdit).ToArray();
@@ -422,7 +429,6 @@ public sealed class SwShTrainersEditSessionService
             return new ChangePlan(effectiveSession.Id, Array.Empty<PlannedFileWrite>(), diagnostics);
         }
 
-        var workflow = trainersWorkflowService.Load(project);
         var writes = CreatePlannedWrites(workflow, paths, trainerEdits, diagnostics);
         if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
