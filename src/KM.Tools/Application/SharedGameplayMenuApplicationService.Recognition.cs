@@ -13,7 +13,12 @@ internal sealed partial class SharedGameplayMenuApplicationService
 {
     private const string RegistrationReason = "shared-installation-registration-required";
 
-    private async Task<SharedGameplayMenuReceipt?> RecognizeOutput(Loaded loaded, CancellationToken token)
+    private sealed record RecognizedOutput(
+        SharedGameplayMenuReceipt Receipt,
+        Dictionary<string, byte[]?> NormalizedSources,
+        InGameSettingsBundleResolution Resolution);
+
+    private async Task<RecognizedOutput?> RecognizeOutput(Loaded loaded, CancellationToken token)
     {
         var runtime = await Track(loaded, new("exefs/subsdk9"), token).ConfigureAwait(false);
         if (!runtime.Exists) return null;
@@ -69,9 +74,10 @@ internal sealed partial class SharedGameplayMenuApplicationService
                 throw RecognitionFailure(current, "shared-installation-content-conflict");
         }
         loaded.Registrations.Add(runtime.Path.CanonicalKey);
-        return receipt with { Package = InGameSettingsPackageApplicationService.ToDto(rebuiltEntry),
+        var recognizedReceipt = receipt with { Package = InGameSettingsPackageApplicationService.ToDto(rebuiltEntry),
             Files = files.Select(file => file with { Before = normalized[file.Path],
                 After = loaded.Targets[new RelativeOutputPath(file.Path).CanonicalKey].Bytes.ToArray() }).ToArray() };
+        return new(recognizedReceipt, normalized, resolution);
     }
 
     private static void RequireUnregistered(Loaded loaded, ReviewedTarget target)
