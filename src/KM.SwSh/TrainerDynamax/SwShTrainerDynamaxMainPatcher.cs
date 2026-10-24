@@ -18,7 +18,7 @@ internal static partial class SwShTrainerDynamaxMainPatcher
 
     public static SwShTrainerDynamaxMainState Inspect(byte[] bytes, ProjectGame? game)
     {
-        var main = NsoFile.Parse(bytes);
+        var main = NsoFile.Inspect(bytes);
         var legacy = FindLayout(main, game);
         var layouts = new[] { legacy, TrainerLayouts.Single(candidate => candidate.Game == legacy.Game),
             EnabledLayouts.Single(candidate => candidate.Game == legacy.Game) };

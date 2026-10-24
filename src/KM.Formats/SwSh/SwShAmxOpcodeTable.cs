@@ -46,6 +46,10 @@ internal static class SwShAmxOpcodeTable
         "bounds.p", "push.p.adr", "pushr.p.c", "pushr.p.s", "pushr.p.adr",
     ];
 
+    private static readonly SwShAmxOpcodeDefinition[] Definitions = Enumerable.Range(1, Names.Length - 1)
+        .Select(CreateDefinition)
+        .ToArray();
+
     public static SwShAmxOpcodeDefinition Get(int opcode)
     {
         if ((uint)opcode >= (uint)Names.Length || opcode == 0)
@@ -53,6 +57,11 @@ internal static class SwShAmxOpcodeTable
             throw new InvalidDataException($"Unknown Sword/Shield AMX opcode {opcode}.");
         }
 
+        return Definitions[opcode - 1];
+    }
+
+    private static SwShAmxOpcodeDefinition CreateDefinition(int opcode)
+    {
         if (opcode is 130 or 161)
         {
             return new SwShAmxOpcodeDefinition(

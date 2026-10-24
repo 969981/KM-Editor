@@ -16,7 +16,7 @@ internal static partial class SwShTrainerWhiteoutMainPatcher
 {
     public static SwShTrainerWhiteoutMainState Inspect(byte[] bytes, ProjectGame? expectedGame = null)
     {
-        var main = NsoFile.Parse(bytes);
+        var main = NsoFile.Inspect(bytes);
         var layout = FindLayout(main, expectedGame);
         var installed = 0;
         foreach (var span in layout.Spans)

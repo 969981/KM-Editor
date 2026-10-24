@@ -52,7 +52,7 @@ internal static class ZaDexLayoutMainPatcher
 
         try
         {
-            var nso = NsoFile.Parse(mainBytes);
+            var nso = NsoFile.Inspect(mainBytes);
             var buildId = FormatBuildId(nso.BuildId);
             if (!string.Equals(buildId, ZABuildId, StringComparison.OrdinalIgnoreCase))
             {

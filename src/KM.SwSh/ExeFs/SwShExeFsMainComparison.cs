@@ -19,8 +19,8 @@ internal static class SwShExeFsMainComparison
 
         try
         {
-            var candidate = NsoFile.Parse(candidateBytes);
-            var baseNso = NsoFile.Parse(baseBytes);
+            var candidate = NsoFile.Inspect(candidateBytes);
+            var baseNso = NsoFile.Inspect(baseBytes);
             return candidate.Version == baseNso.Version
                 && candidate.Flags == baseNso.Flags
                 && candidate.BuildId.SequenceEqual(baseNso.BuildId)

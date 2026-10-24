@@ -207,8 +207,8 @@ public static class ZaStaticGameplaySettingsMainPatcher
                     buildId);
             }
 
-            var baseNso = ParseBoundedNso(baseMainBytes, "base", allowAppendedText: false);
-            var currentNso = ParseBoundedNso(currentMainBytes, "current", allowAppendedText: true);
+            var baseNso = ParseBoundedNso(baseMainBytes, "base", allowAppendedText: false, inspectionOnly: true);
+            var currentNso = ParseBoundedNso(currentMainBytes, "current", allowAppendedText: true, inspectionOnly: true);
             ValidateRequiredSegmentHashes(baseNso);
             ValidateRequiredSegmentHashes(currentNso);
             ValidateCleanBase(baseNso);
@@ -1268,7 +1268,8 @@ public static class ZaStaticGameplaySettingsMainPatcher
     private static NsoFile ParseBoundedNso(
         byte[] mainBytes,
         string label,
-        bool allowAppendedText)
+        bool allowAppendedText,
+        bool inspectionOnly = false)
     {
         var buildId = ReadBoundedBuildId(mainBytes, label);
         var bytes = mainBytes.AsSpan();
@@ -1330,7 +1331,7 @@ public static class ZaStaticGameplaySettingsMainPatcher
             }
         }
 
-        return NsoFile.Parse(mainBytes);
+        return inspectionOnly ? NsoFile.Inspect(mainBytes) : NsoFile.Parse(mainBytes);
     }
 
     private static void ValidateSegmentHash(NsoSegment segment, bool required, string label)

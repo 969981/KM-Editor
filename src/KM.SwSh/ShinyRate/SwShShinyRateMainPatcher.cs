@@ -132,7 +132,7 @@ internal static class SwShShinyRateMainPatcher
         PatchLayout? detectedLayout = null;
         try
         {
-            var nso = NsoFile.Parse(mainBytes);
+            var nso = NsoFile.Inspect(mainBytes);
             ValidateRequiredSegmentHashes(nso);
             buildId = FormatBuildId(nso.BuildId);
             var layout = FindLayout(nso.BuildId);

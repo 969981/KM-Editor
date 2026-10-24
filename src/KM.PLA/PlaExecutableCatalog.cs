@@ -30,7 +30,7 @@ internal sealed class PlaExecutableCatalog(PlaCatalog catalog)
     internal static string PathFor(string kind, string id) => Supports(kind) && id == kind
         ? PlaSourceScope.ExecutablePath : throw new InvalidDataException("The PLA executable editor identity is invalid.");
 
-    private static NsoFile Parse(byte[] bytes)
+    private static NsoFile Parse(byte[] bytes, bool inspectionOnly = false)
     {
         if (!PlaProjectProfile.Matches(bytes) || BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(4)) != 0)
             throw new InvalidDataException("PLA Type Chart requires the supported version 1.1.1 executable.");
@@ -41,7 +41,7 @@ internal sealed class PlaExecutableCatalog(PlaCatalog catalog)
             if (BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x14 + 16 * index)) != expected[index].Item1
                 || BinaryPrimitives.ReadInt32LittleEndian(bytes.AsSpan(0x18 + 16 * index)) != expected[index].Item2)
                 throw new InvalidDataException("The PLA executable segment layout is unsupported.");
-        var nso = NsoFile.Parse(bytes);
+        var nso = inspectionOnly ? NsoFile.Inspect(bytes) : NsoFile.Parse(bytes);
         foreach (var segment in nso.Segments)
             if (!NsoFile.ComputeHash(segment.DecompressedData).AsSpan().SequenceEqual(segment.Hash))
                 throw new InvalidDataException("The PLA executable segment checksum is invalid.");
@@ -60,8 +60,8 @@ internal sealed class PlaExecutableCatalog(PlaCatalog catalog)
         if (resource is { } cached) return cached;
         var original = catalog.Scope.Base(PlaSourceScope.ExecutablePath);
         var effective = catalog.Scope.Read(PlaSourceScope.ExecutablePath);
-        var baseline = Parse(original);
-        var current = ReferenceEquals(original, effective) ? baseline : Parse(effective);
+        var baseline = Parse(original, inspectionOnly: true);
+        var current = ReferenceEquals(original, effective) ? baseline : Parse(effective, inspectionOnly: true);
         NsoExecutableCompatibility.EnsureCompatibleBaseLayout(baseline, current, "PLA Type Chart");
         resource = (baseline, current);
         return resource.Value;
@@ -74,7 +74,7 @@ internal sealed class PlaExecutableCatalog(PlaCatalog catalog)
     {
         _ = PathFor(kind, id);
         var source = Load();
-        var current = edited is null ? source.Current : Parse(edited);
+        var current = edited is null ? source.Current : Parse(edited, inspectionOnly: true);
         return new(id, "Type Chart", new Dictionary<string, string> { ["entries"] = JsonSerializer.Serialize(Rows(current)) })
         {
             Metadata = new Dictionary<string, string>
@@ -103,7 +103,7 @@ internal sealed class PlaExecutableCatalog(PlaCatalog catalog)
         var ro = current.Ro.DecompressedData.ToArray();
         chart.CopyTo(ro, ChartOffset);
         var result = current.Write(roDecompressedData: ro);
-        var written = Parse(result);
+        var written = Parse(result, inspectionOnly: true);
         NsoExecutableCompatibility.EnsureCompatibleBaseLayout(current, written, "PLA Type Chart");
         if (!current.Text.CompressedData.AsSpan().SequenceEqual(written.Text.CompressedData)
             || !current.Data.CompressedData.AsSpan().SequenceEqual(written.Data.CompressedData)

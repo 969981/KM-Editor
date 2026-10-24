@@ -63,7 +63,7 @@ internal static partial class SwShTrainerWhiteoutAmxPatcher
         if (!SwShTrainerWhiteoutCatalog.ScriptHashes.TryGetValue(fileName, out var hash) || Convert.ToHexString(SHA256.HashData(vanilla)) != hash)
             throw new InvalidDataException("Trainer Whiteout requires a supported vanilla trainer script.");
         var baseline = Baselines.GetOrAdd(hash, _ => SwShAmxDocument.Parse(vanilla));
-        var current = SwShAmxDocument.Parse(source);
+        var current = source.AsSpan().SequenceEqual(vanilla) ? baseline : SwShAmxDocument.Parse(source);
         ValidateBorrowedHelpers(baseline, current, fileName);
         var recovery = current.DataCells.Count >= 7 && current.DataCells[^7] == Marker;
         if (current.DataCells.Count < 6 || current.DataCells[^1] != EndMarker || (!recovery && current.DataCells[^6] != Marker))

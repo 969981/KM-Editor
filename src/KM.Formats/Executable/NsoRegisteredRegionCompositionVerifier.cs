@@ -34,7 +34,7 @@ public static class NsoRegisteredRegionCompositionVerifier
 
         try
         {
-            var retail = NsoFile.Parse(retailMain.ToArray());
+            var retail = NsoFile.Inspect(retailMain.ToArray());
             if (!TryGetOpaqueSpans(retailMain, retail, out var retailOpaque)
                 || !CandidateHeaderMatchesRetail(
                     candidateMain,
@@ -45,7 +45,7 @@ public static class NsoRegisteredRegionCompositionVerifier
                 return false;
             }
 
-            var candidate = NsoFile.Parse(candidateMain.ToArray());
+            var candidate = NsoFile.Inspect(candidateMain.ToArray());
             return retail.Version == candidate.Version
                 && retail.Flags == candidate.Flags
                 && retail.BuildId.AsSpan().SequenceEqual(candidate.BuildId)
@@ -88,7 +88,7 @@ public static class NsoRegisteredRegionCompositionVerifier
 
         try
         {
-            var retail = NsoFile.Parse(retailMain.ToArray());
+            var retail = NsoFile.Inspect(retailMain.ToArray());
             return TryGetOpaqueSpans(retailMain, retail, out var retailOpaque)
                 && CandidateHeaderMatchesRetail(
                     candidateMain,
