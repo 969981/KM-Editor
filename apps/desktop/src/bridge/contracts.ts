@@ -1614,7 +1614,7 @@ export const pokemonWorkflowStatsSchema = z.strictObject({
   totalPokemonCount: z.number().int().nonnegative(),
 });
 
-export const pokemonWorkflowSchema = z.strictObject({
+const fullPokemonWorkflowSchema = z.strictObject({
   dexEditor: pokemonDexEditorSchema.nullable().optional().default(null),
   diagnostics: z.array(apiDiagnosticSchema),
   editableFields: z.array(pokemonEditableFieldSchema),
@@ -1626,6 +1626,28 @@ export const pokemonWorkflowSchema = z.strictObject({
   stats: pokemonWorkflowStatsSchema,
   summary: workflowSummarySchema,
 });
+
+const compactPokemonCompatibilityGroupSchema = pokemonCompatibilityGroupSchema.omit({ entries: true }).extend({
+  entryIds: z.array(z.number().int().nonnegative())
+});
+const compactPokemonWorkflowSchema = fullPokemonWorkflowSchema.extend({
+  compatibilityEntries: z.array(pokemonCompatibilityEntrySchema),
+  pokemon: z.array(pokemonRecordSchema.extend({ compatibility: z.array(compactPokemonCompatibilityGroupSchema) }))
+}).transform(({ compatibilityEntries, pokemon, ...workflow }, context): z.infer<typeof fullPokemonWorkflowSchema> => {
+  const records = pokemon.map(record => ({
+    ...record,
+    compatibility: record.compatibility.map(({ entryIds, ...group }) => ({
+      ...group,
+      entries: entryIds.map(id => {
+        const entry = compatibilityEntries[id];
+        if (!entry) context.addIssue({ code: 'custom', message: 'Unknown Pokemon compatibility entry.' });
+        return entry!;
+      })
+    }))
+  }));
+  return { ...workflow, pokemon: records };
+});
+export const pokemonWorkflowSchema = z.union([compactPokemonWorkflowSchema, fullPokemonWorkflowSchema]);
 
 export const loadPokemonWorkflowResponseSchema = z.strictObject({
   workflow: pokemonWorkflowSchema,

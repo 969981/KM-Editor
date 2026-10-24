@@ -574,6 +574,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         {
             // Read the minimal envelope first so the payload can be deserialized into the command-specific DTO.
             var envelope = DeserializeEnvelope(requestJson);
+            using var responseEncoding = CompactPokemonWorkflowJson.Begin(envelope?.CompactPokemonWorkflows == true);
             requestId = envelope?.RequestId;
             command = envelope?.Command;
             if (command is not null
@@ -612,6 +613,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 semanticExploreApplicationService.ClearMemoryCaches();
             }
 
+            using var restorationReads = OpenRestorationReadScope(requestJson, selectedGame);
             using var speciesView = OpenRestorationReadView(requestJson, command, selectedGame);
             var response = command switch
             {
@@ -9153,7 +9155,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
     {
         var response = BridgeResponse<TPayload>.Success(payload, requestId);
 
-        return JsonSerializer.Serialize(response, BridgeJson.SerializerOptions);
+        return JsonSerializer.Serialize(response, CompactPokemonWorkflowJson.ResponseOptions);
     }
 
     private static string SerializeOutputFileFailure(
@@ -9206,7 +9208,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         public string? Code { get; }
     }
 
-    private sealed record BridgeCommandEnvelope(string? Command, string? RequestId);
+    private sealed record BridgeCommandEnvelope(string? Command, string? RequestId, bool CompactPokemonWorkflows = false);
 
     private enum EditSessionDomain
     {

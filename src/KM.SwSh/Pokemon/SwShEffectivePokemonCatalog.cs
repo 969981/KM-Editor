@@ -49,6 +49,7 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
                 observed.Add(path, bytes); hash.AppendData(System.Text.Encoding.UTF8.GetBytes(path)); hash.AppendData(bytes); return bytes;
             }
             var state = SwShRestorationStateStore.Read(paths);
+            SwShRestorationReadScope.Find(paths)?.Prefetch(state.State.Selections.Where(s => s.Enabled).Select(s => s.PreparedHash));
             var managed = new Dictionary<SwShPokemonIdentity, bool>();
             foreach (var selection in state.State.Selections.Where(s => s.Enabled))
             {

@@ -9,6 +9,9 @@ namespace KM.SwSh.Restoration;
 public sealed class SwShRestorationReadScope : IDisposable
 {
     private const long MaximumCachedBytes = 512L * 1024 * 1024;
+    // Leave room for one artifact at the coordinator's per-file limit. Stop before
+    // prefetching would evict the prefix that the caller is about to consume.
+    private const long PrefetchStopBytes = MaximumCachedBytes - 192L * 1024 * 1024;
     private static readonly AsyncLocal<SwShRestorationReadScope?> Ambient = new();
     private readonly SwShRestorationReadScope? parent;
     private readonly SwShRestorationReadScope owner;
@@ -58,6 +61,23 @@ public sealed class SwShRestorationReadScope : IDisposable
             ObjectDisposedException.ThrowIf(disposed, this);
             Ensure([hash]);
             return artifacts[hash].Bytes.ToArray();
+        }
+    }
+
+    internal void Prefetch(IEnumerable<string> hashes)
+    {
+        lock (sync)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (cachedBytes >= PrefetchStopBytes) return;
+            var missing = hashes.Distinct(StringComparer.Ordinal).Where(h => !artifacts.ContainsKey(h)).ToArray();
+            OutputTransactionCoordinator.ForProject(paths).VisitPreservationArtifactsAsync(missing, (hash, bytes, lease) =>
+            {
+                artifacts.Add(hash, new(bytes, lease));
+                cachedBytes += bytes.LongLength;
+                Trim(hash);
+                return cachedBytes < PrefetchStopBytes;
+            }).GetAwaiter().GetResult();
         }
     }
 

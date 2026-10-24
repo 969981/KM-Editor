@@ -10,4 +10,5 @@ public sealed record BridgeRequest<TPayload>(
     string Command,
     TPayload Payload,
     string? RequestId = null,
-    KM.Api.Editing.EditSessionDto? SpeciesSession = null);
+    KM.Api.Editing.EditSessionDto? SpeciesSession = null,
+    bool CompactPokemonWorkflows = false);

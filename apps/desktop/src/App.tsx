@@ -8125,6 +8125,15 @@ export function App({
         return null;
       }
 
+      // Output writes do not alter the vanilla inputs used by preparation. A
+      // completed (or disabled) cache has no background work to pause or restart.
+      if (currentSvCacheStatus && (
+        currentSvCacheStatus.settings.mode === 'minimal' ||
+        currentSvCacheStatus.warmupCompleted >= currentSvCacheStatus.warmupTotal
+      )) {
+        return null;
+      }
+
       const scopeKey = svCacheScopeKeyRef.current;
       if (scopeKey === null) {
         return null;
@@ -8135,7 +8144,7 @@ export function App({
       setIsSvCacheWarming(false);
       return { runId, scopeKey };
     },
-    []
+    [currentSvCacheStatus]
   );
 
   const resumeProjectCacheWarmupAfterApply = useCallback(
@@ -17382,7 +17391,7 @@ export function App({
 
     setIsSessionValidating(true);
     setIsChangePlanCreating(true);
-    beginEditorProgress(operation, { operation: 'validate', phase: 'validating', phases: ['validating', 'planning'] });
+    beginEditorProgress(operation, { operation: 'review', phase: 'planning' });
     setBridgeDiagnostics([]);
     setEditValidationDiagnostics([]);
     setDynamaxAdventurePanelDiagnostics([]);
@@ -17395,37 +17404,20 @@ export function App({
     setChangePlanSessionSignature(null);
 
     try {
-      const response = await bridge.validateEditSession({
+      const planResponse = await bridge.createChangePlan({
+        outputMode: editSession.authoringBinding?.outputMode ?? undefined,
         paths: createProjectPaths(draftPaths),
         session: editSession
       });
       if (!isCurrentOperation()) {
         return;
       }
-      const nextSessionSignature = getEditSessionSignature(response.session);
-
-      if (!response.isValid || nextSessionSignature === null) {
-        setDynamaxAdventurePanelDiagnostics(response.diagnostics);
-        return;
-      }
-
-      updateEditorProgress(operation, { phase: 'planning' });
-      const planResponse = await bridge.createChangePlan({
-        outputMode: response.session.authoringBinding?.outputMode ?? undefined,
-        paths: createProjectPaths(draftPaths),
-        session: response.session
-      });
-      if (!isCurrentOperation()) {
-        return;
-      }
-      editSessionRef.current = response.session;
-      setEditSession(response.session);
       setEditSessionSection(
-        response.session.pendingEdits.length > 0 ? 'dynamaxAdventures' : null
+        editSession.pendingEdits.length > 0 ? 'dynamaxAdventures' : null
       );
-      setDynamaxAdventurePanelDiagnostics(response.diagnostics);
+      setDynamaxAdventurePanelDiagnostics(planResponse.changePlan.diagnostics);
       setDynamaxAdventureChangePlan(planResponse.changePlan);
-      setDynamaxAdventureChangePlanSessionSignature(nextSessionSignature);
+      setDynamaxAdventureChangePlanSessionSignature(initialSessionSignature);
     } catch (error) {
       if (!isCurrentOperation()) {
         return;
@@ -18340,15 +18332,14 @@ export function App({
     const runId = editSessionReviewRunRef.current + 1;
     editSessionReviewRunRef.current = runId;
     const initialSessionSignature = getEditSessionSignature(editSession);
-    let operationSessionSignature = initialSessionSignature;
     const isCurrentOperation = () =>
       editSessionReviewOperationRef.current === operation &&
       editSessionReviewRunRef.current === runId &&
-      getEditSessionSignature(editSessionRef.current) === operationSessionSignature;
+      getEditSessionSignature(editSessionRef.current) === initialSessionSignature;
 
     setIsSessionValidating(true);
     setIsChangePlanCreating(true);
-    beginEditorProgress(operation, { operation: 'validate', phase: 'validating', phases: ['validating', 'planning'] });
+    beginEditorProgress(operation, { operation: 'review', phase: 'planning' });
     setBridgeDiagnostics([]);
     setEditValidationDiagnostics([]);
     setChangePlan(null);
@@ -18357,39 +18348,23 @@ export function App({
     setChangePlanSessionSignature(null);
 
     try {
-      const response = await bridge.validateEditSession({
+      // Creating a plan validates the complete session and captures its source
+      // dependencies. A separate validation request repeats that same work.
+      updateEditorProgress(operation, { phase: 'planning' });
+      const planResponse = await bridge.createChangePlan({
+        outputMode: editSession.authoringBinding?.outputMode ?? undefined,
         paths: createProjectPaths(draftPaths),
         session: editSession
       });
       if (!isCurrentOperation()) {
         return;
       }
-      const nextSessionSignature = getEditSessionSignature(response.session);
-
-      if (!response.isValid || nextSessionSignature === null) {
-        operationSessionSignature = nextSessionSignature;
-        editSessionRef.current = response.session;
-        setEditSession(response.session);
-        setEditValidationDiagnostics(response.diagnostics);
-        return;
-      }
-
-      updateEditorProgress(operation, { phase: 'planning' });
-      const planResponse = await bridge.createChangePlan({
-        outputMode: response.session.authoringBinding?.outputMode ?? undefined,
-        paths: createProjectPaths(draftPaths),
-        session: response.session
-      });
-      if (!isCurrentOperation()) {
-        return;
-      }
-      operationSessionSignature = nextSessionSignature;
-      editSessionRef.current = response.session;
-      setEditSession(response.session);
-      setEditValidationDiagnostics(response.diagnostics);
-      setValidatedEditSessionSignature(nextSessionSignature);
+      setEditValidationDiagnostics(planResponse.changePlan.diagnostics);
+      setValidatedEditSessionSignature(
+        planResponse.changePlan.canApply ? initialSessionSignature : null
+      );
       setChangePlan(planResponse.changePlan);
-      setChangePlanSessionSignature(nextSessionSignature);
+      setChangePlanSessionSignature(initialSessionSignature);
     } catch (error) {
       if (!isCurrentOperation()) {
         return;

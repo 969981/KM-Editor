@@ -689,7 +689,7 @@ assert.match(
 );
 assert.match(
   outputSafetyHook,
-  /const notifyOutputMutation = useCallback\(async \(\) => \{[\s\S]*?return refreshedRecovery;/,
+  /const notifyOutputMutation = useCallback\(async \(refreshActivity = false\) => \{[\s\S]*?return refreshedRecovery;/,
   'Output mutation notification must return only the recovery status committed for the active scope.'
 );
 

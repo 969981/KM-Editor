@@ -39,8 +39,9 @@ export function usePlaPokemonEditor(props: PlaEditorProps) {
   const draftKey = (kind: PlaKind, id: string) => `pokemon/${kind}/${paths.gameTextLanguage ?? 'English'}/${id}`;
   const dirty = Object.keys(drafts).some(key => key.startsWith('pokemon/'));
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
-  const requestKey = JSON.stringify({ paths, session, refresh, cacheRevision });
+  const requestKey = JSON.stringify({ paths, session: session?.pendingEdits.length ? session : null, refresh, cacheRevision });
   useEffect(() => {
+    if (staging) return;
     const run = ++epoch.current;
     const finish = beginLoad?.();
     let started = false;
@@ -71,7 +72,7 @@ export function usePlaPokemonEditor(props: PlaEditorProps) {
         .finally(() => { finish?.(); if (epoch.current === run) setLoading(false); });
     }, 180);
     return () => { clearTimeout(timer); if (!started) finish?.(); epoch.current++; };
-  }, [bridge, requestKey, beginLoad]);
+  }, [bridge, requestKey, beginLoad, staging]);
 
   const matchingRecords = (pages.personal?.records ?? []).filter(record => {
     const values = record.values;
@@ -138,7 +139,7 @@ export function usePlaPokemonEditor(props: PlaEditorProps) {
         });
       }
     } catch (reason) { if (mounted.current && scopeRef.current === scope) setError(String(reason)); }
-    finally { stageLock.current = false; if (mounted.current) { setStaging(false); setRefresh(value => value + 1); } }
+    finally { stageLock.current = false; if (mounted.current) { setLoading(true); setStaging(false); setRefresh(value => value + 1); } }
   };
   const discard = (kinds: readonly PlaPokemonKind[]) => setDrafts(current => {
     const next = { ...current };
@@ -152,7 +153,7 @@ export function usePlaPokemonEditor(props: PlaEditorProps) {
       const accepted = await onStage({ kind: 'personal', id: '*', values: { baseExperience: '0' }, revision: pages.personal.revision, restoreBase });
       if (mounted.current && scopeRef.current === scope && !accepted) setError(t('pla.failed'));
     } catch (reason) { if (mounted.current && scopeRef.current === scope) setError(String(reason)); }
-    finally { stageLock.current = false; if (mounted.current) { setStaging(false); setRefresh(value => value + 1); } }
+    finally { stageLock.current = false; if (mounted.current) { setLoading(true); setStaging(false); setRefresh(value => value + 1); } }
   };
   const outstandingIds = [...new Set(Object.keys(drafts).filter(key => currentKinds.some(kind => key.startsWith(`pokemon/${kind}/${paths.gameTextLanguage ?? 'English'}/`)))
     .map(key => key.slice(key.lastIndexOf('/') + 1)))];

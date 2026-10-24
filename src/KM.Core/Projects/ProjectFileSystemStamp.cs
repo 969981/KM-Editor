@@ -64,7 +64,8 @@ internal static class ProjectFileSystemStamp
             }
             void Add(FileSystemInfo entry)
             {
-                entry.Refresh();
+                // Every entry is newly constructed or freshly enumerated for this capture.
+                // Enumeration already supplies metadata; Refresh would stat every file again.
                 Append(entry.FullName);
                 Append(entry.Exists.ToString());
                 if (!entry.Exists) return;

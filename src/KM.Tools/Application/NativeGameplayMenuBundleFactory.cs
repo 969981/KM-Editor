@@ -214,25 +214,7 @@ public static partial class NativeGameplayMenuBundleFactory
         ValidateGuestModule(guestModule);
         if (game is ProjectGame.Sword or ProjectGame.Shield)
             guestModule = ConfigureSwShFeatures(guestModule, features);
-        var derivedMain = game switch
-        {
-            ProjectGame.Scarlet => SvGameplaySettingsMainPatcher
-                .BuildRuntimeManaged(
-                    sourceMain,
-                    composedSourceMain,
-                    SvGameplayRuntimeEdition.Scarlet).Main,
-            ProjectGame.Violet => SvGameplaySettingsMainPatcher
-                .BuildRuntimeManaged(
-                    sourceMain,
-                    composedSourceMain,
-                    SvGameplayRuntimeEdition.Violet).Main,
-            ProjectGame.Sword or ProjectGame.Shield =>
-                SwShStaticGameplaySettingsMainPatcher
-                    .BuildRuntimeManaged(sourceMain, composedSourceMain, game).Main,
-            ProjectGame.ZA => ZaStaticGameplaySettingsMainPatcher
-                .BuildRuntimeManaged(sourceMain, composedSourceMain, game).Main,
-            _ => throw new ArgumentOutOfRangeException(nameof(game)),
-        };
+        var derivedMain = GetRuntimeMain(game, sourceMain, composedSourceMain);
         var derivedNpdm = NpdmRuntimeCapabilityPatcher
             .AddGuestRuntimeCapabilities(composedSourceNpdm);
         NpdmRuntimeCapabilityPatcher.VerifyDerived(composedSourceNpdm, derivedNpdm);

@@ -77,10 +77,11 @@ function PlaRecordEditor({ section, paths, session, bridge, drafts, setDrafts, i
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const searchQuery = ['encounters', 'spawns', 'outbreaks', 'massiveOutbreaks', 'outbreakEncounters', 'distortionEncounters', 'distortionSpawns', 'distortionItems'].includes(kind)
     ? plaAreaQuery(t, query) : query;
-  const requestKey = JSON.stringify({ paths, session, kind, query: searchQuery, offset, textFile, messageLanguage: kind === 'text' ? messageLanguage : null, refresh, cacheRevision });
+  const requestKey = JSON.stringify({ paths, session: session?.pendingEdits.length ? session : null, kind, query: searchQuery, offset, textFile, messageLanguage: kind === 'text' ? messageLanguage : null, refresh, cacheRevision });
   const dirty = Object.keys(drafts).some(key => key.startsWith(section + '/'));
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => {
+    if (staging) return;
     const run = ++epoch.current;
     const finishLoad = beginLoad?.();
     let started = false;
@@ -97,7 +98,7 @@ function PlaRecordEditor({ section, paths, session, bridge, drafts, setDrafts, i
         .finally(() => { finishLoad?.(); if (epoch.current === run) setLoading(false); });
     }, 180);
     return () => { window.clearTimeout(timer); if (!started) finishLoad?.(); epoch.current++; };
-  }, [bridge, requestKey, beginLoad]);
+  }, [bridge, requestKey, beginLoad, staging]);
 
   const weatherRecords = page?.kind === 'weather' ? page.records.filter(record => !query || record.id.toLocaleLowerCase().includes(query.toLocaleLowerCase())
     || t('pla.area.' + record.id).toLocaleLowerCase().includes(query.toLocaleLowerCase())) : null;
@@ -204,7 +205,7 @@ function PlaRecordEditor({ section, paths, session, bridge, drafts, setDrafts, i
         });
       }
     } catch (reason) { if (mounted.current && scopeRef.current === scope) setError(String(reason)); }
-    finally { stageLock.current = false; if (mounted.current) { setStaging(false); setRefresh(value => value + 1); } }
+    finally { stageLock.current = false; if (mounted.current) { setLoading(true); setStaging(false); setRefresh(value => value + 1); } }
   };
   const rows = useMemo(() => parseRows(values.entries ?? '[]'), [values.entries]);
   const changeRows = (next: string[][]) => setValue('entries', JSON.stringify(next.map(row => row.map(value => /^\d+$/u.test(value) ? Number(value) : value))));

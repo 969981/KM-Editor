@@ -417,7 +417,7 @@ export function useOutputSafetyController({
     }, t('outputSafety.error.activityLoad'));
   }, [bridge, history, runScopedAction, t]);
 
-  const notifyOutputMutation = useCallback(async () => {
+  const notifyOutputMutation = useCallback(async (refreshActivity = false) => {
     const activeScope = scopeRef.current;
     if (!activeScope || !scopeKey) {
       return null;
@@ -435,8 +435,10 @@ export function useOutputSafetyController({
     setActionDiagnostics([]);
     const results = await Promise.allSettled([
       bridge.getOutputRecoveryStatus({ scope: activeScope }),
-      bridge.listOutputHistory({ cursor: null, limit: 20, scope: activeScope }),
-      bridge.listOutputCheckpoints({ scope: activeScope })
+      // Checkpoint listing fingerprints the complete output. Ordinary editor writes
+      // only need recovery readiness; activity is loaded explicitly by its own UI.
+      refreshActivity ? bridge.listOutputHistory({ cursor: null, limit: 20, scope: activeScope }) : null,
+      refreshActivity ? bridge.listOutputCheckpoints({ scope: activeScope }) : null
     ]);
     if (!isCurrent(generation, scopeKey) || safetyEpochRef.current !== safetyEpoch) {
       return null;
@@ -514,7 +516,7 @@ export function useOutputSafetyController({
       }), async (response) => {
       setCleanupResult(response);
       setCleanupPreview(null);
-      await notifyOutputMutation();
+      await notifyOutputMutation(true);
     }, t('outputSafety.error.cleanupApply'));
   }, [bridge, cleanupPreview, notifyOutputMutation, runScopedAction, t]);
 
@@ -533,7 +535,7 @@ export function useOutputSafetyController({
         outputRevision: response.outputRevision,
         revision: response.revision
       } : current);
-      await notifyOutputMutation();
+      await notifyOutputMutation(true);
     }, t('outputSafety.error.checkpointCreate'));
   }, [bridge, checkpoints, notifyOutputMutation, runScopedAction, t]);
 
@@ -560,7 +562,7 @@ export function useOutputSafetyController({
       }), async (response) => {
       setRestoreResult(response);
       setCheckpointRestorePreview(null);
-      await notifyOutputMutation();
+      await notifyOutputMutation(true);
     }, t('outputSafety.error.checkpointRestore'));
   }, [bridge, checkpointRestorePreview, notifyOutputMutation, runScopedAction, t]);
 
@@ -582,7 +584,7 @@ export function useOutputSafetyController({
         outputRevision: current.outputRevision,
         revision: response.revision
       } : current);
-      await notifyOutputMutation();
+      await notifyOutputMutation(true);
     }, t('outputSafety.error.checkpointDelete'));
   }, [bridge, checkpoints, notifyOutputMutation, runScopedAction, t]);
 

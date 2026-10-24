@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 using KM.Core.Projects;
+using System.Security.Cryptography;
 using KM.Formats.Executable;
 using KM.SwSh.CatchCap;
 using KM.SwSh.ExeFs;
@@ -29,6 +30,12 @@ namespace KM.SwSh.RuntimeSettings;
 /// </summary>
 public static class SwShKnownExecutableCompositionVerifier
 {
+    private const int MaximumVerifiedCompositions = 32;
+    private static readonly object VerificationSync = new();
+    private static readonly Dictionary<CompositionIdentity, bool> VerifiedCompositions = [];
+    private sealed record CompositionIdentity(ProjectGame Game, string Retail, string Candidate,
+        string? BaseAdventure, string? CurrentAdventure);
+
     public static bool IsCompatibleRegisteredOutput(
         ReadOnlySpan<byte> retailMain,
         ReadOnlySpan<byte> candidateMain,
@@ -47,10 +54,34 @@ public static class SwShKnownExecutableCompositionVerifier
             return false;
         }
 
+        // This memoizes a pure byte-level proof, never filesystem observations or
+        // ownership. Every call hashes the supplied content, including paired archives.
+        var retail = retailMain.ToArray();
+        var normalized = candidateMain.ToArray();
+        var baseArchive = baseAdventureArchive?.ToArray();
+        var currentArchive = currentAdventureArchive?.ToArray();
+        var identity = new CompositionIdentity(expectedGame,
+            Convert.ToHexString(SHA256.HashData(retail)), Convert.ToHexString(SHA256.HashData(normalized)),
+            baseArchive is null ? null : Convert.ToHexString(SHA256.HashData(baseArchive)),
+            currentArchive is null ? null : Convert.ToHexString(SHA256.HashData(currentArchive)));
+        lock (VerificationSync)
+        {
+            if (VerifiedCompositions.TryGetValue(identity, out var verified)) return verified;
+        }
+        var result = Verify(retail, normalized, expectedGame, baseArchive, currentArchive);
+        lock (VerificationSync)
+        {
+            if (VerifiedCompositions.Count >= MaximumVerifiedCompositions) VerifiedCompositions.Clear();
+            VerifiedCompositions[identity] = result;
+        }
+        return result;
+    }
+
+    private static bool Verify(byte[] retail, byte[] normalized, ProjectGame expectedGame,
+        byte[]? baseAdventureArchive, byte[]? currentAdventureArchive)
+    {
         try
         {
-            var retail = retailMain.ToArray();
-            var normalized = candidateMain.ToArray();
             var recognizedTransformation = false;
 
             if (!NormalizeSoundMemory(retail, ref normalized, expectedGame, ref recognizedTransformation)

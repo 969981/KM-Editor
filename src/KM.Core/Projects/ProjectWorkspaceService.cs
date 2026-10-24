@@ -74,8 +74,9 @@ public sealed class ProjectWorkspaceService
         ArgumentNullException.ThrowIfNull(paths);
 
         ClearMemoryCache();
+        var fileSystemStamp = ProjectFileSystemStamp.Capture(paths);
         var (health, fileGraph) = ValidateAndBuildFileGraph(paths);
-        return CacheOpenedProject(paths, health, fileGraph);
+        return CacheOpenedProject(paths, health, fileGraph, fileSystemStamp);
     }
 
     public ProjectFileGraph RefreshFileGraph(ProjectPaths paths)
@@ -83,8 +84,9 @@ public sealed class ProjectWorkspaceService
         ArgumentNullException.ThrowIfNull(paths);
 
         ClearMemoryCache();
+        var fileSystemStamp = ProjectFileSystemStamp.Capture(paths);
         var (health, fileGraph) = ValidateAndBuildFileGraph(paths);
-        CacheOpenedProject(paths, health, fileGraph);
+        CacheOpenedProject(paths, health, fileGraph, fileSystemStamp);
 
         return fileGraph;
     }
@@ -92,7 +94,8 @@ public sealed class ProjectWorkspaceService
     private OpenedProject CacheOpenedProject(
         ProjectPaths paths,
         ProjectHealth health,
-        ProjectFileGraph fileGraph)
+        ProjectFileGraph fileGraph,
+        string? fileSystemStamp)
     {
         var project = new OpenedProject(
             projectIdentityFactory(paths),
@@ -105,8 +108,11 @@ public sealed class ProjectWorkspaceService
         {
             cachedPaths = paths;
             cachedProject = project;
-            // Explicit refreshes must not bind an earlier graph to later filesystem state.
-            cachedFileSystemStamp = null;
+            // Reuse the refreshed graph only when its inputs remained stable during
+            // validation. The next reader still captures a fresh stamp before reuse.
+            cachedFileSystemStamp = fileSystemStamp is not null
+                && fileSystemStamp == ProjectFileSystemStamp.Capture(paths)
+                    ? fileSystemStamp : null;
         }
 
         return project;

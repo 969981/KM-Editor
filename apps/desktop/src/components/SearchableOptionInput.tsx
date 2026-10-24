@@ -117,7 +117,7 @@ export function SearchableOptionInput({
   const localizedNoOptionsLabel =
     noOptionsLabel !== undefined ? translateLiteral(noOptionsLabel) : undefined;
   const localizedOptions = useMemo(
-    () => options.map((option) => ({
+    () => !localizeOptions ? options : options.map((option) => ({
       ...option,
       groupLabel:
         option.groupLabel === undefined || !localizeOptions
@@ -409,7 +409,7 @@ export function SearchableOptionInput({
 
   const firstVisible = onSearchQueryChange ? Math.max(0, Math.floor(catalogScrollTop / 48) - 5) : 0;
   const lastVisible = onSearchQueryChange ? firstVisible + 20 : menuItems.length;
-  const visibleRows = menuItems.slice(firstVisible, lastVisible).map((item, offset) => {
+  const visibleRows = hasMenu ? menuItems.slice(firstVisible, lastVisible).map((item, offset) => {
     const index = firstVisible + offset;
     const isSelected =
       item.kind === 'empty'
@@ -452,7 +452,7 @@ export function SearchableOptionInput({
         ) : null}
       </button>
     );
-  });
+  }) : [];
   const optionRows = <>
     {firstVisible > 0 ? <div aria-hidden="true" style={{ height: firstVisible * 48 }} /> : null}
     {visibleRows}
