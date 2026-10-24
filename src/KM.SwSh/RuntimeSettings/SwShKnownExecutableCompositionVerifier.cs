@@ -322,9 +322,9 @@ public static class SwShKnownExecutableCompositionVerifier
     private static bool NormalizeHeldItemChance(byte[] retail, ref byte[] normalized,
         ProjectGame expectedGame, ref bool recognizedTransformation)
     {
-        var original = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(retail));
-        var current = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(normalized));
-        if (original.SequenceEqual(current) && SwShHeldItemChancePatcher.Overrides(NsoFile.Parse(normalized), expectedGame).Count == 0) return true;
+        var original = SwShHeldItemChancePatcher.Rates(NsoFile.Inspect(retail));
+        var current = SwShHeldItemChancePatcher.Rates(NsoFile.Inspect(normalized));
+        if (original.SequenceEqual(current) && SwShHeldItemChancePatcher.Overrides(NsoFile.Inspect(normalized), expectedGame).Count == 0) return true;
         normalized = SwShHeldItemChancePatcher.Apply(retail, normalized, expectedGame, original, []);
         recognizedTransformation = true;
         return true;

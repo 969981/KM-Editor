@@ -48,9 +48,17 @@ public sealed record NsoFile(
 
     private NsoOriginalSegments? OriginalSegments { get; init; }
 
+    private bool InspectionOnly { get; init; }
+
     public IReadOnlyList<NsoSegment> Segments => [Text, Ro, Data];
 
-    public static NsoFile Parse(byte[] data)
+    public static NsoFile Parse(byte[] data) => ParseCore(data, inspectionOnly: false);
+
+    // Inspection owns its decoded buffers but omits snapshots needed only for exact rewriting.
+    // Write rejects these instances so callers must explicitly parse editable source bytes.
+    public static NsoFile Inspect(byte[] data) => ParseCore(data, inspectionOnly: true);
+
+    private static NsoFile ParseCore(byte[] data, bool inspectionOnly)
     {
         ArgumentNullException.ThrowIfNull(data);
 
@@ -86,7 +94,7 @@ public sealed record NsoFile(
         };
 
         ValidateSegmentLayouts(data.Length, segmentLayouts);
-        var opaqueLayout = HasStandardFileOrder(segmentLayouts)
+        var opaqueLayout = !inspectionOnly && HasStandardFileOrder(segmentLayouts)
             ? CaptureOpaqueLayout(data, segmentLayouts)
             : null;
         var textSegment = ReadSegment(
@@ -121,7 +129,8 @@ public sealed record NsoFile(
         {
             RawHeader = data.AsSpan(0, HeaderSize).ToArray(),
             OpaqueLayout = opaqueLayout,
-            OriginalSegments = new NsoOriginalSegments(
+            InspectionOnly = inspectionOnly,
+            OriginalSegments = inspectionOnly ? null : new NsoOriginalSegments(
                 CaptureOriginalSegment(
                     textSegment,
                     flags.HasFlag(NsoFlags.CompressedText),
@@ -147,6 +156,11 @@ public sealed record NsoFile(
         byte[]? roDecompressedData = null,
         byte[]? dataDecompressedData = null)
     {
+        if (InspectionOnly)
+        {
+            throw new InvalidOperationException("An inspected executable must be parsed for editing before it can be written.");
+        }
+
         ValidateWriteMemoryLayout(
             textDecompressedData?.Length ?? Text.DecompressedData.Length,
             roDecompressedData?.Length ?? Ro.DecompressedData.Length,

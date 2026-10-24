@@ -48,7 +48,7 @@ internal static class SwShFpsMainPatcher
 
         try
         {
-            var nso = NsoFile.Parse(mainBytes);
+            var nso = NsoFile.Inspect(mainBytes);
             var buildId = FormatBuildId(nso.BuildId);
             var layout = FindLayout(buildId);
             if (layout is null)

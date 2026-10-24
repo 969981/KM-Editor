@@ -107,7 +107,7 @@ internal static class SwShExeFsRoyalCandyMainPatcher
     {
         ArgumentNullException.ThrowIfNull(mainBytes);
 
-        var nso = NsoFile.Parse(mainBytes);
+        var nso = NsoFile.Inspect(mainBytes);
         var gameMismatch = CreateGameMismatchSignature(nso.BuildId, expectedGame);
         if (gameMismatch is not null)
         {

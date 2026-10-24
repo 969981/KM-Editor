@@ -187,7 +187,7 @@ public sealed class SwShExeFsPatchWorkflowService
     private static ExeFsCompatibilityFacts CreateCompatibilityFacts(string sourcePath)
     {
         var bytes = File.ReadAllBytes(sourcePath);
-        var nso = NsoFile.Parse(bytes);
+        var nso = NsoFile.Inspect(bytes);
         var detectedGame = SwShExeFsRoyalCandyMainPatcher.DetectSupportedGame(nso.BuildId);
         return new ExeFsCompatibilityFacts(
             bytes.Length,

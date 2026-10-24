@@ -1635,7 +1635,7 @@ public static class SvGameplaySettingsMainPatcher
             }
         }
 
-        nso = NsoFile.Parse(mainBytes);
+        nso = NsoFile.Inspect(mainBytes);
         return true;
     }
 

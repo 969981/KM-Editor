@@ -110,7 +110,7 @@ internal static class SwShCatchCapMainPatcher
 
         try
         {
-            var nso = NsoFile.Parse(mainBytes);
+            var nso = NsoFile.Inspect(mainBytes);
             ValidateRequiredSegmentHashes(nso);
             var buildId = FormatBuildId(nso.BuildId);
             var definition = FindDefinition(nso.BuildId);

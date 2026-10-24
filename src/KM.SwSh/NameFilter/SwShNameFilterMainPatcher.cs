@@ -62,7 +62,7 @@ internal static class SwShNameFilterMainPatcher
 
         try
         {
-            var nso = NsoFile.Parse(mainBytes);
+            var nso = NsoFile.Inspect(mainBytes);
             var buildId = FormatBuildId(nso.BuildId);
             var definition = FindDefinition(buildId);
             if (definition is null)

@@ -206,8 +206,8 @@ public static class SwShStaticGameplaySettingsMainPatcher
                     buildId);
             }
 
-            var baseNso = ParseBoundedNso(baseMainBytes, "base", layout);
-            var currentNso = ParseBoundedNso(currentMainBytes, "current", layout);
+            var baseNso = ParseBoundedNso(baseMainBytes, "base", layout, inspectionOnly: true);
+            var currentNso = ParseBoundedNso(currentMainBytes, "current", layout, inspectionOnly: true);
             ValidateRequiredSegmentHashes(baseNso);
             ValidateRequiredSegmentHashes(currentNso);
             SwShExeFsMainComparison.EnsureCompatibleBaseLayout(baseNso, currentNso, "Gameplay Settings inspection");
@@ -1582,7 +1582,8 @@ public static class SwShStaticGameplaySettingsMainPatcher
     private static NsoFile ParseBoundedNso(
         byte[] mainBytes,
         string label,
-        PatchLayout layout)
+        PatchLayout layout,
+        bool inspectionOnly = false)
     {
         _ = ReadBoundedBuildId(mainBytes, label);
         var bytes = mainBytes.AsSpan();
@@ -1642,7 +1643,7 @@ public static class SwShStaticGameplaySettingsMainPatcher
             }
         }
 
-        return NsoFile.Parse(mainBytes);
+        return inspectionOnly ? NsoFile.Inspect(mainBytes) : NsoFile.Parse(mainBytes);
     }
 
     private static void ValidateSegmentHash(NsoSegment segment, bool required, string label)
