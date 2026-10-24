@@ -64,33 +64,14 @@ internal static class FileSystemPathBoundary
         try
         {
             var fullPath = Path.GetFullPath(path);
-            var fileEntry = new FileInfo(fullPath);
             var directoryEntry = new DirectoryInfo(fullPath);
-            fileEntry.Refresh();
             directoryEntry.Refresh();
-            if (!string.IsNullOrEmpty(fileEntry.LinkTarget)
-                || !string.IsNullOrEmpty(directoryEntry.LinkTarget))
-            {
-                return false;
-            }
-
-            FileSystemInfo? entry = directoryEntry.Exists ? directoryEntry : fileEntry;
+            FileSystemInfo? entry = directoryEntry.Exists ? directoryEntry : new FileInfo(fullPath);
             while (entry is not null)
             {
-                entry.Refresh();
-                if (!string.IsNullOrEmpty(entry.LinkTarget))
+                if (HasLinkTarget(entry))
                 {
                     return false;
-                }
-
-                if (entry.Exists)
-                {
-                    var attributes = entry.Attributes;
-                    if (attributes.HasFlag(FileAttributes.ReparsePoint)
-                        && !string.IsNullOrEmpty(entry.LinkTarget))
-                    {
-                        return false;
-                    }
                 }
 
                 entry = entry switch
@@ -112,5 +93,15 @@ internal static class FileSystemPathBoundary
         {
             return false;
         }
+    }
+
+    internal static bool HasLinkTarget(FileSystemInfo entry)
+    {
+        entry.Refresh();
+        var attributes = entry.Attributes;
+        // Missing entries report all attribute bits set, so dangling links still
+        // receive a target lookup. Ordinary entries need no second filesystem read.
+        return attributes.HasFlag(FileAttributes.ReparsePoint)
+            && !string.IsNullOrEmpty(entry.LinkTarget);
     }
 }
