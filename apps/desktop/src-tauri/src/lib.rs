@@ -761,6 +761,17 @@ impl ProjectBridgeState {
                 .await;
         }
 
+        let guard = self.acquire_prioritized_write_permit().await?;
+        ensure_project_bridge_request_is_current(self, request_generation)?;
+        Ok(ProjectBridgeExecutionPermit::Ordered {
+            _guard: guard,
+            _read_worker_request: None,
+        })
+    }
+
+    async fn acquire_prioritized_write_permit(
+        &self,
+    ) -> Result<tokio::sync::OwnedRwLockWriteGuard<()>, String> {
         // Register the writer with Tokio's fair RwLock before canceling disposable readers. Once
         // this future has been polled, later reads queue behind it instead of replacing the work we
         // just stopped. The owning sidecar is never part of this preemption path.
@@ -796,11 +807,7 @@ impl ProjectBridgeState {
         // registers in read_worker_requests. Keep the cleanup marker until this write guard is
         // actually owned so that such a reader resumes into PREEMPTED and releases its guard.
         drop(writer_cleanup);
-        ensure_project_bridge_request_is_current(self, request_generation)?;
-        Ok(ProjectBridgeExecutionPermit::Ordered {
-            _guard: guard,
-            _read_worker_request: None,
-        })
+        Ok(guard)
     }
 }
 
@@ -1509,11 +1516,10 @@ async fn recycle_project_bridge(
 async fn recycle_project_bridge_after_active_requests(
     bridge_state: ProjectBridgeState,
 ) -> Result<(), String> {
-    // Recycling is a lifecycle operation, not a request in the current generation. It must wait
-    // behind the same exclusive barrier as durable work, then hold that barrier until every
-    // process has been detached and reaped. Otherwise a manual recycle or shutdown can kill the
-    // sidecar between journal publication and its cleanup/recovery boundary.
-    let execution_permit = bridge_state.execution_gate.clone().write_owned().await;
+    // Cancel disposable reads through the same fair boundary used by output operations. Durable
+    // and protected requests still finish before recycling, and the barrier remains held until
+    // every process is detached and reaped, including journal cleanup and recovery boundaries.
+    let execution_permit = bridge_state.acquire_prioritized_write_permit().await?;
     tauri::async_runtime::spawn_blocking(move || {
         let _execution_permit = execution_permit;
         recycle_project_bridge_process(&bridge_state)
@@ -4742,6 +4748,170 @@ mod tests {
         assert_eq!(response, request);
         assert_eq!(starts, 2, "transport recovery must retry at most once");
         recycle_project_bridge_process(&bridge_state).expect("reap recovery fixture");
+    }
+
+    #[test]
+    fn shutdown_does_not_wait_for_disposable_read_cleanup() {
+        let state = ProjectBridgeState::with_parallel_read_limit(1);
+        let generation = state.generation.load(Ordering::Acquire);
+        let read_permit =
+            tauri::async_runtime::block_on(state.acquire_execution_permit_for_generation(
+                generation,
+                ProjectBridgeCommandConcurrency::IndependentRead(
+                    ProjectBridgeReadAffinity::GeneralProject,
+                ),
+            ))
+            .expect("admit disposable read");
+        let shutdown_state = state.clone();
+        let (finished, completion) = mpsc::channel();
+        let started = Instant::now();
+        let shutdown = std::thread::spawn(move || {
+            let result = tauri::async_runtime::block_on(
+                recycle_project_bridge_after_active_requests(shutdown_state),
+            );
+            finished.send(result).expect("report shutdown");
+        });
+        // Keep the canceled read task's permit alive, as a detached blocking task can do.
+        let early = completion.recv_timeout(Duration::from_secs(2));
+        let completed_while_read_retained = early.is_ok();
+        println!(
+            "shutdown_wait_ms={} completed_while_read_retained={completed_while_read_retained}",
+            started.elapsed().as_millis()
+        );
+        drop(read_permit);
+        early
+            .unwrap_or_else(|_| {
+                completion
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("shutdown after cleanup")
+            })
+            .expect("shutdown succeeds");
+        shutdown.join().expect("shutdown thread");
+        assert!(
+            completed_while_read_retained,
+            "shutdown must cancel disposable reads without waiting for their blocking cleanup"
+        );
+        assert_ne!(state.generation.load(Ordering::Acquire), generation);
+        assert!(state.execution_gate.try_write().is_ok());
+    }
+
+    #[test]
+    fn shutdown_preserves_protected_work_before_canceling_disposable_reads() {
+        let state = ProjectBridgeState::with_parallel_read_limit(2);
+        let generation = state.generation.load(Ordering::Acquire);
+        let read_permit =
+            tauri::async_runtime::block_on(state.acquire_execution_permit_for_generation(
+                generation,
+                ProjectBridgeCommandConcurrency::IndependentRead(
+                    ProjectBridgeReadAffinity::GeneralProject,
+                ),
+            ))
+            .expect("admit disposable read");
+        let protected_permit =
+            tauri::async_runtime::block_on(state.acquire_execution_permit_for_generation(
+                generation,
+                ProjectBridgeCommandConcurrency::AffinityOrdered(
+                    ProjectBridgeReadAffinity::SemanticExplore,
+                ),
+            ))
+            .expect("admit protected request");
+        let shutdown_state = state.clone();
+        let (finished, completion) = mpsc::channel();
+        let shutdown = std::thread::spawn(move || {
+            finished
+                .send(tauri::async_runtime::block_on(
+                    recycle_project_bridge_after_active_requests(shutdown_state),
+                ))
+                .expect("report shutdown");
+        });
+        assert!(completion.recv_timeout(Duration::from_millis(100)).is_err());
+        assert_eq!(state.generation.load(Ordering::Acquire), generation);
+        drop(protected_permit);
+        let early = completion.recv_timeout(Duration::from_secs(2));
+        let completed_after_protected_work = early.is_ok();
+        drop(read_permit);
+        early
+            .unwrap_or_else(|_| {
+                completion
+                    .recv_timeout(Duration::from_secs(5))
+                    .expect("shutdown cleanup")
+            })
+            .expect("shutdown succeeds");
+        shutdown.join().expect("shutdown thread");
+        assert!(
+            completed_after_protected_work,
+            "only protected work should delay shutdown"
+        );
+    }
+
+    #[test]
+    fn shutdown_stops_active_read_workers_and_rejects_stale_requests() {
+        let state = ProjectBridgeState::with_parallel_read_limit(1);
+        let generation = state.generation.load(Ordering::Acquire);
+        let read_generation = state.read_generation.load(Ordering::Acquire);
+        let request = r#"{"command":"project.sourceRevision.read","requestId":"closing"}"#;
+        let policy = project_bridge_request_policy(request).expect("read policy");
+        let worker = Arc::new(spawn_silent_project_bridge_fixture());
+        *state.read_processes[0].lock().expect("worker slot") = Some(worker.clone());
+        let read_state = state.clone();
+        let read_thread = std::thread::spawn(move || {
+            let _permit = tauri::async_runtime::block_on(
+                read_state.acquire_execution_permit_for_generation(generation, policy.concurrency),
+            )
+            .expect("admit active read");
+            run_project_bridge_request_with(
+                &read_state,
+                generation,
+                request,
+                policy,
+                Some(read_generation),
+                &read_state.read_processes[0],
+                None,
+                "direct",
+                0,
+                || panic!("a stale read must never start another worker"),
+            )
+        });
+        wait_for_active_project_bridge_request(&worker);
+        let started = Instant::now();
+        tauri::async_runtime::block_on(recycle_project_bridge_after_active_requests(state.clone()))
+            .expect("shutdown active worker");
+        println!(
+            "active_worker_shutdown_ms={}",
+            started.elapsed().as_millis()
+        );
+        assert!(started.elapsed() < Duration::from_secs(5));
+        let error = read_thread
+            .join()
+            .expect("read thread")
+            .expect_err("canceled read cannot publish");
+        assert!(matches!(
+            error.as_str(),
+            PROJECT_BRIDGE_READ_PREEMPTED_ERROR | PROJECT_BRIDGE_RECYCLED_ERROR
+        ));
+        assert!(worker.child.lock().expect("child lock").is_none());
+        assert!(state.read_processes[0]
+            .lock()
+            .expect("worker slot")
+            .is_none());
+        assert_eq!(
+            tauri::async_runtime::block_on(
+                state.acquire_execution_permit_for_generation(generation, policy.concurrency,)
+            )
+            .expect_err("queued old work must be rejected"),
+            PROJECT_BRIDGE_RECYCLED_ERROR
+        );
+        assert_eq!(
+            accept_project_bridge_response_for_epoch(
+                &state,
+                generation,
+                read_generation,
+                policy.concurrency,
+                Ok("stale".into())
+            )
+            .expect_err("late responses must be rejected"),
+            PROJECT_BRIDGE_RECYCLED_ERROR
+        );
     }
 
     #[test]
