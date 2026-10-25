@@ -18,7 +18,8 @@ public static class SwShMaterialBaker
     private sealed record Image(int Width, int Height, bool Srgb, byte[] Pixels);
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex,
         Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool sourceNormalDimensions = false, bool opaqueEyeSurface = false,
-        bool cornealEye = false, float cornealNormalHeight = 1, Vector2? normalUvScale = null, int normalUvVerticalTile = 0)
+        bool cornealEye = false, float cornealNormalHeight = 1, Vector2? normalUvScale = null, int normalUvVerticalTile = 0,
+        ModelTextureMipCache? encodingCache = null)
     {
         if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
@@ -179,19 +180,20 @@ public static class SwShMaterialBaker
             throw new InvalidDataException("Opaque eye conversion requires the qualified zero alpha premultiplied surface.");
         if (primitive.Material.Alpha == "Opaque" || opaqueEyeSurface)
             for (var index = 3; index < colorPixels.Length; index += 4) colorPixels[index] = 255;
-        var color = container.EncodeMipImages(SwShTextureFiltering.Mips(colorPixels, colorWidth, colorHeight, container.MipCount, container.Srgb, sharpen: true), cancellationToken);
-        return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken),
-            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts)
+        var color = container.EncodeMipImages(SwShTextureFiltering.Mips(colorPixels, colorWidth, colorHeight, container.MipCount, container.Srgb, sharpen: true), cancellationToken, encodingCache);
+        return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken, encodingCache),
+            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken, encodingCache), coverage / (double)covered.Length, conflicts)
             { NormalUvScale = normalScale };
     }
 
-    public static byte[] Icon(byte[] sourceTexture, byte[] targetTemplate, CancellationToken cancellationToken = default)
+    public static byte[] Icon(byte[] sourceTexture, byte[] targetTemplate, CancellationToken cancellationToken = default,
+        ModelTextureMipCache? encodingCache = null)
     {
         var source = Read(sourceTexture); var target = new ModelTextureDocument(targetTemplate);
         if (source.Width > target.Width || source.Height > target.Height) throw new InvalidDataException("Source icon does not fit the target icon frame.");
         var pixels = new byte[target.Width * target.Height * 4]; var x = (target.Width - source.Width) / 2; var y = (target.Height - source.Height) / 2;
         for (var row = 0; row < source.Height; row++) source.Pixels.AsSpan(row * source.Width * 4, source.Width * 4).CopyTo(pixels.AsSpan(((row + y) * target.Width + x) * 4));
-        return target.EncodeMipImages(Mips(pixels, target.Width, target.Height, target.MipCount), cancellationToken);
+        return target.EncodeMipImages(Mips(pixels, target.Width, target.Height, target.MipCount), cancellationToken, encodingCache);
     }
     private static Image Read(byte[] bytes)
     {

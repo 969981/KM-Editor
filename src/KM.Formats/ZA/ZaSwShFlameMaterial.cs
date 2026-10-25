@@ -6,7 +6,8 @@ namespace KM.Formats.ZA;
 
 public static class ZaSwShFlameMaterial
 {
-    public static SwShBakedMaterial Bake(byte[] sourceMaterials, bool shiny, Func<string, byte[]> read, CancellationToken token)
+    public static SwShBakedMaterial Bake(byte[] sourceMaterials, bool shiny, Func<string, byte[]> read, CancellationToken token,
+        ModelTextureMipCache? encodingCache = null)
     {
         var source = new ModelBuffer(sourceMaterials);
         var material = source.Tables(source.Root, 1, 128).Single(table => source.Text(table, 0) == "fire");
@@ -53,7 +54,7 @@ public static class ZaSwShFlameMaterial
             var allocation = SwShTextureAllocation.Create(maskBytes, width, height, srgb);
             var document = new ModelTextureDocument(ModelTextureIdentity.Rename(allocation, original, name, linear: !srgb));
             var levels = SwShTextureFiltering.Mips(image, width, height, document.MipCount, srgb);
-            return document.EncodeMipImages(levels, token);
+            return document.EncodeMipImages(levels, token, encodingCache);
         }
         var normal = Enumerable.Range(0, 16).SelectMany(_ => new byte[] { 128, 128, 255, 255 }).ToArray();
         var ambient = Enumerable.Range(0, 16).SelectMany(_ => new byte[] { 0, 0, 128, 255 }).ToArray();

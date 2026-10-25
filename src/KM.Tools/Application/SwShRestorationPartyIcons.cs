@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using KM.Formats.SwSh;
+using KM.Formats.Models;
 
 namespace KM.Tools.Application;
 
@@ -25,7 +26,8 @@ internal static class SwShRestorationPartyIcons
         [390] = ("chimchar", "0948_00s"), [391] = ("monferno", "0949_00s"), [392] = ("infernape", "0815_00s"),
         [352] = ("kecleon", "0560_00s"), [393] = ("piplup", "0007_00s"), [394] = ("prinplup", "0008_00s"), [395] = ("empoleon", "0009_00s"),
     };
-    internal static byte[] Create(int species, Func<string, byte[]> native, CancellationToken token, int form = 0)
+    internal static byte[] Create(int species, Func<string, byte[]> native, CancellationToken token, int form = 0,
+        ModelTextureMipCache? encodingCache = null)
     {
         if (!Profiles.TryGetValue(species, out var profile)) throw new InvalidDataException("Restoration party icon profile is missing.");
         if (form != 0)
@@ -37,6 +39,6 @@ internal static class SwShRestorationPartyIcons
             ?? throw new InvalidDataException("Restoration party sprite is missing.");
         if (stream.Length is < 1 or > 1024 * 1024) throw new InvalidDataException("Restoration party sprite exceeds its budget.");
         var bytes = new byte[checked((int)stream.Length)]; stream.ReadExactly(bytes);
-        return SwShPartyIconWriter.CreateMiniature(bytes, native("bin/appli/icon_pokemon/poke_icon_" + profile.Frame + "_n.bntx"), token);
+        return SwShPartyIconWriter.CreateMiniature(bytes, native("bin/appli/icon_pokemon/poke_icon_" + profile.Frame + "_n.bntx"), token, encodingCache);
     }
 }

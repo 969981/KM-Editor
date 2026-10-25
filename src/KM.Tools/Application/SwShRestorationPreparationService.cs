@@ -67,6 +67,7 @@ public sealed partial class SwShRestorationPreparationService
         private readonly CancellationToken token;
         private readonly Dictionary<string, byte[]> native = new(StringComparer.Ordinal);
         private readonly Dictionary<string, byte[]> donor = new(StringComparer.Ordinal);
+        private readonly ModelTextureMipCache textureEncoding = new();
         internal readonly Dictionary<string, SwShRestorationSourceFingerprint> Fingerprints = new(StringComparer.Ordinal);
         private long retainedBytes;
 

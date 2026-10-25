@@ -11,7 +11,8 @@ namespace KM.Formats.ZA;
 public static class ZaSwShMaterialBaker
 {
     internal sealed record Image(int Width, int Height, bool Srgb, byte[] Pixels);
-    public static byte[] Icon(byte[] sourceTexture, byte[] targetTemplate, CancellationToken cancellationToken = default)
+    public static byte[] Icon(byte[] sourceTexture, byte[] targetTemplate, CancellationToken cancellationToken = default,
+        ModelTextureMipCache? encodingCache = null)
     {
         var source = Read(sourceTexture); var target = new ModelTextureDocument(targetTemplate);
         var scale = Math.Min(1d, Math.Min(target.Width / (double)source.Width, target.Height / (double)source.Height));
@@ -41,10 +42,11 @@ public static class ZaSwShMaterialBaker
                 pixels[output + 3] = Channel((float)(alpha / total));
             }
         }
-        return target.EncodeMipImages(Mips(pixels, target.Width, target.Height, target.MipCount), cancellationToken);
+        return target.EncodeMipImages(Mips(pixels, target.Width, target.Height, target.MipCount), cancellationToken, encodingCache);
     }
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex, bool shiny, byte[] textureTemplate, string templateName,
-        Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool layeredEyes = false)
+        Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool layeredEyes = false,
+        ModelTextureMipCache? encodingCache = null)
     {
         if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
@@ -183,9 +185,9 @@ public static class ZaSwShMaterialBaker
                 pixels[at] = ColorChannel(rgb.X); pixels[at + 1] = ColorChannel(rgb.Y); pixels[at + 2] = ColorChannel(rgb.Z); pixels[at + 3] = 255;
             }
         }
-        var color = colorContainer.EncodeMipImages(SwShTextureFiltering.Mips(pixels, colorWidth, colorHeight, colorContainer.MipCount, srgb: true, sharpen: true), cancellationToken);
-        return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken),
-            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken), coverage / (double)covered.Length, conflicts);
+        var color = colorContainer.EncodeMipImages(SwShTextureFiltering.Mips(pixels, colorWidth, colorHeight, colorContainer.MipCount, srgb: true, sharpen: true), cancellationToken, encodingCache);
+        return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken, encodingCache),
+            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken, encodingCache), coverage / (double)covered.Length, conflicts);
     }
 
     internal static Image Read(byte[] bytes)

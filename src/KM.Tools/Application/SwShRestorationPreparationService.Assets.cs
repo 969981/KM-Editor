@@ -81,7 +81,7 @@ public sealed partial class SwShRestorationPreparationService
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
             var textures = new RestorationTexturePool(members, modelFolder, profile.CompactResources);
             var fireTextures = profile.NativeFlames ? SvSwShFlameMaterial.Textures(materialBytes,
-                name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token) : null;
+                name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, textureEncoding) : null;
             if (fireTextures is not null)
             {
                 foreach (var pair in fireTextures.Files) members[modelFolder + pair.Key + ".bntx"] = pair.Value;
@@ -264,7 +264,7 @@ public sealed partial class SwShRestorationPreparationService
                     : giantDonor.TryGetFileByName(name + extension, 32 * 1024 * 1024, out var shader)
                     ? shader : Member(giantFire ?? giantDonor, name + extension);
             result.Add(File($"bin/archive/gpokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(giantMembers).Write()));
-            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_{pokemon.Form:00}s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token, pokemon.Form)));
+            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_{pokemon.Form:00}s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token, pokemon.Form, textureEncoding)));
             foreach (var shiny in new[] { false, true })
             {
                 var identity = new SwShPokemonResourceIdentity(species, pokemon.Form, 0, shiny);
