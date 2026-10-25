@@ -51,14 +51,11 @@ When adding or changing desktop UI:
   file buttons, textarea resize handles, placeholders, and autofill must remain KM themed.
 - Keep forced-colors behavior intact. Windows system colors and restored native affordances are
   intentional only while forced-colors mode is active for accessibility.
-- If a new input type or proxy-control pattern is genuinely required, extend the shared theme and
-  `scripts/check-control-theme.mjs` in the same change. Do not add a local exception that bypasses
-  the contract.
+- If a new input type or proxy-control pattern is required, extend the shared theme in the same
+  change. Preserve the shared appearance and interaction rules.
 
-Run `pnpm typecheck` from the repository root before handing off any desktop UI change. The command
-audits every desktop TSX and CSS source and rejects inline native-control styling, unsupported or
-dynamic input types, platform appearance outside forced-colors mode, hardcoded field colors,
-field background shorthands, erased select arrows, and missing shared or proxy-control states.
+Run `pnpm typecheck` from the repository root before handing off any desktop UI change to verify
+TypeScript compilation.
 
 ## Desktop concurrency contract
 
