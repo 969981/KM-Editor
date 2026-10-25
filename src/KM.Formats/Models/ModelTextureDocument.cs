@@ -107,9 +107,10 @@ public sealed class ModelTextureDocument
 
     public byte[] Preview(IReadOnlyList<ModelTextureColorChange> changes) => PixelBytes(RecoloredPixels(changes, out _, default));
 
-    private static byte[] PixelBytes(ColorRgba32[] pixels)
+    public static byte[] PixelBytes(ColorRgba32[] pixels)
     {
-        var result = new byte[pixels.Length * 4];
+        ArgumentNullException.ThrowIfNull(pixels);
+        var result = new byte[checked(pixels.Length * 4)];
         for (var i = 0; i < pixels.Length; i++)
         {
             result[i * 4] = pixels[i].r; result[i * 4 + 1] = pixels[i].g;

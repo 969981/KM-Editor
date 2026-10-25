@@ -25,7 +25,7 @@ internal static class SwShDynamaxAdventuresBossTargetPatcher
     {
         ArgumentNullException.ThrowIfNull(mainBytes);
 
-        var nso = NsoFile.Parse(mainBytes);
+        var nso = NsoFile.Inspect(mainBytes);
         var text = nso.Text.DecompressedData;
         var callSiteOffsetDelta = GetCallSiteOffsetDelta(nso.BuildId);
         var hasA = TryReadOwnedCallSite(

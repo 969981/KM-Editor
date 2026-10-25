@@ -25,12 +25,37 @@ public static class SwShRestorationComposer
     /// <summary>Checks presence against immutable source buffers owned by one catalog load.</summary>
     internal sealed class PresenceValidator
     {
+        private const int MaximumCampCacheBytes = 16 * 1024 * 1024;
+        private const int MaximumCampCacheEntries = 16384;
+        private byte[]? campSource;
+        private SwShGfPackFile? camp;
         private byte[]? voiceSource;
         private HashSet<uint> media = [];
         private Dictionary<(byte Type, uint Id), int> objects = [];
 
         internal bool HasAllContributions(IReadOnlyList<SwShRestorationContribution> contributions, Func<string, byte[]?> readEffective)
             => ComposeCore(contributions, readEffective, false, false, null, true, this).RetainedCustomizations.Count == contributions.Count;
+
+        internal SwShGfPackFile ReadCamp(byte[] source)
+        {
+            if (ReferenceEquals(source, campSource)) return camp!;
+            campSource = null;
+            camp = null;
+            if (source.Length <= MaximumCampCacheBytes)
+            {
+                try
+                {
+                    camp = SwShGfPackFile.ParseBoundedReadOnly(source, MaximumCampCacheEntries, MaximumCampCacheBytes);
+                    campSource = source;
+                    return camp;
+                }
+                catch (InvalidDataException)
+                {
+                    // The retention budget must not exclude otherwise valid archives.
+                }
+            }
+            return SwShGfPackFile.Parse(source);
+        }
 
         internal void ReadVoices(byte[] source)
         {
@@ -116,13 +141,21 @@ public static class SwShRestorationComposer
                 }
                 case SwShRestorationWriter.Camp:
                 {
-                    var pack = SwShGfPackFile.Parse(current); var writes = new Dictionary<string, byte[]>(); var removals = new List<string>();
+                    var pack = presenceValidator?.ReadCamp(current) ?? SwShGfPackFile.Parse(current);
+                    var writes = new Dictionary<string, byte[]>(); var removals = new List<string>();
                     foreach (var item in items)
                     {
                         if (!item.Key.StartsWith("bin/pokemon_data/pokecamp/", StringComparison.Ordinal) || item.Key.Contains("..", StringComparison.Ordinal))
                             throw new InvalidDataException("Camp member identity is invalid.");
                         var hash = SwShGfPackFile.HashMemberPath(item.Key);
-                        var payload = pack.AbsoluteHashes.Any(h => h.HashFnv1aPathFull == hash) ? pack.ReadFileByHash(hash, 1024 * 1024) : null;
+                        var exists = pack.AbsoluteHashes.Any(h => h.HashFnv1aPathFull == hash);
+                        if (presenceValidator is not null)
+                        {
+                            if (exists) pack.ValidateFileByHash(hash, 1024 * 1024);
+                            Select(item, exists ? [] : null);
+                            continue;
+                        }
+                        var payload = exists ? pack.ReadFileByHash(hash, 1024 * 1024) : null;
                         var replacement = Select(item, payload);
                         if (replacement is null) { if (payload is not null) removals.Add(item.Key); } else writes.Add(item.Key, replacement);
                     }

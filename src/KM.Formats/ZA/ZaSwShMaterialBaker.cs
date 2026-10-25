@@ -199,8 +199,8 @@ public static class ZaSwShMaterialBaker
             _ => throw new InvalidDataException("Source material texture is unsupported."),
         };
         if ((long)texture.Width * texture.Height > 4 * 1024 * 1024) throw new InvalidDataException("Source material image exceeds its budget.");
-        var pixels = format == CompressionFormat.Rgba ? texture.Blocks : new BcDecoder().DecodeRaw(texture.Blocks, texture.Width, texture.Height, format)
-            .SelectMany(p => new[] { p.r, p.g, p.b, p.a }).ToArray();
+        var pixels = format == CompressionFormat.Rgba ? texture.Blocks
+            : ModelTextureDocument.PixelBytes(new BcDecoder().DecodeRaw(texture.Blocks, texture.Width, texture.Height, format));
         return new(texture.Width, texture.Height, (texture.Format & 255) == 6, pixels);
     }
     internal static Vector4 Sample(Image image, Vector2 uv, Vector4 transform, Vector2 wrap)

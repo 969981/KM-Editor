@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
+using System.Security.Cryptography;
 using KM.Core.Output;
 using KM.Core.Projects;
 using KM.SwSh.Editing;
@@ -24,7 +25,8 @@ public sealed class SwShRestorationReadScope : IDisposable
 
     private sealed class Artifact(byte[] bytes, FileStream lease)
     {
-        internal readonly byte[] Bytes = bytes;
+        internal byte[]? Bytes = bytes;
+        internal readonly int EncodedLength = bytes.Length;
         internal readonly FileStream Lease = lease;
         internal SwShPreparedRestoration? Prepared;
         internal long Size = bytes.LongLength;
@@ -60,7 +62,17 @@ public sealed class SwShRestorationReadScope : IDisposable
         {
             ObjectDisposedException.ThrowIf(disposed, this);
             Ensure([hash]);
-            return artifacts[hash].Bytes.ToArray();
+            var artifact = artifacts[hash];
+            if (artifact.Bytes is not null) return artifact.Bytes.ToArray();
+            // Decoded artifacts retain their protected file lease, not a second payload buffer.
+            if (artifact.Lease.Length != artifact.EncodedLength)
+                throw new InvalidDataException("Restoration artifact length has changed.");
+            var bytes = new byte[artifact.EncodedLength];
+            artifact.Lease.Position = 0;
+            artifact.Lease.ReadExactly(bytes);
+            if (Convert.ToHexStringLower(SHA256.HashData(bytes)) != hash)
+                throw new InvalidDataException("Restoration artifact content does not match its identity.");
+            return bytes;
         }
     }
 
@@ -94,19 +106,20 @@ public sealed class SwShRestorationReadScope : IDisposable
             {
                 Ensure([hash]);
                 var artifact = artifacts[hash];
-                total += artifact.Bytes.LongLength;
+                total += artifact.EncodedLength;
                 if (total > MaximumCachedBytes)
                     throw new OutputLimitExceededException("The restoration artifact set exceeds its supported size.");
                 if (artifact.Prepared is null)
                 {
-                    var prepared = SwShPreparedRestoration.Decode(artifact.Bytes);
+                    var prepared = SwShPreparedRestoration.Decode(artifact.Bytes!);
                     if (prepared.Game != paths.SelectedGame)
                         throw new InvalidDataException("Prepared restoration belongs to another game edition.");
                     artifact.Prepared = prepared;
                     var size = prepared.Contributions.SelectMany(c => c.Before is null ? new[] { c.After } : new[] { c.Before, c.After })
                         .Distinct<byte[]>(ReferenceEqualityComparer.Instance).Sum(b => b.LongLength);
-                    artifact.Size += size;
-                    cachedBytes += size;
+                    cachedBytes += size - artifact.Size;
+                    artifact.Size = size;
+                    artifact.Bytes = null;
                     Trim(hash);
                 }
                 // Public callers may edit contribution buffers. Keep the verified copy private.

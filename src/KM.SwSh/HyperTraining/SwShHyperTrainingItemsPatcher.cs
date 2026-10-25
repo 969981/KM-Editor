@@ -72,7 +72,7 @@ internal static class SwShHyperTrainingItemsPatcher
         var analysis = SwShHyperTrainingMainPatcher.Analyze(bytes, game);
         if (analysis.Kind is not (SwShHyperTrainingMainKind.NotInstalled or SwShHyperTrainingMainKind.CustomMinimumLevel))
             throw new InvalidDataException(analysis.Message);
-        var main = NsoFile.Parse(bytes);
+        var main = NsoFile.Inspect(bytes);
         var at = Offset(analysis.DetectedGame!.Value);
         var text = main.Text.DecompressedData;
         Require(at - 4, 0x7100011F); Require(at + 8, 0x7901B668);
