@@ -66,7 +66,7 @@ public static class PreviewTextureResolution
     }
     private static byte[] Encode(ColorRgba32[] pixels, int w, int h, CompressionFormat format, BcEncoder encoder)
     {
-        if (format == CompressionFormat.Rgba) return pixels.SelectMany(p => new[] { p.r, p.g, p.b, p.a }).ToArray();
+        if (format == CompressionFormat.Rgba) return ModelTextureDocument.PixelBytes(pixels);
         using var output = new MemoryStream();
         var block = new ColorRgba32[16];
         for (var y = 0; y < h; y += 4) for (var x = 0; x < w; x += 4)

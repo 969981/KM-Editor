@@ -285,8 +285,8 @@ internal static class SwShHyperTrainingMainPatcher
         ArgumentNullException.ThrowIfNull(baseMainBytes);
         ArgumentNullException.ThrowIfNull(effectiveMainBytes);
 
-        var baseNso = NsoFile.Parse(baseMainBytes);
-        var effectiveNso = NsoFile.Parse(effectiveMainBytes);
+        var baseNso = NsoFile.Inspect(baseMainBytes);
+        var effectiveNso = NsoFile.Inspect(effectiveMainBytes);
         ValidateRequiredSegmentHashes(baseNso);
         ValidateRequiredSegmentHashes(effectiveNso);
         SwShExeFsMainComparison.EnsureCompatibleBaseLayout(baseNso, effectiveNso, "Hyper Training apply");
@@ -589,8 +589,8 @@ internal static class SwShHyperTrainingMainPatcher
         PatchLayout layout,
         string operation)
     {
-        var source = NsoFile.Parse(sourceMainBytes);
-        var output = NsoFile.Parse(outputMainBytes);
+        var source = NsoFile.Inspect(sourceMainBytes);
+        var output = NsoFile.Inspect(outputMainBytes);
         ValidateRequiredSegmentHashes(source);
         ValidateRequiredSegmentHashes(output);
         EnsureSameBuildAndLayout(source, output, operation);

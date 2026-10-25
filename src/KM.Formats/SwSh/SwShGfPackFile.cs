@@ -94,6 +94,13 @@ public sealed partial class SwShGfPackFile
         return GetFile(index, maximumBytes);
     }
 
+    /// <summary>Checks a member's bounds and compression without retaining its decoded payload.</summary>
+    public void ValidateFileByHash(ulong hash, int maximumBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumBytes);
+        _ = GetFileMemory(FindHashIndex(hash), maximumBytes, cacheDecompressedData: false);
+    }
+
     public void ReplaceFileByHash(ulong hash, byte[] data)
     {
         ArgumentNullException.ThrowIfNull(data);
@@ -457,7 +464,7 @@ public sealed partial class SwShGfPackFile
     private byte[] GetFile(int index, int? maximumDecompressedBytes = null) =>
         GetFileMemory(index, maximumDecompressedBytes).ToArray();
 
-    private ReadOnlyMemory<byte> GetFileMemory(int index, int? maximumDecompressedBytes)
+    private ReadOnlyMemory<byte> GetFileMemory(int index, int? maximumDecompressedBytes, bool cacheDecompressedData = true)
     {
         var entry = entries[index];
         var size = entry.DecompressedData?.Length ?? entry.SizeDecompressed;
@@ -474,7 +481,7 @@ public sealed partial class SwShGfPackFile
 
         EnsureCanDecompress(entry.CompressionType);
         var decompressed = Decompress(entry.CompressedData, entry.SizeDecompressed, entry.CompressionType);
-        entries[index] = entry with { DecompressedData = decompressed };
+        if (cacheDecompressedData) entries[index] = entry with { DecompressedData = decompressed };
 
         return decompressed;
     }

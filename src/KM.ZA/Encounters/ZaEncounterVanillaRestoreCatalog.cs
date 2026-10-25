@@ -39,10 +39,10 @@ internal sealed class ZaEncounterVanillaRestoreCatalog
     private const string ValueReason =
         "The verified vanilla values are not valid for the currently loaded game data.";
 
-    private readonly ZaEncounterDataDocument currentEncounterDocument;
-    private readonly ZaPokemonSpawnerDataDocument currentSpawnerDocument;
-    private readonly ZaEncounterDataDocument baseEncounterDocument;
-    private readonly ZaPokemonSpawnerDataDocument baseSpawnerDocument;
+    private readonly ILookup<int, ZaEncounterDataEntry> currentEncounterRows;
+    private readonly ILookup<int, ZaEncounterDataEntry> baseEncounterRows;
+    private readonly ILookup<(int Group, int Spawner), ZaPokemonSpawnerDataEntry> currentSpawners;
+    private readonly ILookup<(int Group, int Spawner), ZaPokemonSpawnerDataEntry> baseSpawners;
 
     private ZaEncounterVanillaRestoreCatalog(
         ZaWorkflowFile baseEncounterSource,
@@ -52,10 +52,10 @@ internal sealed class ZaEncounterVanillaRestoreCatalog
         ZaEncounterDataDocument baseEncounterDocument,
         ZaPokemonSpawnerDataDocument baseSpawnerDocument)
     {
-        this.currentEncounterDocument = currentEncounterDocument;
-        this.currentSpawnerDocument = currentSpawnerDocument;
-        this.baseEncounterDocument = baseEncounterDocument;
-        this.baseSpawnerDocument = baseSpawnerDocument;
+        currentEncounterRows = currentEncounterDocument.Entries.OfType<ZaEncounterDataEntry>().ToLookup(row => row.SourceIndex);
+        baseEncounterRows = baseEncounterDocument.Entries.OfType<ZaEncounterDataEntry>().ToLookup(row => row.SourceIndex);
+        currentSpawners = currentSpawnerDocument.Entries.ToLookup(row => (row.GroupIndex, row.SpawnerIndex));
+        baseSpawners = baseSpawnerDocument.Entries.ToLookup(row => (row.GroupIndex, row.SpawnerIndex));
         EncounterBaseSource = new ProjectFileReference(
             ProjectFileLayer.Base,
             baseEncounterSource.RelativePath);
@@ -470,29 +470,21 @@ internal sealed class ZaEncounterVanillaRestoreCatalog
     {
         currentRow = null!;
         baseRow = null!;
-        var currentMatches = currentEncounterDocument.Entries
-            .OfType<ZaEncounterDataEntry>()
-            .Where(candidate => candidate.SourceIndex == sourceIndex)
-            .Take(2)
-            .ToArray();
-        var baseMatches = baseEncounterDocument.Entries
-            .OfType<ZaEncounterDataEntry>()
-            .Where(candidate => candidate.SourceIndex == sourceIndex)
-            .Take(2)
-            .ToArray();
-        if (currentMatches.Length != 1
-            || baseMatches.Length != 1
-            || string.IsNullOrWhiteSpace(currentMatches[0].Id)
+        var currentMatches = currentEncounterRows[sourceIndex];
+        var baseMatches = baseEncounterRows[sourceIndex];
+        if (currentMatches.Count() != 1
+            || baseMatches.Count() != 1
+            || string.IsNullOrWhiteSpace(currentMatches.First().Id)
             || !string.Equals(
-                currentMatches[0].Id,
-                baseMatches[0].Id,
+                currentMatches.First().Id,
+                baseMatches.First().Id,
                 StringComparison.Ordinal))
         {
             return false;
         }
 
-        currentRow = currentMatches[0];
-        baseRow = baseMatches[0];
+        currentRow = currentMatches.First();
+        baseRow = baseMatches.First();
         return true;
     }
 
@@ -512,34 +504,24 @@ internal sealed class ZaEncounterVanillaRestoreCatalog
             return false;
         }
 
-        var currentMatches = currentSpawnerDocument.Entries
-            .Where(candidate =>
-                candidate.GroupIndex == groupIndex
-                && candidate.SpawnerIndex == spawnerIndex)
-            .Take(2)
-            .ToArray();
-        var baseMatches = baseSpawnerDocument.Entries
-            .Where(candidate =>
-                candidate.GroupIndex == groupIndex
-                && candidate.SpawnerIndex == spawnerIndex)
-            .Take(2)
-            .ToArray();
-        if (currentMatches.Length != 1
-            || baseMatches.Length != 1
+        var currentMatches = currentSpawners[(groupIndex, spawnerIndex)];
+        var baseMatches = baseSpawners[(groupIndex, spawnerIndex)];
+        if (currentMatches.Count() != 1
+            || baseMatches.Count() != 1
             || !string.Equals(
-                currentMatches[0].Id,
+                currentMatches.First().Id,
                 table.RawSpawnerId,
                 StringComparison.Ordinal)
             || !string.Equals(
-                baseMatches[0].Id,
-                currentMatches[0].Id,
+                baseMatches.First().Id,
+                currentMatches.First().Id,
                 StringComparison.Ordinal))
         {
             return false;
         }
 
-        currentSpawner = currentMatches[0];
-        baseSpawner = baseMatches[0];
+        currentSpawner = currentMatches.First();
+        baseSpawner = baseMatches.First();
         return true;
     }
 

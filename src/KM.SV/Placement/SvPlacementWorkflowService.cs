@@ -6,6 +6,7 @@ using KM.Core.Projects;
 using KM.Formats.SV.Placement;
 using KM.SV.Data;
 using KM.SV.Workflows;
+using System.Collections.Frozen;
 using System.Globalization;
 
 namespace KM.SV.Placement;
@@ -15,6 +16,12 @@ internal sealed class SvPlacementWorkflowService
     private const string WorkflowLabel = "Placement";
     private const string WorkflowDescription = "Edit Scarlet/Violet placement tables and inspect scene-only placement fields.";
     private const int AlcremieSpeciesId = (int)global::pml.common.DevID.DEV_MAHOIPPU;
+
+    private static readonly FrozenDictionary<string, (string Label, string Group, bool IsReadOnly)> FieldMetadata =
+        CreateEditableFields(SvTextLabelLookup.None()).ToFrozenDictionary(
+            field => field.Field,
+            field => (field.Label, field.Group, field.IsReadOnly),
+            StringComparer.Ordinal);
 
     public const string FixedSymbolsCategory = "fixedSymbols";
     public const string CoinSymbolsCategory = "coinSymbols";
@@ -306,7 +313,6 @@ internal sealed class SvPlacementWorkflowService
         ISet<string> sourceFiles,
         ICollection<ValidationDiagnostic> diagnostics)
     {
-        var itemOptions = CreateIndexedOptions(labels.ItemNameCount, labels.Item, includeNone: true);
         foreach (var path in GetVisibleItemScenePaths(project.Paths.SelectedGame))
         {
             try
@@ -316,7 +322,7 @@ internal sealed class SvPlacementWorkflowService
                 var scenePoints = SvVisibleItemSceneReader.Read(source.Bytes, source.VirtualPath);
                 for (var index = 0; index < scenePoints.Count; index++)
                 {
-                    objects.Add(ToVisibleItemObject(index, scenePoints[index], labels, itemOptions, source));
+                    objects.Add(ToVisibleItemObject(index, scenePoints[index], labels, source));
                 }
             }
             catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
@@ -397,7 +403,6 @@ internal sealed class SvPlacementWorkflowService
         int index,
         SvVisibleItemScenePoint point,
         SvTextLabelLookup labels,
-        IReadOnlyList<SvPlacementEditableFieldOption> itemOptions,
         SvWorkflowFile source)
     {
         var itemName = point.ItemId is { } itemId
@@ -415,8 +420,7 @@ internal sealed class SvPlacementWorkflowService
                 VisibleItemIdField,
                 point.ItemId?.ToString(CultureInfo.InvariantCulture) ?? string.Empty,
                 point.ItemId is { } fieldItemId ? $"{fieldItemId.ToString(CultureInfo.InvariantCulture)} {itemName}" : "Scene-only",
-                isReadOnly: point.ItemFieldName is null,
-                options: itemOptions),
+                isReadOnly: point.ItemFieldName is null),
             Field(VisibleQuantityField, point.Quantity, point.Quantity.ToString(CultureInfo.InvariantCulture), isReadOnly: point.QuantityFieldName is null),
             Field(PositionXField, point.X, isReadOnly: true),
             Field(PositionYField, point.Y, isReadOnly: true),
@@ -999,14 +1003,14 @@ internal sealed class SvPlacementWorkflowService
         bool isReadOnly = false,
         IReadOnlyList<SvPlacementEditableFieldOption>? options = null)
     {
-        var definition = CreateEditableFields(SvTextLabelLookup.None()).FirstOrDefault(candidate => candidate.Field == field);
+        var known = FieldMetadata.TryGetValue(field, out var definition);
         return new SvPlacementFieldValue(
             field,
-            definition?.Label ?? field,
-            definition?.Group ?? "Placement Data",
+            known ? definition.Label : field,
+            known ? definition.Group : "Placement Data",
             value,
             displayValue,
-            isReadOnly || definition?.IsReadOnly == true,
+            isReadOnly || known && definition.IsReadOnly,
             options);
     }
 

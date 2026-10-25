@@ -492,6 +492,13 @@ internal static class ZaScriptedBossActionCatalog
             SelectorBattleMove(31952, 58)),
     ];
 
+    private static readonly IReadOnlyDictionary<int, (ProfileDefinition Profile, ActionDefinition Action)[]> SelectorOwners =
+        Profiles.SelectMany(profile => profile.Actions.Select(action => (Profile: profile, Action: action)))
+            .Where(owner => owner.Action.SelectorActionId is not null)
+            .GroupBy(owner => owner.Action.SelectorActionId!.Value)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+    private static readonly int[] OrderedSelectorIds = SelectorOwners.Keys.Order().ToArray();
+
     public static ZaScriptedBossCatalogProjection Load(
         OpenedProject project,
         ZaWorkflowFileSource fileSource,
@@ -1003,12 +1010,7 @@ internal static class ZaScriptedBossActionCatalog
         int moveId,
         int variant)
     {
-        return Profiles
-            .SelectMany(profile => profile.Actions.Select(action => (Profile: profile, Action: action)))
-            .Where(owner => owner.Action.SelectorActionId is not null)
-            .Select(owner => owner.Action.SelectorActionId!.Value)
-            .Distinct()
-            .Order()
+        return OrderedSelectorIds
             .Select(selectorActionId =>
             {
                 var evidence = ResolveCompatibility(selectorActionId, moveId, variant);
@@ -1034,11 +1036,7 @@ internal static class ZaScriptedBossActionCatalog
         int moveId,
         int variant)
     {
-        var owners = Profiles
-            .SelectMany(profile => profile.Actions
-                .Where(action => action.SelectorActionId == selectorActionId)
-                .Select(action => (Profile: profile, Action: action)))
-            .ToArray();
+        var owners = SelectorOwners.GetValueOrDefault(selectorActionId) ?? [];
         if (owners.Length == 0
             || owners.Any(owner =>
                 !string.Equals(owner.Action.Kind, BattleMoveKind, StringComparison.Ordinal)

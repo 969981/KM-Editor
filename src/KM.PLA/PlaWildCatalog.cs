@@ -246,9 +246,10 @@ internal sealed class PlaWildCatalog
         var archive = edited.TryGetValue(ArchivePath, out var data) ? new PlaFieldArchive(data) : current;
         var members = new Dictionary<string, PlaFlatBuffer>(StringComparer.Ordinal);
         PlaFlatBuffer Read(string path) => members.TryGetValue(path, out var buffer) ? buffer : members[path] = new(archive.Read(path, Runtime));
+        var protectedFields = Fields(kind).Select(field => field.Key).ToArray();
         return Entries(kind).Select(pair =>
         {
-            return Record(kind, pair.Key, pair.Value, Read(pair.Value.Path), Read);
+            return Record(kind, pair.Key, pair.Value, Read(pair.Value.Path), Read, protectedFields);
         }).ToArray();
     }
     internal PlaRecord Record(string kind, string id, byte[]? edited)
@@ -258,7 +259,8 @@ internal sealed class PlaWildCatalog
         PlaFlatBuffer Read(string path) => edited is null ? Buffer(path) : new(archive.Read(path, Runtime));
         return Record(kind, id, entry, Read(entry.Path), Read);
     }
-    private PlaRecord Record(string kind, string id, Entry entry, PlaFlatBuffer b, Func<string, PlaFlatBuffer>? read = null)
+    private PlaRecord Record(string kind, string id, Entry entry, PlaFlatBuffer b, Func<string, PlaFlatBuffer>? read = null,
+        string[]? protectedFields = null)
     {
         var row = b.TableAtReference(IsSpawn(kind) ? b.VectorReferences(b.Root, 0, 4096)[entry.Slot] : Tables(b)[entry.Table]);
         if (b.Hash(row, 0) != entry.Table) throw new InvalidDataException("The PLA field identity changed.");
@@ -301,7 +303,8 @@ internal sealed class PlaWildCatalog
             metadata["condition"] = OrdinaryCondition(b, eligibility, 0, 2) ? "none" : QualifiedCondition(b, eligibility) ? "progression" : "protected";
             label = entry.Area + " / " + Hex(entry.Table) + " / " + catalog.PokemonLabel(Identity(b, row));
         }
-        return new(id, label, values) { Metadata = metadata, ReadOnlyFields = entry.Protected ? Fields(kind).Select(field => field.Key).ToArray() : [],
+        return new(id, label, values) { Metadata = metadata, ReadOnlyFields = entry.Protected
+            ? protectedFields?.ToArray() ?? Fields(kind).Select(field => field.Key).ToArray() : [],
             RelatedRecords = related };
     }
 

@@ -103,8 +103,8 @@ internal static class SwShDynamaxAdventuresMainPatcher
             EnsureSupportedExpectedGame(expectedGame);
             EnsureMatchingArchiveShape(effectiveArchive, baseArchive);
 
-            var currentNso = NsoFile.Parse(currentMainBytes);
-            var baseNso = NsoFile.Parse(baseMainBytes);
+            var currentNso = NsoFile.Inspect(currentMainBytes);
+            var baseNso = NsoFile.Inspect(baseMainBytes);
             ValidateRequiredSegmentHashes(currentNso);
             ValidateRequiredSegmentHashes(baseNso);
             buildId = FormatBuildId(currentNso.BuildId);
@@ -611,8 +611,8 @@ internal static class SwShDynamaxAdventuresMainPatcher
         byte[] expectedText,
         byte[] expectedRo)
     {
-        var before = NsoFile.Parse(inputBytes);
-        var after = NsoFile.Parse(outputBytes);
+        var before = NsoFile.Inspect(inputBytes);
+        var after = NsoFile.Inspect(outputBytes);
         ValidateRequiredSegmentHashes(after);
         EnsureCompatibleExecutableIdentity(
             before,
