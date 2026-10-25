@@ -3,10 +3,29 @@ namespace KM.Tools.Application;
 
 public sealed partial class ZaSwShRestorationPreparationService
 {
+    private static bool TryProfile(KM.SwSh.Pokemon.SwShPokemonIdentity identity, out SpeciesProfile profile)
+    {
+        if (identity.Species == 6 && identity.Form is 1 or 2)
+        {
+            var resource = 50 + identity.Form;
+            profile = new(6, 4, 240, 152, 170, "_body_a_alb", SourceFraming: true, IdleFraming: true,
+                MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31,
+                ResourceStem: $"pm0006_{resource}_00", OutputStem: $"pm0006_{identity.Form:00}",
+                PairedFlames: true, FlameMaterials: identity.Form == 1 ? ["fire_a", "fire_b"] : ["fire"],
+                AirborneBattle: true);
+            return true;
+        }
+        profile = null!;
+        return identity.Form == 0 && Profiles.TryGetValue(identity.Species, out profile!);
+    }
+    private static SpeciesProfile Profile(KM.SwSh.Pokemon.SwShPokemonIdentity identity) =>
+        TryProfile(identity, out var profile) ? profile : throw new InvalidDataException("Restoration profile is unavailable.");
+
     private sealed record SpeciesProfile(int NativeTemplate, int HatchedSpecies, int Experience,
         float BattleHeight, float FieldHeight, string TextureSuffix, bool SourceFraming = false, bool MeshVisibility = false, int FemalePercent = 50, byte GenderThreshold = 127, bool SeparateFemale = false, bool IdleFraming = false, bool MatchNativeGiantHeight = false,
         System.Numerics.Vector3? MouthPosition = null, float? MealVerticalOffset = null, bool NativeFlames = false, string? EmissionMaterial = null, string? ResourceStem = null, bool PairedFlames = false, bool LayeredEyes = false,
-        IReadOnlyDictionary<string, System.Numerics.Vector2>? EyeAtlasOffsets = null);
+        IReadOnlyDictionary<string, System.Numerics.Vector2>? EyeAtlasOffsets = null,
+        string[]? FlameMaterials = null, string? OutputStem = null, bool AirborneBattle = false);
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {

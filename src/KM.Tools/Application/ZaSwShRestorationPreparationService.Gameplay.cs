@@ -12,12 +12,13 @@ public sealed partial class ZaSwShRestorationPreparationService
 {
     private sealed partial class Preparation
     {
-        internal (IReadOnlyList<SwShRestorationContribution> Contributions, int[] ExcludedMoves) Gameplay(int species)
+        internal (IReadOnlyList<SwShRestorationContribution> Contributions, int[] ExcludedMoves) Gameplay(SwShPokemonIdentity identity)
         {
-            var profile = Profiles[species];
+            var species = identity.Species; var profile = Profile(identity);
+            var personalId = SwShRestorationForms.PersonalRow(identity);
             var source = new ModelBuffer(Donor("avalon/data/personal_array.bin"));
             var candidates = source.Tables(source.Root, 0, 4096).Where(t => source.Field(t, 0) is var at && at != 0
-                && source.U16(at) == species && source.U16(at + 2) == 0).ToArray();
+                && source.U16(at) == species && source.U16(at + 2) == identity.Form).ToArray();
             if (candidates.Length != 1) throw new InvalidDataException("Source Pokemon gameplay identity is missing or ambiguous.");
             var table = candidates[0]; var detail = source.Field(table, 0);
             int Scalar(int field, bool wide = false) => source.Field(table, field) is var at && at != 0 ? wide ? source.U16(at) : source.U8(at) : 0;
@@ -28,9 +29,9 @@ public sealed partial class ZaSwShRestorationPreparationService
             }
             var nativePersonal = Native(SwShRestorationComposer.PersonalPath[6..]);
             var personalTable = SwShPersonalTable.Parse(nativePersonal, 4096);
-            if (species >= personalTable.Records.Count || personalTable.Records[species].IsPresentInGame)
+            if (personalId >= personalTable.Records.Count || personalTable.Records[personalId].IsPresentInGame)
                 throw new InvalidDataException("Restoration target is already native or has no personal slot.");
-            var before = nativePersonal.AsSpan(species * SwShPersonalTable.RecordSize, SwShPersonalTable.RecordSize).ToArray(); var row = before.ToArray();
+            var before = nativePersonal.AsSpan(personalId * SwShPersonalTable.RecordSize, SwShPersonalTable.RecordSize).ToArray(); var row = before.ToArray();
             var stats = source.Field(table, 20); var yields = source.Field(table, 19); int[] order = [0, 1, 2, 5, 3, 4];
             for (var i = 0; i < order.Length; i++) row[i] = source.U8(stats + order[i]);
             row[6] = checked((byte)Scalar(3)); row[7] = checked((byte)Scalar(4)); row[8] = checked((byte)Scalar(9)); row[9] = checked((byte)Scalar(17));
@@ -71,7 +72,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)species)); Put16(row, 86, profile.HatchedSpecies); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
             _ = SwShPersonalTable.Parse(row);
             var result = new List<SwShRestorationContribution>
-            { new(SwShRestorationComposer.PersonalPath, SwShRestorationWriter.Personal, species.ToString(CultureInfo.InvariantCulture), before, row) };
+            { new(SwShRestorationComposer.PersonalPath, SwShRestorationWriter.Personal, personalId.ToString(CultureInfo.InvariantCulture), before, row) };
             var learned = Moves(24).Where(MoveAvailable).Select(m => (Move: m, Level: 1)).ToList();
             var (learnStart, learnCount) = source.Vector(table, 25, 4, 1024);
             for (var i = 0; i < learnCount; i++)
@@ -84,7 +85,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             for (var i = 0; i < learned.Count; i++) { Put16(learnset, i * 4, learned[i].Move); Put16(learnset, i * 4 + 2, learned[i].Level); }
             var learnNative = Native(SwShRestorationComposer.LearnsetPath[6..]);
             if (learnNative.Length / 260 != personalTable.Records.Count || learnNative.Length % 260 != 0) throw new InvalidDataException("Target learnset and personal identities disagree.");
-            result.Add(new(SwShRestorationComposer.LearnsetPath, SwShRestorationWriter.Learnset, species.ToString(CultureInfo.InvariantCulture), learnNative.AsSpan(species * 260, 260).ToArray(), learnset));
+            result.Add(new(SwShRestorationComposer.LearnsetPath, SwShRestorationWriter.Learnset, personalId.ToString(CultureInfo.InvariantCulture), learnNative.AsSpan(personalId * 260, 260).ToArray(), learnset));
             var (evolutionStart, evolutionCount) = source.Vector(table, 21, 16, 9); var evolution = new byte[72];
             for (var i = 0; i < evolutionCount; i++)
             {
@@ -95,16 +96,18 @@ public sealed partial class ZaSwShRestorationPreparationService
                 Put16(evolution, i * 8, source.U16(at + 2)); Put16(evolution, i * 8 + 2, source.U16(at + 4)); Put16(evolution, i * 8 + 4, destination);
                 evolution[i * 8 + 6] = checked((byte)form); evolution[i * 8 + 7] = checked((byte)source.U16(at));
             }
-            result.Add(File($"bin/pml/evolution/evo_{species:000}.bin", evolution));
-            var eggMoves = Moves(23).Where(MoveAvailable).ToArray(); var eggs = new byte[4 + eggMoves.Length * 2]; Put16(eggs, 0, species); Put16(eggs, 2, eggMoves.Length);
+            result.Add(File($"bin/pml/evolution/evo_{personalId:000}.bin", evolution));
+            var eggMoves = Moves(23).Where(MoveAvailable).ToArray(); var eggs = new byte[4 + eggMoves.Length * 2]; Put16(eggs, 0, personalId); Put16(eggs, 2, eggMoves.Length);
             for (var i = 0; i < eggMoves.Length; i++) Put16(eggs, 4 + i * 2, eggMoves[i]);
-            result.Add(File($"bin/pml/tamagowaza/tamagowaza_{species:0000}.bin", eggs));
-            var icon = new byte[8]; Put16(icon, 0, species);
-            result.Add(new(SwShRestorationComposer.IconsPath, SwShRestorationWriter.Icons, species.ToString(CultureInfo.InvariantCulture), null, icon));
+            result.Add(File($"bin/pml/tamagowaza/tamagowaza_{personalId:0000}.bin", eggs));
+            var icon = new byte[8]; Put16(icon, 0, species); Put16(icon, 2, identity.Form);
+            result.Add(new(SwShRestorationComposer.IconsPath, SwShRestorationWriter.Icons, SwShRestorationComposer.IconKey(species, identity.Form), null, icon));
             var camp = SwShGfPackFile.Parse(Native(SwShRestorationComposer.CampPath[6..]));
             foreach (var group in new[] { "common", "motion", "face", "ball", "turning" })
             {
-                string Name(int id) => group == "common" ? $"poke_{id:0000}_XX_X.bin" : $"poke_{group}_{id:0000}_00_0.bin";
+                // Native species already own their shared camp metadata.
+                if (group == "common" && personalTable.Records[species].IsPresentInGame) continue;
+                string Name(int id, int form = 0) => group == "common" ? $"poke_{id:0000}_XX_X.bin" : $"poke_{group}_{id:0000}_{form:00}_0.bin";
                 var folder = $"bin/pokemon_data/pokecamp/{group}/";
                 var data = camp.ReadFileByHash(SwShGfPackFile.HashMemberPath(folder + Name(profile.NativeTemplate)), 1024 * 1024);
                 if (group == "common")
@@ -114,10 +117,10 @@ public sealed partial class ZaSwShRestorationPreparationService
                     BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(field), checked((uint)species));
                     if (profile.MealVerticalOffset is { } offset) SetMealVerticalOffset(data, offset);
                 }
-                result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp, folder + Name(species), null, data));
+                result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp, folder + Name(species, identity.Form), null, data));
                 if (profile.SeparateFemale && group != "common")
                     result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp,
-                        folder + $"poke_{group}_{species:0000}_00_1.bin", null, data));
+                        folder + $"poke_{group}_{species:0000}_{identity.Form:00}_1.bin", null, data));
             }
             return (result, excluded.Order().ToArray());
         }

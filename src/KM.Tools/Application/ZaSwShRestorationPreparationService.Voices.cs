@@ -12,7 +12,7 @@ public sealed partial class ZaSwShRestorationPreparationService
 {
     private sealed partial class Preparation
     {
-        internal IReadOnlyList<SwShRestorationContribution> Voices(int[] species)
+        internal IReadOnlyList<SwShRestorationContribution> Voices(IReadOnlyList<KM.SwSh.Pokemon.SwShPokemonIdentity> identities)
         {
             var audioRoot = Path.Combine(donorRoot, "audio", "wwise", "bin");
             var directories = Directory.EnumerateDirectories(audioRoot).Take(33).ToArray();
@@ -36,9 +36,10 @@ public sealed partial class ZaSwShRestorationPreparationService
                     if (!packages.TryAdd(item.Id, (path, item))) throw new InvalidDataException("Donor voice media identity exists in multiple packages.");
             }
             var result = new List<SwShRestorationContribution>();
-            foreach (var id in species)
+            foreach (var identity in identities)
             {
-                var states = ZaRestorationVoiceGraph.ResolvePlayback(source, id);
+                var id = identity.Species;
+                var states = ZaRestorationVoiceGraph.ResolvePlayback(source, id, identity.Form);
                 var media = new Dictionary<string, byte[]>(StringComparer.Ordinal);
                 foreach (var state in SwShVoiceWriter.States)
                 {
@@ -50,7 +51,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                     Fingerprint("donor-media", Path.GetRelativePath(donorRoot, entry.Path).Replace('\\', '/') + "/" + mediaId.ToString(CultureInfo.InvariantCulture), encoded);
                     var decoded = PtAdpcmDecoder.Decode(encoded, token); media.Add(state, SoundBankDocument.EncodePcm16(decoded.Samples, decoded.Channels, decoded.SampleRate));
                 }
-                var contribution = SwShVoiceWriter.Create(targetBank, id, 7, media);
+                var contribution = SwShVoiceWriter.Create(targetBank, id, 7, media, identity.Form);
                 var gains = states.Values.Select(v => v.GainDecibels).Distinct().ToArray();
                 if (gains.Length != 1) throw new InvalidDataException("Z-A cry gains need a per state target adapter.");
                 result.AddRange(contribution.Objects.Select(o => o.Type == 2 ? Gain(o, gains[0]) : o).Select(o => new SwShRestorationContribution(SwShRestorationComposer.VoicesPath, SwShRestorationWriter.Voices,

@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.learnsetSync.button": "Синхронизировать приёмы",
+    "pokemon.learnsetSync.description": "Заменяет приёмы этой мегаформы, изучаемые с повышением уровня, текущим набором {pokemon}. Нажмите «Применить», чтобы сохранить.",
+    "pokemon.learnsetSync.unavailable": "Соответствующая форма без мегаэволюции недоступна.",
+    "pokemon.learnsetSync.drafts": "Перед синхронизацией сохраните или отмените изменения в строках приёмов обеих форм.",
     "pla.meta.rewardEvent": "Событие награды",
     "pla.wild.unknownProfile": "Неопределённый профиль",
     "pla.unnamedTrainer": "Тренер без имени",

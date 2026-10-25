@@ -7,7 +7,7 @@ using KM.Formats.SwSh;
 
 namespace KM.SwSh.Restoration;
 
-public enum SwShRestorationWriter { File, Personal, Learnset, Icons, ModelCatalog, Camp, Voices }
+public enum SwShRestorationWriter { File, Personal, Learnset, Icons, ModelCatalog, Camp, Voices, Items, ItemText }
 public sealed record SwShRestorationContribution(string Path, SwShRestorationWriter Writer, string Key, byte[]? Before, byte[] After);
 public sealed record SwShRestorationComposition(IReadOnlyDictionary<string, byte[]?> Files,
     IReadOnlyList<SwShRestorationContribution> RetainedCustomizations);
@@ -109,6 +109,37 @@ public static class SwShRestorationComposer
             if (current is null) throw new InvalidDataException($"Shared restoration source is missing: {group.Key}");
             switch (kind)
             {
+                case SwShRestorationWriter.Items:
+                {
+                    var table = SwShItemTable.Parse(current, 4096);
+                    var changes = new Dictionary<int, byte[]>();
+                    foreach (var item in items)
+                    {
+                        var id = Number(item.Key);
+                        if (!SwShRestorationMegaItems.All.Any(stone => stone.ItemId == id)
+                            || item.Before?.Length != 48 || item.After.Length != 48)
+                            throw new InvalidDataException("Restored held item identity or record is invalid.");
+                        if (presenceValidator is not null)
+                        { Select(item, table.Records[id].RawRowIndex == 0 ? null : []); continue; }
+                        changes.Add(id, Select(item, table.ReadRow(id))!);
+                    }
+                    outputs.Add(group.Key, captureOnly ? current : table.WriteIndependentRows(changes)); break;
+                }
+                case SwShRestorationWriter.ItemText:
+                {
+                    var table = SwShGameTextFile.Parse(current, 4096); var lines = table.Lines.ToArray();
+                    foreach (var item in items)
+                    {
+                        var id = Number(item.Key);
+                        if (!SwShRestorationMegaItems.All.Any(stone => stone.ItemId == id) || id >= lines.Length)
+                            throw new InvalidDataException("Restored held item text identity is invalid.");
+                        var chosen = Select(item, JsonSerializer.SerializeToUtf8Bytes(lines[id]));
+                        lines[id] = JsonSerializer.Deserialize<SwShGameTextLine>(chosen!)
+                            ?? throw new InvalidDataException("Restored held item text is missing.");
+                        SwShGameTextFile.ValidateText(lines[id].Text);
+                    }
+                    outputs.Add(group.Key, captureOnly ? current : table.WritePreserving(lines)); break;
+                }
                 case SwShRestorationWriter.Personal:
                 case SwShRestorationWriter.Learnset:
                 {
@@ -256,13 +287,17 @@ public static class SwShRestorationComposer
         var expected = kind switch
         {
             SwShRestorationWriter.Personal => PersonalPath, SwShRestorationWriter.Learnset => LearnsetPath, SwShRestorationWriter.Icons => IconsPath,
-            SwShRestorationWriter.ModelCatalog => CatalogPath, SwShRestorationWriter.Camp => CampPath, SwShRestorationWriter.Voices => VoicesPath, _ => null,
+            SwShRestorationWriter.ModelCatalog => CatalogPath, SwShRestorationWriter.Camp => CampPath, SwShRestorationWriter.Voices => VoicesPath,
+            SwShRestorationWriter.Items => SwShItemTable.ItemDataRelativePath, _ => null,
         };
         if (expected is not null && path != expected) throw new InvalidDataException("Restoration writer cannot address this output.");
+        if (kind == SwShRestorationWriter.ItemText && !SwShRestorationMegaItems.IsTextPath(path))
+            throw new InvalidDataException("Restoration text target is not registered.");
         if (kind == SwShRestorationWriter.File && !(path.StartsWith("romfs/bin/archive/pokemon/", StringComparison.Ordinal)
             || path.StartsWith("romfs/bin/archive/gpokemon/", StringComparison.Ordinal) || path.StartsWith("romfs/bin/appli/icon_pokemon/poke_icon_", StringComparison.Ordinal)
             || path.StartsWith("romfs/bin/pml/evolution/evo_", StringComparison.Ordinal) || path.StartsWith("romfs/bin/pml/tamagowaza/tamagowaza_", StringComparison.Ordinal)
-            || path.StartsWith("romfs/bin/pokemon/pm", StringComparison.Ordinal)))
+            || path.StartsWith("romfs/bin/pokemon/pm", StringComparison.Ordinal)
+            || SwShRestorationMegaItems.All.Any(item => path == SwShRestorationMegaItems.IconPath(item.ItemId))))
             throw new InvalidDataException("Restoration file target is not registered.");
     }
 }

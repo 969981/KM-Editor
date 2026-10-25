@@ -211,23 +211,24 @@ public sealed class SwShRestorationService
             if (effective.DefinitionId != bundle.DefinitionId) throw new InvalidDataException("Retained customizations belong to another definition.");
             if (!intent.Enabled) effective = SwShRestorationCustomizations.IncludeLooseModels(paths, effective, owned);
             if (!intent.Enabled) VerifyVoiceRemoval(paths, effective, Current(SwShRestorationComposer.VoicesPath)!);
+            var shared = selections.Values.Where(s => s.Enabled && s.DefinitionId != intent.DefinitionId)
+                .SelectMany(s => SwShRestorationStateStore.ReadPrepared(paths, s.CustomizationHash ?? s.PreparedHash).Contributions)
+                .Where(c => SwShRestorationMegaItems.IsItemContribution(c)
+                    || c.Writer == SwShRestorationWriter.Camp && c.Key.Contains("/common/", StringComparison.Ordinal))
+                .Select(c => (c.Path, c.Writer, c.Key)).ToHashSet();
             foreach (var item in effective.Contributions.Where(c => c.Writer == SwShRestorationWriter.File))
             {
                 if (!System.IO.File.Exists(Output(paths, item.Path))) continue;
                 var nativeFallback = intent.Enabled && item.Before is not null && BoundedRead(Output(paths, item.Path)).AsSpan().SequenceEqual(item.Before);
-                if (!nativeFallback && (installed is null || !owned.Contains(item.Path)))
+                var sharedOwned = owned.Contains(item.Path) && shared.Contains((item.Path, item.Writer, item.Key));
+                if (!nativeFallback && !sharedOwned && (installed is null || !owned.Contains(item.Path)))
                     throw new InvalidDataException($"Restoration cannot replace or remove an externally supplied file: {item.Path}.");
             }
-            // A camp common member is shared by a species and its forms. Keep it
-            // while another installed identity still owns the identical member.
+            // Keep shared camp resources and held items until their last owner is removed.
             var contributions = effective.Contributions;
             if (!intent.Enabled)
             {
-                var otherCommon = selections.Values.Where(s => s.Enabled && s.DefinitionId != intent.DefinitionId)
-                    .SelectMany(s => SwShRestorationStateStore.ReadPrepared(paths, s.CustomizationHash ?? s.PreparedHash).Contributions)
-                    .Where(c => c.Writer == SwShRestorationWriter.Camp && c.Key.Contains("/common/", StringComparison.Ordinal))
-                    .Select(c => c.Key).ToHashSet(StringComparer.Ordinal);
-                contributions = contributions.Where(c => c.Writer != SwShRestorationWriter.Camp || !otherCommon.Contains(c.Key)).ToArray();
+                contributions = contributions.Where(c => !shared.Contains((c.Path, c.Writer, c.Key))).ToArray();
             }
             var composition = SwShRestorationComposer.Compose(contributions, Current, intent.Enabled,
                 allowOwnedCustomizations: installed?.Enabled == true, ownedPaths: owned);
@@ -258,12 +259,35 @@ public sealed class SwShRestorationService
         if (hasForms) outputs[SwShRestorationComposer.PersonalPath] = SwShRestorationForms.ApplyHeaders(
             Current(SwShRestorationComposer.PersonalPath)!, SwShRestorationForms.EnabledForms(state));
         if (needsSoundMemory) AddSoundMemory(paths, outputs, sources);
+        AddMegaItemProtection(paths, state, outputs, sources);
         var storedState = SwShRestorationStateStore.Store(paths, state); using (storedState.Lease) { }
         if (!outputs.ContainsKey(SwShRestorationComposer.PersonalPath)) outputs.Add(SwShRestorationComposer.PersonalPath, Current(SwShRestorationComposer.PersonalPath)
             ?? throw new InvalidDataException("Restoration state requires a personal data anchor."));
         return new(outputs, storedState.Hash, snapshot.Hash, state, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(),
             removed.Select(i => i.Species).Distinct().Order().ToArray())
             { RemovedIdentities = removed.OrderBy(i => i.Species).ThenBy(i => i.Form).ToArray() };
+    }
+
+    private static void AddMegaItemProtection(ProjectPaths paths, SwShRestorationState state,
+        IDictionary<string, byte[]?> outputs, ISet<ProjectFileReference> sources)
+    {
+        static bool HasItems(ProjectPaths paths, SwShRestorationState state) => state.Selections.Where(s => s.Enabled)
+            .Any(s => SwShRestorationStateStore.ReadPrepared(paths, s.CustomizationHash ?? s.PreparedHash)
+                .Contributions.Any(c => c.Writer == SwShRestorationWriter.Items));
+        if (!HasItems(paths, state)) return;
+        if (string.IsNullOrWhiteSpace(paths.BaseExeFsPath))
+            throw new InvalidDataException("Select the game's Base ExeFS folder to protect restored Mega Stones in battle.");
+        const string relative = "exefs/main";
+        var baseline = BoundedRead(Path.Combine(paths.BaseExeFsPath, "main"));
+        sources.Add(new(ProjectFileLayer.Base, relative));
+        var current = baseline;
+        var output = Output(paths, relative, includeExecutable: true);
+        if (outputs.TryGetValue(relative, out var pending) && pending is not null) current = pending;
+        else if (System.IO.File.Exists(output)) { current = BoundedRead(output); sources.Add(new(ProjectFileLayer.Layered, relative)); }
+        // Category-based protection is harmless with no active stone rows and may
+        // also serve stones installed by another feature; leave it installed.
+        var patched = SwShRestorationMegaItemProtection.Apply(baseline, current, paths.SelectedGame!.Value);
+        if (!patched.AsSpan().SequenceEqual(current)) outputs[relative] = patched;
     }
 
     private static void AddSoundMemory(ProjectPaths paths, IDictionary<string, byte[]?> outputs, ISet<ProjectFileReference> sources)

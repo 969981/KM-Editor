@@ -8,6 +8,18 @@ public static class SvSwShFlameAnimation
 {
     public static PreviewClip Read(byte[] bytes, PreviewClip skeleton, string sourceMaterial = "fire")
     {
+        var clip = ReadMany(bytes, skeleton, [sourceMaterial]);
+        if (sourceMaterial == "fire") return clip;
+        var tracks = clip.Materials.Select(track => track.Material == sourceMaterial ? track with { Material = "fire" } : track).ToArray();
+        if (tracks.GroupBy(track => (track.Material, track.Parameter)).Any(group => group.Count() != 1))
+            throw new InvalidDataException("S/V flame animation identity is ambiguous.");
+        return clip with { Materials = tracks };
+    }
+
+    /// <summary>Retains separate source identities when a model has several flame surfaces.</summary>
+    public static PreviewClip ReadMany(byte[] bytes, PreviewClip skeleton, IReadOnlyCollection<string> sourceMaterials)
+    {
+        var names = FlameNames(sourceMaterials);
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
         var rate = source.Value(source.Table(source.Root, 0), 2, (uint)skeleton.Rate);
         if (rate == 0) throw new InvalidDataException("S/V flame animation rate is invalid.");
@@ -18,12 +30,12 @@ public static class SvSwShFlameAnimation
             if (timeline == 0) continue;
             foreach (var material in source.Tables(timeline, 2, 128))
             {
-                if (source.Text(material, 0) == sourceMaterial && sourceMaterial != "fire") writer.Text(material, 0, "fire");
+                var name = source.Text(material, 0) ?? throw new InvalidDataException("Flame animation material is unnamed.");
                 var vectors = source.Tables(material, 2, 256); var retained = new List<int>();
                 foreach (var vector in vectors)
                 {
                     if (source.Text(vector, 0) != "UVScaleOffset3") { retained.Add(vector); continue; }
-                    if (source.Text(material, 0) != sourceMaterial) throw new InvalidDataException("S/V displacement animation has an undeclared material.");
+                    if (!names.Contains(name)) throw new InvalidDataException("S/V displacement animation has an undeclared material.");
                     var channels = source.Table(vector, 1);
                     var keys = Enumerable.Range(0, 4).Select(c => source.Table(channels, c) is var channel && channel != 0
                         ? source.Tables(channel, 0, 18000).Select(key =>
@@ -31,7 +43,7 @@ public static class SvSwShFlameAnimation
                         float Value(int field) => source.Field(key, field) is var at && at != 0 ? source.Float(at) : 0;
                         return new PreviewKey(Value(0) * skeleton.Rate / rate, [Value(1)]);
                     }).ToArray() : []).ToArray();
-                    additional.Add(new("fire", "UVScaleOffset3", keys));
+                    additional.Add(new(name, "UVScaleOffset3", keys));
                 }
                 if (retained.Count == vectors.Length) continue;
                 var slots = writer.Vector(material, 2, retained.Count); var copy = writer.Append(bytes);
@@ -47,15 +59,17 @@ public static class SvSwShFlameAnimation
         return clip with { Materials = materials };
     }
 
-    public static byte[] Apply(byte[] nativeAnimation, IReadOnlyList<PreviewMaterialTrack> sourceTracks, PreviewClip? globalLoop = null)
+    public static byte[] Apply(byte[] nativeAnimation, IReadOnlyList<PreviewMaterialTrack> sourceTracks, PreviewClip? globalLoop = null,
+        string materialName = "fire")
     {
+        _ = FlameNames([materialName]);
         var source = new ModelBuffer(nativeAnimation);
         var info = source.Table(source.Root, 0);
         var frames = globalLoop?.Frames ?? checked((int)source.Value(info, 1));
         if (frames is < 1 or > 18000) throw new InvalidDataException("Native flame timing exceeds its limit.");
         var material = source.Table(source.Root, 2); var existing = source.Tables(material, 0, 128);
-        if (existing.Any(t => source.Text(t, 0) is "fire" or "fire_mask")) throw new InvalidDataException("Native flame animation is already bound.");
-        var tracks = sourceTracks.Where(t => t.Material == "fire").ToArray();
+        if (existing.Any(t => source.Text(t, 0) == materialName || source.Text(t, 0) == materialName + "_mask")) throw new InvalidDataException("Native flame animation is already bound.");
+        var tracks = sourceTracks.Where(t => t.Material == materialName).ToArray();
         if (tracks.Length == 0)
         {
             if (globalLoop is null) return nativeAnimation.ToArray();
@@ -75,7 +89,7 @@ public static class SvSwShFlameAnimation
             writer.Reference(root, 0, writer.Table(3, new Dictionary<int, byte[]>
             { [0] = ModelTableBuilder.Integer(1), [1] = ModelTableBuilder.Integer(frames), [2] = ModelTableBuilder.Integer(globalLoop.Rate) }));
         for (var i = 0; i < existing.Length; i++) writer.Pointer(slots[i], copy + existing[i]);
-        var target = writer.Table(4); writer.Pointer(slots[^1], target); writer.Text(target, 0, "fire");
+        var target = writer.Table(4); writer.Pointer(slots[^1], target); writer.Text(target, 0, materialName);
         writer.Vector(target, 1, 0); writer.Vector(target, 3, 0);
         var values = new List<(string Name, PreviewKey[] Keys)>();
         foreach (var track in tracks)
@@ -106,8 +120,9 @@ public static class SvSwShFlameAnimation
         return writer.Finish(root);
     }
 
-    public static string[] LoopBones(PreviewScene scene, PreviewClip loop)
+    public static string[] LoopBones(PreviewScene scene, PreviewClip loop, IReadOnlyCollection<string>? flameMaterials = null)
     {
+        var names = FlameNames(flameMaterials ?? ["fire"]);
         bool Moves(PreviewKey[] keys) => keys.Skip(1).Any(k => !k.Value.SequenceEqual(keys[0].Value));
         var animated = loop.Tracks.Where(t => Moves(t.Scale) || Moves(t.Rotation) || Moves(t.Translation))
             .Select(t => t.Bone).ToHashSet();
@@ -121,7 +136,7 @@ public static class SvSwShFlameAnimation
                     var at = checked((int)vertex * 16);
                     if (primitive.Vertices[at + 12 + slot] <= 0) continue;
                     var bone = joints[checked((int)primitive.Vertices[at + 8 + slot])];
-                    var targets = primitive.Material.Name == "fire" ? fire : body;
+                    var targets = names.Contains(primitive.Material.Name) ? fire : body;
                     // A parent overlay also moves every weighted descendant.
                     while (bone >= 0) { targets.Add(bone); bone = scene.Rig.Bones[bone].Parent; }
                 }
@@ -150,8 +165,9 @@ public static class SvSwShFlameAnimation
         return writer.Finish(root);
     }
 
-    public static byte[] Controller(byte[] controller, string[]? flameBones = null)
+    public static byte[] Controller(byte[] controller, string[]? flameBones = null, IReadOnlyCollection<string>? flameMaterials = null)
     {
+        var flameNames = FlameNames(flameMaterials ?? ["fire"]);
         if (flameBones is { Length: > 128 } || flameBones is not null && flameBones.Distinct(StringComparer.Ordinal).Count() != flameBones.Length)
             throw new InvalidDataException("Global flame controller targets are invalid.");
         var source = new ModelBuffer(controller); var writer = new ModelTableBuilder(controller);
@@ -172,7 +188,7 @@ public static class SvSwShFlameAnimation
             var masks = source.Table(source.Table(layer, 2), 1);
             foreach (var material in source.Tables(masks, 1, 128))
             {
-                if (source.Text(material, 0) != "fire") continue;
+                if (!flameNames.Contains(source.Text(material, 0) ?? "")) continue;
                 var floats = source.Table(material, 2);
                 var entries = source.Tables(floats, 1, 256);
                 // Global and ordinary motion layers accept the native flame channels.
@@ -195,6 +211,14 @@ public static class SvSwShFlameAnimation
         if (flameBones is { Length: > 0 } && globalLayers != (hasGlobalBinding ? 1 : 0))
             throw new InvalidDataException("Global flame controller layer is missing or ambiguous.");
         return writer.Finish(source.Root);
+    }
+
+    private static HashSet<string> FlameNames(IReadOnlyCollection<string> names)
+    {
+        if (names.Count is < 1 or > 8 || names.Any(string.IsNullOrWhiteSpace)
+            || names.Any(name => name.Length > 128) || names.Distinct(StringComparer.Ordinal).Count() != names.Count)
+            throw new InvalidDataException("Flame material identities are missing or ambiguous.");
+        return names.ToHashSet(StringComparer.Ordinal);
     }
 
     private static float Sample(PreviewKey[] keys, int frame)

@@ -146,6 +146,8 @@ public sealed record SwShPokemonRecord(
     string? SpriteName = null)
 {
     public bool HasRestoredAssets { get; init; }
+    // The form index in its species' personal-table block, distinct from the raw Form field.
+    public int CanonicalForm { get; init; }
 }
 
 public sealed record SwShPokemonWorkflowStats(

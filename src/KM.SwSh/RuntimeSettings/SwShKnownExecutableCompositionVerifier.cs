@@ -84,7 +84,8 @@ public static class SwShKnownExecutableCompositionVerifier
         {
             var recognizedTransformation = false;
 
-            if (!NormalizeSoundMemory(retail, ref normalized, expectedGame, ref recognizedTransformation)
+            if (!NormalizeMegaItems(retail, ref normalized, expectedGame, ref recognizedTransformation)
+                || !NormalizeSoundMemory(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeAdventures(retail, ref normalized, expectedGame, baseAdventureArchive, currentAdventureArchive, ref recognizedTransformation)
                 || !NormalizeTrainers(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeObedience(retail, ref normalized, expectedGame, ref recognizedTransformation)
@@ -136,6 +137,14 @@ public static class SwShKnownExecutableCompositionVerifier
             normalized = SwShTrainerDynamaxMainPatcher.ApplySettings(retail, normalized, game, new(false, false));
             recognizedTransformation = true;
         }
+        return true;
+    }
+
+    private static bool NormalizeMegaItems(byte[] retail, ref byte[] normalized, ProjectGame game, ref bool recognizedTransformation)
+    {
+        if (!KM.SwSh.Restoration.SwShRestorationMegaItemProtection.Read(normalized, game).Installed) return true;
+        normalized = KM.SwSh.Restoration.SwShRestorationMegaItemProtection.RestoreFromBase(retail, normalized, game);
+        recognizedTransformation = true;
         return true;
     }
 

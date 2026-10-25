@@ -571,6 +571,9 @@ public sealed partial class SwShPokemonEditSessionService
             return new SwShPokemonEditResult(workflow, currentSession, diagnostics);
         }
 
+        if (string.Equals(action, "syncBase", StringComparison.Ordinal))
+            return SyncMegaLearnset(workflow, currentSession, selectedPokemon, source, diagnostics);
+
         var pendingEdit = CreateLearnsetPendingEdit(
             workflow,
             selectedPokemon,

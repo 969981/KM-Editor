@@ -1,0 +1,4 @@
+/* SPDX-License-Identifier: GPL-3.0-only */
+.mega-learnset-sync { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.75rem; margin-bottom: 0.75rem; }
+.mega-learnset-sync button { white-space: normal; }
+.mega-learnset-sync .field-note { flex: 1 1 15rem; min-width: 0; margin: 0; overflow-wrap: anywhere; }

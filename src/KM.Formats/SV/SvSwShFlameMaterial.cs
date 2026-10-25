@@ -51,8 +51,10 @@ public static class SvSwShFlameMaterial
         return writer.Finish(source.Root);
     }
 
-    public static SvSwShFlameTemplate Template(byte[] bodyModel, byte[] flameModel, byte[] sourceMaterials, byte[]? sharedMaterials = null)
+    public static SvSwShFlameTemplate Template(byte[] bodyModel, byte[] flameModel, byte[] sourceMaterials, byte[]? sharedMaterials = null,
+        int linkId = 0)
     {
+        if (linkId is < 0 or > 7) throw new InvalidDataException("Native flame pair identity exceeds its supported range.");
         var source = new ModelBuffer(sourceMaterials); var flame = Flame(source);
         if (sharedMaterials is not null)
         {
@@ -74,6 +76,14 @@ public static class SvSwShFlameMaterial
             throw new InvalidDataException("S/V flame base tint or layer weights require another adapter.");
         var native = new ModelBuffer(bodyModel); var fire = new ModelBuffer(flameModel);
         var originals = native.Tables(native.Root, 6, 128);
+        foreach (var material in originals.Where(t => (native.Text(t, 1) ?? "").StartsWith("PokeFire", StringComparison.Ordinal)))
+        {
+            var links = native.Tables(material, 13, 256).Where(t => native.Text(t, 0) == "MatLinkID").ToArray();
+            if (links.Length != 1) throw new InvalidDataException("Native flame pair identity is missing or ambiguous.");
+            var at = native.Field(links[0], 1);
+            if ((at == 0 ? 0 : native.Float(at)) == linkId)
+                throw new InvalidDataException("Native flame pair identity is already assigned.");
+        }
         var selected = new[] { "PokeFireCoreShader1", "PokeFireMaskShader1" }.Select(shader =>
             fire.Tables(fire.Root, 6, 128).Single(t => fire.Text(t, 1) == shader)).ToArray();
         var writer = new ModelTableBuilder(bodyModel); var slots = writer.Vector(native.Root, 6, originals.Length + 2);
@@ -128,7 +138,8 @@ public static class SvSwShFlameMaterial
                     var parameter = parameters[i]; var name = fire.Text(parameter, 0)!;
                     float[]? value = field == 14 ? palette.GetValueOrDefault(name) : name switch
                     {
-                        "MatLinkID" or "RimStrength" or "BaseRimVal" or "LayerRimVal" or "ColorLerpValue" or "ConstantColor0Val" => [0],
+                        "MatLinkID" => [linkId],
+                        "RimStrength" or "BaseRimVal" or "LayerRimVal" or "ColorLerpValue" or "ConstantColor0Val" => [0],
                         "OnGameEmissionVal" or "OnGameColorVal" or "OnGameAlpha" => [1],
                         _ => uv.TryGetValue(name, out var coordinate) ? [coordinate] : null,
                     };
@@ -181,16 +192,23 @@ public static class SvSwShFlameMaterial
         if (white.Pixels().Any(v => v != 255)) throw new InvalidDataException("S/V flame base color is not neutral.");
         var displacement = PreviewTexture.ReadBaseLevel(read(textures["DisplacementMap"]));
         var height = Scalar(source, flame, "DisplacementHeight");
-        if (!float.IsFinite(height) || (zaFlame ? height != .12f : height is < 0 or > .11f))
+        // The verified Z-A surfaces use .08/.09 for the two Charizard X flames,
+        // and .12 for the existing single-flame contract. Keep other contracts closed.
+        if (!float.IsFinite(height) || (zaFlame ? height is not (.08f or .09f or .12f) : height is < 0 or > .11f))
             throw new InvalidDataException("Flame displacement needs another native adapter.");
-        if (displacement.Format != 0x1d01 || height != 0 && (displacement.Width != layer.Width || displacement.Height != layer.Height))
+        if (displacement.Format != 0x1d01 && !(zaFlame && displacement.Format == 0x0b01)
+            || height != 0 && (displacement.Width != layer.Width || displacement.Height != layer.Height))
             throw new InvalidDataException("S/V flame noise requires another texture adapter.");
-        var noise = height == 0 ? [] : new BcDecoder().DecodeRaw(displacement.Blocks, displacement.Width, displacement.Height, CompressionFormat.Bc4);
+        // PreviewTexture resolves authored channel mapping before returning RGBA.
+        // Sample its red channel, including the mapped Z-A noise textures.
+        var noise = height == 0 ? [] : displacement.Format == 0x1d01
+            ? new BcDecoder().DecodeRaw(displacement.Blocks, displacement.Width, displacement.Height, CompressionFormat.Bc4).Select(pixel => pixel.r).ToArray()
+            : Enumerable.Range(0, displacement.Width * displacement.Height).Select(i => displacement.Blocks[i * 4]).ToArray();
         var noisePixels = new byte[pixels.Length];
         for (var i = 0; i < pixels.Length / 4; i++)
         {
             var green = pixels[i * 4 + 1];
-            for (var c = 0; c < 3; c++) { pixels[i * 4 + c] = green; noisePixels[i * 4 + c] = height == 0 ? (byte)0 : (byte)Math.Clamp((int)MathF.Round(noise[i].r * height), 0, 255); }
+            for (var c = 0; c < 3; c++) { pixels[i * 4 + c] = green; noisePixels[i * 4 + c] = height == 0 ? (byte)0 : (byte)Math.Clamp((int)MathF.Round(noise[i] * height), 0, 255); }
             pixels[i * 4 + 3] = noisePixels[i * 4 + 3] = 255;
         }
         var original = Path.GetFileNameWithoutExtension(textures["LayerMaskMap"]);

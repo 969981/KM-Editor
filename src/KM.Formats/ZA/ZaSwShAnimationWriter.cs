@@ -54,6 +54,12 @@ public static class ZaSwShAnimationWriter
         return decoded with { Materials = MergeBakedHighlights(decoded.Materials) };
     }
 
+    public static PreviewClip ReadFlameClip(byte[] bytes, PreviewClip skeletal, IReadOnlyCollection<string> flameMaterials)
+    {
+        var decoded = KM.Formats.SV.SvSwShFlameAnimation.ReadMany(bytes, skeletal, flameMaterials);
+        return decoded with { Materials = MergeBakedHighlights(decoded.Materials) };
+    }
+
     public static PreviewClip ReadClip(byte[] bytes, PreviewClip skeletal, bool supportVisibility = false, string? emissionMaterial = null,
         IReadOnlyDictionary<string, ZaSwShEyelidMaterial.Contract>? eyes = null)
     {

@@ -37,6 +37,8 @@ public static class SwShRestorationDefinitions
     });
     public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(PiplupSpecies.Concat(new[]
     {
+        Species("mega-charizard-x", 6, 1) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 2 },
+        Species("mega-charizard-y", 6, 2) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 2 },
         Species("chikorita", 152) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("bayleef", 153) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("meganium", 154) with { Donor = SwShRestorationDonor.LegendsZA,

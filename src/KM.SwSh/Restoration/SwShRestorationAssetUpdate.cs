@@ -54,7 +54,8 @@ internal static class SwShRestorationAssetUpdate
         {
             if (!originals.TryGetValue((item.Path, item.Key), out var original))
             {
-                if (item.Before is not null || customizations.ContainsKey((item.Path, item.Key)))
+                if (item.Before is not null && !SwShRestorationMegaItems.IsItemContribution(item)
+                    || customizations.ContainsKey((item.Path, item.Key)))
                     throw new InvalidDataException("This asset update conflicts with existing resource ownership.");
                 merged.Add(item);
                 continue;

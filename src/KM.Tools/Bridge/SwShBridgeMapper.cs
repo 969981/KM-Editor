@@ -2400,7 +2400,8 @@ public static class SwShBridgeMapper
                 pokemon.Provenance.SourceFile,
                 ProjectBridgeMapper.ToDto(pokemon.Provenance.SourceLayer),
                 ProjectBridgeMapper.ToDto(pokemon.Provenance.FileState)),
-            pokemon.SpriteName);
+            pokemon.SpriteName,
+            LearnsetSyncBaseForm: SwShMegaLearnsetSync.BaseForm(pokemon));
     }
 
     private static PokemonEditableFieldDto ToDto(SwShPokemonEditableField field)

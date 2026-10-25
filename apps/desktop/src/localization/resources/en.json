@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.learnsetSync.button": "Sync Learnset",
+    "pokemon.learnsetSync.description": "Replace this Mega’s level-up moves with the current learnset of {pokemon}. Use Apply to save.",
+    "pokemon.learnsetSync.unavailable": "The corresponding non-Mega form is unavailable.",
+    "pokemon.learnsetSync.drafts": "Save or discard learnset row edits for both forms before syncing.",
     "pla.meta.rewardEvent": "Reward event",
     "pla.wild.unknownProfile": "Unresolved profile",
     "pla.unnamedTrainer": "Unnamed trainer",

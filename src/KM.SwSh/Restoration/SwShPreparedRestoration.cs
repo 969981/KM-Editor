@@ -95,6 +95,7 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
     private static void ValidateContributions(SwShRestorationDefinition definition, IReadOnlyList<SwShRestorationContribution> items)
     {
         var rows = definition.Identities.Select(SwShRestorationForms.PersonalRow).ToHashSet();
+        var stones = definition.Identities.Select(SwShRestorationMegaItems.For).OfType<SwShRestorationMegaItem>().ToArray();
         var variants = definition.Identities.Select(i => new SwShRestorationModelVariant(i, 0, $"pm{i.Species:0000}_{i.Form:00}"))
             .Concat(definition.AdditionalModelVariants).ToArray();
         foreach (var item in items)
@@ -102,17 +103,19 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
             SwShRestorationComposer.ValidatePath(item.Path, item.Writer);
             var valid = item.Writer switch
             {
+                SwShRestorationWriter.Items or SwShRestorationWriter.ItemText =>
+                    stones.Any(stone => item.Key == stone.ItemId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 SwShRestorationWriter.Personal or SwShRestorationWriter.Learnset =>
                     int.TryParse(item.Key, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) && rows.Contains(id),
                 SwShRestorationWriter.Icons => definition.Identities.Any(i => item.Key == SwShRestorationComposer.IconKey(i.Species, i.Form)),
-                SwShRestorationWriter.File => item.Key.Length == 0 && definition.Identities.Any(i =>
+                SwShRestorationWriter.File => item.Key.Length == 0 && (stones.Any(stone => item.Path == SwShRestorationMegaItems.IconPath(stone.ItemId)) || definition.Identities.Any(i =>
                     item.Path == $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx"
                     || item.Path == $"romfs/bin/pml/evolution/evo_{SwShRestorationForms.PersonalRow(i):000}.bin"
                     || item.Path == $"romfs/bin/pml/tamagowaza/tamagowaza_{SwShRestorationForms.PersonalRow(i):0000}.bin"
                     || variants.Where(v => v.Identity == i).Any(v => item.Path == $"romfs/bin/archive/pokemon/{v.ResourceStem}.gfpak"
                         || item.Path == $"romfs/bin/archive/pokemon/{v.ResourceStem}_rare.gfpak"
                         || item.Path == $"romfs/bin/archive/gpokemon/{v.ResourceStem}.gfpak"
-                        || item.Path.StartsWith($"romfs/bin/pokemon/{v.ResourceStem}/", StringComparison.Ordinal))),
+                        || item.Path.StartsWith($"romfs/bin/pokemon/{v.ResourceStem}/", StringComparison.Ordinal)))),
                 SwShRestorationWriter.ModelCatalog => variants.Any(v => new[] { false, true }.Any(shiny =>
                     item.Key == SwShRestorationComposer.CatalogKey(new(v.Identity.Species, v.Identity.Form, v.Gender, shiny)))),
                 SwShRestorationWriter.Camp => definition.Identities.Any(i =>
