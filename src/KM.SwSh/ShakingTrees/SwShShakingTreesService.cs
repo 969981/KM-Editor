@@ -25,6 +25,9 @@ public sealed class SwShShakingTreesService(ProjectWorkspaceService? workspace =
     public const string StaleCode = "KM-SWSH-TREES-PLAN-STALE";
     public const string ApplyCode = "KM-SWSH-TREES-APPLY-FAILED";
     private readonly ProjectWorkspaceService workspace = workspace ?? new ProjectWorkspaceService();
+    private readonly bool itemsOnly;
+
+    internal SwShShakingTreesService(bool itemsOnly) : this() => this.itemsOnly = itemsOnly;
 
     public static SwShWorkflowSummary CreateSummary(OpenedProject project) => new(SwShWorkflowIds.ShakingTrees,
         "Shaking Trees", "Edit tree items, quantities, encounter tables, and shake risk.",
@@ -131,7 +134,7 @@ public sealed class SwShShakingTreesService(ProjectWorkspaceService? workspace =
 
     private SwShTreeSources? Read(ProjectPaths paths, List<ValidationDiagnostic> diagnostics, EditSession? session = null)
     {
-        try { return new(workspace.Open(paths), session); }
+        try { return new(workspace.Open(paths), session, itemsOnly); }
         catch (Exception exception) when (IsSourceError(exception))
         { diagnostics.Add(Error(SourceCode, exception.Message)); return null; }
     }
@@ -172,6 +175,7 @@ public sealed class SwShShakingTreesService(ProjectWorkspaceService? workspace =
                 if (Get(area.Id, $"percent.{slot}") > 0 && !state.Pokemon.Any(pokemon => pokemon.Species == Get(area.Id, $"species.{slot}") && pokemon.Form == Get(area.Id, $"form.{slot}")))
                     diagnostics.Add(Error(ValuesCode, "A tree encounter uses a Pokemon form absent from the current game.", area.Id));
         }
+        if (state.ItemsOnly) return ownValues;
         var settings = SwShTreeSources.Settings(values);
         if (settings.InitialRiskMin > settings.InitialRiskMax || settings.RiskStepMin > settings.RiskStepMax || settings.DropMin > settings.DropMax
             || (99 - settings.InitialRiskMin) / Math.Max(1, settings.RiskStepMin) * settings.DropMax > 255)
@@ -197,7 +201,8 @@ public sealed class SwShShakingTreesService(ProjectWorkspaceService? workspace =
             outputs[SwShTreeSources.PlacementPath] = [];
         }
         if (outputs.ContainsKey(SwShTreeSources.PlacementPath)) outputs[SwShTreeSources.PlacementPath] = state.Placement.Write();
-        var encounterBytes = state.Encounters.GetFileByName(state.EncounterMember);
+        if (state.ItemsOnly) return outputs;
+        var encounterBytes = state.Encounters!.GetFileByName(state.EncounterMember);
         foreach (var area in state.Areas.Where(area => changed.Any(key => key.StartsWith(area.Id + "|", StringComparison.Ordinal))))
         {
             var desired = new SwShWildEncounterSubTable((byte)Get(area.Id, "levelMin"), (byte)Get(area.Id, "levelMax"),

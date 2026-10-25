@@ -36,6 +36,20 @@ internal static class SwShOutputTransactionWriter
         MaximumBackupBytesPerApply = OutputLimits.MaximumBackupBytesPerApply,
     };
 
+    private static readonly OutputTransactionCoordinatorOptions RandomizerRestoreCoordinatorOptions = new()
+    {
+        MaximumMutationsPerApply = OutputLimits.MaximumMutationsPerApply,
+        MaximumWriteBytesPerMutation = OutputLimits.MaximumWriteBytesPerMutation,
+        MaximumWriteBytesPerApply = OutputLimits.MaximumWriteBytesPerApply,
+        MaximumFingerprintFileBytes = OutputLimits.MaximumFingerprintFileBytes,
+        MaximumBackupBytesPerApply = OutputLimits.MaximumBackupBytesPerApply,
+    };
+
+    internal static bool TryApplyRandomizerRestore(ProjectPaths paths, IEnumerable<SwShOutputFileMutation> mutations,
+        out OutputApplyResult? result, out SwShOutputTransactionFailure? failure) =>
+        TryApply(paths, mutations, "workflow.sword-shield.randomizer-restore-values", OutputLimits.MaximumMutationsPerApply,
+            RandomizerRestoreCoordinatorOptions, out result, out failure);
+
     public static bool TryCapturePreimage(
         ProjectPaths paths,
         string relativePath,

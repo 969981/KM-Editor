@@ -1173,7 +1173,26 @@ export const applyZaModMergeRequestSchema = z.strictObject({
   paths: projectPathsSchema,
 });
 
+export const trainerRandomizerOptionsSchema = z.strictObject({
+  species: z.boolean(),
+  allowLegendaries: z.boolean(),
+  levelPercent: z.number().int().min(25).max(1000),
+  fullBossTeams: z.boolean(),
+  abilities: z.boolean(),
+  moves: z.boolean(),
+  heldItems: z.boolean(),
+  natures: z.boolean(),
+  genders: z.boolean(),
+  ivs: z.enum(['unchanged', 'random', 'maximum']),
+  evs: z.enum(['unchanged', 'random', 'maximum']),
+});
+export type TrainerRandomizerOptions = z.infer<typeof trainerRandomizerOptionsSchema>;
+
 export const randomizerOptionsSchema = z.strictObject({
+  randomizeTrainers: z.boolean().default(false),
+  trainers: trainerRandomizerOptionsSchema.nullable().default(null),
+  randomizeShops: z.boolean().default(false),
+  randomizeWorldItems: z.boolean().default(false),
   ability1: z.boolean(),
   ability2: z.boolean(),
   allowSameType: z.boolean(),
@@ -1213,6 +1232,7 @@ export const randomizerOptionsSchema = z.strictObject({
 });
 
 export const randomizerConfigSchema = z.strictObject({
+  algorithmVersion: z.union([z.literal(1), z.literal(2)]).default(1),
   options: randomizerOptionsSchema,
   outputHash: z.string().nullable().optional().default(null),
   rollSeed: z.string().nullable().optional().default(null),

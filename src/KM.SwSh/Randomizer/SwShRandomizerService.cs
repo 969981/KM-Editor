@@ -349,6 +349,14 @@ public sealed partial class SwShRandomizerService
         var diagnostics = new List<ValidationDiagnostic>();
         var options = normalizedConfig.Options;
 
+        if (normalizedConfig.AlgorithmVersion is not (1 or 2))
+            diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error, "Randomizer algorithm version is not supported.", field: "algorithmVersion"));
+
+        if (options.RandomizeTrainers && options.Trainers is not { IsValid: true })
+            diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error,
+                "Trainer settings require a level percentage from 25 to 1000 and a supported IV and EV mode.",
+                field: "trainers", expected: "Valid trainer randomizer settings"));
+
         if (!options.HasAnySelection)
         {
             diagnostics.Add(CreateDiagnostic(
@@ -377,7 +385,7 @@ public sealed partial class SwShRandomizerService
 
         var pokemonTargets = pokemonWorkflow is null
             ? Array.Empty<PokemonCandidate>()
-            : CreatePokemonTargets(pokemonWorkflow).ToArray();
+            : CreatePokemonTargets(pokemonWorkflow, useCurrentPools: normalizedConfig.AlgorithmVersion == 2).ToArray();
         if (pokemonWorkflow is not null && pokemonTargets.Length == 0)
         {
             diagnostics.Add(CreateDiagnostic(
@@ -412,7 +420,7 @@ public sealed partial class SwShRandomizerService
         var movePool = movesWorkflow is null
             ? Array.Empty<MoveCandidate>()
             : CreateMovePool(movesWorkflow, options.LearnsetBanFixedDamageMoves).ToArray();
-        if (options.RandomizePokemonLearnsets && movePool.Length == 0)
+        if ((options.RandomizePokemonLearnsets || options.RandomizeTrainers && options.Trainers?.Moves == true) && movePool.Length == 0)
         {
             diagnostics.Add(CreateDiagnostic(
                 DiagnosticSeverity.Error,
@@ -424,8 +432,9 @@ public sealed partial class SwShRandomizerService
         var royalCandyInstalled = IsRoyalCandyInstalled(project);
         var itemPool = itemsWorkflow is null
             ? Array.Empty<ItemCandidate>()
-            : CreateItemPool(itemsWorkflow.Items, royalCandyInstalled).ToArray();
-        if ((options.RandomizePokemonHeldItems || options.RandomizeRaidRewards || options.RandomizeRaidBonusRewards) && itemPool.Length == 0)
+            : CreateItemPool(itemsWorkflow.Items, royalCandyInstalled,
+                preserveLegacyPool: normalizedConfig.AlgorithmVersion == 1).ToArray();
+        if (ShouldLoadItems(options) && itemPool.Length == 0)
         {
             diagnostics.Add(CreateDiagnostic(
                 DiagnosticSeverity.Error,
@@ -434,7 +443,13 @@ public sealed partial class SwShRandomizerService
                 expected: "Loaded item data with non-key, reward-safe item IDs"));
         }
 
+        if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
+            return new RandomizerBuildResult(normalizedConfig, exportedSeed, diagnostics, []);
+
         var domainPlans = new List<RandomizerDomainPlan>();
+        AddTrainerPlan(project, pokemonWorkflow, movePool, itemPool, generationKey, options, domainPlans, diagnostics);
+        AddShopPlan(project, itemPool, generationKey, options, domainPlans, diagnostics);
+        AddWorldItemPlan(project, itemPool, generationKey, options, domainPlans, diagnostics);
         AddWildEncounterPlan(project, pokemonTargets, generationKey, options, domainPlans, diagnostics);
         AddStaticPlan(project, pokemonTargets, generationKey, options, domainPlans, diagnostics);
         AddGiftPlan(project, pokemonTargets, generationKey, options, domainPlans, diagnostics);
@@ -2025,14 +2040,18 @@ public sealed partial class SwShRandomizerService
             : rng.Pick(available);
     }
 
-    private static IReadOnlyList<PokemonCandidate> CreatePokemonTargets(SwShPokemonWorkflow workflow)
+    private static IReadOnlyList<PokemonCandidate> CreatePokemonTargets(SwShPokemonWorkflow workflow,
+        bool includeProtected = false, bool useCurrentPools = false)
     {
         var strictTargets = workflow.Pokemon
-            .Where(IsLegalPokemonTarget)
+            .Where(record => IsLegalPokemonTarget(record) || includeProtected && IsProtectedBoxLegendarySpecies(record.SpeciesId)
+                && record.Personal.IsPresentInGame && record.Personal.HasSpriteForm && record.DexPresence.IsPresentInGame)
             .ToArray();
-        var targets = strictTargets.Length > 0
-            ? strictTargets
-            : workflow.Pokemon.Where(IsPresentPokemonTarget);
+        var targets = useCurrentPools
+            ? workflow.Pokemon.Where(record => IsPresentPokemonTarget(record)
+                || includeProtected && IsProtectedBoxLegendarySpecies(record.SpeciesId)
+                    && record.Personal.IsPresentInGame && record.DexPresence.IsPresentInGame && record.BaseStats.Total > 0)
+            : strictTargets.Length > 0 ? strictTargets : workflow.Pokemon.Where(IsPresentPokemonTarget);
 
         var personalById = workflow.Pokemon.ToDictionary(record => record.PersonalId);
         int TargetForm(SwShPokemonRecord record)
@@ -2045,6 +2064,7 @@ public sealed partial class SwShRandomizerService
         }
 
         return targets
+            .Where(record => !useCurrentPools || SwShMegaLearnsetSync.BaseForm(record) is null)
             .Where(record => TargetForm(record) >= 0)
             .Select(record => new PokemonCandidate(
                 record.PersonalId,
@@ -2056,6 +2076,7 @@ public sealed partial class SwShRandomizerService
                 Source(record.Provenance)))
             .GroupBy(candidate => $"{candidate.SpeciesId}:{candidate.Form}", StringComparer.Ordinal)
             .Select(group => group.First())
+            .Where(candidate => !useCurrentPools || IsStartingPokemonForm(candidate))
             .OrderBy(candidate => candidate.SpeciesId)
             .ThenBy(candidate => candidate.Form)
             .ToArray();
@@ -2081,15 +2102,17 @@ public sealed partial class SwShRandomizerService
             .OrderBy(move => move.MoveId);
     }
 
-    private static IEnumerable<ItemCandidate> CreateItemPool(IEnumerable<SwShItemRecord> items, bool royalCandyInstalled)
+    private static IEnumerable<ItemCandidate> CreateItemPool(IEnumerable<SwShItemRecord> items, bool royalCandyInstalled, bool preserveLegacyPool = true)
     {
         var materializedItems = items as IReadOnlyCollection<SwShItemRecord> ?? items.ToArray();
+        // Named empty row aliases become available only after their item data is installed.
         var strictPool = materializedItems
             .Where(item => IsSafeItemCandidate(item, royalCandyInstalled, strict: true))
+            .Where(item => preserveLegacyPool || !item.SharedItemIds.Contains(0))
             .Select(item => new ItemCandidate(item.ItemId, Source(item.Provenance)))
             .OrderBy(item => item.ItemId)
             .ToArray();
-        if (strictPool.Length > 0)
+        if (strictPool.Length > 0 || !preserveLegacyPool)
         {
             return strictPool;
         }
@@ -2373,6 +2396,10 @@ public sealed partial class SwShRandomizerService
             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+        var backupMutations = new List<SwShOutputFileMutation>();
+        var backupProofs = new List<(string RelativePath, string Sha256)>();
+        long backupBytes = 0;
+
         foreach (var relativePath in plannedPaths)
         {
             if (entries.TryGetValue(relativePath, out var existingEntry))
@@ -2433,22 +2460,12 @@ public sealed partial class SwShRandomizerService
                     }
 
                     var originalBytes = File.ReadAllBytes(targetPath);
+                    backupBytes = checked(backupBytes + originalBytes.Length);
+                    if (backupBytes > OutputLimits.MaximumWriteBytesPerApply)
+                        throw new IOException("Randomizer backups exceed the supported transaction size.");
                     var originalSha256 = Convert.ToHexString(SHA256.HashData(originalBytes));
-                    if (!SwShOutputTransactionWriter.TryApply(
-                            paths,
-                            [SwShOutputFileMutation.Write(backupRelativePath, originalBytes)],
-                            "workflow.sword-shield.randomizer-backup-write",
-                            out _,
-                            out var backupFailure))
-                    {
-                        throw new IOException(
-                            backupFailure?.Message ?? "The Randomizer backup transaction did not commit.");
-                    }
-
-                    if (!string.Equals(originalSha256, ComputeFileSha256(backupPath), StringComparison.OrdinalIgnoreCase))
-                    {
-                        throw new IOException("The pre-Randomizer backup did not match its source file.");
-                    }
+                    backupMutations.Add(SwShOutputFileMutation.Write(backupRelativePath, originalBytes));
+                    backupProofs.Add((backupRelativePath, originalSha256));
 
                     entry = new RandomizerRestoreEntry(
                         relativePath,
@@ -2456,7 +2473,6 @@ public sealed partial class SwShRandomizerService
                         OriginalSha256: originalSha256,
                         OriginalBackupRelativePath: backupRelativePath,
                         RandomizedSha256: null);
-                    createdBackupRelativePaths.Add(backupRelativePath);
                 }
                 else
                 {
@@ -2478,6 +2494,31 @@ public sealed partial class SwShRandomizerService
                     $"Randomizer could not capture the pre-apply output for safe restoration: {ex.Message}",
                     file: relativePath,
                     expected: "Readable output and writable Randomizer backup directory"));
+            }
+        }
+
+        if (backupMutations.Count > 0 && !diagnostics.Any(row => row.Severity == DiagnosticSeverity.Error))
+        {
+            if (!SwShOutputTransactionWriter.TryApply(paths, backupMutations, "workflow.sword-shield.randomizer-backup-write",
+                    out _, out var failure))
+                diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error,
+                    "Randomizer backup transaction did not commit: " + failure?.Message));
+            else
+            {
+                createdBackupRelativePaths.AddRange(backupProofs.Select(row => row.RelativePath));
+                foreach (var proof in backupProofs)
+                {
+                    try
+                    {
+                        var path = ResolveOutputPath(paths, proof.RelativePath);
+                        if (path is null || !string.Equals(proof.Sha256, ComputeFileSha256(path), StringComparison.OrdinalIgnoreCase))
+                            diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error, "A pre-Randomizer backup did not match its source file.", file: proof.RelativePath));
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        diagnostics.Add(CreateDiagnostic(DiagnosticSeverity.Error, "A pre-Randomizer backup did not match its source file.", file: proof.RelativePath));
+                    }
+                }
             }
         }
 
@@ -2781,19 +2822,23 @@ public sealed partial class SwShRandomizerService
         return ShouldRandomizePokemon(options)
             || options.RandomizeWildEncounters
             || options.RandomizeStaticEncounters
-            || options.RandomizeGiftEncounters;
+            || options.RandomizeGiftEncounters
+            || options.RandomizeTrainers;
     }
 
     private static bool ShouldLoadMoves(SwShRandomizerOptions options)
     {
-        return options.RandomizePokemonLearnsets;
+        return options.RandomizePokemonLearnsets || options.RandomizeTrainers && options.Trainers?.Moves == true;
     }
 
     private static bool ShouldLoadItems(SwShRandomizerOptions options)
     {
         return options.RandomizePokemonHeldItems
             || options.RandomizeRaidRewards
-            || options.RandomizeRaidBonusRewards;
+            || options.RandomizeRaidBonusRewards
+            || options.RandomizeShops
+            || options.RandomizeWorldItems
+            || options.RandomizeTrainers && options.Trainers?.HeldItems == true;
     }
 
     private static bool IsEditablePokemon(SwShPokemonRecord record)
