@@ -149,10 +149,10 @@ public static class ZaSwShMaterialBaker
         var normalName = $"n{materialIndex:x}n" + templateName[3..];
         var ambientName = $"a{materialIndex:x}n" + templateName[3..];
         var baseImage = Read(readTexture(textures["BaseColorMap"]));
-        var maskImage = Read(readTexture(textures["LayerMaskMap"]));
+        var maskImage = textures.TryGetValue("LayerMaskMap", out var layerMaskPath) ? Read(readTexture(layerMaskPath)) : null;
         var highlightImage = textures.TryGetValue("HighlightMaskMap", out var highlightPath) ? Read(readTexture(highlightPath)) : null;
-        var colorWidth = Math.Max(baseImage.Width, Math.Max(maskImage.Width, highlightImage?.Width ?? 4));
-        var colorHeight = Math.Max(baseImage.Height, Math.Max(maskImage.Height, highlightImage?.Height ?? 4));
+        var colorWidth = Math.Max(baseImage.Width, Math.Max(maskImage?.Width ?? 4, highlightImage?.Width ?? 4));
+        var colorHeight = Math.Max(baseImage.Height, Math.Max(maskImage?.Height ?? 4, highlightImage?.Height ?? 4));
         var colorContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, colorWidth, colorHeight, true), templateName, colorName));
         var normalContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, width, height, false), templateName, normalName));
         var ambientContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, ambientWidth, ambientHeight, false), templateName, ambientName));
@@ -168,9 +168,9 @@ public static class ZaSwShMaterialBaker
             {
                 var uv = new Vector2((x + .5f) / colorWidth, (y + .5f) / colorHeight);
                 var original = Sample(baseImage, uv, uvTransform, new(primitive.Material.Wrap.X, primitive.Material.Wrap.Y)) * baseColor;
-                var mask = Sample(maskImage, uv, maskTransform, new(primitive.Material.Wrap.Z, primitive.Material.Wrap.W));
+                var mask = maskImage is null ? Vector4.Zero : Sample(maskImage, uv, maskTransform, new(primitive.Material.Wrap.Z, primitive.Material.Wrap.W));
                 var rgb = original;
-                for (var layer = 0; layer < 4; layer++)
+                for (var layer = 0; maskImage is not null && layer < 4; layer++)
                 {
                     var name = "BaseColorLayer" + (layer + 1);
                     if (!parameters.TryGetValue(name, out var tint)) throw new InvalidDataException("Z-A color layer is missing.");

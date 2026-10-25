@@ -17,7 +17,7 @@ public sealed partial class ZaSwShRestorationPreparationService
     {
         var definition = SwShRestorationDefinitions.Get(definitionId);
         if (target.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || string.IsNullOrWhiteSpace(target.BaseRomFsPath)
-            || definition.Identities.Any(i => !Profiles.ContainsKey(i.Species) || i.Form != 0)) throw new InvalidDataException("This restoration is not supported for the selected target.");
+            || definition.Identities.Any(i => !TryProfile(i, out _))) throw new InvalidDataException("This restoration is not supported for the selected target.");
         var context = new Preparation(target, donorRomFs, compressionSupport, definition, progress, cancellationToken, donorSession);
         using (context)
         {
@@ -26,12 +26,15 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 progress?.Report(new("models", unavailableMoves.Count, definition.Identities.Count) { Species = identity.Species, Activity = "reading" });
-                contributions.AddRange(context.Assets(identity.Species));
+                contributions.AddRange(context.Assets(identity));
                 progress?.Report(new("gameplay", unavailableMoves.Count, definition.Identities.Count) { Species = identity.Species });
-                var gameplay = context.Gameplay(identity.Species); contributions.AddRange(gameplay.Contributions); unavailableMoves.Add(identity.Species, gameplay.ExcludedMoves);
+                var gameplay = context.Gameplay(identity); contributions.AddRange(gameplay.Contributions); unavailableMoves.Add(identity.Species, gameplay.ExcludedMoves);
             }
             progress?.Report(new("voices", definition.Identities.Count, definition.Identities.Count));
-            contributions.AddRange(context.Voices(definition.Identities.Select(i => i.Species).ToArray()));
+            contributions.AddRange(context.Voices(definition.Identities));
+            progress?.Report(new("held-items", definition.Identities.Count, definition.Identities.Count));
+            foreach (var stone in definition.Identities.Select(SwShRestorationMegaItems.For).OfType<SwShRestorationMegaItem>().DistinctBy(s => s.ItemId))
+                contributions.AddRange(context.MegaItem(stone));
             progress?.Report(new("validation", definition.Identities.Count, definition.Identities.Count));
             var prepared = new SwShPreparedRestoration(definition.Id, definition.Version, definition.ConverterVersion, target.SelectedGame.Value,
                 context.Fingerprints.Values.ToArray(), contributions, unavailableMoves) { AssetRevision = definition.AssetRevision };
@@ -84,6 +87,9 @@ public sealed partial class ZaSwShRestorationPreparationService
             token.ThrowIfCancellationRequested(); bytes = archive.Read(path);
             Retain(bytes); donor.Add(path, bytes); Fingerprint("donor", path, bytes); return bytes;
         }
+        internal IReadOnlyList<SwShRestorationContribution> MegaItem(SwShRestorationMegaItem stone) =>
+            SwShRestorationMegaItemPreparation.Create(stone, Native, Donor,
+                path => System.IO.File.Exists(Path.Combine(target.BaseRomFsPath!, path)), token);
         private void Retain(byte[] bytes)
         {
             retainedBytes += bytes.Length;

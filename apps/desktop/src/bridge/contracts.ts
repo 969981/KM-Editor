@@ -1595,6 +1595,7 @@ export const pokemonRecordSchema = z.strictObject({
   genderRatioLabel: z.string(),
   height: z.number().int().nonnegative(),
   learnset: z.array(pokemonLearnsetMoveSchema),
+  learnsetSyncBaseForm: z.number().int().nonnegative().nullable().optional(),
   name: z.string(),
   personal: pokemonPersonalDetailsSchema,
   personalId: z.number().int().nonnegative(),

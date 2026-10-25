@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.learnsetSync.button": "同步招式表",
+    "pokemon.learnsetSync.description": "将此超级进化形态升级时学会的招式替换为{pokemon}当前的招式表。点击“应用”以保存。",
+    "pokemon.learnsetSync.unavailable": "对应的非超级进化形态不可用。",
+    "pokemon.learnsetSync.drafts": "同步前，请保存或放弃两个形态的招式行编辑。",
     "pla.meta.rewardEvent": "奖励事件",
     "pla.wild.unknownProfile": "未明确的配置",
     "pla.unnamedTrainer": "未命名训练家",

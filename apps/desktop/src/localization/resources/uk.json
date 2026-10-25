@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.learnsetSync.button": "Синхронізувати прийоми",
+    "pokemon.learnsetSync.description": "Замінює прийоми цієї мегаформи, що вивчаються з підвищенням рівня, поточним набором {pokemon}. Натисніть «Застосувати», щоб зберегти.",
+    "pokemon.learnsetSync.unavailable": "Відповідна форма без мегаеволюції недоступна.",
+    "pokemon.learnsetSync.drafts": "Перед синхронізацією збережіть або скасуйте зміни в рядках прийомів обох форм.",
     "pla.meta.rewardEvent": "Подія нагороди",
     "pla.wild.unknownProfile": "Невизначений профіль",
     "pla.unnamedTrainer": "Тренер без імені",

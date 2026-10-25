@@ -1014,7 +1014,10 @@ public sealed class SwShPokemonWorkflowService
             learnset,
             compatibility,
             provenance,
-            spriteIdentity.Name);
+            spriteIdentity.Name)
+        {
+            CanonicalForm = formOwners.GetValueOrDefault(personal.PersonalId)?.LocalFormIndex ?? 0,
+        };
     }
 
     private static SwShPokemonEvolutionRecord ToPokemonEvolutionRecord(
@@ -1469,6 +1472,7 @@ public sealed class SwShPokemonWorkflowService
             {
                 SpeciesId = pokemon.PersonalId,
                 FormLabel = "Unused",
+                CanonicalForm = 0,
             };
         }
 
@@ -1487,6 +1491,7 @@ public sealed class SwShPokemonWorkflowService
         return pokemon with
         {
             SpeciesId = speciesId,
+            CanonicalForm = owner?.LocalFormIndex ?? 0,
             Name = FormatPokemonDisplayName(displayName, formLabel),
             FormLabel = formLabel,
             SpriteName = FormatPokemonDisplayName(spriteName, formLabel),

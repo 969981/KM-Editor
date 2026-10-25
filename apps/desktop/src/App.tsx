@@ -695,6 +695,7 @@ import { DiagnosticNavigationProvider } from './diagnosticActions';
 import { PerformanceDiagnosticsPanel } from './features/settings/PerformanceDiagnosticsPanel';
 import { ProcessMemoryPanel } from './features/settings/ProcessMemoryPanel';
 import { CompatibilityActions } from './features/pokemon/CompatibilityActions';
+import { MegaLearnsetSync } from './features/pokemon/MegaLearnsetSync';
 import { compatibilityEntryEnabled, compatibilityGroupField, compatibilityGroupValue, compatibilityToggleValues, isMoveListCompatibility } from './features/pokemon/compatibilityDrafts';
 import { ShopPendingRemovals } from './features/shops/ShopPendingRemovals';
 import { OutputHistoryPage, type HistoryChange, type HistoryChangeFormatter } from './features/output-safety/OutputHistoryPage';
@@ -26750,6 +26751,14 @@ function SelectedPokemonPanel({
         <>
           <div className={`inspector-block ${editorFamily}-pokemon-learnset-block`}>
             <h4>Learnset</h4>
+            {editorFamily === 'swsh' ? <MegaLearnsetSync
+              pokemon={pokemon} records={pokemonRecords}
+              canSync={canModifyLearnsetStructure}
+              draftsByPokemonId={learnsetDraftsByPokemonId}
+              onSync={() => runSelectedPokemonStructuralMutation('learnset', () =>
+                onUpdatePokemonLearnset(pokemon.personalId, 'syncBase', null, null, null)
+              )}
+            /> : null}
             <p className="field-note">{t('rowClipboard.discoveryHint')}</p>
             <div className="learnset-editor">
               {pokemon.learnset.length > 0 ? (

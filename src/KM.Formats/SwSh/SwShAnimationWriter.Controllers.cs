@@ -92,6 +92,39 @@ public static partial class SwShAnimationWriter
         return writer.Finish(source.Root);
     }
 
+    /// <summary>Copies an autonomous global loop into a controller without changing its ordinary states.</summary>
+    public static byte[] AddGlobalLoop(byte[] controller, byte[] battleController)
+    {
+        var target = new ModelBuffer(controller); var donor = new ModelBuffer(battleController);
+        var writer = new ModelTableBuilder(controller);
+        var layers = target.Tables(target.Table(target.Root, 0), 0, 128);
+        if (layers.Length is < 1 or >= 128 || layers.Any(t => target.Text(t, 1) == "gloop01")
+            || layers.Where((t, i) => target.Value(t, 0) != i).Any())
+            throw new InvalidDataException("Global loop requires an ordered controller without an existing loop.");
+        var layer = donor.Tables(donor.Table(donor.Root, 0), 0, 128).Single(t => donor.Text(t, 1) == "gloop01");
+        var machine = donor.Tables(donor.Table(donor.Root, 4), 0, 128).Single(t => donor.Text(t, 0) == "gloop01");
+        var resource = donor.Tables(donor.Table(donor.Root, 6), 0, 2048).Single(t => donor.Text(t, 0) == "gloop01");
+        var vectors = new List<(int[] Slots, int[] Entries, int Entry)>();
+        foreach (var (field, entry, nameField) in new[] { (0, layer, 1), (4, machine, 0), (6, resource, 0) })
+        {
+            var parent = target.Table(target.Root, field);
+            if (parent == 0) throw new InvalidDataException("Global loop controller table is missing.");
+            var entries = target.Tables(parent, 0, 2048);
+            if (entries.Any(t => target.Text(t, nameField) == "gloop01"))
+                throw new InvalidDataException("Global loop controller identity is already assigned.");
+            var slots = writer.Vector(parent, 0, entries.Length + 1);
+            vectors.Add((slots, entries, entry));
+        }
+        var original = writer.Append(controller); var copy = writer.Append(battleController);
+        writer.Int32(copy + donor.Field(layer, 0), layers.Length);
+        foreach (var (slots, entries, entry) in vectors)
+        {
+            for (var i = 0; i < entries.Length; i++) writer.Pointer(slots[i], original + entries[i]);
+            writer.Pointer(slots[^1], copy + entry);
+        }
+        return writer.Finish(target.Root);
+    }
+
     public static byte[] BattleIdleController(byte[] controller)
     {
         var source = new ModelBuffer(controller); var writer = new ModelTableBuilder(controller);

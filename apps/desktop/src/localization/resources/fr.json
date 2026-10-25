@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.learnsetSync.button": "Synchroniser les capacités",
+    "pokemon.learnsetSync.description": "Remplace les capacités apprises par niveau de cette Méga-Évolution par celles actuelles de {pokemon}. Utilisez Appliquer pour enregistrer.",
+    "pokemon.learnsetSync.unavailable": "La forme correspondante sans Méga-Évolution est indisponible.",
+    "pokemon.learnsetSync.drafts": "Enregistrez ou annulez les modifications des lignes de capacités des deux formes avant de synchroniser.",
     "pla.meta.rewardEvent": "Événement de récompense",
     "pla.wild.unknownProfile": "Profil non identifié",
     "pla.unnamedTrainer": "Dresseur sans nom",

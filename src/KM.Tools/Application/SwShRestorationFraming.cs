@@ -7,6 +7,32 @@ namespace KM.Tools.Application;
 
 internal static class SwShRestorationFraming
 {
+    internal static void MatchGiantGround(byte[] giantConfiguration, byte[] nativeConfiguration, byte[] convertedConfiguration)
+    {
+        var giant = new ModelBuffer(giantConfiguration);
+        float Read(ModelBuffer data, int field)
+        {
+            var at = data.Field(data.Root, field);
+            if (at == 0) throw new InvalidDataException("Giant ground placement metadata is incomplete.");
+            var value = data.Float(at);
+            if (!float.IsFinite(value)) throw new InvalidDataException("Giant ground placement metadata is nonfinite.");
+            return value;
+        }
+        float Floor(byte[] configuration)
+        {
+            var data = new ModelBuffer(configuration);
+            var height = Read(data, 8); var battleHeight = Read(data, 9);
+            if (height <= 0 || battleHeight <= 0) throw new InvalidDataException("Giant ground placement height is invalid.");
+            return Read(data, 12) * battleHeight / height;
+        }
+        var scale = Read(giant, 4);
+        if (scale <= 0) throw new InvalidDataException("Giant ground placement scale is invalid.");
+        // Ordinary flight clearance must not become a many-metre gap when enlarged.
+        // Preserve the native actor's floor while retaining the imported pose and size.
+        SetGiantVerticalOffset(giantConfiguration, Read(giant, 8)
+            + (Floor(nativeConfiguration) - Floor(convertedConfiguration)) * scale);
+    }
+
     internal static void SetGiantVerticalOffset(byte[] giantConfiguration, float offset)
     {
         var giant = new ModelBuffer(giantConfiguration);

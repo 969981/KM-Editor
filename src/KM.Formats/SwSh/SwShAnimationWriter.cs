@@ -161,7 +161,7 @@ public static partial class SwShAnimationWriter
             return samples[i - 1] + (samples[i] - samples[i - 1]) * (frame - frames[i - 1]) / (float)(frames[i] - frames[i - 1]);
         return samples[^1];
     }
-    private static byte[] PackRotation(float[] quaternion)
+    internal static byte[] PackRotation(float[] quaternion)
     {
         if (quaternion.Length != 4 || quaternion.Any(v => !float.IsFinite(v))) throw new InvalidDataException("Bind rotation is invalid.");
         var length = Math.Sqrt(quaternion.Sum(v => (double)v * v));

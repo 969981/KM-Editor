@@ -9,6 +9,7 @@ internal static class SwShRestorationPartyIcons
     private static readonly IReadOnlyDictionary<int, (string Sprite, string Frame)> Profiles = new Dictionary<int, (string, string)>
     {
         // Frames use native resource IDs, which are not always National Dex IDs.
+        [6] = ("charizard", "0006_00s"),
         [152] = ("chikorita", "0001_00s"), [153] = ("bayleef", "0002_00s"), [154] = ("meganium", "0003_00m"),
         [155] = ("cyndaquil", "0004_00s"), [156] = ("quilava", "0005_00s"), [157] = ("typhlosion", "0006_00s"),
         [158] = ("totodile", "0007_00s"), [159] = ("croconaw", "0008_00s"), [160] = ("feraligatr", "0009_00s"),
@@ -32,8 +33,13 @@ internal static class SwShRestorationPartyIcons
         if (!Profiles.TryGetValue(species, out var profile)) throw new InvalidDataException("Restoration party icon profile is missing.");
         if (form != 0)
         {
-            if (form != 1 || species is not (74 or 75 or 76)) throw new InvalidDataException("Restoration party icon form is unsupported.");
-            profile = (profile.Sprite + "-alola", profile.Frame);
+            var suffix = (species, form) switch
+            {
+                (6, 1) => "-mega-x", (6, 2) => "-mega-y",
+                (74 or 75 or 76, 1) => "-alola",
+                _ => throw new InvalidDataException("Restoration party icon form is unsupported."),
+            };
+            profile = (profile.Sprite + suffix, profile.Frame);
         }
         using var stream = typeof(SwShRestorationPartyIcons).Assembly.GetManifestResourceStream("KM.Tools.PartySprites." + profile.Sprite + ".png")
             ?? throw new InvalidDataException("Restoration party sprite is missing.");

@@ -132,7 +132,7 @@ public enum SwShItemPouch : byte
     KeyItems = 8,
 }
 
-public sealed class SwShItemTable
+public sealed partial class SwShItemTable
 {
     public const string ItemDataRelativePath = "romfs/bin/pml/item/item.dat";
 

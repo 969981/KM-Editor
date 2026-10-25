@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.learnsetSync.button": "Attacken synchronisieren",
+    "pokemon.learnsetSync.description": "Ersetzt die durch Levelaufstieg erlernten Attacken dieser Mega-Form durch die aktuellen von {pokemon}. Mit Anwenden speichern.",
+    "pokemon.learnsetSync.unavailable": "Die entsprechende Form ohne Mega-Entwicklung ist nicht verfügbar.",
+    "pokemon.learnsetSync.drafts": "Speichere oder verwirf die Änderungen an den Attackenzeilen beider Formen vor dem Synchronisieren.",
     "pla.meta.rewardEvent": "Belohnungsereignis",
     "pla.wild.unknownProfile": "Ungeklärtes Profil",
     "pla.unnamedTrainer": "Trainer ohne Namen",

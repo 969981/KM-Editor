@@ -1,5 +1,9 @@
 {
   "keys": {
+    "pokemon.learnsetSync.button": "Sincronizar movimientos",
+    "pokemon.learnsetSync.description": "Reemplaza los movimientos por nivel de esta megaevolución con los actuales de {pokemon}. Usa Aplicar para guardar.",
+    "pokemon.learnsetSync.unavailable": "La forma correspondiente sin megaevolucionar no está disponible.",
+    "pokemon.learnsetSync.drafts": "Guarda o descarta los cambios en las filas de movimientos de ambas formas antes de sincronizar.",
     "pla.meta.rewardEvent": "Evento de recompensa",
     "pla.wild.unknownProfile": "Perfil sin determinar",
     "pla.unnamedTrainer": "Entrenador sin nombre",
