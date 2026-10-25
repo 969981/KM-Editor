@@ -25117,6 +25117,18 @@ function SelectedPokemonPanel({
     pokemon?.learnset.find((move) => move.slot === selectedLearnsetSlot) ??
     pokemon?.learnset[0] ??
     null;
+  const orderedLearnsetMoves = useMemo(
+    () => (pokemon?.learnset ?? [])
+      .map((move) => ({
+        move,
+        level: getPokemonLearnsetDraftDisplay(
+          move, learnsetDraftsBySlot[move.slot] ?? null, learnsetMoveOptions, editorFamily
+        ).level
+      }))
+      .sort((left, right) => left.level - right.level)
+      .map(({ move }) => move),
+    [editorFamily, learnsetDraftsBySlot, learnsetMoveOptions, pokemon?.learnset]
+  );
   const [learnsetMoveIdDraft, setLearnsetMoveIdDraft] = useState(
     selectedLearnsetMove?.moveId.toString() ?? ''
   );
@@ -25761,8 +25773,9 @@ function SelectedPokemonPanel({
         return;
       }
 
+      const targetIndex = orderedLearnsetMoves.findIndex((move) => move.slot === targetSlot);
       const destinationRows = result.rows.map((row, offset) => {
-        const destination = pokemon.learnset.find((move) => move.slot === targetSlot + offset);
+        const destination = targetIndex < 0 ? undefined : orderedLearnsetMoves[targetIndex + offset];
         return destination ? { destination, row } : null;
       });
       if (
@@ -25873,6 +25886,31 @@ function SelectedPokemonPanel({
     isIntegerInRange(parsedNewLearnsetLevel, 0, learnsetMaximumLevel) &&
     (editorFamily !== 'swsh' ||
       isValidSwShLearnsetMove(parsedNewLearnsetMoveId, learnsetMoveOptions));
+  const moveLearnsetRow = useCallback(
+    async (sourceSlot: number, targetSlot: number, action: string) => {
+      if (!pokemon || !canModifyLearnsetStructure) return false;
+      const sourceIndex = orderedLearnsetMoves.findIndex((move) => move.slot === sourceSlot);
+      const targetIndex = orderedLearnsetMoves.findIndex((move) => move.slot === targetSlot);
+      if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return false;
+      return runSelectedPokemonStructuralMutation('learnset', () => {
+        if (pokemon.learnset.every((move, index) => move.slot === orderedLearnsetMoves[index]?.slot)) {
+          return onUpdatePokemonLearnset(
+            pokemon.personalId, action, sourceSlot, action === 'moveTo' ? targetSlot : null, null
+          );
+        }
+        const moveIds = orderedLearnsetMoves.map((move) => move.moveId);
+        moveIds.splice(targetIndex, 0, moveIds.splice(sourceIndex, 1)[0]!);
+        const changes = orderedLearnsetMoves.flatMap((move, index) =>
+          move.moveId === moveIds[index] ? [] : [{
+            action: 'upsert', slot: move.slot, moveId: moveIds[index]!, level: move.level
+          }]
+        );
+        return onUpdatePokemonFields(pokemon.personalId, [], [], changes);
+      });
+    },
+    [canModifyLearnsetStructure, onUpdatePokemonFields, onUpdatePokemonLearnset,
+      orderedLearnsetMoves, pokemon, runSelectedPokemonStructuralMutation]
+  );
   const handleDropLearnsetMove = useCallback(
     async (targetSlot: number, transferValue: string) => {
       const activeDrag = learnsetDragState;
@@ -25904,17 +25942,7 @@ function SelectedPokemonPanel({
         return;
       }
 
-      const didMove = await runSelectedPokemonStructuralMutation(
-        'learnset',
-        () =>
-          onUpdatePokemonLearnset(
-            pokemon.personalId,
-            'moveTo',
-            activeDrag.sourceSlot,
-            targetSlot,
-            null
-          )
-      );
+      const didMove = await moveLearnsetRow(activeDrag.sourceSlot, targetSlot, 'moveTo');
       if (didMove) {
         setSelectedLearnsetSlot(targetSlot);
       }
@@ -25922,9 +25950,8 @@ function SelectedPokemonPanel({
     [
       canModifyLearnsetStructure,
       learnsetDragState,
-      onUpdatePokemonLearnset,
+      moveLearnsetRow,
       pokemon,
-      runSelectedPokemonStructuralMutation
     ]
   );
   const evolutionDraftReview = useMemo(
@@ -26727,7 +26754,7 @@ function SelectedPokemonPanel({
             <div className="learnset-editor">
               {pokemon.learnset.length > 0 ? (
                 <ul className="learnset-list">
-                  {pokemon.learnset.map((move) => {
+                  {orderedLearnsetMoves.map((move, moveIndex) => {
                     const isSelected = selectedLearnsetMove?.slot === move.slot;
                     const localDraft = learnsetDraftsBySlot[move.slot] ?? null;
                     const displayMove = getPokemonLearnsetDraftDisplay(
@@ -26968,21 +26995,13 @@ function SelectedPokemonPanel({
                               <button
                                 aria-label="Move learnset row up"
                                 className="secondary-button icon-button"
-                                disabled={!canModifyLearnsetStructure || move.slot === 0}
+                                disabled={!canModifyLearnsetStructure || moveIndex === 0}
                                 onClick={async () => {
-                                  const didMove = await runSelectedPokemonStructuralMutation(
-                                    'learnset',
-                                    () =>
-                                      onUpdatePokemonLearnset(
-                                        pokemon.personalId,
-                                        'moveUp',
-                                        move.slot,
-                                        null,
-                                        null
-                                      )
-                                  );
+                                  const target = orderedLearnsetMoves[moveIndex - 1];
+                                  if (!target) return;
+                                  const didMove = await moveLearnsetRow(move.slot, target.slot, 'moveUp');
                                   if (didMove) {
-                                    setSelectedLearnsetSlot(move.slot - 1);
+                                    setSelectedLearnsetSlot(target.slot);
                                   }
                                 }}
                                 title="Move learnset row up"
@@ -26995,22 +27014,14 @@ function SelectedPokemonPanel({
                                 className="secondary-button icon-button"
                                 disabled={
                                   !canModifyLearnsetStructure ||
-                                  move.slot >= pokemon.learnset.length - 1
+                                  moveIndex >= orderedLearnsetMoves.length - 1
                                 }
                                 onClick={async () => {
-                                  const didMove = await runSelectedPokemonStructuralMutation(
-                                    'learnset',
-                                    () =>
-                                      onUpdatePokemonLearnset(
-                                        pokemon.personalId,
-                                        'moveDown',
-                                        move.slot,
-                                        null,
-                                        null
-                                      )
-                                  );
+                                  const target = orderedLearnsetMoves[moveIndex + 1];
+                                  if (!target) return;
+                                  const didMove = await moveLearnsetRow(move.slot, target.slot, 'moveDown');
                                   if (didMove) {
-                                    setSelectedLearnsetSlot(move.slot + 1);
+                                    setSelectedLearnsetSlot(target.slot);
                                   }
                                 }}
                                 title="Move learnset row down"

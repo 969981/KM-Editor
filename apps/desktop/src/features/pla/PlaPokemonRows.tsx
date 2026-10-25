@@ -25,6 +25,12 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
       : field.key === 'species' ? field.choices?.find(choice => choice.value !== recordId.split(':')[0])?.value ?? '25'
         : field.key === 'move' ? field.choices?.find(choice => !rows.some(row => row[2] === choice.value))?.value ?? '' : '0'])));
   const drag = useRef<{ index: number; signature: string; token: string } | null>(null);
+  const rowKeys = useRef({ scope: `${kind}:${recordId}`, next: 0, keys: [] as number[] });
+  if (rowKeys.current.scope !== `${kind}:${recordId}`) {
+    rowKeys.current = { scope: `${kind}:${recordId}`, next: 0, keys: [] };
+  }
+  while (rowKeys.current.keys.length < rows.length) rowKeys.current.keys.push(rowKeys.current.next++);
+  rowKeys.current.keys.length = rows.length;
   const index = Math.min(requestedIndex, Math.max(0, rows.length - 1));
   const selected = rows[index];
   const isEvolution = kind === 'evolutions';
@@ -46,7 +52,16 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
       <FieldLabel htmlFor={id} label={`${isEvolution && field.key === 'level' ? t('pla.evolutionLevel') : fieldLabel(field)} ${rowIndex + 1}`} help={plaFieldHelp(t, kind, field, fieldLabel(field))} />
       {renderInput(resolvePlaField(field, rowValues(row)), row[column] ?? '', value => {
         const updated = updatePlaDependentValues(fields, rowValues(row), field.key, value);
-        onChange(rows.map((item, i) => i === rowIndex ? fields.map(field => updated[field.key]) : item));
+        const next = rows.map((item, i) => i === rowIndex ? fields.map(field => updated[field.key]) : item);
+        if (!isEvolution && field.key === 'level' && /^\d+$/u.test(value) && Number(value) <= 100) {
+          const selectedRow = next[rowIndex];
+          const ordered = next.map((row, index) => ({ row, key: rowKeys.current.keys[index] }))
+            .sort((left, right) => Number(left.row[0]) - Number(right.row[0]));
+          next.splice(0, next.length, ...ordered.map(({ row }) => row));
+          rowKeys.current.keys = ordered.map(({ key }) => key);
+          setRequestedIndex(next.indexOf(selectedRow));
+        }
+        onChange(next);
       }, !canEdit || locked(row), id)}
     </div>;
   });
@@ -59,7 +74,7 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
     onChange(next); setRequestedIndex(to);
   };
   const removeButton = <button className="secondary-button danger-icon-button" type="button" disabled={!canEdit || !selected || locked(selected)}
-    onClick={() => onChange(rows.filter((_, i) => i !== index))}>
+    onClick={() => { rowKeys.current.keys.splice(index, 1); onChange(rows.filter((_, i) => i !== index)); }}>
     <Trash2 size={16} aria-hidden="true" />{t('pla.remove')}
   </button>;
   const moveButtons = <>
@@ -75,7 +90,7 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
     <h4>{t(`pla.kind.${kind}`)}</h4>
     {!isEvolution ? clipboard.content : null}
     <ul className="learnset-list">
-      {rows.map((row, rowIndex) => <li className="learnset-list-item" key={rowIndex} tabIndex={isEvolution ? undefined : 0} {...(!isEvolution ? clipboard.bind(String(rowIndex)) : {})}
+      {rows.map((row, rowIndex) => <li className="learnset-list-item" key={rowKeys.current.keys[rowIndex]} tabIndex={isEvolution ? undefined : 0} {...(!isEvolution ? clipboard.bind(String(rowIndex)) : {})}
         onDragOver={event => { if (canEdit && drag.current) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } }}
         onDrop={event => {
           event.preventDefault(); const active = drag.current; drag.current = null;
@@ -108,6 +123,7 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
         {renderInput(resolvePlaField(field, newRow), newRow[field.key] ?? '', value => setNewRow(current => updatePlaDependentValues(fields, current, field.key, value)), !canEdit, `pla-${kind}-new-${field.key}`)}
       </div>)}
       <div className="learnset-button-row"><button className="secondary-button" type="button" disabled={!canAdd} onClick={() => {
+        rowKeys.current.keys = withNewRow.map(row => row === pendingRow ? rowKeys.current.next++ : rowKeys.current.keys[rows.indexOf(row)]);
         onChange(withNewRow); setRequestedIndex(withNewRow.indexOf(pendingRow));
         if (!isEvolution) setNewRow(current => ({ ...current, move: fields.find(field => field.key === 'move')?.choices?.find(choice => !withNewRow.some(row => row[2] === choice.value))?.value ?? '' }));
       }}><Plus size={16} aria-hidden="true" />{t('pla.add')}</button></div>
