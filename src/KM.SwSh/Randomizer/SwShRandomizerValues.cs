@@ -63,6 +63,13 @@ public sealed partial class SwShRandomizerService
 
             switch (domain)
             {
+                case "Trainers":
+                case "Shops":
+                case "World Items":
+                case "Tree Items":
+                    foreach (var value in ReadAdditionalRandomizerValues(project, domain, diagnostics))
+                        values.Add(ValueKey(domain, value.Key), value);
+                    break;
                 case "Pokemon":
                 {
                     var workflow = pokemonWorkflowService.Load(project);
@@ -195,7 +202,7 @@ public sealed partial class SwShRandomizerService
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (var value in values)
         {
-            if (value is null || value.Domain is not ("Pokemon" or "Wild Encounters" or "Static Encounters" or "Gift Encounters" or "Raid Rewards" or "Raid Bonus Rewards" or "Type Chart")
+            if (value is null || value.Domain is not ("Pokemon" or "Wild Encounters" or "Static Encounters" or "Gift Encounters" or "Raid Rewards" or "Raid Bonus Rewards" or "Type Chart" or "Trainers" or "Shops" or "World Items" or "Tree Items")
                 || string.IsNullOrEmpty(value.Key) || value.Key.Length > 1024 || !IsLayeredFsRelativePath(value.Path)
                 || value.Before is null || value.After is null || value.Before.Length > 1024 || value.After.Length > 1024
                 || value.Before.Concat(value.After).Any(part => part is null || part.Length > 128)
@@ -211,9 +218,16 @@ public sealed partial class SwShRandomizerService
         IReadOnlyDictionary<string, RandomizerCurrentValue> after)
     {
         var result = existing.ToDictionary(value => ValueKey(value.Domain, value.Key), StringComparer.Ordinal);
+        var wholeTeams = before.Values.Where(value => value.Domain == "Trainers" && value.Key.EndsWith("/team", StringComparison.Ordinal)
+                && after.TryGetValue(ValueKey(value.Domain, value.Key), out var written)
+                && (result.ContainsKey(ValueKey(value.Domain, value.Key)) || TrainerTeamCount(value.Values) != TrainerTeamCount(written.Values)))
+            .Select(value => value.Key[..^5]).ToHashSet(StringComparer.Ordinal);
+        foreach (var key in result.Where(pair => pair.Value.Domain == "Trainers"
+                     && wholeTeams.Contains(pair.Value.Key.Split('/')[0]) && !pair.Value.Key.EndsWith("/team", StringComparison.Ordinal)).Select(pair => pair.Key).ToArray()) result.Remove(key);
         foreach (var (key, current) in before)
         {
-            if (!after.TryGetValue(key, out var written)) throw new InvalidDataException("Randomizer changed a stable record identity.");
+            if (current.Domain == "Trainers" && wholeTeams.Contains(current.Key.Split('/')[0]) != current.Key.EndsWith("/team", StringComparison.Ordinal)) continue;
+            if (!after.TryGetValue(key, out var written)) throw new InvalidDataException($"Randomizer changed a stable {current.Domain} record identity.");
             result.TryGetValue(key, out var owned);
             // An explicit later value becomes the new preimage if Randomizer replaces it again.
             var original = owned is not null && current.Values.SequenceEqual(owned.After) ? owned.Before : current.Values;

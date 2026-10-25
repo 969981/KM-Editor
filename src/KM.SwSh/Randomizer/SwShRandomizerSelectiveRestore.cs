@@ -7,6 +7,7 @@ using KM.Core.Files;
 using KM.Core.Projects;
 using KM.SwSh.Editing;
 using KM.SwSh.Encounters;
+using KM.SwSh.Trainers;
 
 namespace KM.SwSh.Randomizer;
 
@@ -14,7 +15,7 @@ public sealed partial class SwShRandomizerService
 {
     private RandomizerDomainPlan? CreateValueRestorePlan(ProjectPaths paths, string domain,
         IReadOnlyList<RandomizerValueOwnership> ownership, ICollection<ValidationDiagnostic> diagnostics,
-        SwShEncountersEditSessionService encounterRestoreService)
+        SwShEncountersEditSessionService encounterRestoreService, SwShTrainersEditSessionService trainerRestoreService)
     {
         var current = ReadRandomizerValues(paths, [domain], diagnostics);
         var edits = new List<PendingEdit>();
@@ -38,7 +39,7 @@ public sealed partial class SwShRandomizerService
             }
             else edits.AddRange(value.MakeEdits(owned.Before));
         }
-        var session = CreateSession(edits);
+        var session = StageAdditionalRandomizerRestore(paths, domain, edits, diagnostics, trainerRestoreService) ?? CreateSession(edits);
         if (domain == "Type Chart" && chartChanged)
         {
             var staged = typeChartEditSessionService.StageChart(paths, chart.Select(value => int.Parse(value, CultureInfo.InvariantCulture)).ToArray(), null);
@@ -54,6 +55,10 @@ public sealed partial class SwShRandomizerService
             "Gift Encounters" => new(domain, session, giftPokemonEditSessionService.CreateChangePlan, giftPokemonEditSessionService.ApplyChangePlan),
             "Raid Rewards" or "Raid Bonus Rewards" => new(domain, session, raidRewardsEditSessionService.CreateChangePlan, raidRewardsEditSessionService.ApplyChangePlan),
             "Type Chart" => new(domain, session, typeChartEditSessionService.CreateChangePlan, typeChartEditSessionService.ApplyChangePlan),
+            "Trainers" => new(domain, session, trainerRestoreService.CreateChangePlan, trainerRestoreService.ApplyChangePlan),
+            "Shops" => new(domain, session, shopsEditSessionService.CreateChangePlan, shopsEditSessionService.ApplyChangePlan),
+            "World Items" => new(domain, session, placementEditSessionService.CreateChangePlan, placementEditSessionService.ApplyChangePlan),
+            "Tree Items" => new(domain, session, shakingTreesService.CreateChangePlan, shakingTreesService.ApplyChangePlan),
             _ => throw new InvalidDataException("Unsupported Randomizer restore domain."),
         };
     }
@@ -96,11 +101,12 @@ public sealed partial class SwShRandomizerService
                         table => table.Slots.Select(slot => slot.Weight).ToArray(), StringComparer.Ordinal));
             }
 
+            var trainerRestoreService = CreateTrainerRestoreService(paths, entries, ownership, diagnostics, out var trainerSourcePreimages);
             var groups = ownership.GroupBy(value => value.Domain, StringComparer.Ordinal).ToArray();
             var reviewed = new List<(RandomizerDomainPlan Domain, ChangePlan Plan)>();
             foreach (var group in groups)
             {
-                var domain = CreateValueRestorePlan(paths, group.Key, group.ToArray(), diagnostics, encounterRestoreService);
+                var domain = CreateValueRestorePlan(paths, group.Key, group.ToArray(), diagnostics, encounterRestoreService, trainerRestoreService);
                 if (domain is null) continue;
                 var plan = domain.CreateChangePlan(paths, domain.Session);
                 diagnostics.AddRange(plan.Diagnostics);
@@ -114,7 +120,7 @@ public sealed partial class SwShRandomizerService
                 .SelectMany(write => write.Sources.Select(source => source.RelativePath).Append(write.TargetRelativePath))
                 .Concat(targets).Where(IsLayeredFsRelativePath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var outputPreimages = new Dictionary<string, RestoreFilePreimage>(StringComparer.OrdinalIgnoreCase);
-            var inputPreimages = new Dictionary<string, RestoreFilePreimage>(StringComparer.OrdinalIgnoreCase);
+            var inputPreimages = new Dictionary<string, RestoreFilePreimage>(trainerSourcePreimages, StringComparer.OrdinalIgnoreCase);
             stagingRoot = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "KMEditor-randomizer-restore-" + Guid.NewGuid().ToString("N")));
             Directory.CreateDirectory(stagingRoot);
             foreach (var relative in dependencies)
@@ -136,7 +142,7 @@ public sealed partial class SwShRandomizerService
                     if (!string.IsNullOrWhiteSpace(baseRoot))
                     {
                         var baseFile = Path.Combine(baseRoot, relative[6..]);
-                        inputPreimages[baseFile] = CaptureRestoreFilePreimage(baseFile);
+                        inputPreimages.TryAdd(baseFile, CaptureRestoreFilePreimage(baseFile));
                     }
                 }
             }
@@ -146,7 +152,7 @@ public sealed partial class SwShRandomizerService
             foreach (var group in groups)
             {
                 // Earlier domain writes may have changed a shared archive's revision.
-                var domain = CreateValueRestorePlan(stagedPaths, group.Key, group.ToArray(), diagnostics, encounterRestoreService);
+                var domain = CreateValueRestorePlan(stagedPaths, group.Key, group.ToArray(), diagnostics, encounterRestoreService, trainerRestoreService);
                 if (domain is null) continue;
                 var plan = domain.CreateChangePlan(stagedPaths, domain.Session);
                 diagnostics.AddRange(plan.Diagnostics);
@@ -192,7 +198,7 @@ public sealed partial class SwShRandomizerService
                 EnsureRestoreMutationTarget(paths, relative, ResolveOutputPath(paths, relative)!, preimage);
             foreach (var (file, preimage) in inputPreimages)
                 if (CaptureRestoreFilePreimage(file) != preimage) throw new IOException("Base data changed during Randomizer restore.");
-            if (!SwShOutputTransactionWriter.TryApply(paths, mutations, "workflow.sword-shield.randomizer-restore-values",
+            if (!SwShOutputTransactionWriter.TryApplyRandomizerRestore(paths, mutations,
                     out var transaction, out var failure))
             {
                 diagnostics.Add(CreateOutputTransactionDiagnostic("Randomizer selective restore failed", failure));

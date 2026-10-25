@@ -14,7 +14,7 @@ using PlacementArchiveField = KM.Formats.SwSh.SwShPlacementEditableField;
 
 namespace KM.SwSh.Placement;
 
-public sealed class SwShPlacementEditSessionService
+public sealed partial class SwShPlacementEditSessionService
 {
     private const string PlacementEditDomain = "workflow.placement";
 
@@ -126,7 +126,7 @@ public sealed class SwShPlacementEditSessionService
 
         var currentWorkflow = OverlayPendingEdits(loadedWorkflow, currentSession.PendingEdits, itemHashes);
 
-        var candidateSession = currentSession;
+        var pendingIndex = new PlacementPendingIndex(loadedWorkflow, currentSession, objectIndexes);
         var workingObjects = currentWorkflow.Objects.ToArray();
         var stagedUpdates = new List<SwShPlacementObjectFieldUpdate>();
         var incomingStorageTargets = new Dictionary<PlacementStorageIdentity, PendingEdit>();
@@ -167,7 +167,7 @@ public sealed class SwShPlacementEditSessionService
                 continue;
             }
 
-            if (TryCreateStorageIdentity(loadedWorkflow, pendingEdit, out var incomingIdentity))
+            if (TryCreateStorageIdentity(loadedWorkflow, pendingEdit, out var incomingIdentity, objectIndexes))
             {
                 if (incomingStorageTargets.TryGetValue(incomingIdentity, out var earlierEdit)
                     && (earlierEdit.RecordId != pendingEdit.RecordId
@@ -184,7 +184,7 @@ public sealed class SwShPlacementEditSessionService
                 incomingStorageTargets[incomingIdentity] = pendingEdit;
             }
 
-            candidateSession = ReplacePendingPlacementEdit(loadedWorkflow, candidateSession, pendingEdit);
+            pendingIndex.Replace(pendingEdit);
             var itemDisplayName = update.Field == SwShPlacementWorkflowService.ItemIdField
                 && TryParseInt(pendingEdit.NewValue!, out var stagedItemId)
                     ? ResolveItemDisplayName(currentWorkflow, placedObject, stagedItemId)
@@ -195,7 +195,9 @@ public sealed class SwShPlacementEditSessionService
                 && itemHashes?.TryGetValue(stagedItemId, out var stagedItemHash) == true
                     ? FormatHash(stagedItemHash)
                     : null;
-            foreach (var affectedIndex in GetAffectedObjectIndexes(workingObjects, placedObject, update.Field))
+            var affectedIndexes = placedObject.ObjectType == "HiddenItem" && (IsTransformField(update.Field) || IsRawPlacementField(update.Field))
+                ? GetAffectedObjectIndexes(workingObjects, placedObject, update.Field) : [objectIndex];
+            foreach (var affectedIndex in affectedIndexes)
             {
                 workingObjects[affectedIndex] = OverlayPendingEdit(
                     workingObjects[affectedIndex],
@@ -208,6 +210,7 @@ public sealed class SwShPlacementEditSessionService
             stagedUpdates.Add(update);
         }
 
+        var candidateSession = pendingIndex.Session;
         ValidateStorageConflicts(loadedWorkflow, candidateSession.PendingEdits, diagnostics);
         if (diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error))
         {
@@ -963,9 +966,11 @@ public sealed class SwShPlacementEditSessionService
         IReadOnlyList<PendingEdit> pendingEdits,
         ICollection<ValidationDiagnostic> diagnostics)
     {
+        var indexes = workflow.Objects.Select((row, index) => (row.ObjectId, index))
+            .ToDictionary(row => row.ObjectId, row => row.index, StringComparer.Ordinal);
         var storageTargets = pendingEdits
             .Where(edit => edit.Domain == PlacementEditDomain)
-            .Select(edit => TryCreateStorageIdentity(workflow, edit, out var identity)
+            .Select(edit => TryCreateStorageIdentity(workflow, edit, out var identity, indexes)
                 ? new PlacementStorageTarget(identity, edit)
                 : null)
             .Where(target => target is not null)
@@ -994,7 +999,8 @@ public sealed class SwShPlacementEditSessionService
     private static bool TryCreateStorageIdentity(
         SwShPlacementWorkflow workflow,
         PendingEdit edit,
-        out PlacementStorageIdentity identity)
+        out PlacementStorageIdentity identity,
+        IReadOnlyDictionary<string, int>? indexes = null)
     {
         identity = default!;
         if (edit.RecordId is null || edit.Field is null)
@@ -1002,7 +1008,8 @@ public sealed class SwShPlacementEditSessionService
             return false;
         }
 
-        var placedObject = workflow.Objects.FirstOrDefault(candidate => candidate.ObjectId == edit.RecordId);
+        var placedObject = indexes is null ? workflow.Objects.FirstOrDefault(candidate => candidate.ObjectId == edit.RecordId)
+            : indexes.TryGetValue(edit.RecordId, out var index) ? workflow.Objects[index] : null;
         if (placedObject is null)
         {
             return false;
@@ -1497,27 +1504,6 @@ public sealed class SwShPlacementEditSessionService
         }
 
         return true;
-    }
-
-    private static EditSession ReplacePendingPlacementEdit(
-        SwShPlacementWorkflow workflow,
-        EditSession session,
-        PendingEdit edit)
-    {
-        var hasStorageIdentity = TryCreateStorageIdentity(workflow, edit, out var storageIdentity);
-        return session with
-        {
-            PendingEdits = session.PendingEdits
-                .Where(candidate =>
-                    (candidate.Domain != edit.Domain
-                        || candidate.RecordId != edit.RecordId
-                        || candidate.Field != edit.Field)
-                    && (!hasStorageIdentity
-                        || !TryCreateStorageIdentity(workflow, candidate, out var candidateIdentity)
-                        || candidateIdentity != storageIdentity))
-                .Append(edit)
-                .ToArray(),
-        };
     }
 
     private static bool ValidateDouble(

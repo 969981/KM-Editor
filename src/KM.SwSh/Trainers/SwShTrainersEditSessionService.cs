@@ -16,7 +16,7 @@ using System.Text;
 
 namespace KM.SwSh.Trainers;
 
-public sealed class SwShTrainersEditSessionService
+public sealed partial class SwShTrainersEditSessionService
 {
     private const string TrainersEditDomain = "workflow.trainers";
     private const int MaximumPokemonEvTotal = 510;
@@ -24,6 +24,11 @@ public sealed class SwShTrainersEditSessionService
     private readonly ProjectWorkspaceService projectWorkspaceService;
     private readonly SwShTrainersWorkflowService trainersWorkflowService;
     private readonly Action<string, byte[]> temporaryFileWriter;
+    private readonly IReadOnlyDictionary<(int TrainerId, int Slot), SwShTrainerPokemonRecord>? verifiedRestorePokemon;
+
+    internal SwShTrainersEditSessionService(ProjectWorkspaceService workspace, SwShTrainersWorkflowService reader,
+        IReadOnlyDictionary<(int TrainerId, int Slot), SwShTrainerPokemonRecord> verifiedRestorePokemon)
+        : this(workspace, reader) => this.verifiedRestorePokemon = verifiedRestorePokemon;
 
     public SwShTrainersEditSessionService(
         ProjectWorkspaceService? projectWorkspaceService = null,
@@ -388,7 +393,8 @@ public sealed class SwShTrainersEditSessionService
             genderRecords,
             gigantamaxRecords,
             rosterTrainerIds,
-            diagnostics);
+            diagnostics,
+            verifiedRestorePokemon);
 
         if (trainerEdits.Length > 0 && diagnostics.All(diagnostic => diagnostic.Severity != DiagnosticSeverity.Error))
         {
@@ -2006,7 +2012,8 @@ public sealed class SwShTrainersEditSessionService
         IReadOnlySet<(int TrainerId, int Slot)> genderRecords,
         IReadOnlySet<(int TrainerId, int Slot)> gigantamaxRecords,
         IReadOnlySet<int> rosterTrainerIds,
-        ICollection<ValidationDiagnostic> diagnostics)
+        ICollection<ValidationDiagnostic> diagnostics,
+        IReadOnlyDictionary<(int TrainerId, int Slot), SwShTrainerPokemonRecord>? verifiedRestorePokemon = null)
     {
         foreach (var identity in evRecords)
         {
@@ -2086,7 +2093,11 @@ public sealed class SwShTrainersEditSessionService
                     expected: "Ability slot listed for the selected species and form"));
             }
 
-            if (genderRecords.Contains(identity) && !IsCompatibleGender(personal!, pokemon.Gender))
+            var restoresRecordedGender = verifiedRestorePokemon is not null
+                && verifiedRestorePokemon.TryGetValue(identity, out var originalPokemon)
+                && originalPokemon.SpeciesId == pokemon.SpeciesId && originalPokemon.Form == pokemon.Form
+                && originalPokemon.Gender == pokemon.Gender;
+            if (genderRecords.Contains(identity) && !IsCompatibleGender(personal!, pokemon.Gender) && !restoresRecordedGender)
             {
                 diagnostics.Add(CreateDiagnostic(
                     DiagnosticSeverity.Error,

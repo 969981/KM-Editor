@@ -2,6 +2,7 @@
 
 using KM.Core.Diagnostics;
 using KM.Core.Editing;
+using System.Text.Json.Serialization;
 
 namespace KM.SwSh.Randomizer;
 
@@ -43,6 +44,15 @@ public sealed record SwShRandomizerOptions(
     bool TypeChartNoImmunities,
     bool TypeChartOneImmunityPerType)
 {
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RandomizeTrainers { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SwShTrainerRandomizerOptions? Trainers { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RandomizeShops { get; init; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool RandomizeWorldItems { get; init; }
+
     public static SwShRandomizerOptions Empty { get; } = new(
         RandomizePokemonStats: false,
         ShufflePokemonStats: true,
@@ -95,14 +105,39 @@ public sealed record SwShRandomizerOptions(
         || RandomizeGiftEncounters
         || RandomizeRaidRewards
         || RandomizeRaidBonusRewards
-        || RandomizeTypeChart;
+        || RandomizeTypeChart
+        || RandomizeTrainers
+        || RandomizeShops
+        || RandomizeWorldItems;
+}
+
+public sealed record SwShTrainerRandomizerOptions(
+    bool Species = true,
+    bool AllowLegendaries = false,
+    int LevelPercent = 100,
+    bool FullBossTeams = false,
+    bool Abilities = false,
+    bool Moves = false,
+    bool HeldItems = false,
+    bool Natures = false,
+    bool Genders = false,
+    string Ivs = "unchanged",
+    string Evs = "unchanged")
+{
+    [JsonIgnore]
+    public bool IsValid => LevelPercent is >= 25 and <= 1000
+        && Ivs is "unchanged" or "random" or "maximum"
+        && Evs is "unchanged" or "random" or "maximum";
 }
 
 public sealed record SwShRandomizerConfig(
     string UserSeed,
     SwShRandomizerOptions Options,
     string? RollSeed = null,
-    string? OutputHash = null);
+    string? OutputHash = null)
+{
+    public int AlgorithmVersion { get; init; } = 1;
+}
 
 public sealed record SwShRandomizerImportResult(
     SwShRandomizerConfig? Config,

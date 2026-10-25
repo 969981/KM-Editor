@@ -1105,7 +1105,10 @@ public static class SwShChangePlanSourceGuard
             }
 
             var projectId = ProjectIdentity.FromPaths(SourcePaths);
-            var outputCoordinator = OutputTransactionCoordinator.ForProject(SourcePaths);
+            var outputCoordinator = OutputTransactionCoordinator.ForProject(SourcePaths, new()
+            {
+                MaximumMutationsPerApply = OutputLimits.StandardMaximumMutationsPerApply,
+            });
             OutputOwnershipInventorySnapshot? ownershipSnapshot = null;
             if (changedTargets.Count > 0)
             {

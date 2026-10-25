@@ -18,6 +18,7 @@ internal sealed class SwShTreeSources
     internal const string MainPath = "exefs/main";
     internal readonly ProjectPaths Paths;
     internal readonly bool CanEdit;
+    internal readonly bool ItemsOnly;
     internal readonly Dictionary<string, byte[]> Current = new(StringComparer.Ordinal);
     internal readonly Dictionary<string, byte[]> Vanilla = new(StringComparer.Ordinal);
     internal readonly HashSet<ProjectFileReference> Sources = [];
@@ -25,16 +26,17 @@ internal sealed class SwShTreeSources
     internal readonly List<Tree> Trees = [];
     internal readonly List<Area> Areas = [];
     internal readonly SwShGfPackFile Placement;
-    internal readonly SwShGfPackFile Encounters;
-    internal readonly SwShWildEncounterArchive EncounterTable;
-    internal readonly string EncounterMember;
+    internal readonly SwShGfPackFile? Encounters;
+    internal readonly SwShWildEncounterArchive? EncounterTable;
+    internal readonly string EncounterMember = "";
     internal readonly IReadOnlyDictionary<int, ulong> ItemHashes;
     internal readonly SwShTreeOption[] Items;
     internal readonly SwShTreePokemonOption[] Pokemon;
 
-    internal SwShTreeSources(OpenedProject project, EditSession? session = null)
+    internal SwShTreeSources(OpenedProject project, EditSession? session = null, bool itemsOnly = false)
     {
         Paths = project.Paths;
+        ItemsOnly = itemsOnly;
         if (Paths.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || !project.Health.CanOpenReadOnlyWorkflows)
             throw new InvalidDataException("Shaking Trees requires readable Sword or Shield project sources.");
         CanEdit = project.Health.CanOpenEditableWorkflows;
@@ -45,24 +47,30 @@ internal sealed class SwShTreeSources
         var byHash = hashes.ToItemIdByHash();
         Items = hashes.Entries.Where(row => row.ItemId > 0 && row.ItemId < names.Count && !string.IsNullOrWhiteSpace(names[row.ItemId].Text))
             .Select(row => new SwShTreeOption(row.ItemId, names[row.ItemId].Text)).OrderBy(row => row.Value).ToArray();
-        var speciesNames = Names(language, "monsname");
-        var personal = SwShTreeComposition.Pokemon(SwShPersonalTable.Parse(Read(SwShPersonalTable.PersonalDataRelativePath), 4096).Records, session);
         var pokemon = new List<SwShTreePokemonOption>();
-        for (var species = 1; species <= 898 && species < personal.Count && species < speciesNames.Count; species++)
+        if (!itemsOnly)
         {
-            var row = personal[species];
-            for (var form = 0; form < Math.Max(1, row.FormCount); form++)
+            var speciesNames = Names(language, "monsname");
+            var personal = SwShTreeComposition.Pokemon(SwShPersonalTable.Parse(Read(SwShPersonalTable.PersonalDataRelativePath), 4096).Records, session);
+            for (var species = 1; species <= 898 && species < personal.Count && species < speciesNames.Count; species++)
             {
-                var index = form == 0 || row.FormStatsIndex == 0 ? species : row.FormStatsIndex + form - 1;
-                if (index >= personal.Count || !personal[index].IsPresentInGame) continue;
-                pokemon.Add(new(species, form, speciesNames[species].Text));
+                var row = personal[species];
+                for (var form = 0; form < Math.Max(1, row.FormCount); form++)
+                {
+                    var index = form == 0 || row.FormStatsIndex == 0 ? species : row.FormStatsIndex + form - 1;
+                    if (index >= personal.Count || !personal[index].IsPresentInGame) continue;
+                    pokemon.Add(new(species, form, speciesNames[species].Text));
+                }
             }
         }
         Pokemon = pokemon.ToArray();
         Placement = SwShGfPackFile.Parse(Read(PlacementPath));
-        Encounters = SwShGfPackFile.Parse(Read(EncounterPath));
-        EncounterMember = Paths.SelectedGame == ProjectGame.Sword ? "encount_k.bin" : "encount_t.bin";
-        EncounterTable = SwShWildEncounterArchive.Parse(Encounters.GetFileByName(EncounterMember), 50_000);
+        if (!itemsOnly)
+        {
+            Encounters = SwShGfPackFile.Parse(Read(EncounterPath));
+            EncounterMember = Paths.SelectedGame == ProjectGame.Sword ? "encount_k.bin" : "encount_t.bin";
+            EncounterTable = SwShWildEncounterArchive.Parse(Encounters.GetFileByName(EncounterMember), 50_000);
+        }
         var members = SwShAhtbFile.Parse(Placement.GetFileByName("AreaNameHashTable.tbl")).Entries.Select(row => row.Name + ".bin").Distinct();
         var labels = SwShAhtbFile.Parse(Placement.GetFileByName("ObjectNameHashTable.tbl")).ToDictionary();
         foreach (var member in members.Where(Placement.ContainsFileName).Order(StringComparer.Ordinal))
@@ -87,8 +95,8 @@ internal sealed class SwShTreeSources
                 }
                 Trees.Add(new(id, labels.GetValueOrDefault(actorHash, actor), areaId, SwShEncounterZoneNames.Format(zone.ZoneId), member,
                     zone.ZoneIndex, tree.ObjectIndex, itemFields.Length, archive));
-                if (Areas.Any(row => row.Id == areaId)) continue;
-                var matches = EncounterTable.Tables.Select((row, index) => (row, index)).Where(pair => pair.row.ZoneId == zone.ZoneId).ToArray();
+                if (itemsOnly || Areas.Any(row => row.Id == areaId)) continue;
+                var matches = EncounterTable!.Tables.Select((row, index) => (row, index)).Where(pair => pair.row.ZoneId == zone.ZoneId).ToArray();
                 if (matches.Length != 1 || matches[0].row.SubTables.Count <= 9) throw new InvalidDataException("The tree encounter area is missing or ambiguous.");
                 var encounter = matches[0].row.SubTables[9];
                 if (encounter.Slots.Count is < 1 or > 20) throw new InvalidDataException("The tree encounter slot count is unsupported.");
@@ -105,6 +113,7 @@ internal sealed class SwShTreeSources
         }
         if (Trees.Count is < 1 or > 512 || Trees.Select(row => row.Id).Distinct().Count() != Trees.Count)
             throw new InvalidDataException("The tree catalog is missing or ambiguous.");
+        if (itemsOnly) return;
         var script = Read(SwShTreeScript.Path);
         var scriptValues = SwShTreeScript.Read(Read(SwShTreeScript.Path, true), script);
         for (var i = 0; i < scriptValues.Length; i++)
@@ -152,7 +161,7 @@ internal sealed class SwShTreeSources
         Areas.Select(row => new SwShTreeArea(row.Id, row.Name, Cells[Key(row.Id, "levelMin")].Value, Cells[Key(row.Id, "levelMax")].Value,
             Enumerable.Range(0, row.Slots).Select(slot => new SwShTreeSlot(Cells[Key(row.Id, $"species.{slot}")].Value,
                 Cells[Key(row.Id, $"form.{slot}")].Value, Cells[Key(row.Id, $"percent.{slot}")].Value)).ToArray())).ToArray(),
-        Settings(Values()), Items, Pokemon, diagnostics);
+        ItemsOnly ? null : Settings(Values()), Items, Pokemon, diagnostics);
 
     internal sealed record Cell(int Value, int Min, int Max, string Path);
     internal sealed record Tree(string Id, string Label, string AreaId, string Name, string Member, int Zone, int Object, int Slots, SwShPlacementZoneArchive Archive);

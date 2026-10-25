@@ -4,6 +4,7 @@ using KM.Core.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace KM.SwSh.Randomizer;
 
@@ -11,6 +12,8 @@ internal static class SwShRandomizerSeedCodec
 {
     public const int MaximumUserSeedLength = 20;
     public const string Prefix = "KM1";
+    private const string ExtendedPrefix = "KM2";
+    private const int MaximumSharedSeedLength = 8192;
 
     private const string LegacyPrefix = "KMR1";
     private const int ChecksumByteLength = 10;
@@ -29,17 +32,21 @@ internal static class SwShRandomizerSeedCodec
         ArgumentNullException.ThrowIfNull(config);
 
         var normalized = Normalize(config);
+        var extended = normalized.AlgorithmVersion >= 2;
+        var prefix = extended ? ExtendedPrefix : Prefix;
         var payload = new CompactSeedPayload(
-            1,
+            normalized.AlgorithmVersion,
             normalized.UserSeed,
             normalized.RollSeed,
             normalized.OutputHash,
-            EncodeOptions(normalized.Options));
+            EncodeOptions(normalized.Options),
+            extended ? new(normalized.Options.RandomizeTrainers, normalized.Options.Trainers,
+                normalized.Options.RandomizeShops, normalized.Options.RandomizeWorldItems) : null);
         var payloadJson = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions);
         var encodedPayload = Base32Encode(payloadJson);
-        var checksum = ComputeChecksum(Prefix, encodedPayload);
+        var checksum = ComputeChecksum(prefix, encodedPayload);
 
-        return FormatSeed(encodedPayload, checksum);
+        return FormatSeed(prefix, encodedPayload, checksum);
     }
 
     public static SwShRandomizerImportResult Import(string seed)
@@ -48,6 +55,7 @@ internal static class SwShRandomizerSeedCodec
         {
             return Invalid("Randomizer seed cannot be empty.");
         }
+        if (seed.Length > MaximumSharedSeedLength) return Invalid("Randomizer seed exceeds its supported size.");
 
         var trimmedSeed = seed.Trim();
         if (trimmedSeed.StartsWith($"{LegacyPrefix}.", StringComparison.Ordinal))
@@ -56,12 +64,13 @@ internal static class SwShRandomizerSeedCodec
         }
 
         var normalizedSeed = RemoveSeedWhitespace(trimmedSeed);
-        if (!normalizedSeed.StartsWith($"{Prefix}-", StringComparison.OrdinalIgnoreCase))
+        var prefix = normalizedSeed.StartsWith($"{ExtendedPrefix}-", StringComparison.OrdinalIgnoreCase) ? ExtendedPrefix : Prefix;
+        if (!normalizedSeed.StartsWith($"{prefix}-", StringComparison.OrdinalIgnoreCase))
         {
-            return Invalid("Randomizer seed must use the KM1 format.");
+            return Invalid("Randomizer seed must use the KM1 or KM2 format.");
         }
 
-        var token = normalizedSeed[(Prefix.Length + 1)..].Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+        var token = normalizedSeed[(prefix.Length + 1)..].Replace("-", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
         if (token.Length <= ChecksumTextLength)
         {
             return Invalid("Randomizer seed payload could not be read.");
@@ -69,7 +78,7 @@ internal static class SwShRandomizerSeedCodec
 
         var encodedPayload = token[..^ChecksumTextLength];
         var checksum = token[^ChecksumTextLength..];
-        var expectedChecksum = ComputeChecksum(Prefix, encodedPayload);
+        var expectedChecksum = ComputeChecksum(prefix, encodedPayload);
         if (!FixedTimeEqualsBase32(expectedChecksum, checksum))
         {
             return Invalid("Randomizer seed checksum does not match.");
@@ -85,12 +94,13 @@ internal static class SwShRandomizerSeedCodec
             return Invalid("Randomizer seed payload could not be read.");
         }
 
-        if (payload is null || payload.Version != 1)
+        if (payload is null || payload.Version != (prefix == ExtendedPrefix ? 2 : 1)
+            || (payload.Version == 1 && payload.Extension is not null))
         {
             return Invalid("Randomizer seed version is not supported.");
         }
 
-        if (payload.UserSeed.Length > MaximumUserSeedLength)
+        if (payload.UserSeed is null || payload.UserSeed.Length > MaximumUserSeedLength)
         {
             return Invalid($"Base seed must be {MaximumUserSeedLength} characters or fewer.");
         }
@@ -99,6 +109,13 @@ internal static class SwShRandomizerSeedCodec
         try
         {
             options = DecodeOptions(payload.Options);
+            if (payload.Version == 2)
+            {
+                if (payload.Extension is not { } extension || extension.Trainers is { IsValid: false })
+                    return Invalid("Randomizer trainer settings are invalid.");
+                options = options with { RandomizeTrainers = extension.RandomizeTrainers, Trainers = extension.Trainers,
+                    RandomizeShops = extension.RandomizeShops, RandomizeWorldItems = extension.RandomizeWorldItems };
+            }
         }
         catch (FormatException)
         {
@@ -109,7 +126,7 @@ internal static class SwShRandomizerSeedCodec
             payload.UserSeed,
             options,
             payload.RollSeed,
-            payload.OutputHash));
+            payload.OutputHash) { AlgorithmVersion = payload.Version });
         var canonicalSeed = Export(config);
 
         return new SwShRandomizerImportResult(config, canonicalSeed, Array.Empty<ValidationDiagnostic>());
@@ -121,7 +138,7 @@ internal static class SwShRandomizerSeedCodec
 
         var normalized = Normalize(config);
         var payload = new GenerationPayload(
-            1,
+            normalized.AlgorithmVersion,
             normalized.UserSeed,
             normalized.RollSeed ?? string.Empty,
             normalized.Options);
@@ -141,6 +158,8 @@ internal static class SwShRandomizerSeedCodec
 
         return config with
         {
+            AlgorithmVersion = HasExtendedOptions(config.Options ?? SwShRandomizerOptions.Empty)
+                && config.AlgorithmVersion == 1 ? 2 : config.AlgorithmVersion,
             UserSeed = userSeed,
             Options = NormalizeOptions(config.Options ?? SwShRandomizerOptions.Empty),
             RollSeed = string.IsNullOrWhiteSpace(config.RollSeed) ? null : config.RollSeed,
@@ -150,10 +169,14 @@ internal static class SwShRandomizerSeedCodec
 
     private static SwShRandomizerOptions NormalizeOptions(SwShRandomizerOptions options)
     {
+        options = options with { Trainers = options.RandomizeTrainers ? options.Trainers ?? new() : null };
         return options.TypeChartNoImmunities && options.TypeChartOneImmunityPerType
             ? options with { TypeChartOneImmunityPerType = false }
             : options;
     }
+
+    private static bool HasExtendedOptions(SwShRandomizerOptions options) =>
+        options.RandomizeTrainers || options.RandomizeShops || options.RandomizeWorldItems;
 
     private static SwShRandomizerImportResult Invalid(string message)
     {
@@ -167,7 +190,7 @@ internal static class SwShRandomizerSeedCodec
                     message,
                     Domain: "workflow.randomizer",
                     Field: "seed",
-                    Expected: "Valid KM1 randomizer seed"),
+                    Expected: "Valid shared Randomizer seed"),
             ]);
     }
 
@@ -200,7 +223,7 @@ internal static class SwShRandomizerSeedCodec
             return Invalid("Randomizer seed version is not supported.");
         }
 
-        if (payload.UserSeed.Length > MaximumUserSeedLength)
+        if (payload.UserSeed is null || payload.UserSeed.Length > MaximumUserSeedLength)
         {
             return Invalid($"Base seed must be {MaximumUserSeedLength} characters or fewer.");
         }
@@ -210,6 +233,7 @@ internal static class SwShRandomizerSeedCodec
             payload.Options ?? SwShRandomizerOptions.Empty,
             payload.RollSeed,
             payload.OutputHash));
+        if (config.Options.Trainers is { IsValid: false }) return Invalid("Randomizer trainer settings are invalid.");
         var canonicalSeed = Export(config);
 
         return new SwShRandomizerImportResult(config, canonicalSeed, Array.Empty<ValidationDiagnostic>());
@@ -261,7 +285,7 @@ internal static class SwShRandomizerSeedCodec
             .Replace('/', '_');
     }
 
-    private static string FormatSeed(string encodedPayload, string checksum)
+    private static string FormatSeed(string prefix, string encodedPayload, string checksum)
     {
         var token = encodedPayload + checksum;
         var groups = new List<string>();
@@ -270,7 +294,7 @@ internal static class SwShRandomizerSeedCodec
             groups.Add(token.Substring(index, Math.Min(SeedGroupLength, token.Length - index)));
         }
 
-        return $"{Prefix}-{string.Join('-', groups)}";
+        return $"{prefix}-{string.Join('-', groups)}";
     }
 
     private static string RemoveSeedWhitespace(string value)
@@ -407,6 +431,7 @@ internal static class SwShRandomizerSeedCodec
             options.TypeChartOneImmunityPerType,
         };
         Span<byte> bytes = stackalloc byte[(flags.Length + 7) / 8];
+        bytes.Clear();
         for (var index = 0; index < flags.Length; index++)
         {
             if (flags[index])
@@ -477,7 +502,11 @@ internal static class SwShRandomizerSeedCodec
         string UserSeed,
         string? RollSeed,
         string? OutputHash,
-        string Options);
+        string Options,
+        [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] SeedExtension? Extension = null);
+
+    private sealed record SeedExtension(bool RandomizeTrainers, SwShTrainerRandomizerOptions? Trainers,
+        bool RandomizeShops, bool RandomizeWorldItems);
 
     private sealed record LegacySeedPayload(
         int Version,

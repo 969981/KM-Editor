@@ -42,13 +42,35 @@ public sealed record RandomizerOptionsDto(
     bool RandomizeRaidBonusRewards,
     bool RandomizeTypeChart,
     bool TypeChartNoImmunities,
-    bool TypeChartOneImmunityPerType);
+    bool TypeChartOneImmunityPerType)
+{
+    public bool RandomizeTrainers { get; init; }
+    public TrainerRandomizerOptionsDto? Trainers { get; init; }
+    public bool RandomizeShops { get; init; }
+    public bool RandomizeWorldItems { get; init; }
+}
+
+public sealed record TrainerRandomizerOptionsDto(
+    bool Species = true,
+    bool AllowLegendaries = false,
+    int LevelPercent = 100,
+    bool FullBossTeams = false,
+    bool Abilities = false,
+    bool Moves = false,
+    bool HeldItems = false,
+    bool Natures = false,
+    bool Genders = false,
+    string Ivs = "unchanged",
+    string Evs = "unchanged");
 
 public sealed record RandomizerConfigDto(
     string UserSeed,
     RandomizerOptionsDto Options,
     string? RollSeed,
-    string? OutputHash);
+    string? OutputHash)
+{
+    public int AlgorithmVersion { get; init; } = 1;
+}
 
 public sealed record ImportRandomizerSeedRequest(string Seed);
 

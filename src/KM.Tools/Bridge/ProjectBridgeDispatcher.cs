@@ -8943,7 +8943,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
 
     private static SwShRandomizerConfig ToCore(RandomizerConfigDto config)
     {
-        return new SwShRandomizerConfig(config.UserSeed, ToCore(config.Options), config.RollSeed, config.OutputHash);
+        return new SwShRandomizerConfig(config.UserSeed, ToCore(config.Options), config.RollSeed, config.OutputHash)
+            { AlgorithmVersion = config.AlgorithmVersion };
     }
 
     private static SvModMergerSourceRequest ToCore(SvModMergerSourceDto source)
@@ -8994,12 +8995,21 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             options.RandomizeRaidBonusRewards,
             options.RandomizeTypeChart,
             options.TypeChartNoImmunities,
-            options.TypeChartOneImmunityPerType);
+            options.TypeChartOneImmunityPerType)
+        {
+            RandomizeTrainers = options.RandomizeTrainers,
+            Trainers = options.Trainers is not { } trainers ? null : new(trainers.Species, trainers.AllowLegendaries,
+                trainers.LevelPercent, trainers.FullBossTeams, trainers.Abilities, trainers.Moves, trainers.HeldItems,
+                trainers.Natures, trainers.Genders, trainers.Ivs, trainers.Evs),
+            RandomizeShops = options.RandomizeShops,
+            RandomizeWorldItems = options.RandomizeWorldItems,
+        };
     }
 
     private static RandomizerConfigDto ToDto(SwShRandomizerConfig config)
     {
-        return new RandomizerConfigDto(config.UserSeed, ToDto(config.Options), config.RollSeed, config.OutputHash);
+        return new RandomizerConfigDto(config.UserSeed, ToDto(config.Options), config.RollSeed, config.OutputHash)
+            { AlgorithmVersion = config.AlgorithmVersion };
     }
 
     private static RandomizerOptionsDto ToDto(SwShRandomizerOptions options)
@@ -9040,7 +9050,15 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             options.RandomizeRaidBonusRewards,
             options.RandomizeTypeChart,
             options.TypeChartNoImmunities,
-            options.TypeChartOneImmunityPerType);
+            options.TypeChartOneImmunityPerType)
+        {
+            RandomizeTrainers = options.RandomizeTrainers,
+            Trainers = options.Trainers is not { } trainers ? null : new(trainers.Species, trainers.AllowLegendaries,
+                trainers.LevelPercent, trainers.FullBossTeams, trainers.Abilities, trainers.Moves, trainers.HeldItems,
+                trainers.Natures, trainers.Genders, trainers.Ivs, trainers.Evs),
+            RandomizeShops = options.RandomizeShops,
+            RandomizeWorldItems = options.RandomizeWorldItems,
+        };
     }
 
     private static bool TryParseSeed(string? value, out ulong seed)
