@@ -159,13 +159,15 @@ public static class SvSwShFlameMaterial
         return new(writer.Finish(native.Root), originals.Length, originals.Length + 1);
     }
 
-    public static SvSwShFlameTextures Textures(byte[] sourceMaterials, Func<string, byte[]> read, CancellationToken token = default)
-        => Textures(sourceMaterials, read, false, token);
+    public static SvSwShFlameTextures Textures(byte[] sourceMaterials, Func<string, byte[]> read, CancellationToken token = default,
+        ModelTextureMipCache? encodingCache = null)
+        => Textures(sourceMaterials, read, false, token, encodingCache);
 
-    public static SvSwShFlameTextures ZaTextures(byte[] sourceMaterials, Func<string, byte[]> read, CancellationToken token = default)
-        => Textures(sourceMaterials, read, true, token);
+    public static SvSwShFlameTextures ZaTextures(byte[] sourceMaterials, Func<string, byte[]> read, CancellationToken token = default,
+        ModelTextureMipCache? encodingCache = null)
+        => Textures(sourceMaterials, read, true, token, encodingCache);
 
-    private static SvSwShFlameTextures Textures(byte[] sourceMaterials, Func<string, byte[]> read, bool zaFlame, CancellationToken token)
+    private static SvSwShFlameTextures Textures(byte[] sourceMaterials, Func<string, byte[]> read, bool zaFlame, CancellationToken token, ModelTextureMipCache? encodingCache)
     {
         var source = new ModelBuffer(sourceMaterials); var flame = Flame(source);
         var textures = source.Tables(flame, 2, 64).ToDictionary(t => source.Text(t, 0)!, t => source.Text(t, 1)!, StringComparer.Ordinal);
@@ -210,7 +212,7 @@ public static class SvSwShFlameMaterial
                 }
                 mips[mip] = level;
             }
-            return container.EncodeMipImages(mips, token);
+            return container.EncodeMipImages(mips, token, encodingCache);
         }
         // The native shader computes clamp(control.r + (1-control.a) *
         // (layer0.r + layer1.r), 0, 1). A transparent black control keeps both

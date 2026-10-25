@@ -35,7 +35,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             SwShRestorationGenderAudit.RequireModels(Donor("ik_pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
                 species, 0, genders.ToDictionary(g => g, ModelPath));
             var result = genders.SelectMany(g => Assets(species, g)).ToList();
-            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token)));
+            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_00s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token, encodingCache: textureEncoding)));
             return result;
         }
 
@@ -78,7 +78,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
             var textures = new RestorationTexturePool(members, modelFolder, true);
             var fireTextures = profile.PairedFlames ? SvSwShFlameMaterial.ZaTextures(materialBytes,
-                name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token) : null;
+                name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, textureEncoding) : null;
             if (fireTextures is not null)
             {
                 foreach (var pair in fireTextures.Files) members[modelFolder + pair.Key + ".bntx"] = pair.Value;
@@ -123,7 +123,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                     {
                         Report("textures", (rare ? scene.Primitives.Count : 0) + index, 2 * scene.Primitives.Count);
                         var images = ZaSwShEyelidMaterial.Textures(eyeContract, index, rare,
-                            name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
+                            name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, textureEncoding);
                         var allocated = images.Files.ToDictionary(pair => pair.Key, pair => textures.Add(pair.Key, pair.Value), StringComparer.Ordinal);
                         eyeTextures.Add(index, images with { Bindings = images.Bindings.ToDictionary(pair => pair.Key, pair => allocated[pair.Value], StringComparer.Ordinal) });
                         return null;
@@ -141,9 +141,9 @@ public sealed partial class ZaSwShRestorationPreparationService
                     }
                     Report("textures", (rare ? scene.Primitives.Count : 0) + index, 2 * scene.Primitives.Count);
                     var materialBake = profile.NativeFlames && primitive.Material.Name == "fire"
-                        ? ZaSwShFlameMaterial.Bake(sourceMaterialBytes, rare, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token)
+                        ? ZaSwShFlameMaterial.Bake(sourceMaterialBytes, rare, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, textureEncoding)
                         : ZaSwShMaterialBaker.Bake(primitive, sourceMaterialBytes, index, rare,
-                            template, templateName, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, profile.LayeredEyes);
+                            template, templateName, name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, profile.LayeredEyes, textureEncoding);
                     Report("textures", (rare ? scene.Primitives.Count : 0) + index + 1, 2 * scene.Primitives.Count);
                     return materialBake with
                     {
@@ -155,7 +155,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                 var emissionIndex = profile.EmissionMaterial is null ? -1 : Array.FindIndex(variantScene.Primitives.ToArray(), primitive => primitive.Material.Name == profile.EmissionMaterial);
                 if (profile.EmissionMaterial is not null && emissionIndex < 0) throw new InvalidDataException("Z-A emission material is missing.");
                 var emission = emissionIndex < 0 ? null : ZaSwShEmissionMaterial.Bake(sourceMaterialBytes, profile.EmissionMaterial!, baked[emissionIndex]!,
-                    name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token);
+                    name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, textureEncoding);
                 var emissionName = emission is null ? null : textures.Add(emission.Name, emission.Bytes);
                 var bindings = variantScene.Primitives.Select((primitive, index) =>
                 {

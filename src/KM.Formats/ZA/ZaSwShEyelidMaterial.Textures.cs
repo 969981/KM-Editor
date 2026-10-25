@@ -8,7 +8,8 @@ public static partial class ZaSwShEyelidMaterial
 {
     public sealed record EyeTextures(IReadOnlyDictionary<string, string> Bindings, IReadOnlyDictionary<string, byte[]> Files);
 
-    public static EyeTextures Textures(Contract contract, int index, bool shiny, Func<string, byte[]> read, CancellationToken token)
+    public static EyeTextures Textures(Contract contract, int index, bool shiny, Func<string, byte[]> read, CancellationToken token,
+        ModelTextureMipCache? encodingCache = null)
     {
         if (index is < 0 or > 15) throw new InvalidDataException("Eye texture identity is outside the supported range.");
         var template = read(contract.Textures["BaseColorMap"]);
@@ -22,7 +23,7 @@ public static partial class ZaSwShEyelidMaterial
             var name = $"{identity}{index:x}{(shiny ? 's' : 'n')}" + templateName[3..];
             var allocated = SwShTextureAllocation.Create(template, width, height, srgb, compressed: role is not ("EmissionMaskTex" or "LyCol0Tex"));
             var document = new ModelTextureDocument(ModelTextureIdentity.Rename(allocated, templateName, name));
-            files.Add(name, document.EncodeMipImages(SwShTextureFiltering.Mips(pixels, width, height, document.MipCount, srgb, normals), token));
+            files.Add(name, document.EncodeMipImages(SwShTextureFiltering.Mips(pixels, width, height, document.MipCount, srgb, normals), token, encodingCache));
             bindings.Add(role, name);
         }
         if (contract.Textures.ContainsKey("HighlightMaskMap") && Image("HighlightMaskMap").Pixels.Where((_, offset) => offset % 4 == 0).Any(value => value != 0))

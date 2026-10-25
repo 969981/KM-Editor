@@ -9,7 +9,8 @@ namespace KM.Formats.SwSh;
 public static class SwShPartyIconWriter
 {
     /// <summary>Copies a dedicated miniature onto the native two pixel grid without fitting or cropping.</summary>
-    public static byte[] CreateMiniature(byte[] sprite, byte[] nativeTemplate, CancellationToken cancellationToken = default)
+    public static byte[] CreateMiniature(byte[] sprite, byte[] nativeTemplate, CancellationToken cancellationToken = default,
+        ModelTextureMipCache? encodingCache = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var (width, height, source) = ReadSprite(sprite);
@@ -31,10 +32,11 @@ public static class SwShPartyIconWriter
                     source.AsSpan(at, 4).CopyTo(pixels.AsSpan(((y * 2 + dy) * target.Width + x * 2 + dx) * 4, 4));
             }
         }
-        return target.EncodeMipImages([pixels], cancellationToken);
+        return target.EncodeMipImages([pixels], cancellationToken, encodingCache);
     }
 
-    public static byte[] Create(byte[] sprite, byte[] nativeTemplate, CancellationToken cancellationToken = default)
+    public static byte[] Create(byte[] sprite, byte[] nativeTemplate, CancellationToken cancellationToken = default,
+        ModelTextureMipCache? encodingCache = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var (width, height, source) = ReadSprite(sprite);
@@ -65,7 +67,7 @@ public static class SwShPartyIconWriter
             }
         }
         _ = Bounds(pixels, target.Width, target.Height);
-        return target.EncodeMipImages([pixels], cancellationToken);
+        return target.EncodeMipImages([pixels], cancellationToken, encodingCache);
     }
 
     private static (int X, int Y, int Width, int Height) Bounds(byte[] pixels, int width, int height)

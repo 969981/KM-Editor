@@ -18,7 +18,8 @@ public static class ZaSwShEmissionMaterial
         return writer.Finish(source.Root);
     }
 
-    public static ZaSwShEmissionTexture Bake(byte[] sourceMaterials, string materialName, SwShBakedMaterial baked, Func<string, byte[]> read, CancellationToken token)
+    public static ZaSwShEmissionTexture Bake(byte[] sourceMaterials, string materialName, SwShBakedMaterial baked, Func<string, byte[]> read, CancellationToken token,
+        ModelTextureMipCache? encodingCache = null)
     {
         var source = new ModelBuffer(sourceMaterials);
         var material = source.Tables(source.Root, 1, 128).Single(table => source.Text(table, 0) == materialName);
@@ -58,6 +59,6 @@ public static class ZaSwShEmissionMaterial
         var name = "em" + baked.ColorName[2..];
         var allocation = SwShTextureAllocation.Create(baked.Color, color.Width, color.Height, false);
         var document = new ModelTextureDocument(ModelTextureIdentity.Rename(allocation, baked.ColorName, name, linear: true));
-        return new(name, document.EncodeMipImages(SwShTextureFiltering.Mips(pixels, color.Width, color.Height, document.MipCount), token), gain);
+        return new(name, document.EncodeMipImages(SwShTextureFiltering.Mips(pixels, color.Width, color.Height, document.MipCount), token, encodingCache), gain);
     }
 }

@@ -82,10 +82,17 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7.0.1
 
+      - name: Read backend SDK version
+        id: backend-sdk
+        shell: pwsh
+        run: |
+          $sdkVersion = (Get-Content global.json -Raw | ConvertFrom-Json).sdk.version
+          "version=$sdkVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Set up .NET
         uses: actions/setup-dotnet@v6.0.0
         with:
-          global-json-file: global.json
+          dotnet-version: ${{ steps.backend-sdk.outputs.version }}
 
       - name: Cache backend packages
         uses: actions/cache@v6.1.0

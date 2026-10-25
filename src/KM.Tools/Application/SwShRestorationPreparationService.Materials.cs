@@ -54,7 +54,8 @@ public sealed partial class SwShRestorationPreparationService
                     cornealEye: Profile(currentIdentity).CornealEyes && primitive.Material.Name.Contains("eye", StringComparison.Ordinal),
                     cornealNormalHeight: Profile(currentIdentity).CornealNormalHeights?.GetValueOrDefault(primitive.Material.Name, 1) ?? 1,
                     normalUvScale: normalScale,
-                    normalUvVerticalTile: Profile(currentIdentity).NormalUvVerticalTiles?.GetValueOrDefault(primitive.Name) ?? 0);
+                    normalUvVerticalTile: Profile(currentIdentity).NormalUvVerticalTiles?.GetValueOrDefault(primitive.Name) ?? 0,
+                    encodingCache: textureEncoding);
                 if (share && material.ConflictingSamples != 0)
                     throw new InvalidDataException("Shared material normal coordinates require another target adapter.");
                 // Eyes can share a layer mask while having different palette colors.

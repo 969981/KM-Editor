@@ -84,7 +84,8 @@ public sealed class ModelTextureDocument
     }
 
     /// <summary>Replaces explicitly authored mip images without changing the container layout.</summary>
-    public byte[] EncodeMipImages(IReadOnlyList<byte[]> rgbaLevels, CancellationToken cancellationToken = default)
+    public byte[] EncodeMipImages(IReadOnlyList<byte[]> rgbaLevels, CancellationToken cancellationToken = default,
+        ModelTextureMipCache? encodingCache = null)
     {
         if (rgbaLevels.Count != levels.Length) throw new InvalidDataException("Every stored texture mip must be supplied.");
         var output = original.ToArray();
@@ -97,9 +98,33 @@ public sealed class ModelTextureDocument
             cancellationToken.ThrowIfCancellationRequested();
             var level = levels[mip]; var rgba = rgbaLevels[mip];
             if (rgba.Length != level.Width * level.Height * 4) throw new InvalidDataException("Texture mip dimensions do not match the container.");
-            var pixels = new ColorRgba32[rgba.Length / 4];
-            for (var i = 0; i < pixels.Length; i++) pixels[i] = new(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]);
-            Encode(level, pixels, output, encoder, cancellationToken, preserveSourceAlpha: false);
+            void EncodeImage()
+            {
+                var pixels = new ColorRgba32[rgba.Length / 4];
+                for (var i = 0; i < pixels.Length; i++) pixels[i] = new(rgba[i * 4], rgba[i * 4 + 1], rgba[i * 4 + 2], rgba[i * 4 + 3]);
+                Encode(level, pixels, output, encoder, cancellationToken, preserveSourceAlpha: false);
+            }
+            if (encodingCache is null) { EncodeImage(); continue; }
+            // Texture names, offsets and padding can differ between palettes. Reuse
+            // only image payloads and preserve this container's own metadata.
+            var source = Linear(level, original);
+            var identity = new byte[12 + source.Length];
+            BinaryPrimitives.WriteUInt32LittleEndian(identity, Format);
+            BinaryPrimitives.WriteInt32LittleEndian(identity.AsSpan(4), level.Width);
+            BinaryPrimitives.WriteInt32LittleEndian(identity.AsSpan(8), level.Height);
+            source.CopyTo(identity, 12);
+            var encoded = encodingCache.GetOrEncode(identity, [rgba], () =>
+            {
+                EncodeImage();
+                return Linear(level, output);
+            }, cancellationToken);
+            var stride = (level.Width + blockSize - 1) / blockSize * blockBytes;
+            var rows = (level.Height + blockSize - 1) / blockSize;
+            for (var y = 0; y < rows; y++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                for (var x = 0; x < stride; x++) output[Address(level, x, y, stride, rows)] = encoded[y * stride + x];
+            }
         }
         _ = new ModelTextureDocument(output);
         return output;
