@@ -36,26 +36,24 @@ The private signing key must never be committed. If the private key or password 
 
 The workflow also requires repository variable `WIX_V7_EULA_ACCEPTED=true`, recorded only after the WiX v7 OSMF EULA has been reviewed and accepted. KM Editor's outer setup is not currently required to carry an Authenticode signature; Tauri/Minisign updater signing remains mandatory, and the included WebView2 bootstrapper must retain its valid Microsoft Authenticode signature.
 
-## Manual Release
+## Publish A Release
 
-Use the GitHub Actions UI when a release should be created from the final pull request merge on `master`:
+Normal releases start by pushing the version tag once after the release pull request is merged into `master`:
 
-1. Open `Actions`.
-2. Run `Desktop Release`.
-3. Select `master` as the workflow branch.
-4. Enter a tag such as `v0.1.0`.
-5. Leave `prerelease` unchecked for normal releases.
-6. Review the generated draft assets and replace the generated notes with the final changelog and comparison link.
-7. Publish the completed draft release from GitHub.
-8. Verify the live release body. Replace any generated notes with the reviewed `docs/release-notes/<version>.md` changelog and confirm its comparison link.
+1. Finalize the version, bundled Welcome notes, and curated changelog in the release pull request.
+2. Wait for its product builds and static analysis, then merge the reviewed source.
+3. Verify that the merge tree matches the checked pull request head and that its version is correct.
+4. Create the exact numeric `vX.Y.Z` tag at that merge and push the tag once.
+5. Let that tag start one `Desktop Release` run. Do not also dispatch a manual run.
+6. Review the draft release's setup executable, updater signature, `latest.json`, and `SHA256SUMS.txt`.
+7. Publish the verified draft as the stable release.
+8. Replace the published generated notes with `docs/release-notes/<version>.md`, then verify the live body, comparison link, downloads, and updater metadata.
 
-For a manual run, `gh release create` creates the requested tag at the workflow SHA if it does not already exist. A tag-push run uses the tag that triggered it.
-
-The tag must match the desktop app version and point to a pull request merge whose tree matches its build checked head. For example, `v0.1.0` requires the app version to be `0.1.0`.
+The tag must match the desktop app version. For example, `v0.1.0` requires the app version to be `0.1.0`. Manual dispatch remains available for an explicitly chosen exceptional workflow; it is not the normal release path.
 
 ## Bundled Welcome Notes
 
-Finalize the welcome hub content before merging the release candidate and starting packaging. In `apps/desktop/src/features/welcome/content.json`, check the exact release version, summary, game family audiences, shared changes, developer message, and comparison link against the final changelog. Follow the [welcome content guide](../apps/desktop/src/features/welcome/README.md) and run `pnpm --filter @km-editor/desktop check:welcome`.
+Finalize the welcome hub content before merging the release candidate and starting packaging. In `apps/desktop/src/features/welcome/content.json`, check the exact release version, summary, game family audiences, shared changes, developer message, and comparison link against the final changelog. Follow the [welcome content guide](../apps/desktop/src/features/welcome/README.md) and run the normal desktop compilation.
 
 Check the notes under all six game selections and the all games filter. Shared changes must remain visible under each game filter. Confirm the installed version selects the intended entry and that the developer card contains the approved message.
 
@@ -63,7 +61,7 @@ Welcome content is embedded in the desktop build. Editing GitHub release notes a
 
 ## Tag Release
 
-Pushing an exact numeric `vX.Y.Z` tag also starts the release workflow. Other `v*` tags may trigger the job but are rejected by the version gate before packaging:
+Pushing an exact numeric `vX.Y.Z` tag starts the release workflow. Other `v*` tags may trigger the job but are rejected by the version gate before packaging:
 
 ```powershell
 git tag v0.1.0

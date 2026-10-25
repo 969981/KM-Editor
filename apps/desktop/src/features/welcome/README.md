@@ -2,7 +2,7 @@
 
 Edit `content.json` to maintain the welcome hub without changing its React layout. It is bundled with the app and available offline. There are no startup network requests for this content. Updates reach users with the next application build.
 
-Run `pnpm --filter @km-editor/desktop check:welcome` after editing. The same validation runs during the desktop typecheck and build. `welcomeContentSchema.ts` defines the format; invalid optional content falls back to empty content at runtime so project selection remains usable.
+`welcomeContentSchema.ts` defines the format; invalid optional content falls back to empty content at runtime so project selection remains usable. Review the displayed notes, game filters, and links after editing, and run the normal desktop compilation with `pnpm --filter @km-editor/desktop typecheck`.
 
 Before every release, finalize this content against the complete release changelog before packaging. Verify all six game selections, shared changes, version matching, links, and the developer card. Published GitHub notes cannot change the content already embedded in an installed build.
 
