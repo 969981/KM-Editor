@@ -2,6 +2,193 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "2.6.8",
+      "summary": {
+        "en": "Restore the Geodude and Alolan Geodude families in Sword and Shield, add omniboosts to ordinary moves, and work with clearer Legends Arceus records. KM Editor 2.6.8 also improves editor loading, memory use, recovery, and reviewed saves while removing Analysis Tools."
+      },
+      "sections": [
+        {
+          "title": {
+            "en": "Sword And Shield"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Restore Geodude, Graveler, Golem, and their Alolan forms as six independent entries from your own compatible S/V donor files. The catalog now offers 51 supported species and form entries, all marked In testing. Regional typings, evolution targets, cries, icons, and supported model effects retain their separate identities."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Add omniboosts to ordinary moves with All Stats, which raises Attack, Defense, Sp. Atk, Sp. Def, and Speed by the configured amount and chance. Use Damage + User Stat Raise for a damaging move's secondary boost. The existing All Stats (move specific) option retains its scripted meaning, and normal move conditions still apply."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "The 60FPS Patch corrects stadium screen animation timing and prevents the reproduced Gigantamax appearance stall. Reapply the configuration to update existing output. Verified pasted FPS updates can also be removed and reapplied while preserving unrelated files and edits."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Update Asset appears only when a newer revision is available for that restored Pokemon. Large valid restoration collections remain available for editing and assignment, and removal releases unused prepared assets when Apply finishes while retaining resources needed by recovery."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Game Options changes no longer report an unchanged review as stale after Pokemon restoration. Trainer species replacements use the matching reviewed roster header, including modified parties whose size stays the same. Changes made after Review and inconsistent rosters remain blocked."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Invalid held item slots encoded as -1 display as None and receive ordinary pending corrections after a successful stage in the Pokemon editor. Opening the editor does not change output, and explicit valid item choices take priority."
+              },
+              "audience": [
+                "swsh"
+              ]
+            },
+            {
+              "body": {
+                "en": "Sound Studio names and filters complete supported restored cry sets in copied output even without restoration ownership metadata. Recognition preserves the audio files and does not adopt ownership of the restoration."
+              },
+              "audience": [
+                "swsh"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Scarlet And Violet"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Placement avoids rebuilding shared field definitions and repeating item choices on every visible row, reducing loading work and oversized responses while preserving individual choices and protected fields."
+              },
+              "audience": [
+                "sv"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Legends Z-A"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Encounter restoration and scripted boss catalogs reuse shared identity and selector lookups. Missing or ambiguous records and unsupported boss combinations retain their existing protections."
+              },
+              "audience": [
+                "za"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Legends Arceus"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Trainer names, classes, Pokemon forms, encounter regions, outbreak summaries, research requirements, and Ginkgo offers use clearer descriptions and the appropriate game text. Trainer searches keep parties together, and protected selectors show their names without allowing unsupported replacement."
+              },
+              "audience": [
+                "pla"
+              ]
+            },
+            {
+              "body": {
+                "en": "Field help explains inherited encounter levels, relative weights, effort values, move styles, action order, research thresholds, and event settings in all seven interface languages. Shop drafts and pending changes reflect the selected inventory, and move records distinguish partial editing from protected data."
+              },
+              "audience": [
+                "pla"
+              ]
+            }
+          ]
+        },
+        {
+          "title": {
+            "en": "Workspace And Maintenance"
+          },
+          "items": [
+            {
+              "body": {
+                "en": "Opening editors, preparing caches, reviewing changes, and refreshing after Apply avoid repeated source loading and validation. Model, texture, voice bank, executable, and script inspection use fewer temporary allocations while retaining source checks and output preservation."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Completed vanilla cache preparation remains ready after output changes. Minimal, Balanced, and Performance modes, the 2 GB cache limit, interrupted write recovery, and checks for actual source changes remain in place."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Analysis Tools, including Balance Lab, Guided Design, Semantic Merge, Game Modules, Research Lab, and standalone Semantic Explore, have been removed. Record search, Inspector, bookmarks, notes, saved views, output profiles, and game data caches remain available."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Compact progress cards keep elapsed time beside the steps and animate only the active phase. Cancellation, errors, final outcomes, accessibility, and reduced motion remain supported."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Routine interface updates preserve loaded recovery status, History, Checkpoints, and active checkpoint write guards. Closing the app or changing projects cancels disposable reads while active Apply and protected operations finish at their safe boundaries."
+              },
+              "audience": [
+                "all"
+              ]
+            },
+            {
+              "body": {
+                "en": "Update Zod to address memory exhaustion when validating oversized constrained collections, and update Vite to address development server and editor integration vulnerabilities."
+              },
+              "audience": [
+                "all"
+              ]
+            }
+          ]
+        }
+      ],
+      "links": [
+        {
+          "label": {
+            "en": "Full changelog"
+          },
+          "url": "https://github.com/KotMatrosk1n/KM-Editor/compare/v2.6.7...v2.6.8"
+        }
+      ]
+    },
+    {
       "version": "2.6.7",
       "summary": {
         "en": "Bring your ideas to Hisui with Legends Arceus editors, restore 33 more Pokemon in Sword and Shield, and customize Scarlet and Violet's Summary views and Tera Blast. KM Editor 2.6.7 also adds restoration updates that preserve assignments, global held item chances, and clearer progress in the editor and Windows setup."
