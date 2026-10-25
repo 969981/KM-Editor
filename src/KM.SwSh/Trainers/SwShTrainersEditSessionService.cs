@@ -2332,8 +2332,18 @@ public sealed class SwShTrainersEditSessionService
                 }
 
                 var groupEdits = group.ToArray();
+                // Species validation checks the paired header even when replacing
+                // an occupied slot does not change the party count.
+                var rosterSources = groupEdits
+                    .Where(edit => edit.Field == SwShTrainersWorkflowService.SpeciesIdField)
+                    .Select(edit => SwShTrainersWorkflowService.TryParseTeamRecordId(edit.RecordId, out var trainerId, out _)
+                        ? workflow.Trainers.FirstOrDefault(trainer => trainer.TrainerId == trainerId)
+                        : null)
+                    .OfType<SwShTrainerRecord>()
+                    .Select(trainer => new ProjectFileReference(trainer.Provenance.SourceLayer, trainer.Provenance.SourceFile));
                 var sources = groupEdits
                     .SelectMany(edit => edit.Sources)
+                    .Concat(rosterSources)
                     .Distinct()
                     .ToArray();
                 var reason = groupEdits.Length == 1
