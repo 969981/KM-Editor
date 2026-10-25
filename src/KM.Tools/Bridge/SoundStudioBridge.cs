@@ -112,6 +112,31 @@ internal static class SoundStudioBridge
         catch (Exception exception) when (exception is BoundedConcurrencyResourceException or BoundedWorkItemException)
         { state.Error = "KM-AUDIO-SOURCE-UNAVAILABLE"; state.Done = true; }
     }
+    private static void RecognizeRestoredVoices(IReadOnlyList<SoundBankItem> items,
+        Dictionary<uint, (int Species, string State)> voices)
+    {
+        // Copied restorations retain their deterministic media and event identities
+        // even when this output has no private restoration ownership metadata.
+        var media = new HashSet<uint>();
+        var events = new HashSet<uint>();
+        foreach (var item in items)
+            if (uint.TryParse(item.Identifier, out var id))
+            {
+                if (item.Kind == "sample" && item.Status == "sample") media.Add(id);
+                if (item.Kind == "event") events.Add(id);
+            }
+        foreach (var identity in SwShRestorationDefinitions.All.SelectMany(d => d.Identities).Distinct())
+        {
+            var indexEvent = SwShVoiceWriter.Hash(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"Play_PV_{identity.Species:000}_{identity.Form:00}_00"));
+            if (!events.Contains(indexEvent)
+                || !SwShVoiceWriter.States.All(state => media.Contains(SwShVoiceWriter.MediaId(identity.Species, state, identity.Form))))
+                continue;
+            foreach (var state in SwShVoiceWriter.States)
+                voices.TryAdd(SwShVoiceWriter.MediaId(identity.Species, state, identity.Form), (identity.Species, state));
+        }
+    }
+
     private static void VerifySource(Asset asset)
     {
         var info = new FileInfo(asset.Path);
@@ -170,6 +195,9 @@ internal static class SoundStudioBridge
                 {
                     using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 16384, FileOptions.RandomAccess);
                     var items = new SoundBankReader(stream, token, state.PlaSource is null ? null : 135u).Read(entry.RelativePath[6..]);
+                    if (state.Paths.SelectedGame is ProjectGame.Sword or ProjectGame.Shield
+                        && entry.RelativePath == SwShRestorationComposer.VoicesPath)
+                        RecognizeRestoredVoices(items, restoredVoices);
                     state.PlaSource?.Observe(entry.RelativePath, path, stream, token);
                     foreach (var item in items)
                     {
