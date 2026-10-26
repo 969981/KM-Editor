@@ -24,6 +24,8 @@ public sealed partial class SwShRestorationPreparationService
         string definitionId, IProgress<SwShRestorationPreparationProgress>? progress = null, CancellationToken cancellationToken = default, SwShRestorationDonorSession? donorSession = null)
     {
         var definition = SwShRestorationDefinitions.Get(definitionId);
+        if (definition.Donor == SwShRestorationDonor.LegendsArceus)
+            return new PlaSwShRestorationPreparationService().Prepare(target, donorRomFs, compressionSupport, definitionId, progress, cancellationToken, donorSession);
         if (definition.Donor == SwShRestorationDonor.LegendsZA)
             return new ZaSwShRestorationPreparationService().Prepare(target, donorRomFs, compressionSupport, definitionId, progress, cancellationToken, donorSession);
         if (target.SelectedGame is not (ProjectGame.Sword or ProjectGame.Shield) || string.IsNullOrWhiteSpace(target.BaseRomFsPath)
@@ -39,6 +41,7 @@ public sealed partial class SwShRestorationPreparationService
                 contributions.AddRange(context.Assets(identity));
                 progress?.Report(new("gameplay", unavailableMoves.Count, definition.Identities.Count) { Species = identity.Species });
                 var gameplay = context.Gameplay(identity); contributions.AddRange(gameplay.Contributions); unavailableMoves.Add(identity.Species, gameplay.ExcludedMoves);
+                contributions.AddRange(context.Names(identity));
             }
             progress?.Report(new("voices", definition.Identities.Count, definition.Identities.Count));
             contributions.AddRange(context.Voices(definition.Identities));

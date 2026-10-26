@@ -37,6 +37,12 @@ public static class SwShRestorationDefinitions
     });
     public static IReadOnlyList<SwShRestorationDefinition> All { get; } = Array.AsReadOnly(PiplupSpecies.Concat(new[]
     {
+        Species("paras", 46) with { Donor = SwShRestorationDonor.LegendsArceus },
+        Species("parasect", 47) with { Donor = SwShRestorationDonor.LegendsArceus },
+        Species("venonat", 48), Species("venomoth", 49),
+        Species("mankey", 56) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("primeape", 57) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("annihilape", 979),
         Species("mega-charizard-x", 6, 1) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 2 },
         Species("mega-charizard-y", 6, 2) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 2 },
         Species("chikorita", 152) with { Donor = SwShRestorationDonor.LegendsZA },
@@ -111,7 +117,8 @@ public sealed record SwShRestorationCatalog(string Revision, IReadOnlyList<SwShR
                 var selection = state.State.Selections.SingleOrDefault(s => s.DefinitionId == definition?.Id);
                 var complete = group.Any(e => e.Capabilities.HasFlag(SwShPokemonCapability.Assignment));
                 return new SwShRestorationCatalogEntry(group.Key,
-                    group.Key < names.Count && !string.IsNullOrWhiteSpace(names[group.Key]) ? names[group.Key] : $"Pokemon {group.Key}",
+                    group.Key < names.Count && !string.IsNullOrWhiteSpace(names[group.Key]) ? names[group.Key]
+                        : group.Key == SwShRestorationSpecies.Annihilape ? "Annihilape" : $"Pokemon {group.Key}",
                     definition?.Id, paths.SelectedGame is { } game && definition is not null ? definition.Support.GetValueOrDefault(game) : SwShRestorationSupport.NotSupported,
                     selection?.Enabled == true ? complete ? SwShRestorationInstallation.Enabled : SwShRestorationInstallation.NeedsRepair
                         : group.Any(e => e.Personal.IsPresentInGame) ? SwShRestorationInstallation.External : SwShRestorationInstallation.Disabled,

@@ -55,6 +55,9 @@ public sealed partial class SwShRestorationPreparationService
                     cornealNormalHeight: Profile(currentIdentity).CornealNormalHeights?.GetValueOrDefault(primitive.Material.Name, 1) ?? 1,
                     normalUvScale: normalScale,
                     normalUvVerticalTile: Profile(currentIdentity).NormalUvVerticalTiles?.GetValueOrDefault(primitive.Name) ?? 0,
+                    authoredAlpha: Profile(currentIdentity).AuthoredAlpha
+                        && primitive.Material.Name is "l_eye_b" or "l_highlight",
+                    staticUvScale: Profile(currentIdentity).StaticUvScales is { } scales && scales.TryGetValue(primitive.Name, out var uvScale) ? uvScale : null,
                     encodingCache: textureEncoding);
                 if (share && material.ConflictingSamples != 0)
                     throw new InvalidDataException("Shared material normal coordinates require another target adapter.");

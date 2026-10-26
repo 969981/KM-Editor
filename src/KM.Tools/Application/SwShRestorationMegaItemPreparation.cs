@@ -14,7 +14,7 @@ public static class SwShRestorationMegaItemPreparation
 {
     public static IReadOnlyList<SwShRestorationContribution> Create(SwShRestorationMegaItem stone,
         Func<string, byte[]> native, Func<string, byte[]> donor, Func<string, bool> nativeExists,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, ModelTextureMipCache? encodingCache = null)
     {
         if (!SwShRestorationMegaItems.All.Contains(stone)) throw new InvalidDataException("Mega Stone is not registered.");
         cancellationToken.ThrowIfCancellationRequested();
@@ -39,7 +39,7 @@ public static class SwShRestorationMegaItemPreparation
             if (table.Records.Any(r => r.ItemId != stone.ItemId && r.RawRowIndex != 0 && r.ItemSprite == stone.ItemId))
                 throw new InvalidDataException("The reserved Mega Stone icon is referenced by another native item.");
             var icon = ZaSwShMaterialBaker.Icon(donor($"ui/tex/icon_item/item_{stone.DonorItemId:0000}/item_{stone.DonorItemId:0000}.bntx"),
-                native("bin/appli/icon_item/item_0249.bntx"), cancellationToken);
+                native("bin/appli/icon_item/item_0249.bntx"), cancellationToken, encodingCache);
             _ = new ModelTextureDocument(icon);
             result.Add(new(iconPath, SwShRestorationWriter.File, "", previousIcon, icon));
         }

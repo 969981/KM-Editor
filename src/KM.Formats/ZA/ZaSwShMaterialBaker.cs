@@ -46,7 +46,7 @@ public static class ZaSwShMaterialBaker
     }
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex, bool shiny, byte[] textureTemplate, string templateName,
         Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool layeredEyes = false,
-        ModelTextureMipCache? encodingCache = null)
+        bool authoredAlpha = false, ModelTextureMipCache? encodingCache = null)
     {
         if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
@@ -182,12 +182,45 @@ public static class ZaSwShMaterialBaker
                     rgb += Sample(highlightImage, uv, highlightTransform, new(primitive.Material.HighlightWrap.X, primitive.Material.HighlightWrap.Y)).X * highlightColor;
                 }
                 var at = (y * colorWidth + x) * 4;
-                pixels[at] = ColorChannel(rgb.X); pixels[at + 1] = ColorChannel(rgb.Y); pixels[at + 2] = ColorChannel(rgb.Z); pixels[at + 3] = 255;
+                pixels[at] = ColorChannel(rgb.X); pixels[at + 1] = ColorChannel(rgb.Y); pixels[at + 2] = ColorChannel(rgb.Z);
+                pixels[at + 3] = authoredAlpha ? Channel(original.W) : (byte)255;
             }
         }
-        var color = colorContainer.EncodeMipImages(SwShTextureFiltering.Mips(pixels, colorWidth, colorHeight, colorContainer.MipCount, srgb: true, sharpen: true), cancellationToken, encodingCache);
+        var colorUvTransform = new Vector4(1, 1, 0, 0);
+        var colorMips = SwShTextureFiltering.Mips(pixels, colorWidth, colorHeight, colorContainer.MipCount, srgb: true, sharpen: true);
+        if (authoredAlpha)
+        {
+            var authored = new ModelTextureDocument(readTexture(textures["BaseColorMap"]));
+            if (authored.Width != colorWidth || authored.Height != colorHeight || authored.MipCount < colorMips.Length)
+                throw new InvalidDataException("Authored transparent atlas mip dimensions are incompatible.");
+            for (var mip = 0; mip < colorMips.Length; mip++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var w = Math.Max(1, colorWidth >> mip); var h = Math.Max(1, colorHeight >> mip);
+                var image = new Image(w, h, authored.Srgb, authored.Pixels(mip));
+                for (var y = 0; y < h; y++) for (var x = 0; x < w; x++)
+                    colorMips[mip][(y * w + x) * 4 + 3] = Channel(Sample(image, new((x + .5f) / w, (y + .5f) / h),
+                        uvTransform, new(primitive.Material.Wrap.X, primitive.Material.Wrap.Y)).W * baseColor.W);
+            }
+            // The source eye overlays occupy the middle half of a body atlas.
+            // Keep that full density rectangle in RGBA so every authored alpha
+            // byte is retained without another lossy alpha representation.
+            if (colorWidth != 512 || colorHeight != 1024 || primitive.Indices.Distinct().Any(index =>
+                1 - primitive.Vertices[index * 16 + 7] <= .375f || 1 - primitive.Vertices[index * 16 + 7] >= .875f))
+                throw new InvalidDataException("Transparent eye atlas requires another full density allocation.");
+            colorContainer = new(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(template, 512, 512, true, compressed: false), templateName, colorName));
+            colorMips = Enumerable.Range(0, colorContainer.MipCount).Select(mip =>
+            {
+                var w = Math.Max(1, colorWidth >> mip); var sh = Math.Max(1, colorHeight >> mip);
+                var h = Math.Max(1, 512 >> mip); var top = Math.Min(sh - h, sh * 3 / 8);
+                return colorMips[mip].AsSpan(top * w * 4, w * h * 4).ToArray();
+            }).ToArray();
+            colorUvTransform = new(1, 2, 0, -.25f);
+        }
+        var color = colorContainer.EncodeMipImages(colorMips, cancellationToken, encodingCache);
         return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken, encodingCache),
-            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken, encodingCache), coverage / (double)covered.Length, conflicts);
+            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken, encodingCache), coverage / (double)covered.Length, conflicts)
+            { ColorUvTransform = colorUvTransform };
     }
 
     internal static Image Read(byte[] bytes)

@@ -16,7 +16,7 @@ public static class SwShVoiceWriter
 
     public static IReadOnlySet<uint> ObjectIds(int species, int form = 0)
     {
-        if (form is < 0 or > 255 || species is < 1 or > 898) throw new ArgumentOutOfRangeException(nameof(species));
+        if (form is < 0 or > 255 || species is < 1 or > ushort.MaxValue) throw new ArgumentOutOfRangeException(nameof(species));
         var result = new HashSet<uint>();
         uint Owned(string suffix) => Hash(OwnedName(species, form, suffix));
         foreach (var family in new[] { "", "EV_", "Btl_" })
@@ -37,7 +37,7 @@ public static class SwShVoiceWriter
 
     public static uint MediaId(int species, string state, int form = 0)
     {
-        if (form is < 0 or > 255 || species is < 1 or > 898 || !States.Contains(state))
+        if (form is < 0 or > 255 || species is < 1 or > ushort.MaxValue || !States.Contains(state))
             throw new ArgumentOutOfRangeException(nameof(species), "Choose a supported species and cry state.");
         return Hash(OwnedName(species, form, state + "_media")) & 0x3fffffff;
     }
@@ -56,8 +56,14 @@ public static class SwShVoiceWriter
         return hash;
     }
     public static SwShVoiceContribution Create(SoundBankDocument native, int species, int donor, IReadOnlyDictionary<string, byte[]> pcmMedia, int form = 0)
+        => CreateCore(native, species, donor, pcmMedia, form, false);
+
+    public static SwShVoiceContribution CreateVorbis(SoundBankDocument native, int species, int donor, IReadOnlyDictionary<string, byte[]> media, int form = 0)
+        => CreateCore(native, species, donor, media, form, true);
+
+    private static SwShVoiceContribution CreateCore(SoundBankDocument native, int species, int donor, IReadOnlyDictionary<string, byte[]> pcmMedia, int form, bool vorbis)
     {
-        if (form is < 0 or > 255 || species is < 1 or > 898 || donor is < 1 or > 898 || pcmMedia.Count != States.Count || States.Any(s => !pcmMedia.ContainsKey(s)))
+        if (form is < 0 or > 255 || species is < 1 or > ushort.MaxValue || donor is < 1 or > 898 || pcmMedia.Count != States.Count || States.Any(s => !pcmMedia.ContainsKey(s)))
             throw new InvalidDataException("Voice restoration requires all declared cry states.");
         var objects = new List<SoundBankObject>(); var media = new List<SoundBankMedia>();
         var used = native.Objects.Select(o => o.Id).Concat(native.Media.Select(m => m.Id)).ToHashSet();
@@ -85,7 +91,8 @@ public static class SwShVoiceWriter
         foreach (var state in States)
         {
             var bytes = pcmMedia[state];
-            if (bytes.Length < 68 || !bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) || BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(20)) != 0xfffe)
+            if (vorbis) SwShVorbisVoice.Validate(bytes);
+            else if (bytes.Length < 68 || !bytes.AsSpan(0, 4).SequenceEqual("RIFF"u8) || BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(20)) != 0xfffe)
                 throw new InvalidDataException("Restored cry must use native extensible PCM.");
             media.Add(new(Identity(OwnedName(species, form, state + "_media"), true), bytes));
         }
@@ -106,7 +113,7 @@ public static class SwShVoiceWriter
                 var prefix = family.Length == 0 ? state : familyLabel + "_" + state;
                 var sound = New(prefix + "_sound"); children.Add(sound);
                 var payload = donorGraph.Sound.Payload.ToArray(); var clip = media[States.ToList().IndexOf(state)];
-                Write(payload, 0, 0x00010001); payload[4] = 0; Write(payload, 5, clip.Id); Write(payload, 9, checked((uint)clip.Bytes.Length)); Write(payload, 21, parent);
+                Write(payload, 0, vorbis ? 0x00040001U : 0x00010001U); payload[4] = 0; Write(payload, 5, clip.Id); Write(payload, 9, checked((uint)clip.Bytes.Length)); Write(payload, 21, parent);
                 objects.Add(new(2, sound, payload));
                 var action = New(prefix + "_action"); var actionBytes = donorGraph.Action.Payload.ToArray(); Write(actionBytes, 2, sound);
                 objects.Add(new(3, action, actionBytes));

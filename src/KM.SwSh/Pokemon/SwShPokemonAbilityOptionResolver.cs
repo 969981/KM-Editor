@@ -128,12 +128,14 @@ public sealed class SwShPokemonAbilityOptionResolver
 
     public SwShPersonalRecord? ResolvePersonalRecord(int speciesId, int form)
     {
-        if (speciesId is <= 0 or > SwShEffectivePokemonCatalog.MaximumSpecies || (uint)speciesId >= (uint)records.Count || form < 0)
+        if (!KM.SwSh.Restoration.SwShRestorationSpecies.IsSpecies(speciesId) || form < 0)
         {
             return null;
         }
 
-        var record = records[speciesId];
+        var personalId = KM.SwSh.Restoration.SwShRestorationSpecies.BaseRow(speciesId);
+        if ((uint)personalId >= (uint)records.Count) return null;
+        var record = records[personalId];
         if (form >= Math.Max(1, record.FormCount)) return null;
         if (form > 0 && record.FormStatsIndex > 0)
         {

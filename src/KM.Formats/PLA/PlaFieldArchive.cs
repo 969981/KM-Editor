@@ -83,6 +83,8 @@ public sealed class PlaFieldArchive
         return hash;
     }
     public bool Contains(string path) => entries.ContainsKey(HashPath(path));
+    public int DecodedSize(string path) => entries.TryGetValue(HashPath(path), out var entry) ? entry.DecodedSize
+        : throw new InvalidDataException("The PLA archive member is unavailable.");
     public bool HasSameDirectory(PlaFieldArchive other)
     {
         if (metadataEnd != other.metadataEnd || !entries.Keys.SequenceEqual(other.entries.Keys)) return false;

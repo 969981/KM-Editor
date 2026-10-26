@@ -14,6 +14,7 @@ public sealed partial class ZaSwShRestorationPreparationService
     {
         internal (IReadOnlyList<SwShRestorationContribution> Contributions, int[] ExcludedMoves) Gameplay(SwShPokemonIdentity identity)
         {
+            if (Profile(identity).PlaAssets) return PlaGameplay(identity);
             var species = identity.Species; var profile = Profile(identity);
             var personalId = SwShRestorationForms.PersonalRow(identity);
             var source = new ModelBuffer(Donor("avalon/data/personal_array.bin"));
@@ -90,6 +91,13 @@ public sealed partial class ZaSwShRestorationPreparationService
             for (var i = 0; i < evolutionCount; i++)
             {
                 var at = evolutionStart + i * 16; var destination = source.U16(at + 12); var form = source.U16(at + 14);
+                if (species == 57 && destination == 1010 && form == 0 && source.U16(at + 2) == 56 && source.U16(at + 4) == 20)
+                {
+                    // Primeape uses the native Dusk Stone evolution condition.
+                    Put16(evolution, i * 8, 8); Put16(evolution, i * 8 + 2, 108);
+                    Put16(evolution, i * 8 + 4, 979);
+                    continue;
+                }
                 if (!Profiles.TryGetValue(destination, out var evolutionProfile) || evolutionProfile.HatchedSpecies != profile.HatchedSpecies || form != 0) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
                 if (source.U16(at + 2) != 4 || source.U16(at + 4) != 0 || source.U16(at) is < 1 or > 100)
                     throw new InvalidDataException("Z-A evolution condition needs another target adapter.");

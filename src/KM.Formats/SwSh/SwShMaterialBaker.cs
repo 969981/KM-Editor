@@ -10,6 +10,7 @@ public sealed record SwShBakedMaterial(string ColorName, byte[] Color, string No
     string AmbientName, byte[] Ambient, double CoveredFraction, int ConflictingSamples)
 {
     public Vector2 NormalUvScale { get; init; } = Vector2.One;
+    public Vector4 ColorUvTransform { get; init; } = new(1, 1, 0, 0);
 }
 
 /// <summary>Bakes source material channels into a native object normal and ambient shader contract.</summary>
@@ -19,7 +20,7 @@ public static class SwShMaterialBaker
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex,
         Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool sourceNormalDimensions = false, bool opaqueEyeSurface = false,
         bool cornealEye = false, float cornealNormalHeight = 1, Vector2? normalUvScale = null, int normalUvVerticalTile = 0,
-        ModelTextureMipCache? encodingCache = null)
+        bool authoredAlpha = false, Vector2? staticUvScale = null, ModelTextureMipCache? encodingCache = null)
     {
         if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
@@ -29,6 +30,7 @@ public static class SwShMaterialBaker
         var table = tables[0];
         var textures = source.Tables(table, 2, 64).ToDictionary(t => source.Text(t, 0)!, t => source.Text(t, 1)!, StringComparer.Ordinal);
         var eye = primitive.Material.Name.Contains("eye", StringComparison.Ordinal);
+        var atlas = staticUvScale is { } scale ? SwShStaticUvAtlas.For(primitive, scale) : null;
         if (cornealEye)
         {
             var shaders = source.Tables(table, 1, 16).Select(shader => source.Text(shader, 0)).ToArray();
@@ -120,7 +122,7 @@ public static class SwShMaterialBaker
         {
             // A native repeating normal sampler can address one exact UV tile
             // without changing geometry, pixel density, or the other material maps.
-            if (cornealEye || normalScale.X is not (1 or 2) || normalScale.Y is not (1 or 2))
+            if (atlas is not null || cornealEye || normalScale.X is not (1 or 2) || normalScale.Y is not (1 or 2))
                 throw new InvalidDataException("Normal texture cropping requires a supported static tile.");
             var uvs = primitive.Indices.Distinct().Select(index => Uv(checked((int)index)) - new Vector2(0, normalUvVerticalTile)).ToArray();
             var tileX = (int)MathF.Floor(uvs.Min(uv => uv.X) * normalScale.X);
@@ -148,8 +150,10 @@ public static class SwShMaterialBaker
         var ambientName = "a" + identity + ambientTemplateName[2..^3] + "amb";
         var normalTemplate = SwShTextureAllocation.Create(template, width, height, false);
         var ambientTemplate = SwShTextureAllocation.Create(template, ambientWidth, ambientHeight, false);
-        var normalContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(normalTemplate, colorName, normalName, linear: true));
-        var ambientContainer = new ModelTextureDocument(ModelTextureIdentity.Rename(ambientTemplate, ambientTemplateName, ambientName, linear: true));
+        var normalImage = ModelTextureIdentity.Rename(normalTemplate, colorName, normalName, linear: true);
+        var ambientImage = ModelTextureIdentity.Rename(ambientTemplate, ambientTemplateName, ambientName, linear: true);
+        var normalContainer = new ModelTextureDocument(normalImage);
+        var ambientContainer = new ModelTextureDocument(ambientImage);
         var colorPixels = Read(readTexture(templatePath)).Pixels;
         if (eye || textures.ContainsKey("LayerMaskMap"))
         {
@@ -165,7 +169,9 @@ public static class SwShMaterialBaker
             byte Encoded(float value) => Channel(!srgb ? value : value <= .0031308f ? 12.92f * value : 1.055f * MathF.Pow(value, 1 / 2.4f) - .055f);
             for (var i = 0; i < colorWidth * colorHeight; i++)
             {
-                var original = new Vector3(Linear(basePixels[i * 4]), Linear(basePixels[i * 4 + 1]), Linear(basePixels[i * 4 + 2])); var rgb = original;
+                var original = new Vector3(Linear(basePixels[i * 4]), Linear(basePixels[i * 4 + 1]), Linear(basePixels[i * 4 + 2]));
+                if (authoredAlpha) original *= colors.GetValueOrDefault("BaseColor", Vector3.One);
+                var rgb = original;
                 for (var layer = 0; layer < 4; layer++)
                 {
                     if (!colors.TryGetValue("BaseColorLayer" + (layer + 1), out var tint)) throw new InvalidDataException("Material color layer is missing.");
@@ -180,9 +186,43 @@ public static class SwShMaterialBaker
             throw new InvalidDataException("Opaque eye conversion requires the qualified zero alpha premultiplied surface.");
         if (primitive.Material.Alpha == "Opaque" || opaqueEyeSurface)
             for (var index = 3; index < colorPixels.Length; index += 4) colorPixels[index] = 255;
-        var color = container.EncodeMipImages(SwShTextureFiltering.Mips(colorPixels, colorWidth, colorHeight, container.MipCount, container.Srgb, sharpen: true), cancellationToken, encodingCache);
-        return new(colorName, color, normalName, normalContainer.EncodeMipImages(SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true), cancellationToken, encodingCache),
-            ambientName, ambientContainer.EncodeMipImages(SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount), cancellationToken, encodingCache), coverage / (double)covered.Length, conflicts)
+        var mipImages = SwShTextureFiltering.Mips(colorPixels, colorWidth, colorHeight, container.MipCount, container.Srgb, sharpen: true);
+        byte[]? alphaReference = null;
+        if (authoredAlpha && primitive.Material.Alpha != "Opaque")
+        {
+            var baseTexture = readTexture(textures["BaseColorMap"]); var authored = new ModelTextureDocument(baseTexture);
+            if (authored.Width != colorWidth || authored.Height != colorHeight || authored.MipCount != container.MipCount)
+                throw new InvalidDataException("Authored transparency requires matching source image and mip dimensions.");
+            var baseName = Path.GetFileNameWithoutExtension(textures["BaseColorMap"]);
+            // Rare base images can have a longer identity than their shared mask.
+            // Keep that original container name; the preparation pool assigns its
+            // final per palette identity after encoding.
+            colorName = baseName;
+            container = authored;
+            alphaReference = baseTexture;
+            for (var mip = 0; mip < mipImages.Length; mip++)
+            {
+                var original = authored.Pixels(mip);
+                for (var at = 3; at < original.Length; at += 4) mipImages[mip][at] = original[at];
+            }
+        }
+        var normalMips = SwShTextureFiltering.Mips(normalPixels, width, height, normalContainer.MipCount, normals: true);
+        var ambientMips = SwShTextureFiltering.Mips(ambientPixels, ambientWidth, ambientHeight, ambientContainer.MipCount);
+        if (atlas is not null)
+        {
+            var colorCrop = atlas.Images(mipImages, colorWidth, colorHeight);
+            var basis = alphaReference ?? template;
+            var colorImage = SwShTextureAllocation.Create(basis, colorCrop.Width, colorCrop.Height, container.Srgb);
+            if (alphaReference is not null) colorImage = atlas.Reference(alphaReference, colorImage);
+            container = new(colorImage); mipImages = colorCrop.Images;
+            var normalCrop = atlas.Images(normalMips, width, height);
+            normalContainer = new(SwShTextureAllocation.Create(normalImage, normalCrop.Width, normalCrop.Height, false)); normalMips = normalCrop.Images;
+            var ambientCrop = atlas.Images(ambientMips, ambientWidth, ambientHeight);
+            ambientContainer = new(SwShTextureAllocation.Create(ambientImage, ambientCrop.Width, ambientCrop.Height, false)); ambientMips = ambientCrop.Images;
+        }
+        var color = container.EncodeMipImages(mipImages, cancellationToken, encodingCache);
+        return new(colorName, color, normalName, normalContainer.EncodeMipImages(normalMips, cancellationToken, encodingCache),
+            ambientName, ambientContainer.EncodeMipImages(ambientMips, cancellationToken, encodingCache), coverage / (double)covered.Length, conflicts)
             { NormalUvScale = normalScale };
     }
 

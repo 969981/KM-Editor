@@ -26,7 +26,7 @@ public sealed partial class SwShHeldItemChanceService
                 ? Desired(paths, state, session with { PendingEdits = session.PendingEdits.Where(edit => edit.Domain == Domain).ToArray() }, diagnostics)
                 : (Rates: state.Rates, Overrides: state.Overrides);
             return result with { CanEdit = result.CanEdit && !HasErrors(diagnostics), Rates = desired.Rates,
-                Pokemon = pokemon.Workflow.Pokemon.Where(row => row.SpeciesId is > 0 and <= 898 && row.Form is >= 0 and <= 255)
+                Pokemon = pokemon.Workflow.Pokemon.Where(row => KM.SwSh.Restoration.SwShRestorationSpecies.IsSpecies(row.SpeciesId) && row.Form is >= 0 and <= 255)
                     .Select(row => {
                         var custom = desired.Overrides.SingleOrDefault(value => value.Species == row.SpeciesId && value.Form == row.Form);
                         return new SwShHeldItemChancePokemon(row.PersonalId, row.SpeciesId, row.Form,

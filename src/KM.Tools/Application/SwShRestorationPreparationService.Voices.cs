@@ -40,7 +40,7 @@ public sealed partial class SwShRestorationPreparationService
             foreach (var identity in identities)
             {
                 var sourceForm = Profile(identity).SourceVoiceForm ?? identity.Form;
-                var states = SvRestorationVoiceGraph.ResolvePlayback(source, identity.Species, sourceForm,
+                var states = SvRestorationVoiceGraph.ResolvePlayback(source, Profile(identity).SourceSpecies ?? identity.Species, sourceForm,
                     requireSharedForm: identity.Form != 0 && sourceForm == 0);
                 var media = new Dictionary<string, byte[]>(StringComparer.Ordinal);
                 foreach (var state in SwShVoiceWriter.States)

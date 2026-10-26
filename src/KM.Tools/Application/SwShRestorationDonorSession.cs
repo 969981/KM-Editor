@@ -3,6 +3,7 @@ using KM.Core.Projects;
 using KM.Formats.Models;
 using KM.Formats.SV;
 using KM.Formats.ZA;
+using KM.Formats.PLA;
 using KM.SV.Workflows;
 using KM.ZA.Workflows;
 using KM.SwSh.Restoration;
@@ -12,6 +13,7 @@ namespace KM.Tools.Application;
 /// <summary>A bounded, process lifetime cache of only the donor files requested by conversion.</summary>
 public sealed class SwShRestorationDonorSession : IDisposable
 {
+    private readonly Action? verifyAdditionalSource;
     private const long Budget = 128L * 1024 * 1024;
     private readonly Dictionary<string, (byte[] Bytes, string Stamp, LinkedListNode<string> Node)> files = new(StringComparer.Ordinal);
     private readonly LinkedList<string> order = new();
@@ -60,6 +62,12 @@ public sealed class SwShRestorationDonorSession : IDisposable
             cached = path => manager.TryReadExistingDonorPayload(paths, path, out var bytes) ? bytes : null;
             Mode = found ? "existing" : "temporary";
         }
+        else if (game == SwShRestorationDonor.LegendsArceus)
+        {
+            var source = new PlaRestorationArchiveSource(Root, support);
+            archive = source; read = source.Read; verifyAdditionalSource = source.Verify;
+            cached = _ => null; Mode = "temporary";
+        }
         else throw new InvalidDataException("The donor game is not supported.");
     }
 
@@ -69,6 +77,7 @@ public sealed class SwShRestorationDonorSession : IDisposable
     public void VerifySource()
     {
         if (!Matches(game, Root, support)) throw new InvalidDataException("The donor changed during preparation. Select it again and retry.");
+        verifyAdditionalSource?.Invoke();
     }
 
     public byte[] Read(string path, int maximumBytes = 32 * 1024 * 1024)
@@ -107,11 +116,17 @@ public sealed class SwShRestorationDonorSession : IDisposable
     internal static string ResolveRoot(string root)
     {
         root = Path.GetFullPath(root);
+        if (File.Exists(Path.Combine(root, "romfs", "bin", "pokemon", "table", "poke_resource_table.trpmcatalog")))
+            return Path.Combine(root, "romfs");
         return !File.Exists(Path.Combine(root, "arc", "data.trpfd")) && File.Exists(Path.Combine(root, "romfs", "arc", "data.trpfd"))
             ? Path.Combine(root, "romfs") : root;
     }
     private static string SourceStamp(SwShRestorationDonor game, string root, string? support)
     {
+        if (game == SwShRestorationDonor.LegendsArceus)
+            return string.Join('|', game, Stamp(Path.Combine(root, "bin", "pokemon", "table", "poke_resource_table.trpmcatalog")),
+                Stamp(Path.Combine(root, "bin", "pml", "personal", "personal_data_total.perbin")),
+                Stamp(Path.Combine(support ?? "", PlaCompressionRuntime.RequiredFileName)));
         var runtime = game == SwShRestorationDonor.ScarletViolet
             ? SvCompressionRuntime.TryResolveRequiredFilePath(support, out var sv) ? sv : null
             : ZaCompressionRuntime.TryResolveRequiredFilePath(support, out var za) ? za : null;
