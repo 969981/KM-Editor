@@ -1,3 +1,4 @@
+import { evolutionDraftFields, evolutionDraftsEqual, orderEvolutionDraftRows, planEvolutionDraftStage, projectEvolutionDraftRows, replaceEvolutionDraftRecord, settleEvolutionDrafts, type PokemonEvolutionLocalDraft } from './features/pokemon/evolutionDrafts';
 import { learnsetDraftsEqual, projectLearnsetDraftRows, replaceLearnsetDraftRecord, settleLearnsetDrafts, stagedLearnsetSlotMap, type PokemonLearnsetLocalDraft } from './features/pokemon/learnsetDrafts';
 import { InteractiveTableRow, VirtualTableBody } from './components/VirtualTable';
 import { PokemonSearchBox, PokemonTable, filterPokemonRecords, formatPokemonTypes, type PokemonSelectionRecord } from './components/PokemonSelection';
@@ -1322,13 +1323,7 @@ type PokemonEvolutionDraftChange = {
   form: number | null;
   level: number | null;
 };
-type PokemonEvolutionDraftFields = {
-  method: string;
-  argument: string;
-  species: string;
-  form: string;
-  level: string;
-};
+type PokemonEvolutionDraftFields = PokemonEvolutionLocalDraft;
 type PokemonLearnsetDraftChange = {
   action: string;
   slot: number | null;
@@ -24783,28 +24778,6 @@ function SelectedPokemonPanel({
   );
   const [compatibilitySearchText, setCompatibilitySearchText] =
     useCoalescedTextInputState();
-  const orderedEvolutions = useMemo(
-    () => [...(pokemon?.evolutions ?? [])].sort((left, right) => left.slot - right.slot),
-    [pokemon]
-  );
-  const selectedEvolution =
-    orderedEvolutions.find(
-      (evolution) => evolution.slot === selectedPokemonEvolutionSlot
-    ) ??
-    orderedEvolutions[0] ??
-    null;
-  const selectedEvolutionIndex =
-    selectedEvolution
-      ? orderedEvolutions.findIndex((evolution) => evolution.slot === selectedEvolution.slot)
-      : -1;
-  const previousEvolutionSlot =
-    selectedEvolutionIndex > 0
-      ? (orderedEvolutions[selectedEvolutionIndex - 1]?.slot ?? null)
-      : null;
-  const nextEvolutionSlot =
-    selectedEvolutionIndex >= 0 && selectedEvolutionIndex < orderedEvolutions.length - 1
-      ? (orderedEvolutions[selectedEvolutionIndex + 1]?.slot ?? null)
-      : null;
   const [evolutionDraftsByPokemonId, setEvolutionDraftsByPokemonId] = useState<
     Record<string, Record<number, PokemonEvolutionDraftFields>>
   >({});
@@ -24820,7 +24793,8 @@ function SelectedPokemonPanel({
       emptyPokemonLearnsetDraftsBySlot
     : emptyPokemonLearnsetDraftsBySlot;
   const pokemonDraftRecordKey = pokemon?.personalId.toString() ?? null;
-  const learnsetStageSource = useRef<{ scope: string; rows: PokemonLearnsetMove[] } | null>(null);
+  const learnsetStageSource = useRef<{ scope: string; rows: PokemonLearnsetMove[]; evolutions: PokemonEvolutionRecord[] } | null>(null);
+  const [isEvolutionStagePending, setIsEvolutionStagePending] = useState(false);
   const learnsetScope = JSON.stringify([ordinaryDraftProject, pokemon?.personalId]);
   const learnsetProject = JSON.stringify(ordinaryDraftProject);
   const latestLearnsetProject = useRef(learnsetProject);
@@ -24833,6 +24807,34 @@ function SelectedPokemonPanel({
     ? { ...pokemon, learnset: sourceLearnsetRows } : pokemon;
   const localLearnsetRows = useMemo(() => projectLearnsetDraftRows(sourceLearnsetRows, learnsetDraftsBySlot, learnsetMoveOptions),
     [sourceLearnsetRows, learnsetDraftsBySlot, learnsetMoveOptions]);
+  const sourceEvolutionRows = learnsetStageSource.current?.scope === learnsetScope
+    ? learnsetStageSource.current.evolutions : pokemon?.evolutions ?? [];
+  const evolutionSourcePokemon = pokemon && sourceEvolutionRows !== pokemon.evolutions
+    ? { ...pokemon, evolutions: sourceEvolutionRows } : pokemon;
+  const orderedEvolutions = useMemo(
+    () => projectEvolutionDraftRows(sourceEvolutionRows, evolutionDraftsBySlot),
+    [sourceEvolutionRows, evolutionDraftsBySlot]
+  );
+  const selectedEvolution =
+    orderedEvolutions.find(
+      (evolution) => evolution.slot === selectedPokemonEvolutionSlot
+    ) ??
+    orderedEvolutions[0] ??
+    null;
+  const latestEvolutionSelection = useRef(selectedPokemonEvolutionSlot);
+  latestEvolutionSelection.current = selectedPokemonEvolutionSlot;
+  const selectedEvolutionIndex =
+    selectedEvolution
+      ? orderedEvolutions.findIndex((evolution) => evolution.slot === selectedEvolution.slot)
+      : -1;
+  const previousEvolutionSlot =
+    selectedEvolutionIndex > 0
+      ? (orderedEvolutions[selectedEvolutionIndex - 1]?.slot ?? null)
+      : null;
+  const nextEvolutionSlot =
+    selectedEvolutionIndex >= 0 && selectedEvolutionIndex < orderedEvolutions.length - 1
+      ? (orderedEvolutions[selectedEvolutionIndex + 1]?.slot ?? null)
+      : null;
   const selectedDexSwapDraft = pokemonDraftRecordKey === null
     ? null
     : dexSwapDraftsByPokemonId[pokemonDraftRecordKey] ?? null;
@@ -25196,18 +25198,6 @@ function SelectedPokemonPanel({
     updateNewLearnsetCreationDraft('moveId', value);
   const setNewLearnsetLevelDraft = (value: string) =>
     updateNewLearnsetCreationDraft('level', value);
-  const newEvolutionCreationDraftSignature = JSON.stringify([
-    pokemon?.personalId ?? null,
-    newEvolutionMethodDraft,
-    newEvolutionArgumentDraft,
-    newEvolutionSpeciesDraft,
-    newEvolutionFormDraft,
-    newEvolutionLevelDraft
-  ]);
-  const newEvolutionCreationDraftSignatureRef = useRef(
-    newEvolutionCreationDraftSignature
-  );
-  newEvolutionCreationDraftSignatureRef.current = newEvolutionCreationDraftSignature;
   const hasPokemonCreationDrafts =
     Object.keys(newEvolutionDraftsByPokemonId).length > 0 ||
     Object.keys(newLearnsetDraftsByPokemonId).length > 0;
@@ -25361,7 +25351,7 @@ function SelectedPokemonPanel({
       }
 
       const review = reviewPokemonEvolutionDrafts(
-        pokemon,
+        evolutionSourcePokemon,
         currentPokemonDrafts,
         evolutionMethodOptions,
         pokemonSpeciesOptions,
@@ -25376,7 +25366,7 @@ function SelectedPokemonPanel({
       delete nextDrafts[pokemonKey];
       return nextDrafts;
     });
-  }, [editorFamily, evolutionMethodOptions, pokemon, pokemonSpeciesLabels, pokemonSpeciesOptions]);
+  }, [editorFamily, evolutionMethodOptions, evolutionSourcePokemon, pokemon, pokemonSpeciesLabels, pokemonSpeciesOptions]);
 
   useEffect(() => {
     if (!pokemon) {
@@ -25431,6 +25421,7 @@ function SelectedPokemonPanel({
   }, [localLearnsetRows, selectedLearnsetSlot]);
 
   useEffect(() => {
+    if (isEvolutionStagePending) return;
     if (orderedEvolutions.length === 0) {
       if (selectedPokemonEvolutionSlot !== null) {
         onSelectPokemonEvolution(null);
@@ -25445,7 +25436,7 @@ function SelectedPokemonPanel({
     ) {
       onSelectPokemonEvolution(orderedEvolutions[0]!.slot);
     }
-  }, [onSelectPokemonEvolution, orderedEvolutions, selectedPokemonEvolutionSlot]);
+  }, [isEvolutionStagePending, onSelectPokemonEvolution, orderedEvolutions, selectedPokemonEvolutionSlot]);
 
   useEffect(() => {
     const localDraft =
@@ -25512,7 +25503,7 @@ function SelectedPokemonPanel({
         const nextDraft = { ...currentDraft, ...patch };
         const nextPokemonDrafts = { ...currentPokemonDrafts };
 
-        if (pokemonEvolutionDraftEqualsRecord(nextDraft, selectedEvolution)) {
+        if (!nextDraft.action && nextDraft.position === undefined && pokemonEvolutionDraftEqualsRecord(nextDraft, selectedEvolution)) {
           delete nextPokemonDrafts[selectedEvolution.slot];
         } else {
           nextPokemonDrafts[selectedEvolution.slot] = nextDraft;
@@ -25657,11 +25648,12 @@ function SelectedPokemonPanel({
   const learnsetMaximumLevel = getPokemonLearnsetMaximumLevel(editorFamily);
   const evolutionMaximumForm = getPokemonEvolutionMaximumForm(editorFamily);
   const evolutionMaximumLevel = getPokemonEvolutionMaximumLevel(editorFamily);
-  const hasEvolutionDrafts = Object.keys(evolutionDraftsBySlot).length > 0;
+  const hasEvolutionStructureDrafts = Object.values(evolutionDraftsBySlot).some(draft => draft.action || draft.position !== undefined);
   const canModifyEvolutionStructure =
     canEditEvolution &&
     !isPokemonUpdating &&
-    !hasEvolutionDrafts &&
+    !isEvolutionStagePending &&
+    reviewPokemonEvolutionDrafts(evolutionSourcePokemon, evolutionDraftsBySlot, evolutionMethodOptions, pokemonSpeciesOptions, pokemonSpeciesLabels, editorFamily).invalidCount === 0 &&
     pokemonStructureMutationPending === null;
   const canModifyLearnsetStructure =
     canEditLearnset &&
@@ -25953,7 +25945,7 @@ function SelectedPokemonPanel({
   const evolutionDraftReview = useMemo(
     () =>
       reviewPokemonEvolutionDrafts(
-        pokemon,
+        evolutionSourcePokemon,
         evolutionDraftsBySlot,
         evolutionMethodOptions,
         pokemonSpeciesOptions,
@@ -25964,7 +25956,7 @@ function SelectedPokemonPanel({
       editorFamily,
       evolutionDraftsBySlot,
       evolutionMethodOptions,
-      pokemon,
+      evolutionSourcePokemon,
       pokemonSpeciesLabels,
       pokemonSpeciesOptions
     ]
@@ -25977,15 +25969,17 @@ function SelectedPokemonPanel({
     selectedEvolution === null
       ? null
       : evolutionDraftReview.changes.find(
-          (change) => change.slot === selectedEvolution.slot
+          (change) => change.action === 'upsert' && change.slot === selectedEvolution.slot
         ) ?? null;
   const selectedEvolutionDraftStatus =
     selectedEvolutionDraft === null
       ? 'No changes'
-      : selectedEvolutionDraftChange === null
+      : reviewPokemonEvolutionDrafts(evolutionSourcePokemon, { [selectedEvolution!.slot]: selectedEvolutionDraft }, evolutionMethodOptions, pokemonSpeciesOptions, pokemonSpeciesLabels, editorFamily).invalidCount > 0
         ? 'Invalid'
         : 'Changed';
   const canSaveSelectedEvolution =
+    !hasEvolutionStructureDrafts &&
+    !isEvolutionStagePending &&
     canEditEvolution &&
     !isPokemonUpdating &&
     pokemonStructureMutationPending === null &&
@@ -26093,12 +26087,24 @@ function SelectedPokemonPanel({
     }
   };
 
+  const moveEvolutionRow = (direction: -1 | 1) => {
+    if (!pokemon || !selectedEvolution || !canModifyEvolutionStructure) return;
+    const order = orderedEvolutions.map(row => row.slot);
+    const index = order.indexOf(selectedEvolution.slot);
+    const destination = index + direction;
+    if (destination < 0 || destination >= order.length) return;
+    [order[index], order[destination]] = [order[destination]!, order[index]!];
+    setEvolutionDraftsByPokemonId(current => replaceEvolutionDraftRecord(current, pokemon.personalId,
+      orderEvolutionDraftRows(sourceEvolutionRows, current[pokemon.personalId] ?? {}, order)));
+  };
+
   const saveSelectedEvolution = async () => {
     if (
       !pokemon ||
       !selectedEvolution ||
       !selectedEvolutionDraft ||
-      !selectedEvolutionDraftChange
+      !selectedEvolutionDraftChange ||
+      !canSaveSelectedEvolution
     ) {
       return;
     }
@@ -26174,7 +26180,8 @@ function SelectedPokemonPanel({
 
     const payloadBeforeStage = pokemonDraftPayload;
     let didStage = false;
-    learnsetStageSource.current = { scope: learnsetScope, rows: sourceLearnsetRows };
+    learnsetStageSource.current = { scope: learnsetScope, rows: sourceLearnsetRows, evolutions: sourceEvolutionRows };
+    setIsEvolutionStagePending(true);
     const sourceMutation = await runSessionLocalEditorSourceMutation({
       binding: pokemonDraftBinding,
       didMutate: (didSave) => didSave,
@@ -26206,24 +26213,14 @@ function SelectedPokemonPanel({
           latestPayload.alphaMove === payloadBeforeStage.alphaMove
             ? null
             : latestPayload.alphaMove,
-        evolutionSlots: Object.fromEntries(
-          Object.entries(latestPayload.evolutionSlots).filter(
-            ([slot, latestDraft]) => {
-              const submittedDraft = payloadBeforeStage.evolutionSlots[Number(slot)];
-              return (
-                submittedDraft === undefined ||
-                !pokemonEvolutionDraftFieldsEqual(latestDraft, submittedDraft)
-              );
-            }
-          )
-        ),
+        evolutionSlots: settleEvolutionDrafts(latestPayload.evolutionSlots, payloadBeforeStage.evolutionSlots, sourceEvolutionRows, editorFamily === 'swsh'),
         fields: removeMatchingFieldDraftValues(
           latestPayload.fields,
           payloadBeforeStage.fields
         ),
         learnsetSlots: settleLearnsetDrafts(latestPayload.learnsetSlots, payloadBeforeStage.learnsetSlots, sourceLearnsetRows)
       })
-    }).finally(() => { learnsetStageSource.current = null; });
+    }).finally(() => { learnsetStageSource.current = null; setIsEvolutionStagePending(false); });
     if (sourceMutation.kind === 'reservation-unavailable' && !didStage) {
       setPokemonSourceMutationError(sessionLocalDraftMutationBusyMessage);
       return;
@@ -26233,10 +26230,14 @@ function SelectedPokemonPanel({
       return;
     }
     if (sourceMutation.kind !== 'source-mutated') {
+      setEvolutionDraftsByPokemonId(current => replaceEvolutionDraftRecord(current, pokemon.personalId,
+        settleEvolutionDrafts(current[pokemon.personalId] ?? {}, payloadBeforeStage.evolutionSlots, sourceEvolutionRows, editorFamily === 'swsh')));
       setLearnsetDraftsByPokemonId(current => replaceLearnsetDraftRecord(current, pokemon.personalId,
         settleLearnsetDrafts(current[pokemon.personalId] ?? {}, payloadBeforeStage.learnsetSlots, sourceLearnsetRows)));
     }
     if (latestLearnsetScope.current === learnsetScope) {
+      const evolutionSlots = planEvolutionDraftStage(sourceEvolutionRows, payloadBeforeStage.evolutionSlots, editorFamily === 'swsh').slots;
+      if (latestEvolutionSelection.current !== null) onSelectPokemonEvolution(evolutionSlots.get(latestEvolutionSelection.current) ?? null);
       const slots = stagedLearnsetSlotMap(sourceLearnsetRows, payloadBeforeStage.learnsetSlots);
       setSelectedLearnsetSlot(current => slots.get(current) ?? current);
     }
@@ -26257,33 +26258,6 @@ function SelectedPokemonPanel({
       }
       const nextDrafts = { ...currentDrafts };
       delete nextDrafts[alphaMoveDraftKey];
-      return nextDrafts;
-    });
-    setEvolutionDraftsByPokemonId((currentDrafts) => {
-      const pokemonKey = pokemon.personalId.toString();
-      const latestSlots = currentDrafts[pokemonKey];
-      if (!latestSlots) {
-        return currentDrafts;
-      }
-      const nextSlots = { ...latestSlots };
-      for (const [slot, submittedDraft] of Object.entries(
-        payloadBeforeStage.evolutionSlots
-      )) {
-        const slotNumber = Number(slot);
-        const latestDraft = nextSlots[slotNumber];
-        if (
-          latestDraft &&
-          pokemonEvolutionDraftFieldsEqual(latestDraft, submittedDraft)
-        ) {
-          delete nextSlots[slotNumber];
-        }
-      }
-      const nextDrafts = { ...currentDrafts };
-      if (Object.keys(nextSlots).length === 0) {
-        delete nextDrafts[pokemonKey];
-      } else {
-        nextDrafts[pokemonKey] = nextSlots;
-      }
       return nextDrafts;
     });
   };
@@ -27555,8 +27529,7 @@ function SelectedPokemonPanel({
                     <span
                       aria-live="polite"
                       className={`draft-action-summary evolution-draft-status ${
-                        selectedEvolutionDraft !== null &&
-                        selectedEvolutionDraftChange === null
+                        selectedEvolutionDraftStatus === 'Invalid'
                           ? 'editable-field-error'
                           : ''
                       }`}
@@ -27567,29 +27540,7 @@ function SelectedPokemonPanel({
                       aria-label="Move evolution row up"
                       className="secondary-button icon-button"
                       disabled={!canModifyEvolutionStructure || previousEvolutionSlot === null}
-                      onClick={async () => {
-                        if (previousEvolutionSlot === null) {
-                          return;
-                        }
-
-                        const didMove = await runSelectedPokemonStructuralMutation(
-                          'evolution',
-                          () =>
-                            onUpdatePokemonEvolution(
-                              pokemon.personalId,
-                              'moveUp',
-                              selectedEvolution.slot,
-                              null,
-                              null,
-                              null,
-                              null,
-                              null
-                            )
-                        );
-                        if (didMove) {
-                          onSelectPokemonEvolution(previousEvolutionSlot);
-                        }
-                      }}
+                      onClick={() => moveEvolutionRow(-1)}
                       title="Move evolution row up"
                       type="button"
                     >
@@ -27601,29 +27552,7 @@ function SelectedPokemonPanel({
                       disabled={
                         !canModifyEvolutionStructure || nextEvolutionSlot === null
                       }
-                      onClick={async () => {
-                        if (nextEvolutionSlot === null) {
-                          return;
-                        }
-
-                        const didMove = await runSelectedPokemonStructuralMutation(
-                          'evolution',
-                          () =>
-                            onUpdatePokemonEvolution(
-                              pokemon.personalId,
-                              'moveDown',
-                              selectedEvolution.slot,
-                              null,
-                              null,
-                              null,
-                              null,
-                              null
-                            )
-                        );
-                        if (didMove) {
-                          onSelectPokemonEvolution(nextEvolutionSlot);
-                        }
-                      }}
+                      onClick={() => moveEvolutionRow(1)}
                       title="Move evolution row down"
                       type="button"
                     >
@@ -27633,22 +27562,16 @@ function SelectedPokemonPanel({
                       aria-label="Remove evolution row"
                       className="secondary-button icon-button danger-icon-button"
                       disabled={!canModifyEvolutionStructure}
-                      onClick={() =>
-                        void runSelectedPokemonStructuralMutation(
-                          'evolution',
-                          () =>
-                            onUpdatePokemonEvolution(
-                              pokemon.personalId,
-                              'remove',
-                              selectedEvolution.slot,
-                              null,
-                              null,
-                              null,
-                              null,
-                              null
-                            )
-                        )
-                      }
+                      onClick={() => {
+                        if (!canModifyEvolutionStructure) return;
+                        setEvolutionDraftsByPokemonId(current => {
+                          const drafts = { ...(current[pokemon.personalId] ?? {}) };
+                          if (drafts[selectedEvolution.slot]?.action === 'add') delete drafts[selectedEvolution.slot];
+                          else drafts[selectedEvolution.slot] = { ...createPokemonEvolutionDraftFields(selectedEvolution), action: 'remove' };
+                          return replaceEvolutionDraftRecord(current, pokemon.personalId, orderEvolutionDraftRows(sourceEvolutionRows, drafts,
+                            orderedEvolutions.filter(row => row.slot !== selectedEvolution.slot).map(row => row.slot)));
+                        });
+                      }}
                       title="Remove evolution row"
                       type="button"
                     >
@@ -27801,32 +27724,18 @@ function SelectedPokemonPanel({
                   aria-label="Add evolution row"
                   className="secondary-button learnset-add-button"
                   disabled={!canAddEvolution}
-                  onClick={async () => {
-                    const submittedDraftSignature =
-                      newEvolutionCreationDraftSignature;
-                    const didAdd = await runSelectedPokemonSourceMutation(() =>
-                      onUpdatePokemonEvolution(
-                        pokemon.personalId,
-                        'add',
-                        null,
-                        parsedNewEvolutionMethod,
-                        parsedNewEvolutionArgument,
-                        parsedNewEvolutionSpecies,
-                        parsedNewEvolutionForm,
-                        parsedNewEvolutionLevel
-                      )
-                    );
-                    if (
-                      didAdd &&
-                      newEvolutionCreationDraftSignatureRef.current ===
-                        submittedDraftSignature
-                    ) {
-                      setNewEvolutionMethodDraft('');
-                      setNewEvolutionArgumentDraft('0');
-                      setNewEvolutionSpeciesDraft('');
-                      setNewEvolutionFormDraft('0');
-                      setNewEvolutionLevelDraft('');
-                    }
+                  onClick={() => {
+                    if (!canAddEvolution) return;
+                    const slot = Math.max(-1, ...sourceEvolutionRows.map(row => row.slot), ...Object.keys(evolutionDraftsBySlot).map(Number)) + 1;
+                    setEvolutionDraftsByPokemonId(current => {
+                      const drafts = { ...(current[pokemon.personalId] ?? {}), [slot]: { ...newEvolutionCreationDraft, action: 'add' as const } };
+                      return replaceEvolutionDraftRecord(current, pokemon.personalId, orderEvolutionDraftRows(sourceEvolutionRows, drafts,
+                        [...orderedEvolutions.map(row => row.slot), slot]));
+                    });
+                    onSelectPokemonEvolution(slot);
+                    setNewEvolutionDraftsByPokemonId(current => {
+                      const next = { ...current }; delete next[pokemon.personalId]; return next;
+                    });
                   }}
                   type="button"
                 >
@@ -59135,13 +59044,7 @@ function createEvolutionFormOptions(
 function createPokemonEvolutionDraftFields(
   evolution: PokemonEvolutionRecord
 ): PokemonEvolutionDraftFields {
-  return {
-    argument: evolution.argument.toString(),
-    form: evolution.form.toString(),
-    level: evolution.level.toString(),
-    method: evolution.method.toString(),
-    species: evolution.species.toString()
-  };
+  return evolutionDraftFields(evolution);
 }
 
 function pokemonEvolutionDraftEqualsRecord(
@@ -59161,13 +59064,7 @@ function pokemonEvolutionDraftFieldsEqual(
   left: PokemonEvolutionDraftFields,
   right: PokemonEvolutionDraftFields
 ) {
-  return (
-    left.argument === right.argument &&
-    left.form === right.form &&
-    left.level === right.level &&
-    left.method === right.method &&
-    left.species === right.species
-  );
+  return evolutionDraftsEqual(left, right);
 }
 
 function createPokemonLearnsetDraftFields(move: PokemonLearnsetMove): PokemonLearnsetDraftFields {
@@ -59411,7 +59308,8 @@ function reviewPokemonEvolutionDrafts(
   for (const [slotText, draft] of Object.entries(draftsBySlot)) {
     const slot = Number.parseInt(slotText, 10);
     const evolution = pokemon.evolutions.find((candidate) => candidate.slot === slot);
-    if (!evolution || pokemonEvolutionDraftEqualsRecord(draft, evolution)) {
+    const adding = draft.action === 'add';
+    if (draft.action === 'remove' || (!adding && (!evolution || pokemonEvolutionDraftEqualsRecord(draft, evolution)))) {
       continue;
     }
 
@@ -59436,11 +59334,11 @@ function reviewPokemonEvolutionDrafts(
     );
     const form = parseEditableIntegerDraft(draft.form, formOptions);
     const level = parseEditableIntegerDraft(draft.level);
-    const methodChanged = method !== evolution.method;
-    const argumentChanged = argument !== evolution.argument;
-    const speciesChanged = species !== evolution.species;
-    const formChanged = form !== evolution.form;
-    const levelChanged = level !== evolution.level;
+    const methodChanged = adding || method !== evolution?.method;
+    const argumentChanged = adding || argument !== evolution?.argument;
+    const speciesChanged = adding || species !== evolution?.species;
+    const formChanged = adding || form !== evolution?.form;
+    const levelChanged = adding || level !== evolution?.level;
 
     if (
       method === null ||
@@ -59476,7 +59374,7 @@ function reviewPokemonEvolutionDrafts(
     }
 
     changes.push({
-      action: 'upsert',
+      action: adding ? 'add' : 'upsert',
       argument,
       form,
       level,
@@ -59486,7 +59384,8 @@ function reviewPokemonEvolutionDrafts(
     });
   }
 
-  return { changes, invalidCount };
+  if (gameFamily === 'swsh' && projectEvolutionDraftRows(pokemon.evolutions, draftsBySlot).length > swshPokemonMaximumEvolutionRows) invalidCount++;
+  return { changes: planEvolutionDraftStage(pokemon.evolutions, draftsBySlot, gameFamily === 'swsh', changes).changes, invalidCount };
 }
 
 function createPokemonSpeciesLabelMap(

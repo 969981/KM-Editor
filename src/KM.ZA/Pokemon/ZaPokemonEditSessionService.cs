@@ -5999,7 +5999,13 @@ internal sealed partial class ZaPokemonEditSessionService
                     ToUshort(operation.Form ?? 0));
                 if (targetSlot < evolutions.Count)
                 {
-                    evolutions[targetSlot] = row;
+                    var existing = evolutions[targetSlot];
+                    evolutions[targetSlot] = row with
+                    {
+                        Reserved3 = existing.Reserved3,
+                        Reserved4 = existing.Reserved4,
+                        Reserved5 = existing.Reserved5,
+                    };
                 }
                 else
                 {
