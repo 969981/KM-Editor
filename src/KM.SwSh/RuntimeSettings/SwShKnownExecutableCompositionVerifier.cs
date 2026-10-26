@@ -87,6 +87,7 @@ public static class SwShKnownExecutableCompositionVerifier
             if (!NormalizeSpecies(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeMegaItems(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeSoundMemory(retail, ref normalized, expectedGame, ref recognizedTransformation)
+                || !NormalizeTreeQuantity(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeAdventures(retail, ref normalized, expectedGame, baseAdventureArchive, currentAdventureArchive, ref recognizedTransformation)
                 || !NormalizeTrainers(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeObedience(retail, ref normalized, expectedGame, ref recognizedTransformation)
@@ -163,6 +164,16 @@ public static class SwShKnownExecutableCompositionVerifier
         if (state == KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.Kind.Original) return true;
         if (state != KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.Kind.Installed) return false;
         normalized = KM.SwSh.Restoration.SwShRestorationSoundMemoryPatcher.RestoreFromBase(retail, normalized, game);
+        recognizedTransformation = true;
+        return true;
+    }
+
+    private static bool NormalizeTreeQuantity(byte[] retail, ref byte[] normalized,
+        ProjectGame game, ref bool recognizedTransformation)
+    {
+        var current = KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Read(normalized, game);
+        if (current.Min == 1 && current.Max == 3) return true;
+        normalized = KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Apply(retail, normalized, game, 1, 3);
         recognizedTransformation = true;
         return true;
     }
