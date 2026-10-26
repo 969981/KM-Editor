@@ -101,7 +101,7 @@ internal static partial class SwShHeldItemChancePatcher
                 if (data.ContainsAnyExcept((byte)0)) throw new InvalidDataException("Held item chance storage is invalid.");
                 continue;
             }
-            if (!installed || ended || key <= previous || (key & 65535) is 0 or > 898 || key >> 16 > 255)
+            if (!installed || ended || key <= previous || !KM.SwSh.Restoration.SwShRestorationSpecies.IsSpecies((int)(key & 65535)) || key >> 16 > 255)
                 throw new InvalidDataException("Held item chance identities are invalid.");
             previous = key;
             var rates = data.Slice(4, 6).ToArray().Select(value => (int)value).ToArray();
@@ -120,7 +120,7 @@ internal static partial class SwShHeldItemChancePatcher
     {
         var layout = Layouts.Single(value => value.Game == game);
         var ordered = rows.OrderBy(row => row.Species | row.Form << 16).ToArray();
-        if (ordered.Length > layout.Data.Length || ordered.Any(row => row.Species is < 1 or > 898 || row.Form is < 0 or > 255 || !AreValid(row.Rates))
+        if (ordered.Length > layout.Data.Length || ordered.Any(row => !KM.SwSh.Restoration.SwShRestorationSpecies.IsSpecies(row.Species) || row.Form is < 0 or > 255 || !AreValid(row.Rates))
             || ordered.Select(row => (row.Species, row.Form)).Distinct().Count() != ordered.Length)
             throw new InvalidDataException("Choose supported Pokemon and valid held item percentages.");
         var reservations = SwShExeFsReservedRegionLedger.MainTextReservationsForOtherOwners(game!.Value, SwShExeFsReservedRegionLedger.OwnerHeldItemChance);

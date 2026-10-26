@@ -7,7 +7,7 @@ using KM.Formats.SwSh;
 
 namespace KM.SwSh.Restoration;
 
-public enum SwShRestorationWriter { File, Personal, Learnset, Icons, ModelCatalog, Camp, Voices, Items, ItemText }
+public enum SwShRestorationWriter { File, Personal, Learnset, Icons, ModelCatalog, Camp, Voices, Items, ItemText, SpeciesText }
 public sealed record SwShRestorationContribution(string Path, SwShRestorationWriter Writer, string Key, byte[]? Before, byte[] After);
 public sealed record SwShRestorationComposition(IReadOnlyDictionary<string, byte[]?> Files,
     IReadOnlyList<SwShRestorationContribution> RetainedCustomizations);
@@ -109,6 +109,31 @@ public static class SwShRestorationComposer
             if (current is null) throw new InvalidDataException($"Shared restoration source is missing: {group.Key}");
             switch (kind)
             {
+                case SwShRestorationWriter.SpeciesText:
+                {
+                    var table = SwShGameTextFile.Parse(current, 2048); var lines = table.Lines.ToList(); var minimum = lines.Count;
+                    foreach (var item in items)
+                    {
+                        var id = Number(item.Key);
+                        var owned = JsonSerializer.Deserialize<SwShRestoredSpeciesName>(item.After)
+                            ?? throw new InvalidDataException("Restored species name is missing.");
+                        if (id != SwShRestorationSpecies.Annihilape || owned.OriginalLineCount != 899 || item.Before is not null
+                            || string.IsNullOrWhiteSpace(owned.Line.Text))
+                            throw new InvalidDataException("Restored species text identity is invalid.");
+                        SwShGameTextFile.ValidateText(owned.Line.Text); minimum = Math.Min(minimum, owned.OriginalLineCount);
+                        var actual = id < lines.Count && lines[id] != new SwShGameTextLine("", 0)
+                            ? JsonSerializer.SerializeToUtf8Bytes(owned with { Line = lines[id] }) : null;
+                        var chosen = Select(item, actual);
+                        if (chosen is not null)
+                        {
+                            while (lines.Count <= id) lines.Add(new("", 0));
+                            lines[id] = JsonSerializer.Deserialize<SwShRestoredSpeciesName>(chosen)!.Line;
+                        }
+                        else if (id < lines.Count) lines[id] = new("", 0);
+                    }
+                    if (!enable) while (lines.Count > minimum && lines[^1] == new SwShGameTextLine("", 0)) lines.RemoveAt(lines.Count - 1);
+                    outputs.Add(group.Key, captureOnly ? current : table.WriteStructural(lines, GameTextNullLineEncoding.PayloadCountTwo)); break;
+                }
                 case SwShRestorationWriter.Items:
                 {
                     var table = SwShItemTable.Parse(current, 4096);
@@ -293,6 +318,8 @@ public static class SwShRestorationComposer
         if (expected is not null && path != expected) throw new InvalidDataException("Restoration writer cannot address this output.");
         if (kind == SwShRestorationWriter.ItemText && !SwShRestorationMegaItems.IsTextPath(path))
             throw new InvalidDataException("Restoration text target is not registered.");
+        if (kind == SwShRestorationWriter.SpeciesText && !SwShRestorationSpeciesText.IsPath(path))
+            throw new InvalidDataException("Restoration species text target is not registered.");
         if (kind == SwShRestorationWriter.File && !(path.StartsWith("romfs/bin/archive/pokemon/", StringComparison.Ordinal)
             || path.StartsWith("romfs/bin/archive/gpokemon/", StringComparison.Ordinal) || path.StartsWith("romfs/bin/appli/icon_pokemon/poke_icon_", StringComparison.Ordinal)
             || path.StartsWith("romfs/bin/pml/evolution/evo_", StringComparison.Ordinal) || path.StartsWith("romfs/bin/pml/tamagowaza/tamagowaza_", StringComparison.Ordinal)

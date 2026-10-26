@@ -14,6 +14,7 @@ public sealed partial class ZaSwShRestorationPreparationService
     {
         internal IReadOnlyList<SwShRestorationContribution> Voices(IReadOnlyList<KM.SwSh.Pokemon.SwShPokemonIdentity> identities)
         {
+            if (identities.All(i => Profile(i).PlaAssets)) return PlaVoices(identities);
             var audioRoot = Path.Combine(donorRoot, "audio", "wwise", "bin");
             var directories = Directory.EnumerateDirectories(audioRoot).Take(33).ToArray();
             if (directories.Length > 32) throw new InvalidDataException("Donor audio directory count exceeds its budget.");

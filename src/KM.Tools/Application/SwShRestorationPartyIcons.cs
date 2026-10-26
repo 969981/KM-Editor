@@ -10,6 +10,10 @@ internal static class SwShRestorationPartyIcons
     {
         // Frames use native resource IDs, which are not always National Dex IDs.
         [6] = ("charizard", "0006_00s"),
+        [46] = ("paras", "0007_00s"), [47] = ("parasect", "0007_00s"),
+        [48] = ("venonat", "0007_00s"), [49] = ("venomoth", "0007_00s"),
+        [56] = ("mankey", "0007_00s"), [57] = ("primeape", "0007_00s"),
+        [979] = ("annihilape", "0007_00s"),
         [152] = ("chikorita", "0001_00s"), [153] = ("bayleef", "0002_00s"), [154] = ("meganium", "0003_00m"),
         [155] = ("cyndaquil", "0004_00s"), [156] = ("quilava", "0005_00s"), [157] = ("typhlosion", "0006_00s"),
         [158] = ("totodile", "0007_00s"), [159] = ("croconaw", "0008_00s"), [160] = ("feraligatr", "0009_00s"),

@@ -8,12 +8,13 @@ namespace KM.SwSh.Restoration;
 /// <summary>Maps registered form identities and derives their shared personal headers.</summary>
 public static class SwShRestorationForms
 {
-    public static int PersonalRow(SwShPokemonIdentity identity) => identity.Form == 0 ? identity.Species
+    public static int PersonalRow(SwShPokemonIdentity identity) => identity.Form == 0 ? SwShRestorationSpecies.BaseRow(identity.Species)
         : SwShRestorationDefinitions.All.Any(d => d.Identities.Contains(identity))
             && SwShRestorationFormSlots.PlannedPersonalRow(identity.Species, identity.Form) is { } row ? row
         : throw new InvalidDataException("Restoration form has no registered personal reservation.");
 
     internal static bool IsRegisteredRow(int row) => row is >= 1 and <= SwShEffectivePokemonCatalog.MaximumSpecies
+        || row == SwShRestorationSpecies.AnnihilapeRow
         || SwShRestorationDefinitions.All.SelectMany(d => d.Identities).Any(i => i.Form != 0 && PersonalRow(i) == row);
 
     internal static byte[] NormalizeHeaders(byte[] native, byte[] current, SwShRestorationState state)

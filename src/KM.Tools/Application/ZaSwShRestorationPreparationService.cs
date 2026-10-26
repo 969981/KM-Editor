@@ -89,7 +89,7 @@ public sealed partial class ZaSwShRestorationPreparationService
         }
         internal IReadOnlyList<SwShRestorationContribution> MegaItem(SwShRestorationMegaItem stone) =>
             SwShRestorationMegaItemPreparation.Create(stone, Native, Donor,
-                path => System.IO.File.Exists(Path.Combine(target.BaseRomFsPath!, path)), token);
+                path => System.IO.File.Exists(Path.Combine(target.BaseRomFsPath!, path)), token, textureEncoding);
         private void Retain(byte[] bytes)
         {
             retainedBytes += bytes.Length;

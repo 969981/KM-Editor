@@ -83,6 +83,22 @@ public sealed class ModelTextureDocument
         return PixelBytes(Decode(levels[mip], original));
     }
 
+    /// <summary>Replaces complete encoded mip blocks without changing their checked container layout.</summary>
+    public byte[] WithMipBlocks(IReadOnlyList<byte[]> blocks)
+    {
+        if (blocks.Count != levels.Length) throw new InvalidDataException("Every encoded mip must be supplied.");
+        var output = original.ToArray();
+        for (var mip = 0; mip < levels.Length; mip++)
+        {
+            var level = levels[mip]; var columns = (level.Width + blockSize - 1) / blockSize; var rows = (level.Height + blockSize - 1) / blockSize;
+            var stride = checked(columns * blockBytes);
+            if (blocks[mip].Length != checked(stride * rows)) throw new InvalidDataException("Encoded mip dimensions are invalid.");
+            for (var y = 0; y < rows; y++) for (var x = 0; x < stride; x++)
+                output[Address(level, x, y, stride, rows)] = blocks[mip][y * stride + x];
+        }
+        return output;
+    }
+
     /// <summary>Replaces explicitly authored mip images without changing the container layout.</summary>
     public byte[] EncodeMipImages(IReadOnlyList<byte[]> rgbaLevels, CancellationToken cancellationToken = default,
         ModelTextureMipCache? encodingCache = null)
@@ -299,7 +315,8 @@ public sealed class ModelTextureDocument
                             encoder.OutputOptions.Quality = CompressionQuality.BestQuality;
                             Consider(encoder.EncodeBlock(block.AsSpan()));
                         }
-                        if (double.IsPositiveInfinity(bestError)) throw new InvalidDataException("Texture encoding could not preserve transparency.");
+                        if (double.IsPositiveInfinity(bestError)) throw new InvalidDataException(
+                            $"Texture encoding could not preserve transparency at {level.Width} x {level.Height}, block {bx}, {by}.");
                     }
                 }
                 if (encoded.Length != blockBytes) throw new InvalidDataException("Texture block length changed.");

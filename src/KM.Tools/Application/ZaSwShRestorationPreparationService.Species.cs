@@ -25,10 +25,14 @@ public sealed partial class ZaSwShRestorationPreparationService
         float BattleHeight, float FieldHeight, string TextureSuffix, bool SourceFraming = false, bool MeshVisibility = false, int FemalePercent = 50, byte GenderThreshold = 127, bool SeparateFemale = false, bool IdleFraming = false, bool MatchNativeGiantHeight = false,
         System.Numerics.Vector3? MouthPosition = null, float? MealVerticalOffset = null, bool NativeFlames = false, string? EmissionMaterial = null, string? ResourceStem = null, bool PairedFlames = false, bool LayeredEyes = false,
         IReadOnlyDictionary<string, System.Numerics.Vector2>? EyeAtlasOffsets = null,
-        string[]? FlameMaterials = null, string? OutputStem = null, bool AirborneBattle = false);
+        string[]? FlameMaterials = null, string? OutputStem = null, bool AirborneBattle = false, bool PlaAssets = false);
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [46] = new(98, 46, 57, 30, 30, "_body_alb", MeshVisibility: true, IdleFraming: true, PlaAssets: true),
+        [47] = new(558, 46, 142, 100, 100, "_body_a_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, PlaAssets: true),
+        [56] = new(236, 56, 61, 50, 50, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true),
+        [57] = new(766, 56, 159, 100, 100, "_body_a_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true),
         [650] = new(7, 650, 63, 40, 40, "_body_a_alb", SourceFraming: true, MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31, ResourceStem: "pm0720_00_00"),
         [651] = new(8, 650, 142, 70, 70, "_body_a_alb", SourceFraming: true, MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31, ResourceStem: "pm0721_00_00"),
         [652] = new(9, 650, 239, 160, 160, "_body_a_alb", MeshVisibility: true, FemalePercent: 12, GenderThreshold: 31, IdleFraming: true, ResourceStem: "pm0722_00_00"),

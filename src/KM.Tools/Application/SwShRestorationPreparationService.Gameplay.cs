@@ -21,6 +21,8 @@ public sealed partial class SwShRestorationPreparationService
                 && source.U16(at + 4) == species && source.U16(at + 2) == identity.Form).ToArray();
             if (candidates.Length != 1) throw new InvalidDataException("Source Pokemon gameplay identity is missing or ambiguous.");
             var table = candidates[0]; var detail = source.Field(table, 0);
+            if (profile.SourceSpecies is { } sourceId && source.U16(detail) != sourceId)
+                throw new InvalidDataException("The source development species identity changed.");
             int Scalar(int field, bool wide = false) => source.Field(table, field) is var at && at != 0 ? wide ? source.U16(at) : source.U8(at) : 0;
             int[] Moves(int field)
             {
@@ -28,6 +30,7 @@ public sealed partial class SwShRestorationPreparationService
                 return Enumerable.Range(0, count).Select(i => (int)source.U16(start + i * 2)).ToArray();
             }
             var nativePersonal = Native(SwShRestorationComposer.PersonalPath[6..]);
+            if (species == SwShRestorationSpecies.Annihilape) SwShRestorationSpecies.ValidateReservation(nativePersonal, nativePersonal);
             var personalTable = SwShPersonalTable.Parse(nativePersonal, 4096);
             if (identity.Form != 0) SwShRestorationFormSlots.Validate(nativePersonal, nativePersonal);
             if (personalId >= personalTable.Records.Count || personalTable.Records[personalId].IsPresentInGame)
@@ -88,6 +91,8 @@ public sealed partial class SwShRestorationPreparationService
             for (var i = 0; i < learned.Count; i++) { Put16(learnset, i * 4, learned[i].Move); Put16(learnset, i * 4 + 2, learned[i].Level); }
             var learnNative = Native(SwShRestorationComposer.LearnsetPath[6..]);
             if (learnNative.Length / 260 != personalTable.Records.Count || learnNative.Length % 260 != 0) throw new InvalidDataException("Target learnset and personal identities disagree.");
+            if (species == SwShRestorationSpecies.Annihilape && learnNative.AsSpan(personalId * 260, 260).ContainsAnyExcept((byte)255))
+                throw new InvalidDataException("The reserved new species learnset row is occupied in Base RomFS.");
             result.Add(new(SwShRestorationComposer.LearnsetPath, SwShRestorationWriter.Learnset, personalId.ToString(CultureInfo.InvariantCulture), learnNative.AsSpan(personalId * 260, 260).ToArray(), learnset));
             var (evolutionStart, evolutionCount) = source.Vector(table, 23, 16, 9); var evolution = new byte[72];
             for (var i = 0; i < evolutionCount; i++)

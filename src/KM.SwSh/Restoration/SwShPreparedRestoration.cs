@@ -103,6 +103,8 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
             SwShRestorationComposer.ValidatePath(item.Path, item.Writer);
             var valid = item.Writer switch
             {
+                SwShRestorationWriter.SpeciesText => definition.Identities.Contains(new(SwShRestorationSpecies.Annihilape, 0))
+                    && item.Key == SwShRestorationSpecies.Annihilape.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 SwShRestorationWriter.Items or SwShRestorationWriter.ItemText =>
                     stones.Any(stone => item.Key == stone.ItemId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 SwShRestorationWriter.Personal or SwShRestorationWriter.Learnset =>

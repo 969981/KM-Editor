@@ -260,12 +260,33 @@ public sealed class SwShRestorationService
             Current(SwShRestorationComposer.PersonalPath)!, SwShRestorationForms.EnabledForms(state));
         if (needsSoundMemory) AddSoundMemory(paths, outputs, sources);
         AddMegaItemProtection(paths, state, outputs, sources);
+        AddSpeciesSupport(paths, state, outputs, sources);
         var storedState = SwShRestorationStateStore.Store(paths, state); using (storedState.Lease) { }
         if (!outputs.ContainsKey(SwShRestorationComposer.PersonalPath)) outputs.Add(SwShRestorationComposer.PersonalPath, Current(SwShRestorationComposer.PersonalPath)
             ?? throw new InvalidDataException("Restoration state requires a personal data anchor."));
         return new(outputs, storedState.Hash, snapshot.Hash, state, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(),
             removed.Select(i => i.Species).Distinct().Order().ToArray())
             { RemovedIdentities = removed.OrderBy(i => i.Species).ThenBy(i => i.Form).ToArray() };
+    }
+
+    private static void AddSpeciesSupport(ProjectPaths paths, SwShRestorationState state,
+        IDictionary<string, byte[]?> outputs, ISet<ProjectFileReference> sources)
+    {
+        if (!SwShRestorationDependencies.Enabled(state).Contains(new(SwShRestorationSpecies.Annihilape, 0))) return;
+        if (string.IsNullOrWhiteSpace(paths.BaseExeFsPath))
+            throw new InvalidDataException("Select the game's Base ExeFS folder to add species 979 support.");
+        var nativePersonal = BoundedRead(Path.Combine(paths.BaseRomFsPath!, SwShRestorationComposer.PersonalPath[6..]));
+        sources.Add(new(ProjectFileLayer.Base, SwShRestorationComposer.PersonalPath));
+        var personal = outputs.TryGetValue(SwShRestorationComposer.PersonalPath, out var pendingPersonal) && pendingPersonal is not null
+            ? pendingPersonal : SwShEffectivePokemonCatalog.Read(paths, SwShRestorationComposer.PersonalPath, sources: sources);
+        SwShRestorationSpecies.ValidateReservation(nativePersonal, personal);
+        const string relative = "exefs/main";
+        var baseline = BoundedRead(Path.Combine(paths.BaseExeFsPath, "main")); sources.Add(new(ProjectFileLayer.Base, relative));
+        var current = baseline; var output = Output(paths, relative, includeExecutable: true);
+        if (outputs.TryGetValue(relative, out var pending) && pending is not null) current = pending;
+        else if (System.IO.File.Exists(output)) { current = BoundedRead(output); sources.Add(new(ProjectFileLayer.Layered, relative)); }
+        var patched = SwShRestorationSpeciesPatcher.Apply(baseline, current, paths.SelectedGame!.Value);
+        if (!patched.AsSpan().SequenceEqual(current)) outputs[relative] = patched;
     }
 
     private static void AddMegaItemProtection(ProjectPaths paths, SwShRestorationState state,

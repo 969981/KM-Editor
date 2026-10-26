@@ -92,11 +92,13 @@ internal static class SwShSpeciesAvailability
 
     internal static IEnumerable<int> PresentForms(IReadOnlyList<SwShPersonalRecord> records, int species, int maximumForm)
     {
-        if (species is <= 0 or > SwShEffectivePokemonCatalog.MaximumSpecies || species >= records.Count) yield break;
-        var main = records[species];
+        if (!KM.SwSh.Restoration.SwShRestorationSpecies.IsSpecies(species)) yield break;
+        var baseRow = KM.SwSh.Restoration.SwShRestorationSpecies.BaseRow(species);
+        if (baseRow >= records.Count) yield break;
+        var main = records[baseRow];
         for (var form = 0; form < Math.Max(1, main.FormCount) && form <= maximumForm; form++)
         {
-            var row = form == 0 || main.FormStatsIndex == 0 ? species : main.FormStatsIndex + form - 1;
+            var row = form == 0 || main.FormStatsIndex == 0 ? baseRow : main.FormStatsIndex + form - 1;
             if (row >= 0 && row < records.Count && records[row].IsPresentInGame) yield return form;
         }
     }

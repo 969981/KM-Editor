@@ -33,7 +33,7 @@ public sealed record PreviewTexture(int Width, int Height, uint Format, byte[] B
         }
         return texture with { Mips = mips.ToArray() };
     }
-    private static PreviewTexture ReadLevel(byte[] bytes, int level)
+    internal static PreviewTexture ReadLevel(byte[] bytes, int level)
     {
         var data = new ModelBuffer(bytes);
         if (!data.Slice(0, 4).SequenceEqual("BNTX"u8) || data.U16(12) != 0xfeff || data.U32(36) != 1)

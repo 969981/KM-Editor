@@ -12,7 +12,10 @@ public sealed partial class SwShRestorationPreparationService
         bool CornealEyes = false, float? GiantScale = null, int AnimationOffset = 0,
         IReadOnlyDictionary<string, float>? CornealNormalHeights = null,
         IReadOnlyDictionary<string, System.Numerics.Vector2>? NormalUvScales = null, float? GiantVerticalOffset = null, string? SourceStem = null, int HatchedForm = 0,
-        IReadOnlyDictionary<string, int>? NormalUvVerticalTiles = null, int? SourceVoiceForm = null, bool LayerEmission = false);
+        IReadOnlyDictionary<string, int>? NormalUvVerticalTiles = null, int? SourceVoiceForm = null, bool LayerEmission = false,
+        bool ScalarEyes = false, IReadOnlyDictionary<string, string>? MotionOverrides = null, bool AuthoredAlpha = false,
+        int? SourceSpecies = null, bool EmptyMouth = false, bool TransparentEyes = false,
+        IReadOnlyDictionary<string, System.Numerics.Vector2>? StaticUvScales = null);
 
     private static readonly IReadOnlyDictionary<SwShPokemonIdentity, SpeciesProfile> FormProfiles = new Dictionary<SwShPokemonIdentity, SpeciesProfile>
     {
@@ -36,6 +39,33 @@ public sealed partial class SwShRestorationPreparationService
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [48] = new(595, 48, 61, 50, 127, 100, 100, AuthoredMaterials: true, FramingTemplate: 596, MeshVisibility: true,
+            CornealEyes: true, ScalarEyes: true, BattleIdle: "00000", MotionOverrides: new Dictionary<string, string>
+            { ["ba10_waitB01"] = "00000", ["kw32_happyB01"] = "00550", ["kw35_playA01"] = "00550", ["mouth01"] = "00000" }, EmptyMouth: true),
+        [49] = new(12, 48, 158, 50, 127, 100, 150, AuthoredMaterials: true, MeshVisibility: true,
+            AnimationOffset: 20000, BattleIdle: "00000", GiantVerticalOffset: 0, AuthoredAlpha: true, TransparentEyes: true,
+            StaticUvScales: new Dictionary<string, System.Numerics.Vector2>
+            {
+                ["pm0049_00_00_l_eye_a_mesh_shape"] = new(1, 2),
+                ["pm0049_00_00_r_eye_a_mesh_shape"] = new(1, 2),
+                ["pm0049_00_00_l_eye_b_mesh_shape"] = new(4, 2),
+                ["pm0049_00_00_r_eye_b_mesh_shape"] = new(4, 2),
+                ["pm0049_00_00_l_hghtlight_mesh_shape"] = new(4, 8),
+                ["pm0049_00_00_r_hghtlight_mesh_shape"] = new(4, 8),
+            }),
+        [979] = new(766, 56, 268, 50, 127, 150, 120, AuthoredMaterials: true, MeshVisibility: true,
+            SourceStem: "pm1114_00_00", SourceSpecies: 1010, CornealEyes: true, EmptyMouth: true,
+            MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" },
+            NormalUvScales: new Dictionary<string, System.Numerics.Vector2>
+            {
+                ["pm1114_00_00_ring_mesh_shape"] = new(1, 2),
+                ["pm1114_00_00_foot_mesh_shape"] = new(1, 2),
+            },
+            NormalUvVerticalTiles: new Dictionary<string, int>
+            {
+                ["pm1114_00_00_ring_mesh_shape"] = 1,
+                ["pm1114_00_00_foot_mesh_shape"] = 1,
+            }),
         [74] = new(109, 74, 60, 50, 127, 50, 40, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, AnimationOffset: 20000, CornealEyes: true,
             CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .05f }, GiantVerticalOffset: 0),
         [75] = new(525, 74, 137, 50, 127, 100, 100, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),

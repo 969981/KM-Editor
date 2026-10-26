@@ -22,7 +22,8 @@ public sealed partial class SwShRestorationPreparationService
             var files = composition.Files;
             var speciesCount = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count;
             var extraPalettes = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count(i => Profile(i).CompactResources);
-            if (files.Count != 6 + 5 * speciesCount + extraPalettes || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
+            var names = prepared.Contributions.Where(c => c.Writer == SwShRestorationWriter.SpeciesText).Select(c => c.Path).Distinct().Count();
+            if (files.Count != 6 + 5 * speciesCount + extraPalettes + names || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
             var catalog = new SwShPokemonResourceCatalog(files[SwShRestorationComposer.CatalogPath]!);
             var personal = SwShPersonalTable.Parse(SwShRestorationForms.ApplyHeaders(files[SwShRestorationComposer.PersonalPath]!,
                 SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities), 4096);

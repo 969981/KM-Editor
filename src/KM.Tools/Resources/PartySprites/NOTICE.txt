@@ -3,9 +3,17 @@ the project's contributors:
 https://github.com/msikma/pokesprite
 https://github.com/msikma/pokesprite/blob/master/contributors.md
 
-The PNG files are unchanged regular sprites from pokemon-gen8 at revision
+The PNG files other than Annihilape are unchanged regular sprites from pokemon-gen8 at revision
 c5aaa610ff2acdf7fd8e2dccd181bca8be9fcb3e. The original sprite extraction is credited
 upstream to Zhorken and Kaphotics. Full contributor credits are linked above.
+
+Annihilape uses the Gen 9 miniature contributed to the PokeSprite collection
+by koenigderluegner, at revision 5f0c10b3baa18e1755d586aa1bfd61125df59cc1:
+https://github.com/koenigderluegner/pokesprite/blob/5f0c10b3baa18e1755d586aa1bfd61125df59cc1/pokemon-gen8/regular/annihilape.png
+https://github.com/koenigderluegner/pokesprite/blob/5f0c10b3baa18e1755d586aa1bfd61125df59cc1/contributors.md
+Its 68 by 68 source canvas is adapted to 68 by 56 by removing twelve fully
+transparent top rows. All artwork pixels, colors, and horizontal padding are
+unchanged.
 
 Artwork copyright: Nintendo/Creatures Inc./GAME FREAK Inc.
 These images are not covered by KM Editor's GPL license or by the MIT license
@@ -13,4 +21,5 @@ that PokeSprite applies to its programming code. No PokeSprite code is included.
 
 KM Editor converts the 68 by 56 artwork to the native 136 by 112 party icon
 canvas by repeating each source pixel twice on both axes. The source images
-retain their original padding and are not animated.
+retain their original padding except for the Annihilape canvas adjustment
+described above and are not animated.

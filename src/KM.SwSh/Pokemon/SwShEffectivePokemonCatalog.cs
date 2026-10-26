@@ -94,6 +94,8 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
                 foreach (var identity in SwShRestorationDefinitions.Get(selection.DefinitionId).Identities) managed[identity] = complete;
             }
             var rows = Identities(current); var nativeRows = Identities(native).ToDictionary(e => e.Identity);
+            var extendedSupport = current.Count <= SwShRestorationSpecies.AnnihilapeRow
+                || !current[SwShRestorationSpecies.AnnihilapeRow].IsPresentInGame || HasSpeciesSupport();
             var entries = rows.Select(row =>
             {
                 var present = row.Personal.IsPresentInGame;
@@ -104,13 +106,32 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
                 var complete = origin == SwShPokemonOrigin.Native || present
                     && (!managed.TryGetValue(row.Identity, out var ready) || ready)
                     && ModelsComplete(paths, modelCatalog, row.Identity, ReadResource);
-                if (present && complete && models.Contains(row.Identity)) capabilities |= SwShPokemonCapability.Model | SwShPokemonCapability.Assignment;
+                if (present && complete && models.Contains(row.Identity)
+                    && (row.Identity.Species != SwShRestorationSpecies.Annihilape || extendedSupport))
+                    capabilities |= SwShPokemonCapability.Model | SwShPokemonCapability.Assignment;
                 if ((capabilities & SwShPokemonCapability.Assignment) != 0 && !row.Personal.CanNotDynamax) capabilities |= SwShPokemonCapability.Dynamax;
                 return row with { Origin = origin, Capabilities = capabilities };
             }).ToArray();
             hash.AppendData(nativeBytes); hash.AppendData(currentBytes); hash.AppendData(catalogBytes);
             hash.AppendData(System.Text.Encoding.UTF8.GetBytes(state.Hash ?? ""));
             return new(Convert.ToHexStringLower(hash.GetHashAndReset()), entries, null) { Sources = sources.ToArray() };
+
+            bool HasSpeciesSupport()
+            {
+                const string relative = "exefs/main";
+                var file = Path.Combine(paths.OutputRootPath ?? "", "exefs", "main"); var layer = ProjectFileLayer.Layered;
+                if (!File.Exists(file))
+                {
+                    if (string.IsNullOrWhiteSpace(paths.BaseExeFsPath)) return false;
+                    file = Path.Combine(paths.BaseExeFsPath, "main"); layer = ProjectFileLayer.Base;
+                }
+                if (!File.Exists(file)) return false;
+                using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read);
+                if (stream.Length is < 1 or > 64L * 1024 * 1024) return false;
+                var bytes = new byte[checked((int)stream.Length)]; stream.ReadExactly(bytes);
+                sources.Add(new(layer, relative)); hash.AppendData(SHA256.HashData(bytes));
+                return SwShRestorationSpeciesPatcher.HasInstalledPatch(bytes);
+            }
         }
         catch (Exception exception) when (exception is InvalidDataException or IOException or UnauthorizedAccessException or ArgumentException or OverflowException
             or System.Text.Json.JsonException or KM.Core.Output.OutputCoordinatorException)
@@ -150,10 +171,12 @@ public sealed record SwShEffectivePokemonCatalog(string Revision, IReadOnlyList<
     public static IReadOnlyList<SwShEffectivePokemonEntry> Identities(IReadOnlyList<SwShPersonalRecord> rows)
     {
         var entries = new List<SwShEffectivePokemonEntry>(); var used = new HashSet<int>();
-        for (var species = 1; species <= MaximumSpecies && species < rows.Count; species++)
+        foreach (var species in SwShRestorationSpecies.BaseSpecies)
         {
-            var main = rows[species];
-            Add(species, 0, species);
+            var baseRow = SwShRestorationSpecies.BaseRow(species);
+            if (baseRow >= rows.Count) continue;
+            var main = rows[baseRow];
+            Add(species, 0, baseRow);
             if (main.FormStatsIndex == 0) continue;
             if (main.FormCount < 1 || main.FormStatsIndex <= MaximumSpecies || main.FormStatsIndex > rows.Count - (main.FormCount - 1))
                 throw new InvalidDataException("Pokemon form records point outside the personal table.");

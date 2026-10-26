@@ -1350,6 +1350,8 @@ public sealed class SwShPokemonWorkflowService
     {
         var owners = new Dictionary<int, PokemonFormOwner>();
         var ambiguousPersonalIds = new HashSet<int>();
+        if (records.Any(r => r.PersonalId == KM.SwSh.Restoration.SwShRestorationSpecies.AnnihilapeRow))
+            owners.Add(KM.SwSh.Restoration.SwShRestorationSpecies.AnnihilapeRow, new(KM.SwSh.Restoration.SwShRestorationSpecies.Annihilape, 0));
 
         foreach (var record in records)
         {
@@ -1503,7 +1505,9 @@ public sealed class SwShPokemonWorkflowService
         bool useSpriteName)
     {
         return pokemon
-            .Where(record => record.PersonalId == record.SpeciesId)
+            .Where(record => !string.Equals(record.FormLabel, "Unused", StringComparison.Ordinal))
+            .Where(record => record.PersonalId == record.SpeciesId || record.CanonicalForm == 0
+                && KM.SwSh.Restoration.SwShRestorationSpecies.SpeciesAtReservedRow(record.PersonalId) == record.SpeciesId)
             .GroupBy(record => record.SpeciesId)
             .ToDictionary(
                 group => group.Key,
@@ -1533,7 +1537,8 @@ public sealed class SwShPokemonWorkflowService
         IReadOnlyList<string> speciesNames,
         IReadOnlyDictionary<int, PokemonFormOwner> formOwners)
     {
-        if (personal.PersonalId >= speciesNames.Count && IsEmptyPersonalRecord(personal))
+        if ((personal.PersonalId >= speciesNames.Count || personal.PersonalId > SwShEffectivePokemonCatalog.MaximumSpecies)
+            && IsEmptyPersonalRecord(personal) && !formOwners.ContainsKey(personal.PersonalId))
         {
             return new PokemonDisplayIdentity(
                 personal.PersonalId,
@@ -1544,7 +1549,9 @@ public sealed class SwShPokemonWorkflowService
         if (formOwners.TryGetValue(personal.PersonalId, out var owner))
         {
             var formLabel = ResolveFormLabel(personal, owner);
-            var speciesName = GetIndexedName(owner.SpeciesId, speciesNames, "Pokemon");
+            var speciesName = owner.SpeciesId == KM.SwSh.Restoration.SwShRestorationSpecies.Annihilape
+                && (owner.SpeciesId >= speciesNames.Count || string.IsNullOrWhiteSpace(speciesNames[owner.SpeciesId]))
+                ? "Annihilape" : GetIndexedName(owner.SpeciesId, speciesNames, "Pokemon");
 
             return new PokemonDisplayIdentity(
                 owner.SpeciesId,

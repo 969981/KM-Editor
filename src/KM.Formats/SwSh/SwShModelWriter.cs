@@ -8,6 +8,7 @@ namespace KM.Formats.SwSh;
 public sealed record SwShMaterialBinding(string Name, int NativeMaterial, IReadOnlyDictionary<string, string> Textures)
 {
     public Vector2 NormalUvScale { get; init; } = Vector2.One;
+    public Vector4 ColorUvTransform { get; init; } = new(1, 1, 0, 0);
 }
 public sealed record SwShEffectLocator(string Name, string Parent, Vector3 Translation)
 {
@@ -138,7 +139,7 @@ public static class SwShModelWriter
     public static byte[] Configuration(byte[] nativeConfiguration, int species, SwShConvertedGeometry geometry,
         IReadOnlyList<string> meshNames, float battleHeight, float fieldHeight)
     {
-        if (species is < 1 or > 898 || meshNames.Count is < 1 or > 128 || battleHeight <= 0 || fieldHeight <= 0)
+        if (species is < 1 or > ushort.MaxValue || meshNames.Count is < 1 or > 128 || battleHeight <= 0 || fieldHeight <= 0)
             throw new InvalidDataException("Converted model configuration is invalid.");
         var source = new ModelBuffer(nativeConfiguration); var writer = new ModelTableBuilder();
         var values = Enumerable.Range(0, 30).Where(i => i is not (4 or 5 or 28 or 29) && source.Field(source.Root, i) != 0)
@@ -156,6 +157,16 @@ public static class SwShModelWriter
 
     private static int Material(ModelTableBuilder writer, ModelBuffer source, int original, SwShMaterialBinding binding, string[] names)
     {
+        var colorUv = binding.ColorUvTransform;
+        if (!float.IsFinite(colorUv.X + colorUv.Y + colorUv.Z + colorUv.W) || colorUv.X is <= 0 or > 8 || colorUv.Y is <= 0 or > 8
+            || MathF.Abs(colorUv.Z) > 8 || MathF.Abs(colorUv.W) > 8)
+            throw new InvalidDataException("Native color UV transform is unsupported.");
+        if (colorUv != new Vector4(1, 1, 0, 0))
+        {
+            var parameters = source.Tables(original, 13, 256).Select(p => source.Text(p, 0)).ToHashSet();
+            if (new[] { "ColorUVScaleU", "ColorUVScaleV", "ColorUVTranslateU", "ColorUVTranslateV" }.Any(p => !parameters.Contains(p)))
+                throw new InvalidDataException("Native color atlas transform parameters are missing.");
+        }
         if (binding.NormalUvScale.X is not (1 or 2) || binding.NormalUvScale.Y is not (1 or 2))
             throw new InvalidDataException("Native normal UV scale is unsupported.");
         if (binding.NormalUvScale != Vector2.One)
@@ -184,6 +195,11 @@ public static class SwShModelWriter
                 if (width == 4 && name == "NormalMapUVScaleU") value = ModelTableBuilder.Floats(binding.NormalUvScale.X);
                 if (width == 4 && name == "NormalMapUVScaleV") value = ModelTableBuilder.Floats(binding.NormalUvScale.Y);
                 if (width == 4 && name is "ColorBaseU" or "ColorBaseV" or "ColorUVTranslateU" or "ColorUVTranslateV") value = ModelTableBuilder.Floats(0);
+                if (width == 4 && name == "ColorUVScaleU") value = ModelTableBuilder.Floats(colorUv.X);
+                if (width == 4 && name == "ColorUVScaleV") value = ModelTableBuilder.Floats(colorUv.Y);
+                // Native shaders use scale * (uv - translation) + base.
+                if (width == 4 && name == "ColorUVTranslateU") value = ModelTableBuilder.Floats(colorUv.Z == 0 ? 0 : -colorUv.Z / colorUv.X);
+                if (width == 4 && name == "ColorUVTranslateV") value = ModelTableBuilder.Floats(colorUv.W == 0 ? 0 : -colorUv.W / colorUv.Y);
                 var item = writer.Table(2, new Dictionary<int, byte[]> { [1] = value }, new Dictionary<int, int> { [1] = Math.Max(4, width) });
                 writer.Pointer(slots[i], item); writer.Text(item, 0, name);
             }
