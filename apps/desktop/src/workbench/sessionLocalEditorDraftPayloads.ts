@@ -14,6 +14,8 @@ export type OrdinaryPokemonDraftPayload = {
       level: string;
       method: string;
       species: string;
+      action?: 'add' | 'remove';
+      position?: number;
     }
   >;
   fields: Record<string, string>;
