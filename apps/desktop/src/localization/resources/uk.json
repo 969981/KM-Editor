@@ -4686,6 +4686,9 @@
     "pla.field.baseExperience": "Базовий досвід"
   },
   "literals": {
+    "Always male": "Завжди самець",
+    "Always female": "Завжди самка",
+    "{male}% male / {female}% female": "{male}% самців / {female}% самок",
     "All Stats (move specific)": "Усі характеристики (залежить від прийому)",
     "PLA Data Cache": "Кеш даних PLA",
     "60FPS Patch found unsupported stadium audience animation data.": "Патч 60 FPS виявив непідтримувані дані анімації глядачів стадіону.",

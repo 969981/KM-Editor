@@ -4686,6 +4686,9 @@
     "pla.field.baseExperience": "Experiencia base"
   },
   "literals": {
+    "Always male": "Siempre macho",
+    "Always female": "Siempre hembra",
+    "{male}% male / {female}% female": "{male}% macho / {female}% hembra",
     "All Stats (move specific)": "Todas las estadísticas (según el movimiento)",
     "PLA Data Cache": "Caché de datos de PLA",
     "60FPS Patch found unsupported stadium audience animation data.": "El parche de 60 FPS encontró datos de animación del público del estadio no compatibles.",

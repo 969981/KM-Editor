@@ -4686,6 +4686,9 @@
     "pla.field.baseExperience": "基础经验值"
   },
   "literals": {
+    "Always male": "始终为雄性",
+    "Always female": "始终为雌性",
+    "{male}% male / {female}% female": "{male}% 雄性 / {female}% 雌性",
     "All Stats (move specific)": "所有能力值（招式专用）",
     "PLA Data Cache": "PLA 数据缓存",
     "60FPS Patch found unsupported stadium audience animation data.": "60 FPS 补丁发现了不支持的竞技场观众动画数据。",

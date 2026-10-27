@@ -1377,7 +1377,7 @@ internal sealed class ZaPokemonWorkflowService
         var evSpecialAttack = evYieldData?.Spa ?? 0;
         var evSpecialDefense = evYieldData?.Spd ?? 0;
         var evSpeed = evYieldData?.Spe ?? 0;
-        var genderRatio = genderData?.Ratio ?? 0;
+        var genderRatio = ZaPokemonGender.Read(genderData);
         var eggSpecies = eggHatchData?.Species ?? 0;
         var eggForm = eggHatchData?.Form ?? 0;
         var zaDexOrder = ZaPersonalLegacyRecovery.ResolveZADexOrder(
@@ -1462,7 +1462,7 @@ internal sealed class ZaPokemonWorkflowService
             entry.CatchRate,
             entry.EvoStage,
             genderRatio,
-            FormatGender(genderRatio),
+            ZaPokemonGender.Format(genderRatio),
             baseExperience,
             height,
             weight,
@@ -2058,12 +2058,12 @@ internal sealed class ZaPokemonWorkflowService
     {
         return
         [
-            new(0, "Always male or genderless"),
-            new(31, "87.5% male / 12.5% female"),
+            new(0, "Always male"),
+            new(31, "88% male / 12% female"),
             new(63, "75% male / 25% female"),
             new(127, "50% male / 50% female"),
             new(191, "25% male / 75% female"),
-            new(225, "12.5% male / 87.5% female"),
+            new(225, "11% male / 89% female"),
             new(254, "Always female"),
             new(255, "Genderless"),
         ];
@@ -2110,17 +2110,6 @@ internal sealed class ZaPokemonWorkflowService
             16 => "Dark",
             17 => "Fairy",
             _ => $"Type {type}",
-        };
-    }
-
-    private static string FormatGender(int ratio)
-    {
-        return ratio switch
-        {
-            0 => "Always male or genderless",
-            254 => "Always female",
-            255 => "Genderless",
-            _ => $"{ratio}/254 female",
         };
     }
 
