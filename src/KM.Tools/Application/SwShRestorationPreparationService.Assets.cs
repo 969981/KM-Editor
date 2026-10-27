@@ -72,9 +72,10 @@ public sealed partial class SwShRestorationPreparationService
                 nativeModel = SvSwShTransparentMaterial.Template(nativeModel, Member(transparentPack, "pm0577_00.gfbmdl"));
             }
             var emissionContracts = profile.LayerEmission ? SvSwShLayerEmission.Contracts(materialBytes, scene) : null;
-            var emissionNames = targetScene.Primitives.Select((p, i) => (p, i)).Where(p => emissionContracts?.ContainsKey(scene.Primitives[p.i].Material.Name) == true)
+            var emissionNames = targetScene.Primitives.Take(scene.Primitives.Count).Select((p, i) => (p, i)).Where(p => emissionContracts?.ContainsKey(scene.Primitives[p.i].Material.Name) == true)
                 .Select(p => p.p.Material.Name).ToHashSet(StringComparer.Ordinal);
-            var originalNames = targetScene.Primitives.Select((p, i) => (p.Material.Name, Original: scene.Primitives[i].Material.Name))
+            // Appended flame masks have no additional source primitive.
+            var originalNames = targetScene.Primitives.Take(scene.Primitives.Count).Select((p, i) => (p.Material.Name, Original: scene.Primitives[i].Material.Name))
                 .ToDictionary(p => p.Name, p => p.Original, StringComparer.Ordinal);
             var innerSections = profile.TransparentEyes ? scene.Primitives.Select((p, i) => (p, i))
                 .Where(pair => pair.p.Material.Name == "l_eye_b").Select(pair => pair.i).ToArray() : [];
@@ -251,6 +252,7 @@ public sealed partial class SwShRestorationPreparationService
                 members[animationFolder + stem + "_" + name + ".gfbanm"] = ConvertMotion(clip.Skeleton, clip.Decoded, expression == SwShExpressionCurve.None, expression);
             }
             Report("packing");
+            var battleEntry = SwShRestorationFraming.BattleEntry(members, modelFolder, animationFolder, stem);
             members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
             var globalLoop = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"),
                 materialNames.Where(n => n is not ("fire" or "fire_mask")).ToArray(),
@@ -285,12 +287,21 @@ public sealed partial class SwShRestorationPreparationService
                     : SwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones);
                 if (profile.LayerEmission) controller = SvSwShLayerEmission.Controller(controller, emissionNames);
                 if (group == "battle") controller = SwShAnimationWriter.BattleIdleController(controller);
+                if (group == "battle" && battleEntry) controller = SwShAnimationWriter.BattleEntryController(controller);
                 members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = profile.NativeFlames
                     ? SvSwShFlameAnimation.Controller(controller, flameBones.Select(b => aliases[b]).ToArray()) : controller;
             }
             var framingGeometry = profile.AuthoredMaterials ? SwShRestorationFraming.IdleBounds(members, modelFolder, animationFolder, stem, geometry!) : geometry!;
             members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(Member(framePack, frameStem + ".gfbpokecfg"), species, framingGeometry, materialNames,
                 profile.BattleHeight, profile.FieldHeight);
+            if (profile.SummaryFramingStem is { } summaryStem)
+            {
+                var summaryPack = SwShGfPackFile.Parse(Native($"bin/archive/pokemon/{summaryStem}.gfpak"));
+                var path = $"bin/pokemon/{stem}/{stem}.gfbpokecfg";
+                members[path] = SwShRestorationFraming.SummaryFields(members[path], Member(summaryPack, summaryStem + ".gfbpokecfg"));
+            }
+            var summaryPath = $"bin/pokemon/{stem}/{stem}.gfbpokecfg";
+            members[summaryPath] = SwShRestorationFraming.SummaryCorrection(members[summaryPath], definitionId);
             var result = new List<SwShRestorationContribution>();
             foreach (var rare in profile.CompactResources ? new[] { false, true } : new[] { false })
             {
@@ -318,7 +329,7 @@ public sealed partial class SwShRestorationPreparationService
                     : giantDonor.TryGetFileByName(name + extension, 32 * 1024 * 1024, out var shader)
                     ? shader : Member(giantFire ?? giantDonor, name + extension);
             result.Add(File($"bin/archive/gpokemon/{stem}.gfpak", SwShGfPackFile.CreateWithPaths(giantMembers).Write()));
-            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_{pokemon.Form:00}s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token, pokemon.Form, textureEncoding)));
+            result.Add(File(SwShRestorationComposer.IconPath(species, pokemon.Form)[6..], SwShRestorationPartyIcons.Create(species, Native, token, pokemon.Form, textureEncoding)));
             foreach (var shiny in new[] { false, true })
             {
                 var identity = new SwShPokemonResourceIdentity(species, pokemon.Form, 0, shiny);

@@ -16,7 +16,7 @@ internal static class SwShRestorationIconUpdate
             || customized.Game != next.Game || customized.DefinitionVersion != next.DefinitionVersion || customized.ConverterVersion != next.ConverterVersion)
             throw new InvalidDataException("Restoration updates require matching definitions and targets.");
         var icons = SwShRestorationDefinitions.Get(next.DefinitionId).Identities.Select(i =>
-            $"romfs/bin/appli/icon_pokemon/poke_icon_{i.Species:0000}_{i.Form:00}s_n.bntx").ToHashSet(StringComparer.Ordinal);
+            SwShRestorationComposer.IconPath(i.Species, i.Form)).ToHashSet(StringComparer.Ordinal);
         var old = previous.Contributions.ToDictionary(c => (c.Path, c.Key));
         var replacements = next.Contributions.ToDictionary(c => (c.Path, c.Key));
         if (old.Keys.Any(key => !replacements.ContainsKey(key))) throw new InvalidDataException("Restoration update removes resource ownership.");

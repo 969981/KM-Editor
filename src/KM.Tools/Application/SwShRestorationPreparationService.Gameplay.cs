@@ -74,7 +74,7 @@ public sealed partial class SwShRestorationPreparationService
             Compatibility(56, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TypeTutorCompatibilityGroupId));
             Compatibility(60, 16, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.TechnicalRecordCompatibilityGroupId));
             Compatibility(168, 4, SwShPokemonWorkflowService.GetDefaultCompatibilityMoveIds(SwShPokemonWorkflowService.ArmorTutorCompatibilityGroupId));
-            BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)species)); Put16(row, 86, profile.HatchedSpecies); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
+            BinaryPrimitives.WriteUInt32LittleEndian(row.AsSpan(76), checked((uint)SwShRestorationSpecies.IconSpecies(species))); Put16(row, 86, profile.HatchedSpecies); row.AsSpan(88, 8).Clear(); row.AsSpan(172, 4).Clear();
             if (identity.Form != 0) { Put16(row, 90, 1); Put16(row, 94, profile.HatchedForm); }
             _ = SwShPersonalTable.Parse(row);
             var result = new List<SwShRestorationContribution>
@@ -106,7 +106,7 @@ public sealed partial class SwShRestorationPreparationService
             var eggMoves = Moves(25).Where(MoveAvailable).ToArray(); var eggs = new byte[4 + eggMoves.Length * 2]; Put16(eggs, 0, personalId); Put16(eggs, 2, eggMoves.Length);
             for (var i = 0; i < eggMoves.Length; i++) Put16(eggs, 4 + i * 2, eggMoves[i]);
             result.Add(File($"bin/pml/tamagowaza/tamagowaza_{personalId:0000}.bin", eggs));
-            var icon = new byte[8]; Put16(icon, 0, species); Put16(icon, 2, identity.Form);
+            var icon = new byte[8]; Put16(icon, 0, SwShRestorationSpecies.IconSpecies(species)); Put16(icon, 2, identity.Form);
             result.Add(new(SwShRestorationComposer.IconsPath, SwShRestorationWriter.Icons, SwShRestorationComposer.IconKey(species, identity.Form), null, icon));
             var camp = SwShGfPackFile.Parse(Native(SwShRestorationComposer.CampPath[6..]));
             foreach (var group in new[] { "common", "motion", "face", "ball", "turning" })

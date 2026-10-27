@@ -59,6 +59,7 @@ public sealed partial class SwShRestorationPreparationService
     {
         private readonly ProjectPaths target;
         private readonly string donorRoot;
+        private readonly string definitionId;
         private readonly SwShRestorationDonorSession archive;
         private readonly bool ownsArchive;
         private readonly IProgress<SwShRestorationPreparationProgress>? progress;
@@ -78,6 +79,7 @@ public sealed partial class SwShRestorationPreparationService
             IProgress<SwShRestorationPreparationProgress>? progress, CancellationToken token, SwShRestorationDonorSession? donorSession)
         {
             this.target = target; this.token = token; this.progress = progress; totalSpecies = definition.Identities.Count;
+            definitionId = definition.Id;
             progress?.Report(new("sources", 0, definition.Identities.Count));
             token.ThrowIfCancellationRequested();
             ownsArchive = donorSession is null;

@@ -11,6 +11,10 @@ public static class SwShRestorationSpecies
 {
     public const int Annihilape = 979;
     public const int AnnihilapeRow = 1081;
+    // Native Runerigus already owns icon resource 979. Keep the logical species
+    // separate from its reserved miniature resource, as native species do.
+    public const int AnnihilapeIconId = 1010;
+    public static int IconSpecies(int species) => species == Annihilape ? AnnihilapeIconId : species;
     public static IEnumerable<int> BaseSpecies => Enumerable.Range(1, SwShEffectivePokemonCatalog.MaximumSpecies).Append(Annihilape);
     public static bool IsSpecies(int species) => species is >= 1 and <= SwShEffectivePokemonCatalog.MaximumSpecies or Annihilape;
     public static int BaseRow(int species) => species == Annihilape ? AnnihilapeRow
@@ -25,6 +29,8 @@ public static class SwShRestorationSpecies
         foreach (var data in new[] { native, current })
         {
             var records = SwShPersonalTable.Parse(data, 1192).Records;
+            if (records.Where((record, row) => row != AnnihilapeRow).Any(record => record.ModelId == AnnihilapeIconId))
+                throw new InvalidDataException("Another Pokemon claims the reserved new species icon resource.");
             for (var species = 1; species <= SwShEffectivePokemonCatalog.MaximumSpecies; species++)
             {
                 var record = records[species];
@@ -37,7 +43,9 @@ public static class SwShRestorationSpecies
         if (Convert.ToHexString(SHA256.HashData(before)) != "E26B3853F98CF2778D4A9C63AD53CDA32C92DA679A5E4666E5D13E3991A051BF")
             throw new InvalidDataException("The reserved new species row is occupied in Base RomFS.");
         var row = current.AsSpan(AnnihilapeRow * SwShPersonalTable.RecordSize, SwShPersonalTable.RecordSize);
-        if (!row.SequenceEqual(before) && (BinaryPrimitives.ReadUInt32LittleEndian(row[76..]) != Annihilape
+        // Accept the legacy resource identity so an earlier installation remains removable.
+        var modelId = BinaryPrimitives.ReadUInt32LittleEndian(row[76..]);
+        if (!row.SequenceEqual(before) && (modelId is not (Annihilape or AnnihilapeIconId)
             || (row[33] & 64) == 0 || row[32] != 1 || BinaryPrimitives.ReadUInt16LittleEndian(row[30..]) != 0))
             throw new InvalidDataException("The reserved new species row contains foreign data.");
     }

@@ -7,6 +7,86 @@ namespace KM.Tools.Application;
 
 internal static class SwShRestorationFraming
 {
+    internal static byte[] SummaryCorrection(byte[] configuration, string definition)
+    {
+        // Summary uses its own scale and vertical placement. Keep battle and field
+        // dimensions intact, including airborne poses and authored crouches.
+        var adjustment = definition switch
+        {
+            "venonat" => (1f, -44f),
+            "venomoth" => (1.15f, 80f),
+            "primeape" => (1.3f, 0f),
+            "mega-charizard-x" => (1f, -100f),
+            "mega-charizard-y" => (1.3f, -50f),
+            "quilava" => (1f, 35f),
+            "totodile" => (.85f, -37f),
+            "croconaw" => (1.2f, -20f),
+            "tepig" => (1f, -35f),
+            "samurott" => (1.2f, 0f),
+            "chespin" => (1f, -48f),
+            "braixen" => (1.25f, -4f),
+            "delphox" => (1.15f, 0f),
+            "froakie" => (.95f, -48f),
+            "frogadier" => (1.35f, 12f),
+            "greninja" => (1f, 65f),
+            "geodude" => (1f, 50f),
+            "alolan-geodude" => (1.25f, 60f),
+            "weedle" => (.55f, -8f),
+            "kakuna" => (.85f, 0f),
+            "beedrill" => (1f, 65f),
+            "monferno" => (1.15f, 22f),
+            "infernape" => (1f, -45f),
+            "pidgey" => (1f, -35f),
+            "pidgeotto" => (1.2f, -28f),
+            _ => (1f, 0f),
+        };
+        if (adjustment == (1f, 0f)) return configuration;
+        var result = configuration.ToArray(); var data = new ModelBuffer(result);
+        var scaleAt = data.Field(data.Root, 17); var verticalAt = data.Field(data.Root, 18);
+        if (scaleAt == 0 || verticalAt == 0 || !float.IsFinite(data.Float(scaleAt)) || data.Float(scaleAt) <= 0
+            || !float.IsFinite(data.Float(verticalAt)))
+            throw new InvalidDataException("Summary framing configuration is incomplete or invalid.");
+        System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(scaleAt, 4), data.Float(scaleAt) * adjustment.Item1);
+        System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(verticalAt, 4), data.Float(verticalAt) + adjustment.Item2);
+        if (definition == "monferno")
+        {
+            // The inherited Summary angle hides the tail flame behind the head.
+            // This view exposes the authored flame without moving its geometry.
+            foreach (var field in new[] { 21, 22 })
+            {
+                var at = data.Field(data.Root, field);
+                if (at == 0 || !float.IsFinite(data.Float(at)))
+                    throw new InvalidDataException("Summary view angle is incomplete or invalid.");
+                System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(result.AsSpan(at, 4), field == 21 ? 10f : -10f);
+            }
+        }
+        return result;
+    }
+
+    internal static byte[] SummaryFields(byte[] configuration, byte[] reference)
+    {
+        var result = configuration.ToArray();
+        var source = new ModelBuffer(reference); var target = new ModelBuffer(result);
+        for (var field = 17; field <= 22; field++)
+        {
+            var from = source.Field(source.Root, field); var to = target.Field(target.Root, field);
+            if (from == 0 || to == 0 || !float.IsFinite(source.Float(from)) || (field == 17 && source.Float(from) <= 0))
+                throw new InvalidDataException("Summary framing reference is incomplete or invalid.");
+            source.Slice(from, 4).CopyTo(result.AsSpan(to, 4));
+        }
+        return result;
+    }
+
+    internal static bool BattleEntry(IDictionary<string, byte[]> members, string modelFolder, string animationFolder, string stem)
+    {
+        var scene = new SwShPreviewReader(path => members[modelFolder + Path.GetFileName(path)]).Load(stem + ".gfbmdl");
+        var recovery = SwShAnimationWriter.BattleEntryRecovery(members[animationFolder + stem + "_ba01_landC01.gfbanm"],
+            members[animationFolder + stem + "_ba10_waitA01.gfbanm"], scene.Rig.Bones);
+        if (recovery is null) return false;
+        members[animationFolder + stem + "_battleentry01.gfbanm"] = recovery;
+        return true;
+    }
+
     internal static void MatchGiantGround(byte[] giantConfiguration, byte[] nativeConfiguration, byte[] convertedConfiguration)
     {
         var giant = new ModelBuffer(giantConfiguration);

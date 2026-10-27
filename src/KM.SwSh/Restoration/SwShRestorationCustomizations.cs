@@ -76,7 +76,7 @@ internal static class SwShRestorationCustomizations
             var definition = SwShRestorationDefinitions.Get(selection.DefinitionId);
             foreach (var path in changed.Where(p => IsLooseModel(p, definition)))
             {
-                if (readOutput(path) is { } bytes) items[(path, "")] = new(path, SwShRestorationWriter.File, "", null, bytes);
+                if (readOutput(path) is { } bytes) items[(path, "")] = new(path, SwShRestorationWriter.File, "", items.GetValueOrDefault((path, ""))?.Before, bytes);
                 else items.Remove((path, ""));
             }
             if (touched.Length == 0 && !changed.Any(p => IsLooseModel(p, definition))) { selections.Add(selection); continue; }
@@ -106,9 +106,9 @@ internal static class SwShRestorationCustomizations
         var definition = SwShRestorationDefinitions.Get(prepared.DefinitionId);
         var items = prepared.Contributions.ToDictionary(c => (c.Path, c.Key));
         long total = 0; var count = 0;
-        foreach (var identity in definition.Identities)
+        foreach (var stem in ModelStems(definition))
         {
-            var relative = $"romfs/bin/pokemon/pm{identity.Species:0000}_{identity.Form:00}";
+            var relative = $"romfs/bin/pokemon/{stem}";
             var directory = Path.Combine(paths.OutputRootPath!, relative);
             if (!Directory.Exists(directory)) continue;
             var pending = new Stack<string>(); pending.Push(directory);
@@ -127,12 +127,15 @@ internal static class SwShRestorationCustomizations
                     var info = new FileInfo(entry); total += info.Length;
                     if (info.Length > 32 * 1024 * 1024 || total > 128L * 1024 * 1024)
                         throw new InvalidDataException("Model override exceeds its restoration budget.");
-                    items[(path, "")] = new(path, SwShRestorationWriter.File, "", null, File.ReadAllBytes(entry));
+                    items[(path, "")] = new(path, SwShRestorationWriter.File, "", items.GetValueOrDefault((path, ""))?.Before, File.ReadAllBytes(entry));
                 }
             }
         }
         return prepared with { Contributions = items.Values.ToArray() };
     }
-    private static bool IsLooseModel(string path, SwShRestorationDefinition definition) => definition.Identities.Any(i =>
-        path.StartsWith($"romfs/bin/pokemon/pm{i.Species:0000}_{i.Form:00}/", StringComparison.Ordinal));
+    internal static IEnumerable<string> ModelStems(SwShRestorationDefinition definition) => definition.Identities
+        .Select(identity => $"pm{identity.Species:0000}_{identity.Form:00}")
+        .Concat(definition.AdditionalModelVariants.Select(variant => variant.ResourceStem)).Distinct(StringComparer.Ordinal);
+    private static bool IsLooseModel(string path, SwShRestorationDefinition definition) => ModelStems(definition).Any(stem =>
+        path.StartsWith($"romfs/bin/pokemon/{stem}/", StringComparison.Ordinal));
 }

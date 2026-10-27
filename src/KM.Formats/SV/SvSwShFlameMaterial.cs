@@ -196,11 +196,12 @@ public static class SvSwShFlameMaterial
         // and .12 for the existing single-flame contract. Keep other contracts closed.
         if (!float.IsFinite(height) || (zaFlame ? height is not (.08f or .09f or .12f) : height is < 0 or > .11f))
             throw new InvalidDataException("Flame displacement needs another native adapter.");
-        if (displacement.Format != 0x1d01 && !(zaFlame && displacement.Format == 0x0b01)
-            || height != 0 && (displacement.Width != layer.Width || displacement.Height != layer.Height))
+        // An undisplaced surface does not sample its placeholder noise texture.
+        if (height != 0 && (displacement.Format is not (0x1d01 or 0x0b01)
+            || displacement.Width != layer.Width || displacement.Height != layer.Height))
             throw new InvalidDataException("S/V flame noise requires another texture adapter.");
         // PreviewTexture resolves authored channel mapping before returning RGBA.
-        // Sample its red channel, including the mapped Z-A noise textures.
+        // Sample its red channel. The Sinnoh and Z-A flames use mapped RGBA noise.
         var noise = height == 0 ? [] : displacement.Format == 0x1d01
             ? new BcDecoder().DecodeRaw(displacement.Blocks, displacement.Width, displacement.Height, CompressionFormat.Bc4).Select(pixel => pixel.r).ToArray()
             : Enumerable.Range(0, displacement.Width * displacement.Height).Select(i => displacement.Blocks[i * 4]).ToArray();

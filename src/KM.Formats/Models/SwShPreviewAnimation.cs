@@ -6,15 +6,8 @@ public static class SwShPreviewAnimation
     public static PreviewClip Read(ModelBuffer data, PreviewClip clip, ICollection<string> warnings,
         IReadOnlySet<string>? fireMaterials = null, IReadOnlySet<string>? emissionMaterials = null, IReadOnlySet<string>? layerEmissionMaterials = null)
     {
-        var visibility = new List<PreviewVisibility>();
+        var visibility = ReadVisibility(data, clip.Frames);
         var materials = new List<PreviewMaterialTrack>();
-        var visible = data.Table(data.Root, 3);
-        if (visible != 0)
-            foreach (var track in data.Tables(visible, 0, 512))
-            {
-                var name = data.Text(track, 0) ?? throw new InvalidDataException("Visibility target is missing.");
-                visibility.Add(new(name, Keys(data, track, 1, 1, true, clip.Frames)[0]));
-            }
         var materialRoot = data.Table(data.Root, 2);
         if (materialRoot != 0)
             foreach (var material in data.Tables(materialRoot, 0, 128))
@@ -90,7 +83,15 @@ public static class SwShPreviewAnimation
                 if (data.Tables(material, 1, 256).Length > 0)
                     warnings.Add("materialAnimationUnsupported");
             }
-        return clip with { Visibility = visibility.ToArray(), Materials = materials.ToArray() };
+        return clip with { Visibility = visibility, Materials = materials.ToArray() };
+    }
+
+    internal static PreviewVisibility[] ReadVisibility(ModelBuffer data, int frames)
+    {
+        var visible = data.Table(data.Root, 3);
+        return visible == 0 ? [] : data.Tables(visible, 0, 512).Select(track => new PreviewVisibility(
+            data.Text(track, 0) ?? throw new InvalidDataException("Visibility target is missing."),
+            Keys(data, track, 1, 1, true, frames)[0])).ToArray();
     }
 
     private static PreviewKey[][] Keys(ModelBuffer data, int track, int field, int components, bool bytes, int frames)
