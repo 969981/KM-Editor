@@ -5033,7 +5033,7 @@ internal sealed partial class ZaPokemonEditSessionService
                 BaseExperience = ZaPokemonExperience.CalculateBaseExperience(stats.Total, value, currentExpAddend),
             },
             ZaPokemonWorkflowService.BaseExperienceField => pokemon with { BaseExperience = value },
-            ZaPokemonWorkflowService.GenderRatioField => pokemon with { GenderRatio = value, GenderRatioLabel = FormatGender(value) },
+            ZaPokemonWorkflowService.GenderRatioField => pokemon with { GenderRatio = value, GenderRatioLabel = ZaPokemonGender.Format(value) },
             ZaPokemonWorkflowService.HeightField => pokemon with { Height = value },
             ZaPokemonWorkflowService.WeightField => pokemon with { Weight = value },
             ZaPokemonWorkflowService.IsPresentInGameField => pokemon with { DexPresence = dex with { IsPresentInGame = value != 0 } },
@@ -5750,7 +5750,8 @@ internal sealed partial class ZaPokemonEditSessionService
                     break;
                 case ZaPokemonWorkflowService.GenderRatioField:
                     row.HasGender = true;
-                    row.Gender = (row.Gender ?? new GenderInfoRow(0, 0)) with { Ratio = ToByte(value) };
+                    var gender = ZaPokemonGender.Encode(value);
+                    row.Gender = new GenderInfoRow(gender.Group, gender.Ratio);
                     break;
                 case ZaPokemonWorkflowService.HatchCyclesField:
                     row.HasEggHatchCycles = true;
@@ -6475,7 +6476,9 @@ internal sealed partial class ZaPokemonEditSessionService
                 case ZaPokemonWorkflowService.EVYieldSpeedField:
                     return TryPatchStructByteField(data, personalOffset, PersonalEvYieldFieldIndex, 5, value, field, diagnostics);
                 case ZaPokemonWorkflowService.GenderRatioField:
-                    return TryPatchStructByteField(data, personalOffset, PersonalGenderFieldIndex, 1, value, field, diagnostics);
+                    var gender = ZaPokemonGender.Encode(value);
+                    return TryPatchStructByteField(data, personalOffset, PersonalGenderFieldIndex, 0, gender.Group, field, diagnostics)
+                        && TryPatchStructByteField(data, personalOffset, PersonalGenderFieldIndex, 1, gender.Ratio, field, diagnostics);
                 case ZaPokemonWorkflowService.HatchCyclesField:
                     return TryPatchByteTableField(data, personalOffset, PersonalEggHatchCyclesFieldIndex, value, field, diagnostics);
                 case ZaPokemonWorkflowService.BaseFriendshipField:
@@ -7709,17 +7712,6 @@ internal sealed partial class ZaPokemonEditSessionService
             16 => "Dark",
             17 => "Fairy",
             _ => $"Type {type}",
-        };
-    }
-
-    private static string FormatGender(int ratio)
-    {
-        return ratio switch
-        {
-            0 => "Always male or genderless",
-            254 => "Always female",
-            255 => "Genderless",
-            _ => $"{ratio}/254 female",
         };
     }
 

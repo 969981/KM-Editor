@@ -10,6 +10,7 @@ type EditorLiteralPattern = {
 };
 
 export const editorLiteralPatterns: readonly EditorLiteralPattern[] = [
+  { pattern: /^(\d+(?:\.\d+)?)% male \/ (\d+(?:\.\d+)?)% female$/u, template: '{male}% male / {female}% female', parameters: ['male', 'female'] },
   { pattern: /^Preparing ([\d,.\s]+) encounter tables?$/u, template: 'Preparing {count} encounter tables', parameters: ['count'] },
   { pattern: /^Applying ([\d,.\s]+) slot field updates$/u, template: 'Applying {count} slot field updates', parameters: ['count'] },
   { pattern: /^Applying ([\d,.\s]+) reviewed output files?$/u, template: 'Applying {count} reviewed output files', parameters: ['count'] },
