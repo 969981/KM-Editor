@@ -38,7 +38,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                     : "ik_pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
                 species, identity.Form, genders.ToDictionary(g => g, ModelPath));
             var result = genders.SelectMany(g => Assets(species, g, profile, identity.Form)).ToList();
-            result.Add(File($"bin/appli/icon_pokemon/poke_icon_{species:0000}_{identity.Form:00}s_n.bntx", SwShRestorationPartyIcons.Create(species, Native, token, identity.Form, textureEncoding)));
+            result.Add(File(SwShRestorationComposer.IconPath(species, identity.Form)[6..], SwShRestorationPartyIcons.Create(species, Native, token, identity.Form, textureEncoding)));
             return result;
         }
 
@@ -340,14 +340,25 @@ public sealed partial class ZaSwShRestorationPreparationService
                 var sourceCode = Code(name, empty ? "00000" : code);
                 if (!clips.TryGetValue(sourceCode, out var clip)) throw new InvalidDataException($"Required Z-A motion is unavailable: {name}/{sourceCode}");
                 var convertedMotion = ConvertMotion(clip.Skeleton, clip.Decoded, expression == SwShExpressionCurve.None, expression, empty);
+                if (profile.PlaAssets && name is "ba21_tokusyu01" or "ba30_damageS01")
+                {
+                    var start = name == "ba21_tokusyu01" ? 450 : 500;
+                    var segments = Enumerable.Range(start, 3).Select(index => clips[index.ToString("00000", System.Globalization.CultureInfo.InvariantCulture)])
+                        .Select(segment => ConvertMotion(segment.Skeleton, segment.Decoded, true)).ToArray();
+                    var convertedBones = scene.Rig.Bones.Select(bone => bone with { Name = aliases.GetValueOrDefault(bone.Name, bone.Name) }).ToArray();
+                    convertedMotion = SwShAnimationWriter.SkeletalSequence(segments, convertedBones);
+                }
                 if (profile.AirborneBattle && name.StartsWith("ba", StringComparison.Ordinal))
                     convertedMotion = SwShAnimationWriter.VerticalOffset(convertedMotion, "Waist", airborneOffset);
                 members[animationFolder + stem + "_" + name + ".gfbanm"] = convertedMotion;
             }
+            var battleEntry = SwShRestorationFraming.BattleEntry(members, modelFolder, animationFolder, stem);
             var framingGeometry = profile.IdleFraming
                 ? SwShRestorationFraming.IdleBounds(members, modelFolder, animationFolder, stem, geometry!) : geometry!;
             members[$"bin/pokemon/{stem}/{stem}.gfbpokecfg"] = SwShModelWriter.Configuration(configuration, species, framingGeometry, materialNames,
                 profile.BattleHeight, profile.FieldHeight);
+            var summaryPath = $"bin/pokemon/{stem}/{stem}.gfbpokecfg";
+            members[summaryPath] = SwShRestorationFraming.SummaryCorrection(members[summaryPath], definitionId);
             Report("packing");
             members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
             members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"),
@@ -391,7 +402,9 @@ public sealed partial class ZaSwShRestorationPreparationService
                 var controller = ZaSwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones, profile.LayeredEyes);
                 if (profile.NativeFlames || profile.PairedFlames)
                     controller = SvSwShFlameAnimation.Controller(controller, flameBones.Select(name => aliases[name]).ToArray(), profile.PairedFlames ? flames : null);
-                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = group == "battle" ? SwShAnimationWriter.BattleIdleController(controller) : controller;
+                if (group == "battle") controller = SwShAnimationWriter.BattleIdleController(controller);
+                if (group == "battle" && battleEntry) controller = SwShAnimationWriter.BattleEntryController(controller);
+                members[animationFolder + stem + "_" + group + ".gfbanmcfg"] = controller;
             }
             if (species == 6 && form is 1 or 2)
                 foreach (var group in new[] { "camp", "field" })

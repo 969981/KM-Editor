@@ -65,7 +65,7 @@ public sealed partial class SwShRestorationPreparationService
                 }
                 var giant = SwShGfPackFile.Parse(files[$"romfs/bin/archive/gpokemon/{stem}.gfpak"]!);
                 _ = giant.ReadFileByHash(SwShGfPackFile.HashMemberPath($"bin/pokemon/{stem}/{stem}.gfbgpokecfg"), 1024 * 1024);
-                _ = new ModelTextureDocument(files[$"romfs/bin/appli/icon_pokemon/poke_icon_{species:0000}_{identity.Form:00}s_n.bntx"]!);
+                _ = new ModelTextureDocument(files[SwShRestorationComposer.IconPath(species, identity.Form)]!);
             }
             var originalBank = new SoundBankDocument(Native(SwShRestorationComposer.VoicesPath[6..]));
             var newBank = new SoundBankDocument(files[SwShRestorationComposer.VoicesPath]!);

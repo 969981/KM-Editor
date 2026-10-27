@@ -284,8 +284,10 @@ public static class SwShRestorationComposer
             return desired;
         }
     }
-    public static string IconKey(int species, int form = 0) => form == 0 ? species.ToString(CultureInfo.InvariantCulture)
-        : string.Create(CultureInfo.InvariantCulture, $"{species}:{form}:0:0");
+    public static string IconPath(int species, int form = 0) =>
+        $"romfs/bin/appli/icon_pokemon/poke_icon_{SwShRestorationSpecies.IconSpecies(species):0000}_{form:00}s_n.bntx";
+    public static string IconKey(int species, int form = 0) => form == 0 ? SwShRestorationSpecies.IconSpecies(species).ToString(CultureInfo.InvariantCulture)
+        : string.Create(CultureInfo.InvariantCulture, $"{SwShRestorationSpecies.IconSpecies(species)}:{form}:0:0");
     private static byte[] IconIdentity(string key)
     {
         var parts = key.Split(':');

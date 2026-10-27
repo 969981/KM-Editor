@@ -11,9 +11,12 @@ public static partial class SwShAnimationWriter
         var frames = checked((int)source.Value(source.Table(source.Root, 0), 1));
         if (frames is < 1 or > 18000 || tracks.Count > 128 || tracks.Select(t => t.Name).Distinct(StringComparer.Ordinal).Count() != tracks.Count)
             throw new InvalidDataException("Mesh visibility exceeds native limits.");
-        var writer = new ModelTableBuilder(); var root = writer.Table(5, absent: new HashSet<int> { 4 });
+        var writer = new ModelTableBuilder(); var root = writer.Table(5,
+            absent: source.Table(source.Root, 4) == 0 ? new HashSet<int> { 4 } : null);
         var copy = writer.Append(animation);
         for (var field = 0; field < 3; field++) writer.Reference(root, field, copy + source.Table(source.Root, field));
+        if (source.Table(source.Root, 4) is var metadata && metadata != 0)
+            writer.Reference(root, 4, copy + metadata);
         var visibility = writer.Table(1); writer.Reference(root, 3, visibility);
         var slots = writer.Vector(visibility, 0, tracks.Count);
         for (var i = 0; i < tracks.Count; i++)

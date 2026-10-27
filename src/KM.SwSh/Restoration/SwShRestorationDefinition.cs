@@ -42,9 +42,9 @@ public static class SwShRestorationDefinitions
         Species("venonat", 48), Species("venomoth", 49),
         Species("mankey", 56) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("primeape", 57) with { Donor = SwShRestorationDonor.LegendsZA },
-        Species("annihilape", 979),
-        Species("mega-charizard-x", 6, 1) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 2 },
-        Species("mega-charizard-y", 6, 2) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 2 },
+        Species("annihilape", 979) with { AssetRevision = 3 },
+        Species("mega-charizard-x", 6, 1) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 3 },
+        Species("mega-charizard-y", 6, 2) with { Donor = SwShRestorationDonor.LegendsZA, AssetRevision = 3 },
         Species("chikorita", 152) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("bayleef", 153) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("meganium", 154) with { Donor = SwShRestorationDonor.LegendsZA,
@@ -81,7 +81,19 @@ public static class SwShRestorationDefinitions
         Species("kecleon", 352) with { Donor = SwShRestorationDonor.LegendsZA },
     }).ToArray());
     private static SwShRestorationDefinition Species(string id, int species, int form = 0) => Piplup with
-        { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, form) }) };
+        { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, form) }), AssetRevision = id switch
+        {
+            "piplup" or "prinplup" or "empoleon" or "paras" or "parasect" or "venonat" or "venomoth" or "mankey" or "primeape" or "annihilape"
+                or "chikorita" or "bayleef" or "meganium" or "cyndaquil" or "quilava" or "typhlosion"
+                or "totodile" or "croconaw" or "feraligatr" or "snivy" or "servine" or "serperior"
+                or "tepig" or "pignite" or "emboar" or "oshawott" or "dewott" or "samurott"
+                or "chespin" or "quilladin" or "chesnaught" or "fennekin" or "braixen" or "delphox"
+                or "froakie" or "frogadier" or "greninja" or "ekans" or "arbok" or "geodude" or "graveler" or "golem"
+                or "alolan-geodude" or "alolan-graveler" or "alolan-golem" or "turtwig" or "grotle" or "torterra"
+                or "chimchar" or "monferno" or "infernape" or "weedle" or "kakuna" or "beedrill"
+                or "pidgey" or "pidgeotto" or "pidgeot" or "kecleon" => 2,
+            _ => 1,
+        } };
     public static SwShRestorationDefinition Get(string id) => id == Piplup.Id ? Piplup : All.SingleOrDefault(d => d.Id == id)
         ?? throw new InvalidDataException("This restoration definition is not supported.");
 }

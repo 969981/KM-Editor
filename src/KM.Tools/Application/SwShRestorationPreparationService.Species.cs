@@ -15,7 +15,7 @@ public sealed partial class SwShRestorationPreparationService
         IReadOnlyDictionary<string, int>? NormalUvVerticalTiles = null, int? SourceVoiceForm = null, bool LayerEmission = false,
         bool ScalarEyes = false, IReadOnlyDictionary<string, string>? MotionOverrides = null, bool AuthoredAlpha = false,
         int? SourceSpecies = null, bool EmptyMouth = false, bool TransparentEyes = false,
-        IReadOnlyDictionary<string, System.Numerics.Vector2>? StaticUvScales = null);
+        IReadOnlyDictionary<string, System.Numerics.Vector2>? StaticUvScales = null, string? SummaryFramingStem = null);
 
     private static readonly IReadOnlyDictionary<SwShPokemonIdentity, SpeciesProfile> FormProfiles = new Dictionary<SwShPokemonIdentity, SpeciesProfile>
     {
@@ -54,6 +54,7 @@ public sealed partial class SwShRestorationPreparationService
                 ["pm0049_00_00_r_hghtlight_mesh_shape"] = new(4, 8),
             }),
         [979] = new(766, 56, 268, 50, 127, 150, 120, AuthoredMaterials: true, MeshVisibility: true,
+            SummaryFramingStem: "pm0815_00",
             SourceStem: "pm1114_00_00", SourceSpecies: 1010, CornealEyes: true, EmptyMouth: true,
             MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" },
             NormalUvScales: new Dictionary<string, System.Numerics.Vector2>
