@@ -209,10 +209,18 @@ impl Scene {
         let rig: super::animation::Rig =
             serde_json::from_slice(r.take(metadata_size)?).map_err(|_| "KM-MODEL-UNSUPPORTED")?;
         rig.validate(mesh_count)?;
-        for mesh in &rig.meshes {
+        for (mesh, primitive) in rig.meshes.iter().zip(&primitives) {
+            if mesh.secondary_uv.as_ref().is_some_and(|uv| {
+                uv.len() != primitive.vertices.len() / 8
+                    || uv.iter().any(|v| !v.is_finite() || v.abs() > 1_000_000.0)
+            }) {
+                return Err("KM-MODEL-UNSUPPORTED".into());
+            }
             if let Some(surface) = &mesh.surface {
                 if surface.values.len() != 41
                     || surface.layer_emission && surface.effect != 0
+                    || surface.surface_layers
+                        && (surface.layer_emission || surface.effect != 0 || mesh.secondary_uv.is_none())
                     || surface.effect > 2
                     || surface.effect_link > 254
                     || surface.textures.len() != 12

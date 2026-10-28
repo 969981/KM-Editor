@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Globalization;
 using KM.Formats.Models;
 using KM.Formats.SwSh;
+using KM.Formats.Pokemon;
 using KM.SwSh.Pokemon;
 using KM.SwSh.Restoration;
 
@@ -42,7 +43,7 @@ public sealed partial class SwShRestorationPreparationService
             var ev = 0;
             for (var i = 0; i < order.Length; i++) { var value = source.U8(yields + order[i]); if (value > 3) throw new InvalidDataException("Source EV yield is unsupported."); ev |= value << (i * 2); }
             var gender = source.Field(table, 12); var hatch = source.Field(table, 15);
-            if (gender == 0 || source.U8(gender) != 0 || source.U8(gender + 1) != profile.FemalePercent
+            if (gender == 0 || source.U8(gender) != profile.GenderKind || source.U8(gender + 1) != profile.FemalePercent
                 || hatch == 0 || source.U16(hatch) != profile.HatchedSpecies || source.U16(hatch + 2) != 0)
                 throw new InvalidDataException("Source gender or hatch identity needs another conversion profile.");
             Put16(row, 10, ev); row.AsSpan(12, 6).Clear(); row[18] = profile.GenderThreshold; row[19] = checked((byte)Scalar(16)); row[20] = checked((byte)Scalar(17));
@@ -99,18 +100,31 @@ public sealed partial class SwShRestorationPreparationService
             {
                 var at = evolutionStart + i * 16; var destination = source.U16(at + 12); var form = source.U16(at + 14);
                 if (!TryProfile(new(destination, form), out var evolved) || evolved.HatchedSpecies != profile.HatchedSpecies || evolved.HatchedForm != profile.HatchedForm) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
-                Put16(evolution, i * 8, source.U16(at + 2)); Put16(evolution, i * 8 + 2, source.U16(at + 4)); Put16(evolution, i * 8 + 4, destination);
+                var method = source.U16(at + 2); var argument = (int)source.U16(at + 4);
+                if (method is 6 or 8 or 17 or 18 or 19 or 20 or 42)
+                {
+                    var mapping = EvolutionItemConversionTable.Read(Donor("world/data/battle/plib_item_conversion/plib_item_conversion_array.bin"))
+                        .Where(r => r.ParameterId == argument && r.ItemId > 0).ToArray();
+                    if (mapping.Length != 1 || !SwShItemTable.Parse(Native(SwShItemTable.ItemDataRelativePath[6..]), 4096).Records.Any(r => r.ItemId == mapping[0].ItemId))
+                        throw new InvalidDataException("Evolution item has no supported native identity.");
+                    argument = mapping[0].ItemId;
+                }
+                Put16(evolution, i * 8, method); Put16(evolution, i * 8 + 2, argument); Put16(evolution, i * 8 + 4, destination);
                 evolution[i * 8 + 6] = checked((byte)form); evolution[i * 8 + 7] = checked((byte)source.U16(at));
             }
             result.Add(File($"bin/pml/evolution/evo_{personalId:000}.bin", evolution));
             var eggMoves = Moves(25).Where(MoveAvailable).ToArray(); var eggs = new byte[4 + eggMoves.Length * 2]; Put16(eggs, 0, personalId); Put16(eggs, 2, eggMoves.Length);
             for (var i = 0; i < eggMoves.Length; i++) Put16(eggs, 4 + i * 2, eggMoves[i]);
             result.Add(File($"bin/pml/tamagowaza/tamagowaza_{personalId:0000}.bin", eggs));
-            var icon = new byte[8]; Put16(icon, 0, SwShRestorationSpecies.IconSpecies(species)); Put16(icon, 2, identity.Form);
-            result.Add(new(SwShRestorationComposer.IconsPath, SwShRestorationWriter.Icons, SwShRestorationComposer.IconKey(species, identity.Form), null, icon));
+            foreach (var iconGender in SwShRestorationComposer.IconGenders(species))
+            {
+                var icon = new byte[8]; Put16(icon, 0, SwShRestorationSpecies.IconSpecies(species)); Put16(icon, 2, identity.Form); Put16(icon, 4, iconGender);
+                result.Add(new(SwShRestorationComposer.IconsPath, SwShRestorationWriter.Icons, SwShRestorationComposer.IconKey(species, identity.Form, iconGender), null, icon));
+            }
             var camp = SwShGfPackFile.Parse(Native(SwShRestorationComposer.CampPath[6..]));
             foreach (var group in new[] { "common", "motion", "face", "ball", "turning" })
             {
+                if (group == "common" && personalTable.Records[species].IsPresentInGame) continue;
                 string Name(int id, int form = 0) => group == "common" ? $"poke_{id:0000}_XX_X.bin" : $"poke_{group}_{id:0000}_{form:00}_0.bin";
                 var folder = $"bin/pokemon_data/pokecamp/{group}/";
                 var data = camp.ReadFileByHash(SwShGfPackFile.HashMemberPath(folder + Name(profile.NativeTemplate)), 1024 * 1024);
@@ -121,6 +135,9 @@ public sealed partial class SwShRestorationPreparationService
                     BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(field), checked((uint)species));
                 }
                 result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp, folder + Name(species, identity.Form), null, data));
+                if (group != "common") foreach (var variant in SwShRestorationDefinitions.Get(definitionId).AdditionalModelVariants.Where(v => v.Identity == identity))
+                    result.Add(new(SwShRestorationComposer.CampPath, SwShRestorationWriter.Camp,
+                        folder + $"poke_{group}_{species:0000}_{identity.Form:00}_{variant.Gender}.bin", null, data));
             }
             return (result, excluded.Order().ToArray());
         }

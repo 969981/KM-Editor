@@ -23,7 +23,8 @@ public sealed partial class SwShRestorationPreparationService
             var speciesCount = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count;
             var extraPalettes = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count(i => Profile(i).CompactResources);
             var names = prepared.Contributions.Where(c => c.Writer == SwShRestorationWriter.SpeciesText).Select(c => c.Path).Distinct().Count();
-            if (files.Count != 6 + 5 * speciesCount + extraPalettes + names || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
+            var additionalModels = SwShRestorationDefinitions.Get(prepared.DefinitionId).AdditionalModelVariants.Count;
+            if (files.Count != 6 + 5 * speciesCount + extraPalettes + names + 3 * additionalModels || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
             var catalog = new SwShPokemonResourceCatalog(files[SwShRestorationComposer.CatalogPath]!);
             var personal = SwShPersonalTable.Parse(SwShRestorationForms.ApplyHeaders(files[SwShRestorationComposer.PersonalPath]!,
                 SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities), 4096);
@@ -31,13 +32,19 @@ public sealed partial class SwShRestorationPreparationService
             foreach (var identity in SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities)
             {
                 token.ThrowIfCancellationRequested();
-                var species = identity.Species; var stem = $"pm{species:0000}_{identity.Form:00}";
+                var species = identity.Species;
+                var variants = new[] { (Gender: 0, Stem: $"pm{species:0000}_{identity.Form:00}") }
+                    .Concat(SwShRestorationDefinitions.Get(prepared.DefinitionId).AdditionalModelVariants.Where(v => v.Identity == identity)
+                        .Select(v => (Gender: v.Gender, Stem: v.ResourceStem)));
                 var personalId = SwShRestorationForms.PersonalRow(identity);
                 if (!personal.Records[personalId].IsPresentInGame || personal.Records[personalId].HatchedSpecies != Profile(identity).HatchedSpecies || personal.Records[personalId].CanNotDynamax)
                     throw new InvalidDataException("Converted personal data does not support the declared contexts.");
+                foreach (var variant in variants)
+                {
+                var stem = variant.Stem;
                 foreach (var shiny in new[] { false, true })
                 {
-                    var row = catalog.Read(new(species, identity.Form, 0, shiny));
+                    var row = catalog.Read(new(species, identity.Form, variant.Gender, shiny));
                     var packPath = "romfs/" + row.Archive;
                     if (!packs.TryGetValue(packPath, out var pack))
                     { pack = SwShGfPackFile.Parse(files[packPath]!); packs.Add(packPath, pack); }
@@ -65,7 +72,9 @@ public sealed partial class SwShRestorationPreparationService
                 }
                 var giant = SwShGfPackFile.Parse(files[$"romfs/bin/archive/gpokemon/{stem}.gfpak"]!);
                 _ = giant.ReadFileByHash(SwShGfPackFile.HashMemberPath($"bin/pokemon/{stem}/{stem}.gfbgpokecfg"), 1024 * 1024);
-                _ = new ModelTextureDocument(files[SwShRestorationComposer.IconPath(species, identity.Form)]!);
+                foreach (var iconGender in SwShRestorationComposer.IconGenders(species))
+                    _ = new ModelTextureDocument(files[SwShRestorationComposer.IconPath(species, identity.Form, iconGender)]!);
+                }
             }
             var originalBank = new SoundBankDocument(Native(SwShRestorationComposer.VoicesPath[6..]));
             var newBank = new SoundBankDocument(files[SwShRestorationComposer.VoicesPath]!);

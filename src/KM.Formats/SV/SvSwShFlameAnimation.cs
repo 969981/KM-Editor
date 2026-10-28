@@ -6,9 +6,9 @@ namespace KM.Formats.SV;
 /// <summary>Preserves independent S/V flame scrolling on native flame materials.</summary>
 public static class SvSwShFlameAnimation
 {
-    public static PreviewClip Read(byte[] bytes, PreviewClip skeleton, string sourceMaterial = "fire")
+    public static PreviewClip Read(byte[] bytes, PreviewClip skeleton, string sourceMaterial = "fire", bool mergeIdenticalTracks = false)
     {
-        var clip = ReadMany(bytes, skeleton, [sourceMaterial]);
+        var clip = ReadMany(bytes, skeleton, [sourceMaterial], mergeIdenticalTracks);
         if (sourceMaterial == "fire") return clip;
         var tracks = clip.Materials.Select(track => track.Material == sourceMaterial ? track with { Material = "fire" } : track).ToArray();
         if (tracks.GroupBy(track => (track.Material, track.Parameter)).Any(group => group.Count() != 1))
@@ -17,7 +17,7 @@ public static class SvSwShFlameAnimation
     }
 
     /// <summary>Retains separate source identities when a model has several flame surfaces.</summary>
-    public static PreviewClip ReadMany(byte[] bytes, PreviewClip skeleton, IReadOnlyCollection<string> sourceMaterials)
+    public static PreviewClip ReadMany(byte[] bytes, PreviewClip skeleton, IReadOnlyCollection<string> sourceMaterials, bool mergeIdenticalTracks = false)
     {
         var names = FlameNames(sourceMaterials);
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
@@ -54,6 +54,15 @@ public static class SvSwShFlameAnimation
         var clip = PreviewMaterialAnimation.Read(new(writer.Finish(source.Root)), skeleton, warnings, true);
         if (warnings.Count > 0) throw new InvalidDataException("S/V flame animation needs another material or morph adapter.");
         var materials = clip.Materials.Concat(additional).ToArray();
+        if (mergeIdenticalTracks) materials = materials.GroupBy(t => (t.Material, t.Parameter)).Select(group =>
+        {
+            var first = group.First();
+            if (group.Any(next => first.Channels.Length != next.Channels.Length || !first.Channels.Zip(next.Channels).All(pair =>
+                pair.First.Length == pair.Second.Length && pair.First.Zip(pair.Second).All(keys => keys.First.Frame == keys.Second.Frame
+                    && keys.First.Value.SequenceEqual(keys.Second.Value)))))
+                throw new InvalidDataException("Shared material timelines have different samples.");
+            return first;
+        }).ToArray();
         if (materials.GroupBy(t => (t.Material, t.Parameter)).Any(g => g.Count() != 1))
             throw new InvalidDataException("S/V flame animation identity is ambiguous.");
         return clip with { Materials = materials };

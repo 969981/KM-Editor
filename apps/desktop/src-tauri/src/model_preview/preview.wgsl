@@ -30,8 +30,9 @@ struct VertexOutput {
     @location(4) skin_y: vec3<f32>,
     @location(5) skin_z: vec3<f32>,
     @location(6) @interpolate(flat) selected: u32,
+    @location(7) secondary_uv: vec2<f32>,
 };
-fn vertex_data(position: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>, indices: vec4<f32>, weights: vec4<f32>) -> VertexOutput {
+fn vertex_data(position: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>, indices: vec4<f32>, weights: vec4<f32>, secondary_uv: vec2<f32>) -> VertexOutput {
     var output: VertexOutput;
     output.selected = 0u;
     var point = vec4<f32>(position, 1.0);
@@ -50,14 +51,15 @@ fn vertex_data(position: vec3<f32>, normal: vec3<f32>, uv: vec2<f32>, indices: v
     output.position = camera.view_projection * point;
     output.normal = n;
     output.uv = uv;
+    output.secondary_uv = secondary_uv;
     output.world = point.xyz;
     return output;
 }
-@vertex fn vs_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>, @location(3) indices: vec4<f32>, @location(4) weights: vec4<f32>) -> VertexOutput {
-    return vertex_data(position, normal, uv, indices, weights);
+@vertex fn vs_main(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>, @location(3) indices: vec4<f32>, @location(4) weights: vec4<f32>, @location(5) secondary_uv: vec2<f32>) -> VertexOutput {
+    return vertex_data(position, normal, uv, indices, weights, secondary_uv);
 }
-@vertex fn vs_wire(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>, @location(3) indices: vec4<f32>, @location(4) weights: vec4<f32>, @builtin(instance_index) selected: u32) -> VertexOutput {
-    var output = vertex_data(position, normal, uv, indices, weights);
+@vertex fn vs_wire(@location(0) position: vec3<f32>, @location(1) normal: vec3<f32>, @location(2) uv: vec2<f32>, @location(3) indices: vec4<f32>, @location(4) weights: vec4<f32>, @location(5) secondary_uv: vec2<f32>, @builtin(instance_index) selected: u32) -> VertexOutput {
+    var output = vertex_data(position, normal, uv, indices, weights, secondary_uv);
     output.selected = selected;
     output.position.z -= output.position.w * .00005;
     return output;
@@ -164,7 +166,10 @@ fn game_highlight(value: vec3<f32>) -> vec3<f32> {
     }
     let alpha = base.a + underlay.a * (1.0 - base.a);
     base = vec4<f32>((base.rgb * base.a + underlay.rgb * underlay.a * (1.0 - base.a)) / max(alpha, 0.00001), alpha);
-    let mask_uv = transform_uv(input.uv, material.mask_uv);
+    var mask_uv = transform_uv(input.uv, material.mask_uv);
+    if material.flags.w == 4.0 {
+        mask_uv = fract(transform_uv(input.secondary_uv, material.mask_uv));
+    }
     let mask = textureSample(layer_mask, base_sampler, coordinates(mask_uv, material.wrap.zw, material.texture_scale.zw, textureDimensions(layer_mask))) * material.mask_channels;
     let highlight_uv = transform_uv(input.uv, material.highlight_uv);
     let highlight = textureSample(highlight_mask, base_sampler, coordinates(highlight_uv, material.underlay_scale.zw, material.highlight_scale.xy, textureDimensions(highlight_mask)));

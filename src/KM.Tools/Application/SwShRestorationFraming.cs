@@ -13,6 +13,14 @@ internal static class SwShRestorationFraming
         // dimensions intact, including airborne poses and authored crouches.
         var adjustment = definition switch
         {
+            "hisuian-growlithe" => (1.15f, 0f),
+            "hisuian-arcanine" => (1.15f, 0f),
+            "hisuian-samurott" => (1.15f, 0f),
+            "doduo" => (1.35f, 0f),
+            "dodrio" => (1f, 105f),
+            "voltorb" or "hisuian-voltorb" => (1.6f, 50f),
+            "electrode" or "hisuian-electrode" => (1f, 75f),
+            "muk" or "alolan-muk" => (.8f, 20f),
             "venonat" => (1f, -44f),
             "venomoth" => (1.15f, 80f),
             "primeape" => (1.3f, 0f),

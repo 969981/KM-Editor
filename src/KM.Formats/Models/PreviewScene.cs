@@ -20,7 +20,10 @@ public sealed record PreviewMaterial(string Name, int Texture, int Mask, Vector4
     public Vector4 UvOrigins { get; init; }
     public PreviewSurface? Surface { get; init; }
 }
-public sealed record PreviewPrimitive(float[] Vertices, uint[] Indices, PreviewMaterial Material, string Name);
+public sealed record PreviewPrimitive(float[] Vertices, uint[] Indices, PreviewMaterial Material, string Name)
+{
+    public float[]? SecondaryUv { get; init; }
+}
 public sealed record PreviewScene(IReadOnlyList<PreviewPrimitive> Primitives, IReadOnlyList<PreviewTexture> Textures)
 {
     public PreviewRig Rig { get; init; } = new([], [], null, []);
@@ -64,6 +67,7 @@ public sealed record PreviewScene(IReadOnlyList<PreviewPrimitive> Primitives, IR
                 Material = p.Material.Name,
                 p.Material.TopOriginUv,
                 p.Material.Surface,
+                SecondaryUv = p.Material.Surface?.SurfaceLayers == true ? p.SecondaryUv : null,
                 UvOrigins = new[] { p.Material.UvOrigins.X, p.Material.UvOrigins.Y, p.Material.UvOrigins.Z, p.Material.UvOrigins.W },
                 MaskChannels = new[] { p.Material.MaskChannels.X, p.Material.MaskChannels.Y, p.Material.MaskChannels.Z, p.Material.MaskChannels.W },
                 Underlay = p.Material.Underlay < 0 ? (int?)null : p.Material.Underlay,

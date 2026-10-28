@@ -9,6 +9,7 @@ public sealed record SwShMaterialBinding(string Name, int NativeMaterial, IReadO
 {
     public Vector2 NormalUvScale { get; init; } = Vector2.One;
     public Vector4 ColorUvTransform { get; init; } = new(1, 1, 0, 0);
+    public bool UseSecondaryUv { get; init; }
 }
 public sealed record SwShEffectLocator(string Name, string Parent, Vector3 Translation)
 {
@@ -82,7 +83,7 @@ public static class SwShModelWriter
             cancellationToken.ThrowIfCancellationRequested();
             var binding = bindings[i];
             if ((uint)binding.NativeMaterial >= materials.Length || binding.Name != scene.Primitives[i].Material.Name)
-                throw new InvalidDataException("Native material binding does not match its mesh.");
+                throw new InvalidDataException($"Native material binding {binding.Name} ({binding.NativeMaterial}/{materials.Length}) does not match mesh material {scene.Primitives[i].Material.Name}.");
             writer.Pointer(slots[i], Material(writer, native, materials[binding.NativeMaterial], binding, names));
         }
         slots = writer.Vector(root, 7, scene.Primitives.Count);
@@ -106,6 +107,8 @@ public static class SwShModelWriter
                 BinaryPrimitives.WriteUInt16LittleEndian(indices.AsSpan(j * 2), checked((ushort)primitive.Indices[j]));
             writer.Blob(polygon, 1, indices, primitive.Indices.Length);
             (int Kind, int Format, int Count)[] attributes = [(0, 0, 3), (1, 1, 4), (2, 1, 4), (3, 0, 2), (7, 3, 4), (8, 3, 4), (11, 3, 4), (12, 8, 4)];
+            var secondaryUv = bindings[i].UseSecondaryUv;
+            if (secondaryUv) attributes = attributes[..4].Concat([(4, 0, 2)]).Concat(attributes[4..]).ToArray();
             var attributeSlots = writer.Vector(mesh, 1, attributes.Length);
             for (var j = 0; j < attributes.Length; j++)
                 writer.Pointer(attributeSlots[j], writer.Table(3, new Dictionary<int, byte[]>
@@ -113,7 +116,7 @@ public static class SwShModelWriter
                     [0] = ModelTableBuilder.Integer(attributes[j].Kind), [1] = ModelTableBuilder.Integer(attributes[j].Format),
                     [2] = ModelTableBuilder.Integer(attributes[j].Count),
                 }));
-            writer.Blob(mesh, 2, Vertices(primitive, joints, scale, cancellationToken));
+            writer.Blob(mesh, 2, Vertices(primitive, joints, scale, secondaryUv, cancellationToken));
         }
         slots = writer.Vector(root, 9, bones.Count);
         for (var i = 0; i < bones.Count; i++)
@@ -250,9 +253,11 @@ public static class SwShModelWriter
         return MathF.Abs(MathF.Cos(y)) > 0.000001f ? [MathF.Atan2(m.M23, m.M33), y, MathF.Atan2(m.M12, m.M11)]
             : [MathF.Atan2(-m.M32, m.M22), y, 0];
     }
-    private static byte[] Vertices(PreviewPrimitive primitive, IReadOnlyDictionary<int, int> joints, float scale, CancellationToken token)
+    private static byte[] Vertices(PreviewPrimitive primitive, IReadOnlyDictionary<int, int> joints, float scale, bool secondaryUv, CancellationToken token)
     {
         var v = primitive.Vertices; var count = v.Length / 16;
+        if (secondaryUv && (primitive.SecondaryUv is not { } uv1 || uv1.Length != count * 2 || uv1.Any(value => !float.IsFinite(value))))
+            throw new InvalidDataException("Converted material requires complete secondary texture coordinates.");
         var tangents = new Vector3[count]; var bitangents = new Vector3[count];
         Vector3 Position(int i) => new(v[i * 16], v[i * 16 + 1], v[i * 16 + 2]);
         Vector2 Uv(int i) => new(v[i * 16 + 6], v[i * 16 + 7]);
@@ -266,7 +271,7 @@ public static class SwShModelWriter
             tangents[a] += tangent; tangents[b] += tangent; tangents[c] += tangent;
             bitangents[a] += bitangent; bitangents[b] += bitangent; bitangents[c] += bitangent;
         }
-        using var stream = new MemoryStream(count * 52); using var output = new BinaryWriter(stream);
+        using var stream = new MemoryStream(count * (secondaryUv ? 60 : 52)); using var output = new BinaryWriter(stream);
         void Half(float value) => output.Write(BitConverter.HalfToUInt16Bits((Half)value));
         for (var i = 0; i < count; i++)
         {
@@ -280,7 +285,9 @@ public static class SwShModelWriter
             var position = Position(i) * scale; output.Write(position.X); output.Write(position.Y); output.Write(position.Z);
             Half(normal.X); Half(normal.Y); Half(normal.Z); Half(1);
             Half(tangent.X); Half(tangent.Y); Half(tangent.Z); Half(Vector3.Dot(Vector3.Cross(normal, tangent), bitangents[i]) < 0 ? -1 : 1);
-            output.Write(v[at + 6]); output.Write(v[at + 7]); output.Write(new byte[] { 127, 127, 255, 255 });
+            output.Write(v[at + 6]); output.Write(v[at + 7]);
+            if (secondaryUv) { output.Write(primitive.SecondaryUv![i * 2]); output.Write(primitive.SecondaryUv[i * 2 + 1]); }
+            output.Write(new byte[] { 127, 127, 255, 255 });
             output.Write(new[] { (byte)Math.Clamp((normal.X + 1) * 127.5f, 0, 255), (byte)Math.Clamp((normal.Y + 1) * 127.5f, 0, 255), (byte)Math.Clamp((normal.Z + 1) * 127.5f, 0, 255), (byte)255 });
             var weights = v.AsSpan(at + 12, 4).ToArray(); var sum = weights.Sum();
             if (sum <= 0 || weights.Any(w => w < 0)) throw new InvalidDataException("Skin weights are invalid.");

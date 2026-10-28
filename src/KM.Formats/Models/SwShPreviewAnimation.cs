@@ -4,7 +4,8 @@ namespace KM.Formats.Models;
 public static class SwShPreviewAnimation
 {
     public static PreviewClip Read(ModelBuffer data, PreviewClip clip, ICollection<string> warnings,
-        IReadOnlySet<string>? fireMaterials = null, IReadOnlySet<string>? emissionMaterials = null, IReadOnlySet<string>? layerEmissionMaterials = null)
+        IReadOnlySet<string>? fireMaterials = null, IReadOnlySet<string>? emissionMaterials = null, IReadOnlySet<string>? layerEmissionMaterials = null,
+        IReadOnlySet<string>? surfaceLayerMaterials = null)
     {
         var visibility = ReadVisibility(data, clip.Frames);
         var materials = new List<PreviewMaterialTrack>();
@@ -77,7 +78,7 @@ public static class SwShPreviewAnimation
                 }
                 if (layeredEmission.Any(channel => channel.Length > 0)) materials.Add(new(name, "LayerEmission", layeredEmission));
                 if (uv.Any(channel => channel.Length > 0)) materials.Add(new(name, "UVScaleOffset", uv));
-                if (underlayUv.Any(channel => channel.Length > 0)) materials.Add(new(name, "UnderlayUV", underlayUv));
+                if (underlayUv.Any(channel => channel.Length > 0)) materials.Add(new(name, surfaceLayerMaterials?.Contains(name) == true ? "MaskUV" : "UnderlayUV", underlayUv));
                 if (origins.Any(channel => channel.Length > 0)) materials.Add(new(name, "UvOrigins", origins));
                 foreach (var (parameter, channels) in effects) materials.Add(new(name, parameter, channels));
                 if (data.Tables(material, 1, 256).Length > 0)
