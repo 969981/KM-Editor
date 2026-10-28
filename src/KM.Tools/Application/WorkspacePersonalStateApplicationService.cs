@@ -1205,9 +1205,7 @@ public sealed class WorkspacePersonalStateApplicationService
 
     private static string GetDefaultAppDataRoot()
     {
-        var localApplicationData = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData,
-            Environment.SpecialFolderOption.DoNotVerify);
+        var localApplicationData = global::KM.Core.PortableApplicationData.GetLocalApplicationDataDirectory();
         if (string.IsNullOrWhiteSpace(localApplicationData)
             || !Path.IsPathFullyQualified(localApplicationData))
         {

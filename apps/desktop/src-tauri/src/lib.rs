@@ -3827,8 +3827,49 @@ fn create_open_path_command(path: &Path) -> Command {
     command
 }
 
+// Portable mode is activated by the marker shipped alongside the executable.
+fn portable_data_directory() -> Option<PathBuf> {
+    let executable = std::env::current_exe().ok()?;
+    let directory = executable.parent()?;
+    directory
+        .join("portable.flag")
+        .is_file()
+        .then(|| directory.join("Data"))
+}
+
+#[tauri::command]
+fn is_portable_mode() -> bool {
+    portable_data_directory().is_some()
+}
+
+#[cfg(windows)]
+fn configure_portable_environment() -> io::Result<()> {
+    let Some(data_directory) = portable_data_directory() else {
+        return Ok(());
+    };
+
+    // Fail rather than silently writing native state into the Windows profile.
+    let webview_data = data_directory.join("WebView2");
+    let temporary_data = data_directory.join("Temp");
+    let managed_bundle_data = data_directory.join("DotNetBundle");
+    for directory in [&data_directory, &webview_data, &temporary_data, &managed_bundle_data] {
+        std::fs::create_dir_all(directory)?;
+    }
+
+    // Process-scoped environment, inherited by the managed sidecar.
+    std::env::set_var("KM_EDITOR_PORTABLE_DATA_DIR", &data_directory);
+    std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &webview_data);
+    std::env::set_var("DOTNET_BUNDLE_EXTRACT_BASE_DIR", &managed_bundle_data);
+    std::env::set_var("TEMP", &temporary_data);
+    std::env::set_var("TMP", &temporary_data);
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    configure_portable_environment()
+        .expect("KM Editor portable data directory is not writable");
     let context = tauri::generate_context!();
     let project_bridge_trace = ProjectBridgeTraceState::from_environment()
         .expect("KM Editor could not initialize the requested project bridge trace");
@@ -3850,16 +3891,21 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
-            cleanup_stale_updater_temp_directories();
+            if !is_portable_mode() {
+                cleanup_stale_updater_temp_directories();
+            }
             start_project_bridge_memory_maintenance(&app.state::<ProjectBridgeState>())?;
 
             #[cfg(desktop)]
-            app.handle()
-                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            if !is_portable_mode() {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            is_portable_mode,
             get_app_memory,
             model_preview_activate,
             model_preview_open,

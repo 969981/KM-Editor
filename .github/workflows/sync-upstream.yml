@@ -1,0 +1,75 @@
+name: Sync upstream and publish portable
+
+on:
+  schedule:
+    # Check upstream master every 6 hours (UTC).
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: upstream-sync-master
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Merge upstream changes into master
+    if: github.repository == '969981/KM-Editor'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.merge.outputs.changed }}
+      source_sha: ${{ steps.merge.outputs.source_sha }}
+      upstream_sha: ${{ steps.merge.outputs.upstream_sha }}
+    steps:
+      - name: Checkout fork master with complete history
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Merge upstream without discarding fork changes
+        id: merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/KotMatrosk1n/KM-Editor.git
+          git fetch --no-tags upstream master
+          upstream_sha="$(git rev-parse upstream/master)"
+          echo "upstream_sha=$upstream_sha" >> "$GITHUB_OUTPUT"
+
+          if git merge-base --is-ancestor "$upstream_sha" HEAD; then
+            echo "Upstream master is already merged. Nothing to publish."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Do not use -X ours or force-push. Conflicts require explicit review.
+          if ! git merge --no-ff --no-edit upstream/master -m "chore(sync): merge upstream $upstream_sha"; then
+            git diff --name-only --diff-filter=U || true
+            git merge --abort || true
+            echo "::error::Upstream merge conflicts with portable changes. Resolve on master before the next scheduled run."
+            exit 1
+          fi
+
+          source_sha="$(git rev-parse HEAD)"
+          git push origin HEAD:master
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "Merged upstream $upstream_sha into fork commit $source_sha"
+
+  build-and-release:
+    name: Build and release the merged portable version
+    needs: sync
+    if: needs.sync.result == 'success' && needs.sync.outputs.changed == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/portable.yml
+    with:
+      source_sha: ${{ needs.sync.outputs.source_sha }}
+      upstream_sha: ${{ needs.sync.outputs.upstream_sha }}
+      publish_release: true

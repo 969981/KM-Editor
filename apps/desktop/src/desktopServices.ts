@@ -63,6 +63,10 @@ export const desktopServices: DesktopServices = {
       'Could not check for native updates.',
       async () => {
         ensureTauriRuntime();
+        // Portable archives do not register an installer or native updater.
+        if (await invoke<boolean>('is_portable_mode')) {
+          return null;
+        }
 
         const { check } = await import('@tauri-apps/plugin-updater');
         const update = await check({ timeout: nativeUpdateCheckTimeoutMs });

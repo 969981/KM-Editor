@@ -1611,9 +1611,7 @@ public sealed class ResearchLabApplicationService : IDisposable
 
     private static string GetPrivateAppDataRoot()
     {
-        var root = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData,
-            Environment.SpecialFolderOption.DoNotVerify);
+        var root = global::KM.Core.PortableApplicationData.GetLocalApplicationDataDirectory();
         if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root))
         {
             throw ExternalRejected("The private application-data root could not be verified.");

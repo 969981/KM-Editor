@@ -1,0 +1,129 @@
+name: Portable Windows ZIP
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: "Exact fork commit to build after the upstream merge"
+        required: false
+        type: string
+        default: ""
+      upstream_sha:
+        description: "Upstream commit merged by the caller"
+        required: false
+        type: string
+        default: ""
+      publish_release:
+        description: "Publish the verified ZIP as a GitHub Release"
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Also publish a GitHub Release (instead of artifact only)"
+        required: false
+        type: boolean
+        default: false
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency:
+  group: portable-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  portable:
+    name: Windows x64 portable archive
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      CARGO_TARGET_DIR: ${{ github.workspace }}/apps/desktop/src-tauri/target
+    steps:
+      - name: Check out the exact source revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.16.0
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Set up MSVC build environment
+        uses: microsoft/setup-msbuild@v2
+      - name: Install Rust toolchain
+        shell: pwsh
+        run: rustup default 1.96.0
+      - name: Install dependencies
+        shell: pwsh
+        run: pnpm install --frozen-lockfile
+      - name: Restore backend
+        shell: pwsh
+        run: dotnet restore .\KM.Editor.slnx
+      - name: Validate synchronized version
+        shell: pwsh
+        run: pnpm run check:version
+      - name: Build unbundled application and self-contained bridge
+        shell: pwsh
+        run: pnpm --dir apps/desktop exec tauri build --ci --no-bundle --no-sign
+      - name: Assemble portable archive
+        shell: pwsh
+        run: .\scripts\Build-KmPortable.ps1 -CargoTargetDirectory $env:CARGO_TARGET_DIR -OutputDirectory (Join-Path $env:GITHUB_WORKSPACE 'portable-dist')
+      - name: Upload portable ZIP as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KM-Editor-Portable-windows-x64
+          path: portable-dist/*.zip
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish ZIP to GitHub Releases
+        if: ${{ inputs.publish_release == true || (github.event_name == 'push' && github.ref == 'refs/heads/master') }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+          UPSTREAM_SHA: ${{ inputs.upstream_sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = [string](Get-Content 'apps/desktop/src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json).version
+          $short = $env:SOURCE_SHA.Substring(0, 12)
+          $tag = "portable-v$version-g$short"
+          $zip = @(Get-ChildItem -LiteralPath 'portable-dist' -Filter '*.zip' -File)
+          if ($zip.Count -ne 1) { throw "Expected exactly one portable ZIP; found $($zip.Count)." }
+
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists. No duplicate published."
+            exit 0
+          }
+
+          $upstreamLine = if ($env:UPSTREAM_SHA) {
+            "Merged upstream KotMatrosk1n/KM-Editor master: $env:UPSTREAM_SHA"
+          } else {
+            "Built from the fork's current master revision."
+          }
+          $notes = @"
+          Automatic portable Windows x64 build of KM Editor.
+
+          - Fork source: $env:SOURCE_SHA
+          - $upstreamLine
+          - No installer and no native auto-update
+          - App settings, WebView2 profile, project caches, and bridge data stored beside the executable in Data/
+          - WebView2 Runtime must be available on Windows
+
+          Download the attached ZIP, extract it into a writable folder, and run km-editor-desktop.exe.
+          "@
+          gh release create $tag $zip[0].FullName --repo $env:GITHUB_REPOSITORY --target $env:SOURCE_SHA --title "KM Editor Portable v$version ($short)" --notes $notes --latest
+          if ($LASTEXITCODE -ne 0) { throw "Could not create release $tag." }
