@@ -277,20 +277,29 @@ public sealed class SwShRestorationService
     private static void AddSpeciesSupport(ProjectPaths paths, SwShRestorationState state,
         IDictionary<string, byte[]?> outputs, ISet<ProjectFileReference> sources)
     {
-        if (!SwShRestorationDependencies.Enabled(state).Contains(new(SwShRestorationSpecies.Annihilape, 0))) return;
-        if (string.IsNullOrWhiteSpace(paths.BaseExeFsPath))
-            throw new InvalidDataException("Select the game's Base ExeFS folder to add species 979 support.");
-        var nativePersonal = BoundedRead(Path.Combine(paths.BaseRomFsPath!, SwShRestorationComposer.PersonalPath[6..]));
-        sources.Add(new(ProjectFileLayer.Base, SwShRestorationComposer.PersonalPath));
+        var enabled = SwShRestorationDependencies.Enabled(state);
+        var newSpecies = enabled.Contains(new(SwShRestorationSpecies.Annihilape, 0));
+        if (!newSpecies && !enabled.Any(identity => identity.Form != 0)) return;
         var personal = outputs.TryGetValue(SwShRestorationComposer.PersonalPath, out var pendingPersonal) && pendingPersonal is not null
             ? pendingPersonal : SwShEffectivePokemonCatalog.Read(paths, SwShRestorationComposer.PersonalPath, sources: sources);
-        SwShRestorationSpecies.ValidateReservation(nativePersonal, personal);
+        var independentForms = enabled.Any(identity => identity.Form != 0
+            && (personal[identity.Species * KM.Formats.SwSh.SwShPersonalTable.RecordSize + 33] & 64) == 0);
+        if (!independentForms && !newSpecies) return;
+        if (string.IsNullOrWhiteSpace(paths.BaseExeFsPath))
+            throw new InvalidDataException("Select the game's Base ExeFS folder to support the restored Pokemon identity.");
+        if (newSpecies)
+        {
+            var nativePersonal = BoundedRead(Path.Combine(paths.BaseRomFsPath!, SwShRestorationComposer.PersonalPath[6..]));
+            sources.Add(new(ProjectFileLayer.Base, SwShRestorationComposer.PersonalPath));
+            SwShRestorationSpecies.ValidateReservation(nativePersonal, personal);
+        }
         const string relative = "exefs/main";
         var baseline = BoundedRead(Path.Combine(paths.BaseExeFsPath, "main")); sources.Add(new(ProjectFileLayer.Base, relative));
         var current = baseline; var output = Output(paths, relative, includeExecutable: true);
         if (outputs.TryGetValue(relative, out var pending) && pending is not null) current = pending;
         else if (System.IO.File.Exists(output)) { current = BoundedRead(output); sources.Add(new(ProjectFileLayer.Layered, relative)); }
-        var patched = SwShRestorationSpeciesPatcher.Apply(baseline, current, paths.SelectedGame!.Value);
+        var patched = independentForms ? SwShRestorationSpeciesPatcher.ApplyIndependentForms(baseline, current, paths.SelectedGame!.Value)
+            : SwShRestorationSpeciesPatcher.Apply(baseline, current, paths.SelectedGame!.Value);
         if (!patched.AsSpan().SequenceEqual(current)) outputs[relative] = patched;
     }
 

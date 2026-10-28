@@ -15,10 +15,32 @@ public sealed partial class SwShRestorationPreparationService
         IReadOnlyDictionary<string, int>? NormalUvVerticalTiles = null, int? SourceVoiceForm = null, bool LayerEmission = false,
         bool ScalarEyes = false, IReadOnlyDictionary<string, string>? MotionOverrides = null, bool AuthoredAlpha = false,
         int? SourceSpecies = null, bool EmptyMouth = false, bool TransparentEyes = false,
-        IReadOnlyDictionary<string, System.Numerics.Vector2>? StaticUvScales = null, string? SummaryFramingStem = null);
+        IReadOnlyDictionary<string, System.Numerics.Vector2>? StaticUvScales = null, string? SummaryFramingStem = null,
+        int GenderKind = 0, bool SurfaceFlow = false, bool CompactAnimationResources = false, float FlameColorExposure = 1);
 
     private static readonly IReadOnlyDictionary<SwShPokemonIdentity, SpeciesProfile> FormProfiles = new Dictionary<SwShPokemonIdentity, SpeciesProfile>
     {
+        [new(58, 1)] = new(58, 58, 70, 25, 63, 80, 80, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            SourceStem: "pm0058_00_41", HatchedForm: 1, ScalarEyes: true, SourceVoiceForm: 0,
+            MotionOverrides: new Dictionary<string, string> { ["eye01"] = "00000" }),
+        [new(59, 1)] = new(59, 58, 194, 25, 63, 150, 200, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            SourceStem: "pm0059_00_41", HatchedForm: 1, CornealEyes: true, SourceVoiceForm: 0),
+        [new(88, 1)] = new(568, 88, 65, 50, 127, 70, 70, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            SourceStem: "pm0088_00_11", HatchedForm: 1, CornealEyes: true, BattleIdle: "00000", SourceVoiceForm: 0, SurfaceFlow: true),
+        [new(89, 1)] = new(569, 88, 175, 50, 127, 100, 100, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            SourceStem: "pm0089_00_11", HatchedForm: 1, CornealEyes: true, BattleIdle: "00000", SourceVoiceForm: 0, SurfaceFlow: true, CompactAnimationResources: true),
+        [new(100, 1)] = new(109, 100, 66, 0, 255, 50, 50, AuthoredMaterials: true, MeshVisibility: true,
+            SourceStem: "pm0100_00_41", HatchedForm: 1, GenderKind: 3, GiantVerticalOffset: 0, LayerEmission: true, SourceVoiceForm: 0,
+            ScalarEyes: true, EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }),
+        [new(101, 1)] = new(362, 100, 172, 0, 255, 120, 120, AuthoredMaterials: true, MeshVisibility: true,
+            SourceStem: "pm0101_00_41", HatchedForm: 1, GenderKind: 3, LayerEmission: true, SourceVoiceForm: 0,
+            ScalarEyes: true, EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }),
+        [new(157, 1)] = new(467, 155, 240, 12, 31, 160, 160, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            SourceStem: "pm0157_00_41", NativeFlames: true, CornealEyes: true, SourceVoiceForm: 0, FlameColorExposure: .25f),
+        [new(503, 1)] = new(365, 501, 238, 12, 31, 150, 150, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            SourceStem: "pm0503_00_41", CornealEyes: true, SourceVoiceForm: 0),
+        [new(571, 1)] = new(571, 570, 179, 12, 31, 150, 160, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            SourceStem: "pm0571_00_41", CornealEyes: true, SourceVoiceForm: 0, SurfaceFlow: true, CompactAnimationResources: true),
         [new(74, 1)] = new(109, 74, 60, 50, 127, 50, 40, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
             AnimationOffset: 20000, CornealEyes: true, GiantVerticalOffset: 0, SourceStem: "pm0074_00_11", HatchedForm: 1, SourceVoiceForm: 0),
         [new(75, 1)] = new(525, 74, 137, 50, 127, 100, 100, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
@@ -39,6 +61,29 @@ public sealed partial class SwShRestorationPreparationService
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [84] = new(83, 84, 62, 50, 127, 110, 140, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [85] = new(521, 84, 165, 50, 127, 140, 180, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [86] = new(363, 86, 65, 50, 127, 90, 110, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            ScalarEyes: true, EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }),
+        [87] = new(365, 86, 166, 50, 127, 120, 170, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            BattleIdle: "10001", MotionOverrides: new Dictionary<string, string>
+            {
+                ["ba01_landA01"] = "10152", ["ba01_landB01"] = "10153", ["ba01_landC01"] = "10155",
+                ["ba10_waitB01"] = "10010", ["ba20_buturi01"] = "10400", ["ba21_tokusyu01"] = "10450",
+                ["ba30_damageS01"] = "10500", ["ba41_down01"] = "10520", ["ba02_roar01"] = "10300",
+                ["eye01"] = "18000", ["mouth01"] = "18100",
+                ["kw32_happyB01"] = "00550", ["kw35_playA01"] = "00550",
+            }),
+        [88] = new(568, 88, 65, 50, 127, 90, 90, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, BattleIdle: "00000", SurfaceFlow: true),
+        [89] = new(569, 88, 175, 50, 127, 120, 120, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, BattleIdle: "00000", SurfaceFlow: true),
+        [96] = new(239, 96, 66, 50, 127, 100, 100, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [97] = new(122, 96, 169, 50, 127, 140, 160, AuthoredMaterials: true, MeshVisibility: true, CornealEyes: true,
+            ScalarEyes: true, EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }),
+        [100] = new(109, 100, 66, 0, 255, 50, 50, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            BattleIdle: "00000", GenderKind: 3, GiantVerticalOffset: 0, ScalarEyes: true, EmptyMouth: true,
+            MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }),
+        [101] = new(362, 100, 172, 0, 255, 120, 120, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            BattleIdle: "00000", GenderKind: 3),
         [48] = new(595, 48, 61, 50, 127, 100, 100, AuthoredMaterials: true, FramingTemplate: 596, MeshVisibility: true,
             CornealEyes: true, ScalarEyes: true, BattleIdle: "00000", MotionOverrides: new Dictionary<string, string>
             { ["ba10_waitB01"] = "00000", ["kw32_happyB01"] = "00550", ["kw35_playA01"] = "00550", ["mouth01"] = "00000" }, EmptyMouth: true),

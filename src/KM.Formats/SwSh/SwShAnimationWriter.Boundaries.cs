@@ -62,6 +62,23 @@ public static partial class SwShAnimationWriter
                 if (!changed.Contains((bone, field)))
                 {
                     writer.Int32(writer.Field(node, field), kind);
+                    // Dense curves are indexed directly by playback frame. They
+                    // must cover the recovery even when their final pose already
+                    // matches idle, or playback can read past the authored data.
+                    if (kind == 2)
+                    {
+                        var heldStride = field == 3 ? 6 : 12;
+                        var (start, count) = source.Vector(curve, 0, heldStride, 18000);
+                        if (count < 1 || count > entry.Frames)
+                            throw new InvalidDataException("Battle entry dense curve timing is invalid.");
+                        var held = new byte[frames * heldStride];
+                        source.Slice(start, count * heldStride).CopyTo(held);
+                        for (var frame = count; frame < frames; frame++)
+                            source.Slice(start + (count - 1) * heldStride, heldStride).CopyTo(held.AsSpan(frame * heldStride));
+                        var heldCurve = writer.Table(1); writer.Reference(node, field + 1, heldCurve);
+                        writer.Blob(heldCurve, 0, held, frames);
+                        continue;
+                    }
                     if (kind != 0) writer.Reference(node, field + 1, copy + curve);
                     continue;
                 }

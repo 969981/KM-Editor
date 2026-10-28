@@ -7,7 +7,7 @@ using KM.SwSh.ExeFs;
 
 namespace KM.SwSh.Restoration;
 
-/// <summary>Maps the registered species 979 to its reserved data row while preserving its logical identity and name.</summary>
+/// <summary>Supports registered species and alternate forms through the guarded native identity dispatch.</summary>
 public static class SwShRestorationSpeciesPatcher
 {
     internal const string Owner = "Restoration Species";
@@ -25,7 +25,7 @@ public static class SwShRestorationSpeciesPatcher
         new(0x76494C, 0x4, "C7C582903BE9FD63963FCBDDC0188C41CDE5B26C612CD3CA09A47B1FD75F9D88", "C7C582903BE9FD63963FCBDDC0188C41CDE5B26C612CD3CA09A47B1FD75F9D88", SWNameIndexThree()),
     ];
 
-    internal static (NsoFile Main, bool Installed) Read(byte[] bytes, ProjectGame game)
+    internal static (NsoFile Main, bool Installed, bool IndependentForms) Read(byte[] bytes, ProjectGame game)
     {
         var main = NsoFile.Parse(bytes);
         if (game is not (ProjectGame.Sword or ProjectGame.Shield)
@@ -35,11 +35,21 @@ public static class SwShRestorationSpeciesPatcher
         foreach (var (segment, flag) in new[] { (main.Text, NsoFlags.CheckHashText), (main.Ro, NsoFlags.CheckHashRo), (main.Data, NsoFlags.CheckHashData) })
             if (main.Flags.HasFlag(flag) && !NsoFile.ComputeHash(segment.DecompressedData).SequenceEqual(segment.Hash))
                 throw new InvalidDataException("The executable segment checksum is invalid.");
-        bool? installed = null;
+        bool? installed = null; var independentForms = false;
         foreach (var region in Regions(game))
         {
             var current = main.Text.DecompressedData.AsSpan(region.Offset, region.Length);
             var patched = current.SequenceEqual(region.Replacement);
+            if (!patched && region.Offset == 0x77F600)
+            {
+                var normalized = current.ToArray();
+                if (BinaryPrimitives.ReadUInt32LittleEndian(normalized.AsSpan(0x3c)) == 0xD503201F)
+                {
+                    BinaryPrimitives.WriteUInt32LittleEndian(normalized.AsSpan(0x3c), 0x363001AA);
+                    patched = normalized.AsSpan().SequenceEqual(region.Replacement);
+                    independentForms = patched;
+                }
+            }
             if (!patched && Convert.ToHexString(SHA256.HashData(current)) != (game == ProjectGame.Sword ? region.SwordHash : region.ShieldHash)
                 || installed is { } previous && previous != patched)
                 throw new InvalidDataException("The species lookup routines contain incompatible changes.");
@@ -61,13 +71,15 @@ public static class SwShRestorationSpeciesPatcher
         }
         if (Convert.ToHexString(SHA256.HashData(names)) != (game == ProjectGame.Sword ? "0EFF3E3746336D8A587A21EA18A1FC9F8781352EAD752E554C002D81F0D2B53A" : "0EFF3E3746336D8A587A21EA18A1FC9F8781352EAD752E554C002D81F0D2B53A"))
             throw new InvalidDataException("The native species name helpers contain incompatible changes.");
-        return (main, installed == true);
+        return (main, installed == true, independentForms);
     }
 
     public static byte[] Apply(byte[] baseline, byte[] source, ProjectGame game) => Rewrite(baseline, source, game, true);
+    public static byte[] ApplyIndependentForms(byte[] baseline, byte[] source, ProjectGame game)
+        => Rewrite(baseline, source, game, true, independentForms: true);
     internal static byte[] RestoreFromBase(byte[] baseline, byte[] source, ProjectGame game) => Rewrite(baseline, source, game, false);
 
-    private static byte[] Rewrite(byte[] baseline, byte[] source, ProjectGame game, bool enabled)
+    private static byte[] Rewrite(byte[] baseline, byte[] source, ProjectGame game, bool enabled, bool independentForms = false)
     {
         var original = Read(baseline, game); var current = Read(source, game);
         if (original.Installed) throw new InvalidDataException("Base ExeFS must contain the original species lookup routines.");
@@ -76,12 +88,16 @@ public static class SwShRestorationSpeciesPatcher
         if (regions.Any(region => SwShExeFsReservedRegionLedger.MainTextReservationsForOtherOwners(game, Owner)
             .Any(other => SwShExeFsReservedRegionLedger.Overlaps(other, region.Offset, region.Length))))
             throw new InvalidDataException("Species support overlaps another executable feature.");
-        if (current.Installed == enabled) return source;
+        independentForms |= current.IndependentForms;
+        if (current.Installed == enabled && (!enabled || current.IndependentForms == independentForms)) return source;
         var text = current.Main.Text.DecompressedData.ToArray();
         foreach (var region in regions)
             (enabled ? region.Replacement.AsSpan() : original.Main.Text.DecompressedData.AsSpan(region.Offset, region.Length)).CopyTo(text.AsSpan(region.Offset));
+        // The shared dispatch still checks the form range and declared personal row.
+        // Only the base-species presence requirement is omitted for an installed alternate form.
+        if (enabled && independentForms) BinaryPrimitives.WriteUInt32LittleEndian(text.AsSpan(0x77F63C), 0xD503201F);
         var output = current.Main.Write(textDecompressedData: text); var after = Read(output, game);
-        if (after.Installed != enabled || !after.Main.Text.DecompressedData.SequenceEqual(text)
+        if (after.Installed != enabled || after.IndependentForms != (enabled && independentForms) || !after.Main.Text.DecompressedData.SequenceEqual(text)
             || !after.Main.Ro.DecompressedData.SequenceEqual(current.Main.Ro.DecompressedData)
             || !after.Main.Data.DecompressedData.SequenceEqual(current.Main.Data.DecompressedData)
             || !SwShExeFsMainComparison.StableHeaderBytesMatch(current.Main.RawHeader, after.Main.RawHeader))

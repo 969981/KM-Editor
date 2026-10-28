@@ -59,6 +59,8 @@ pub struct MeshInfo {
     #[serde(default)]
     pub top_origin_uv: bool,
     #[serde(default)]
+    pub secondary_uv: Option<Vec<f32>>,
+    #[serde(default)]
     pub mask_uv: Option<[f32; 4]>,
     #[serde(default)]
     pub highlight: Option<usize>,
@@ -90,6 +92,8 @@ pub struct SurfaceInfo {
     pub tint_subsurface_by_base_color: bool,
     #[serde(default, rename = "layerEmission")]
     pub layer_emission: bool,
+    #[serde(default, rename = "surfaceLayers")]
+    pub surface_layers: bool,
     #[serde(default)]
     pub effect: u32,
     #[serde(default, rename = "effectLink")]

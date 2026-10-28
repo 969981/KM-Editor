@@ -2,6 +2,7 @@
 using BCnEncoder.Decoder;
 using BCnEncoder.Shared;
 using KM.Formats.Models;
+using KM.Formats.SwSh;
 
 namespace KM.Formats.SV;
 
@@ -52,9 +53,11 @@ public static class SvSwShFlameMaterial
     }
 
     public static SvSwShFlameTemplate Template(byte[] bodyModel, byte[] flameModel, byte[] sourceMaterials, byte[]? sharedMaterials = null,
-        int linkId = 0)
+        int linkId = 0, float colorExposure = 1)
     {
         if (linkId is < 0 or > 7) throw new InvalidDataException("Native flame pair identity exceeds its supported range.");
+        if (!float.IsFinite(colorExposure) || colorExposure is <= 0 or > 1)
+            throw new InvalidDataException("Native flame color exposure is invalid.");
         var source = new ModelBuffer(sourceMaterials); var flame = Flame(source);
         if (sharedMaterials is not null)
         {
@@ -70,7 +73,7 @@ public static class SvSwShFlameMaterial
             return at == 0 ? new float[4] : Enumerable.Range(0, 4).Select(i => source.Float(at + 4 * i)).ToArray();
         }, StringComparer.Ordinal);
         float[] Color(string name) => colors.TryGetValue(name, out var color) && color.All(float.IsFinite)
-            ? color[..3] : throw new InvalidDataException("S/V flame palette is incomplete.");
+            ? color[..3].Select(channel => channel * colorExposure).ToArray() : throw new InvalidDataException("S/V flame palette is incomplete.");
         if (!colors.GetValueOrDefault("BaseColor", [1f, 1, 1, 1]).SequenceEqual([1f, 1, 1, 1])
             || Scalar(source, flame, "LayerMaskScale1") != 1 || Scalar(source, flame, "LayerMaskScale2") != 1)
             throw new InvalidDataException("S/V flame base tint or layer weights require another adapter.");
@@ -197,36 +200,45 @@ public static class SvSwShFlameMaterial
         if (!float.IsFinite(height) || (zaFlame ? height is not (.08f or .09f or .12f) : height is < 0 or > .11f))
             throw new InvalidDataException("Flame displacement needs another native adapter.");
         // An undisplaced surface does not sample its placeholder noise texture.
-        if (height != 0 && (displacement.Format is not (0x1d01 or 0x0b01)
-            || displacement.Width != layer.Width || displacement.Height != layer.Height))
+        if (height != 0 && displacement.Format is not (0x1d01 or 0x0b01))
             throw new InvalidDataException("S/V flame noise requires another texture adapter.");
+        var independentNoise = height != 0 && (displacement.Width != layer.Width || displacement.Height != layer.Height);
         // PreviewTexture resolves authored channel mapping before returning RGBA.
         // Sample its red channel. The Sinnoh and Z-A flames use mapped RGBA noise.
         var noise = height == 0 ? [] : displacement.Format == 0x1d01
             ? new BcDecoder().DecodeRaw(displacement.Blocks, displacement.Width, displacement.Height, CompressionFormat.Bc4).Select(pixel => pixel.r).ToArray()
             : Enumerable.Range(0, displacement.Width * displacement.Height).Select(i => displacement.Blocks[i * 4]).ToArray();
-        var noisePixels = new byte[pixels.Length];
+        var noiseWidth = independentNoise ? displacement.Width : layer.Width;
+        var noiseHeight = independentNoise ? displacement.Height : layer.Height;
+        var noisePixels = new byte[checked(noiseWidth * noiseHeight * 4)];
         for (var i = 0; i < pixels.Length / 4; i++)
         {
             var green = pixels[i * 4 + 1];
-            for (var c = 0; c < 3; c++) { pixels[i * 4 + c] = green; noisePixels[i * 4 + c] = height == 0 ? (byte)0 : (byte)Math.Clamp((int)MathF.Round(noise[i] * height), 0, 255); }
-            pixels[i * 4 + 3] = noisePixels[i * 4 + 3] = 255;
+            for (var c = 0; c < 3; c++) pixels[i * 4 + c] = green;
+            pixels[i * 4 + 3] = 255;
+        }
+        for (var i = 0; i < noisePixels.Length / 4; i++)
+        {
+            for (var c = 0; c < 3; c++) noisePixels[i * 4 + c] = height == 0 ? (byte)0 : (byte)Math.Clamp((int)MathF.Round(noise[i] * height), 0, 255);
+            noisePixels[i * 4 + 3] = 255;
         }
         var original = Path.GetFileNameWithoutExtension(textures["LayerMaskMap"]);
         if (!original.EndsWith("_lym", StringComparison.Ordinal)) throw new InvalidDataException("S/V flame layer identity is unsupported.");
         var layerName = original[..^3] + "col"; var noiseName = original[..^3] + "mix"; var controlName = original[..^3] + "ctl";
-        byte[] Encode(string name, byte[] rgba)
+        byte[] Encode(string name, byte[] rgba, int imageWidth, int imageHeight)
         {
-            var container = new ModelTextureDocument(ModelTextureIdentity.Rename(sourceLayer, original, name, linear: true));
+            var layout = imageWidth == layer.Width && imageHeight == layer.Height ? sourceLayer
+                : SwShTextureAllocation.Create(sourceLayer, imageWidth, imageHeight, false);
+            var container = new ModelTextureDocument(ModelTextureIdentity.Rename(layout, original, name, linear: true));
             var mips = new byte[container.MipCount][];
             for (var mip = 0; mip < mips.Length; mip++)
             {
-                var width = Math.Max(1, layer.Width >> mip); var height = Math.Max(1, layer.Height >> mip); var level = new byte[width * height * 4];
+                var width = Math.Max(1, imageWidth >> mip); var height = Math.Max(1, imageHeight >> mip); var level = new byte[width * height * 4];
                 for (var y = 0; y < height; y++) for (var x = 0; x < width; x++) for (var c = 0; c < 4; c++)
                 {
                     var sum = 0; var count = 0;
-                    for (var sy = y * layer.Height / height; sy < (y + 1) * layer.Height / height; sy++)
-                        for (var sx = x * layer.Width / width; sx < (x + 1) * layer.Width / width; sx++) { sum += rgba[(sy * layer.Width + sx) * 4 + c]; count++; }
+                    for (var sy = y * imageHeight / height; sy < (y + 1) * imageHeight / height; sy++)
+                        for (var sx = x * imageWidth / width; sx < (x + 1) * imageWidth / width; sx++) { sum += rgba[(sy * imageWidth + sx) * 4 + c]; count++; }
                     level[(y * width + x) * 4 + c] = (byte)((sum + count / 2) / count);
                 }
                 mips[mip] = level;
@@ -239,8 +251,9 @@ public static class SvSwShFlameMaterial
         // than displacing vertices; the source silhouette is retained.
         var whiteName = Path.GetFileNameWithoutExtension(textures["BaseColorMap"]);
         return new(layerName, noiseName, controlName, whiteName, new Dictionary<string, byte[]>
-        { [layerName] = Encode(layerName, pixels), [noiseName] = Encode(noiseName, noisePixels),
-            [controlName] = Encode(controlName, new byte[pixels.Length]), [whiteName] = whiteBytes });
+        { [layerName] = Encode(layerName, pixels, layer.Width, layer.Height), [noiseName] = Encode(noiseName, noisePixels, noiseWidth, noiseHeight),
+            [controlName] = independentNoise ? Encode(controlName, new byte[4 * 4 * 4], 4, 4)
+                : Encode(controlName, new byte[pixels.Length], layer.Width, layer.Height), [whiteName] = whiteBytes });
     }
 
     private static int Flame(ModelBuffer source)
