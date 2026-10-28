@@ -618,9 +618,7 @@ public sealed class ResearchAnnotationApplicationService
 
     private static string GetDefaultAppDataRoot()
     {
-        var root = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData,
-            Environment.SpecialFolderOption.DoNotVerify);
+        var root = global::KM.Core.PortableApplicationData.GetLocalApplicationDataDirectory();
         if (string.IsNullOrWhiteSpace(root) || !Path.IsPathFullyQualified(root))
         {
             throw new InvalidOperationException("A private application-data location is unavailable.");

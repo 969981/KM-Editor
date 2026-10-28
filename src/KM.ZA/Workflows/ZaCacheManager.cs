@@ -1759,7 +1759,7 @@ public sealed partial class ZaCacheManager
 
     private static string ResolveDefaultCacheRoot()
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var localAppData = global::KM.Core.PortableApplicationData.GetLocalApplicationDataDirectory();
         if (string.IsNullOrWhiteSpace(localAppData))
         {
             localAppData = Path.GetTempPath();

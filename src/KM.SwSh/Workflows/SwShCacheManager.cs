@@ -1762,7 +1762,7 @@ public sealed partial class SwShCacheManager
 
     private static string ResolveDefaultCacheRoot()
     {
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var localAppData = global::KM.Core.PortableApplicationData.GetLocalApplicationDataDirectory();
         if (string.IsNullOrWhiteSpace(localAppData))
         {
             throw new InvalidOperationException("Local application data is unavailable for the Sword/Shield cache.");
