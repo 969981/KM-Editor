@@ -41,6 +41,8 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             var name = data.Text(material, 0) ?? throw new InvalidDataException("Material identity is missing.");
             var surface = PreviewSurface.Read(data, material, true);
             var layerEmission = SwShPreviewLayerEmission.UsesProgram(data, material);
+            var surfaceLayers = SwShPreviewLayerEmission.UsesProgram(data, material, KM.Formats.SV.SvSwShSurfaceFlow.LayerProgramName);
+            if (surfaceLayers) surface = surface with { SurfaceLayers = true };
             if (layerEmission)
             {
                 surface = surface with { LayerEmission = true };
@@ -69,6 +71,8 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
                 var at = data.Field(parameter, 1);
                 if (at == 0) continue;
                 var value = new Vector4(data.Float(at), data.Float(at + 4), data.Float(at + 8), 1);
+                if (surfaceLayers && Array.IndexOf(KM.Formats.SV.SvSwShLayerEmission.Vectors, data.Text(parameter, 0)) is var layer && layer >= 0)
+                    layers[layer] = value;
                 switch (data.Text(parameter, 0))
                 {
                     case "ConstantColor0": color = value; break;
@@ -112,6 +116,7 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
                 var gain = data.Tables(material, 13, 256).FirstOrDefault(p => data.Text(p, 0) == "OnGameEmissionVal");
                 if (gain != 0) surface.Values[5][3] = data.Field(gain, 1) is var at && at != 0 ? data.Float(at) : 0;
             }
+            if (surfaceLayers) maskUv = underlayUv;
             if (fire != 0)
             {
                 warnings.Add("materialEffectApproximate");
@@ -121,13 +126,15 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             foreach (var binding in data.Tables(material, 11, 32))
             {
                 var role = data.Text(binding, 0);
+                if (surfaceLayers && role == "Col0ColChangeTex") continue;
                 if (fire != 0) role = SwShPreviewFire.TextureRole(fire, role ?? "");
+                else if (role == "LyCol0Tex" && surfaceLayers) role = "Col0ColChangeTex";
                 else if (role == "EmissionMaskTex" && layerEmission) role = "Col0ColChangeTex";
                 else if (role == "EmissionMaskTex" && emission) role = "EmissionMap";
                 var surfaceSlot = PreviewSurface.TextureSlot(role ?? "");
                 if (role is not ("Col0Tex" or "LyCol0Tex" or "Col0ColChangeTex") && surfaceSlot < 0) continue;
                 // An identity color change does not consume its placeholder mask.
-                if (fire == 0 && !layerEmission && role == "Col0ColChangeTex" && layers.Take(3).All(layer => layer == Vector4.One)) continue;
+                if (fire == 0 && !layerEmission && !surfaceLayers && role == "Col0ColChangeTex" && layers.Take(3).All(layer => layer == Vector4.One)) continue;
                 var index = checked((int)data.Value(binding, 1));
                 if (index >= names.Length) throw new InvalidDataException("Material texture index is invalid.");
                 var textureName = names[index] + ".bntx";
@@ -156,7 +163,7 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             color = fire != 0 ? Vector4.One : new(surface.Values[39][0], surface.Values[39][1], surface.Values[39][2], color.W);
             return new PreviewMaterial(name, texture, mask, color, layers,
                 uv, data.Value(material, 6) == 0 ? "Opaque" : "Blend")
-            { Surface = surface, Wrap = wrap, MaskUv = maskUv, UvOrigins = origins, MaskChannels = new(1, 1, 1, layerEmission ? 1 : 0), Underlay = underlay, UnderlayUv = underlayUv, UnderlayWrap = underlayWrap };
+            { Surface = surface, Wrap = wrap, MaskUv = maskUv, UvOrigins = origins, MaskChannels = new(1, 1, 1, layerEmission || surfaceLayers ? 1 : 0), Underlay = underlay, UnderlayUv = underlayUv, UnderlayWrap = underlayWrap };
         }).ToArray();
     }
 
@@ -200,6 +207,7 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
         var skinned = attributes.ContainsKey(11) && attributes.ContainsKey(12);
         if (attributes.ContainsKey(11) != attributes.ContainsKey(12)) throw new InvalidDataException("Incomplete vertex skinning.");
         var vertices = new float[count * 16];
+        var secondaryUv = attributes.ContainsKey(4) ? new float[count * 2] : null;
         if (!Matrix4x4.Invert(rig.World[meshBone], out var inverseWorld)) throw new InvalidDataException("Mesh transform is singular.");
         var normalTransform = Matrix4x4.Transpose(inverseWorld);
         for (var v = 0; v < count; v++)
@@ -214,6 +222,7 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             vertices[v * 16] = point.X; vertices[v * 16 + 1] = point.Y; vertices[v * 16 + 2] = point.Z;
             vertices[v * 16 + 3] = normal.X; vertices[v * 16 + 4] = normal.Y; vertices[v * 16 + 5] = normal.Z;
             vertices[v * 16 + 6] = Value(3, v, 0); vertices[v * 16 + 7] = Value(3, v, 1);
+            if (secondaryUv is not null) { secondaryUv[v * 2] = Value(4, v, 0); secondaryUv[v * 2 + 1] = Value(4, v, 1); }
             var total = 0f;
             for (var c = 0; c < 4; c++)
             {
@@ -245,7 +254,7 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
                 indices = indices[..(length - length % 3)];
             }
             if (indices.Length == 0) continue;
-            yield return new(vertices, indices, materials[material], rig.Bones[meshBone].Name);
+            yield return new PreviewPrimitive(vertices, indices, materials[material], rig.Bones[meshBone].Name) { SecondaryUv = secondaryUv };
         }
     }
 }

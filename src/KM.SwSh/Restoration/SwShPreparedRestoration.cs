@@ -109,10 +109,10 @@ public sealed record SwShPreparedRestoration(string DefinitionId, int Definition
                     stones.Any(stone => item.Key == stone.ItemId.ToString(System.Globalization.CultureInfo.InvariantCulture)),
                 SwShRestorationWriter.Personal or SwShRestorationWriter.Learnset =>
                     int.TryParse(item.Key, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id) && rows.Contains(id),
-                SwShRestorationWriter.Icons => definition.Identities.Any(i => item.Key == SwShRestorationComposer.IconKey(i.Species, i.Form)
+                SwShRestorationWriter.Icons => definition.Identities.Any(i => SwShRestorationComposer.IconGenders(i.Species).Any(g => item.Key == SwShRestorationComposer.IconKey(i.Species, i.Form, g))
                     || i.Species == SwShRestorationSpecies.Annihilape && i.Form == 0 && item.Key == "979"),
                 SwShRestorationWriter.File => item.Key.Length == 0 && (stones.Any(stone => item.Path == SwShRestorationMegaItems.IconPath(stone.ItemId)) || definition.Identities.Any(i =>
-                    item.Path == SwShRestorationComposer.IconPath(i.Species, i.Form)
+                    SwShRestorationComposer.IconGenders(i.Species).Any(g => item.Path == SwShRestorationComposer.IconPath(i.Species, i.Form, g))
                     || i.Species == SwShRestorationSpecies.Annihilape && i.Form == 0 && item.Path == "romfs/bin/appli/icon_pokemon/poke_icon_0979_00s_n.bntx"
                     || item.Path == $"romfs/bin/pml/evolution/evo_{SwShRestorationForms.PersonalRow(i):000}.bin"
                     || item.Path == $"romfs/bin/pml/tamagowaza/tamagowaza_{SwShRestorationForms.PersonalRow(i):0000}.bin"

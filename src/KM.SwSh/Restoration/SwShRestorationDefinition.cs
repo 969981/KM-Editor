@@ -79,6 +79,16 @@ public static class SwShRestorationDefinitions
         Species("pidgeotto", 17) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("pidgeot", 18) with { Donor = SwShRestorationDonor.LegendsZA },
         Species("kecleon", 352) with { Donor = SwShRestorationDonor.LegendsZA },
+        Species("hisuian-growlithe", 58, 1), Species("hisuian-arcanine", 59, 1),
+        Species("doduo", 84) with { AdditionalModelVariants = Array.AsReadOnly(new[] { new SwShRestorationModelVariant(new(84, 0), 1, "pm0084_01") }) },
+        Species("dodrio", 85) with { AdditionalModelVariants = Array.AsReadOnly(new[] { new SwShRestorationModelVariant(new(85, 0), 1, "pm0085_01") }) },
+        Species("seel", 86), Species("dewgong", 87), Species("grimer", 88), Species("muk", 89),
+        Species("alolan-grimer", 88, 1), Species("alolan-muk", 89, 1),
+        Species("drowzee", 96),
+        Species("hypno", 97) with { AdditionalModelVariants = Array.AsReadOnly(new[] { new SwShRestorationModelVariant(new(97, 0), 1, "pm0097_01") }) },
+        Species("voltorb", 100), Species("electrode", 101),
+        Species("hisuian-voltorb", 100, 1), Species("hisuian-electrode", 101, 1),
+        Species("hisuian-typhlosion", 157, 1), Species("hisuian-samurott", 503, 1), Species("hisuian-zoroark", 571, 1),
     }).ToArray());
     private static SwShRestorationDefinition Species(string id, int species, int form = 0) => Piplup with
         { Id = id, Identities = Array.AsReadOnly(new[] { new SwShPokemonIdentity(species, form) }), AssetRevision = id switch

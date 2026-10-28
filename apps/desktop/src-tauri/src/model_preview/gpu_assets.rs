@@ -251,7 +251,7 @@ impl Assets {
                 } else {
                     0.0
                 },
-                surface.map(|s| if s.layer_emission { 3.0 } else { s.effect as f32 }).unwrap_or(0.0),
+                surface.map(|s| if s.surface_layers { 4.0 } else if s.layer_emission { 3.0 } else { s.effect as f32 }).unwrap_or(0.0),
             ]);
             let color = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Material color"),
@@ -309,11 +309,19 @@ impl Assets {
                 layout: &self.layout,
                 entries: &entries,
             });
+            let mut vertex_data = Vec::with_capacity(primitive.vertices.len() / 16 * 18);
+            for (vertex, source) in primitive.vertices.chunks_exact(16).enumerate() {
+                vertex_data.extend_from_slice(source);
+                let secondary = appearance.secondary_uv.as_ref()
+                    .map(|uv| &uv[vertex * 2..vertex * 2 + 2])
+                    .unwrap_or(&source[6..8]);
+                vertex_data.extend_from_slice(secondary);
+            }
             meshes.push(Mesh {
                 edges: None,
                 vertices: self.buffer(
                     device,
-                    bytemuck::cast_slice(&primitive.vertices),
+                    bytemuck::cast_slice(&vertex_data),
                     wgpu::BufferUsages::VERTEX,
                 ),
                 indices: self.buffer(

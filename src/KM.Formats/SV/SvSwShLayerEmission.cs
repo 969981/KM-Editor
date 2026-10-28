@@ -15,17 +15,23 @@ public static class SvSwShLayerEmission
     public static IReadOnlyDictionary<string, Contract> Contracts(byte[] bytes, PreviewScene scene)
     {
         var source = new ModelBuffer(bytes); var result = new Dictionary<string, Contract>(StringComparer.Ordinal);
+        var spherical = scene.Primitives.Any(p => p.Name.StartsWith("pm0100_00_41_", StringComparison.Ordinal)
+            || p.Name.StartsWith("pm0101_00_41_", StringComparison.Ordinal));
         var expected = scene.Primitives.Any(p => p.Name.StartsWith("pm0075_00_11_", StringComparison.Ordinal))
             ? new[] { "body_b" } : scene.Primitives.Any(p => p.Name.StartsWith("pm0076_00_11_", StringComparison.Ordinal))
-                ? new[] { "body_a_01", "body_a_02", "body_b_01" } : throw new InvalidDataException("Layer emission requires a qualified source model.");
+                ? new[] { "body_a_01", "body_a_02", "body_b_01" }
+                : scene.Primitives.Any(p => p.Name.StartsWith("pm0100_00_41_", StringComparison.Ordinal)) ? new[] { "eye", "body_01" }
+                : scene.Primitives.Any(p => p.Name.StartsWith("pm0101_00_41_", StringComparison.Ordinal)) ? new[] { "eye", "body_a" }
+                : throw new InvalidDataException("Layer emission requires a qualified source model.");
         foreach (var name in expected)
         {
-            if (scene.Primitives.Count(p => p.Material.Name == name) != 1) throw new InvalidDataException("Layer emission geometry is ambiguous.");
+            var sections = scene.Primitives.Count(p => p.Material.Name == name);
+            if (spherical ? sections is < 1 or > 2 : sections != 1) throw new InvalidDataException("Layer emission geometry is ambiguous.");
             var material = source.Tables(source.Root, 1, 128).Single(m => source.Text(m, 0) == name);
             var scalars = source.Tables(material, 4, 256).ToDictionary(p => source.Text(p, 0)!, p => source.Field(p, 1) is var at && at != 0 ? source.Float(at) : 0);
             var vectors = source.Tables(material, 7, 256).ToDictionary(p => source.Text(p, 0)!, p =>
             { var at = source.Field(p, 1); return new Vector4(source.Float(at), source.Float(at + 4), source.Float(at + 8), source.Float(at + 12)); });
-            if (!source.Tables(material, 1, 16).Select(t => source.Text(t, 0)).SequenceEqual(["Standard"])
+            if (!source.Tables(material, 1, 16).Select(t => source.Text(t, 0)).SequenceEqual([spherical ? "SSS" : "Standard"])
                 || vectors["UVScaleOffset"] != new Vector4(1, 1, 0, 0) || scalars["EmissionIntensity"] != 0
                 || Enumerable.Range(1, 4).Any(layer => scalars["LayerMaskScale" + layer] != 1 || scalars["EmissionIntensityLayer" + layer] != 0))
                 throw new InvalidDataException("Source emission surface requires another adapter.");
@@ -38,17 +44,17 @@ public static class SvSwShLayerEmission
         return result;
     }
 
-    public static byte[] Template(byte[] bytes)
+    public static byte[] Template(byte[] bytes, string programName = ProgramName)
     {
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
         foreach (var field in new[] { 3, 5 })
         {
             var (start, count) = source.Vector(source.Root, field, 4, 256);
             var names = Enumerable.Range(0, count).Select(i => source.StringAt(start + i * 4)).ToArray();
-            if (names.Contains(ProgramName, StringComparer.Ordinal)) throw new InvalidDataException("Layer emission program is already allocated.");
+            if (names.Contains(programName, StringComparer.Ordinal)) throw new InvalidDataException("Layer emission program is already allocated.");
             var slots = writer.Vector(source.Root, field, count + 1);
             for (var i = 0; i < count; i++) writer.Pointer(slots[i], writer.String(names[i]));
-            writer.Pointer(slots[count], writer.String(ProgramName));
+            writer.Pointer(slots[count], writer.String(programName));
         }
         var originals = source.Tables(source.Root, 6, 128); var original = originals[0];
         var slotsMaterials = writer.Vector(source.Root, 6, originals.Length + 1);
@@ -127,7 +133,16 @@ public static class SvSwShLayerEmission
         }
         var warnings = new List<string>(); var decoded = PreviewMaterialAnimation.Read(new(writer.Finish(source.Root)), skeleton, warnings, true);
         if (warnings.Count != 0) throw new InvalidDataException("Layer emission source needs another animation adapter.");
-        if (additional.GroupBy(t => (t.Material, t.Parameter)).Any(g => g.Count() != 1)) throw new InvalidDataException("Source emission binding is ambiguous.");
+        additional = additional.GroupBy(t => (t.Material, t.Parameter)).Select(group =>
+        {
+            var first = group.First();
+            if (group.Any(track => track.Channels.Length != first.Channels.Length
+                || !track.Channels.Zip(first.Channels).All(channels => channels.First.Length == channels.Second.Length
+                    && channels.First.Zip(channels.Second).All(keys => keys.First.Frame == keys.Second.Frame
+                        && keys.First.Value.SequenceEqual(keys.Second.Value)))))
+                throw new InvalidDataException("Source emission binding is ambiguous.");
+            return first;
+        }).ToList();
         foreach (var name in contracts.Keys) for (var layer = 1; layer <= 4; layer++)
             if (!additional.Any(t => t.Material == name && t.Parameter == "EmissionIntensityLayer" + layer))
                 additional.Add(new(name, "EmissionIntensityLayer" + layer, [[new(0, [0])]]));

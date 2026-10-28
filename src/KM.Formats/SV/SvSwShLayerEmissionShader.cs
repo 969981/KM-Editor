@@ -7,6 +7,15 @@ namespace KM.Formats.SV;
 public static class SvSwShLayerEmissionShader
 {
     public static byte[] Convert(byte[] template)
+        => Convert(template, 0);
+
+    public static byte[] SurfaceFlow(byte[] template)
+        => Convert(template, 1);
+
+    public static byte[] SurfaceLayers(byte[] template)
+        => Convert(template, 2);
+
+    private static byte[] Convert(byte[] template, int mode)
     {
         int Integer(int offset) => BinaryPrimitives.ReadInt32LittleEndian(template.AsSpan(offset, 4));
         int Pointer(int offset) => checked((int)BinaryPrimitives.ReadUInt64LittleEndian(template.AsSpan(offset, 8)));
@@ -41,6 +50,7 @@ public static class SvSwShLayerEmissionShader
             throw new InvalidDataException("Layer emission shader extension storage is unavailable.");
         var code = new List<(ulong Instruction, ulong Control)>();
         var colorCaptured = false; var emissionCaptured = false; var components = new HashSet<int>();
+        var flowInputs = 0;
         void Emit(ulong word, bool asynchronous = false) => code.Add((word, 15UL | 7UL << 5 | (asynchronous ? 5UL : 7UL) << 8 | 63UL << 11));
         void Move(int destination, int source) => Emit(0x5c98078000070000UL | (ulong)source << 20 | (uint)destination);
         void Constant(int destination, float value) => Emit(0x010000000007f000UL | (ulong)BitConverter.SingleToUInt32Bits(value) << 20 | (uint)destination);
@@ -58,6 +68,78 @@ public static class SvSwShLayerEmissionShader
                 var prefix = instruction >> 48; var destination = (int)(instruction & 255);
                 var buffer = (int)(instruction >> 34 & 31); var word = (int)(instruction >> 20 & 16383);
                 var uniform = prefix is 0x4c98 or 0x4c68 || prefix is >= 0x49a0 and <= 0x49a3;
+                if (mode != 0)
+                {
+                    // This otherwise unused control carries source distortion strength.
+                    // Keep its neutral value in the inherited color equation.
+                    if (uniform && buffer == 5 && word == 17)
+                    {
+                        Constant(95, 0);
+                        if (prefix == 0x4c98) Move(destination, 95);
+                        else if (prefix == 0x4c68) Multiply(destination, (int)(instruction >> 8 & 255), 95);
+                        else Fma(destination, (int)(instruction >> 8 & 255), 95, (int)(instruction >> 39 & 255), (instruction >> 48 & 1) != 0, (instruction >> 49 & 1) != 0);
+                        continue;
+                    }
+                    if (mode == 2 && uniform && (buffer == 5 && word is >= 18 and <= 21 || buffer == 6 && word is >= 16 and <= 30 && word % 4 != 3))
+                    {
+                        var neutral = buffer == 5 ? (word % 2 == 0 ? 1f : 0f) : (word / 4 % 2 == 0 ? 1f : 0f);
+                        Constant(95, neutral);
+                        if (prefix == 0x4c98) Move(destination, 95);
+                        else if (prefix == 0x4c68) Multiply(destination, (int)(instruction >> 8 & 255), 95);
+                        else Fma(destination, (int)(instruction >> 8 & 255), 95, (int)(instruction >> 39 & 255), (instruction >> 48 & 1) != 0, (instruction >> 49 & 1) != 0);
+                        continue;
+                    }
+                    if (instruction >> 56 == 0xd8 && (instruction >> 36 & 8191) == 8)
+                    {
+                        var coordinate = (int)(instruction >> 8 & 255);
+                        var vertical = (int)(instruction >> 20 & 255);
+                        if (++flowInputs != 1 || coordinate >= 55 || vertical >= 55)
+                            throw new InvalidDataException("Surface flow color coordinates are unsupported.");
+                        Move(80, coordinate); Move(81, vertical);
+                        if (mode == 2)
+                        {
+                            // The independent source mask uses UV1, passed by the paired vertex program.
+                            Emit(0xE043FF918157FF50UL); Emit(0xE043FF91C157FF51UL);
+                            var colorTail = (int)(instruction >> 28 & 255);
+                            if (colorTail >= 55) throw new InvalidDataException("Surface layer color output is unsupported.");
+                            code.Add((instruction, scheduling >> (lane * 21) & 0x1ffff));
+                            Move(56, destination); Move(57, destination + 1); Move(58, colorTail);
+                            Uniform(88, 5, 7); Uniform(89, 5, 9); Fma(82, 80, 88, 89);
+                            Uniform(88, 5, 8); Uniform(89, 5, 11); Fma(83, 81, 88, 89);
+                            // This source mask is tiled across UV1 and its loop translates
+                            // by one full tile. Reduce the animated tile before sampling.
+                            Emit(0x5CA8148000070A00UL | 82UL << 20 | 84);
+                            Emit(0x5CA8148000070A00UL | 83UL << 20 | 85);
+                            Add(82, 82, 84, true); Add(83, 83, 85, true);
+                            Constant(88, 1); Add(83, 88, 83, true);
+                            Emit(0xd830000000070000UL | 12UL << 36 | 62UL << 28 | 83UL << 20 | 82UL << 8 | 60, true);
+                            Constant(68, 0); Constant(69, 0); Constant(70, 0); Constant(71, 1); Constant(74, 1);
+                            for (var layer = 3; layer >= 0; layer--)
+                            {
+                                Multiply(72, 60 + layer, 71);
+                                for (var channel = 0; channel < 3; channel++)
+                                {
+                                    Uniform(73, 6, (4 + layer) * 4 + channel);
+                                    Fma(68 + channel, 73, 72, 68 + channel);
+                                }
+                                Add(73, 74, 60 + layer, true); Multiply(71, 71, 73);
+                            }
+                            // Trinity tints the base image in every layer; it does
+                            // not replace that image with the palette uniform.
+                            Add(68, 68, 71); Add(69, 69, 71); Add(70, 70, 71);
+                            Multiply(destination, 56, 68); Multiply(destination + 1, 57, 69); Multiply(colorTail, 58, 70);
+                            continue;
+                        }
+                        Uniform(88, 5, 7); Uniform(89, 5, 9); Fma(82, 80, 88, 89);
+                        Uniform(88, 5, 8); Uniform(89, 5, 11); Fma(83, 81, 88, 89);
+                        // The unused native layer texture supplies independently scrolling noise.
+                        Emit(0xd830000000070000UL | 12UL << 36 | 86UL << 28 | 83UL << 20 | 82UL << 8 | 84, true);
+                        Uniform(88, 5, 17); Fma(80, 84, 88, 80); Fma(81, 84, 88, 81);
+                        instruction = (instruction & ~(255UL << 8 | 255UL << 20)) | 80UL << 8 | 81UL << 20;
+                    }
+                    code.Add((instruction, scheduling >> (lane * 21) & 0x1ffff));
+                    continue;
+                }
                 // These unused layer controls carry four independent source emission channels.
                 // Keep their original neutral values in the inherited diffuse calculation.
                 if (uniform && (buffer == 5 && word is >= 18 and <= 21 || buffer == 6 && word is >= 16 and <= 30 && word % 4 != 3))
@@ -102,7 +184,7 @@ public static class SvSwShLayerEmissionShader
                 emissionCaptured = true;
             }
         }
-        if (!colorCaptured || !emissionCaptured || !components.SetEquals(new[] { 0, 1, 2 }))
+        if (mode != 0 ? flowInputs != 1 : !colorCaptured || !emissionCaptured || !components.SetEquals(new[] { 0, 1, 2 }))
             throw new InvalidDataException("Layer emission shader contract is incomplete.");
         while (code.Count % 3 != 0) code.Add((0x50b0000000070f00UL, 0x7ff));
         var newEnd = checked(0x80 + code.Count / 3 * 32);
@@ -110,11 +192,12 @@ public static class SvSwShLayerEmissionShader
         var newLength = (newConstants + constantLength + 255) & ~255;
         if (newLength > capacity) throw new InvalidDataException("Layer emission shader extension exceeds its native allocation.");
         var output = template.ToArray();
+        if (mode == 2) output[data + 0x30 + 24 + 9] |= 0xa0;
         output.AsSpan(data + 0x80, capacity - 0x80).Clear();
         template.AsSpan(data + constants, constantLength).CopyTo(output.AsSpan(data + newConstants));
         void Write(int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(offset, 4), value);
         Write(stage + 24, newLength); Write(control + 0x6f8, newEnd - 0x30);
-        Write(control + 0x700, newConstants); Write(control + 0x704, newLength); Write(control + 0x70c, 80);
+        Write(control + 0x700, newConstants); Write(control + 0x704, newLength); Write(control + 0x70c, mode != 0 ? 96 : 80);
         for (var index = 0; index < code.Count; index += 3)
         {
             var offset = data + 0x80 + index / 3 * 32;

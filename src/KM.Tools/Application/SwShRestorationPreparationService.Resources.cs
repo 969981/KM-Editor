@@ -25,6 +25,18 @@ public sealed partial class SwShRestorationPreparationService
                 throw new InvalidDataException("Converted texture identity is duplicated.");
             return name;
         }
+
+        internal string AddAuxiliary(string name, byte[] bytes)
+        {
+            _ = PreviewTexture.Read(bytes);
+            var path = folder + name + ".bntx";
+            if (members.TryGetValue(path, out var current))
+            {
+                if (!current.AsSpan().SequenceEqual(bytes)) throw new InvalidDataException("Auxiliary texture identity has conflicting contents.");
+            }
+            else members.Add(path, bytes);
+            return name;
+        }
     }
 
     private sealed partial class Preparation
@@ -89,6 +101,7 @@ public sealed partial class SwShRestorationPreparationService
                 return primitive with
                 {
                     Vertices = used.SelectMany(index => primitive.Vertices.Skip(checked((int)index * 16)).Take(16)).ToArray(),
+                    SecondaryUv = primitive.SecondaryUv is null ? null : used.SelectMany(index => primitive.SecondaryUv.Skip(checked((int)index * 2)).Take(2)).ToArray(),
                     Indices = primitive.Indices.Select(index => remap[index]).ToArray(),
                 };
             }).ToArray(),

@@ -252,8 +252,8 @@ impl Renderer {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Static model"), layout: Some(&layout),
             vertex: wgpu::VertexState { module: &shader, entry_point: Some(if wire { "vs_wire" } else { "vs_main" }), compilation_options: Default::default(),
-                buffers: &[wgpu::VertexBufferLayout { array_stride: 64, step_mode: wgpu::VertexStepMode::Vertex,
-                    attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4, 4 => Float32x4] }] },
+                buffers: &[wgpu::VertexBufferLayout { array_stride: 72, step_mode: wgpu::VertexStepMode::Vertex,
+                    attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x2, 3 => Float32x4, 4 => Float32x4, 5 => Float32x2] }] },
             fragment: Some(wgpu::FragmentState { module: &shader, entry_point: Some(if wire { "fs_wire" } else { "fs_main" }), compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState { format: config.format, blend: if blend { Some(wgpu::BlendState::ALPHA_BLENDING) } else { None }, write_mask: if effect == 2 { wgpu::ColorWrites::empty() } else { wgpu::ColorWrites::ALL } })] }),
             primitive: wgpu::PrimitiveState { topology: if wire { wgpu::PrimitiveTopology::LineList } else { wgpu::PrimitiveTopology::TriangleList }, cull_mode: None, ..Default::default() },

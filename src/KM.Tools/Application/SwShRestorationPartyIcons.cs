@@ -14,6 +14,13 @@ internal static class SwShRestorationPartyIcons
         [48] = ("venonat", "0007_00s"), [49] = ("venomoth", "0007_00s"),
         [56] = ("mankey", "0007_00s"), [57] = ("primeape", "0007_00s"),
         [979] = ("annihilape", "0007_00s"),
+        [58] = ("growlithe", "0007_00s"), [59] = ("arcanine", "0007_00s"),
+        [84] = ("doduo", "0007_00s"), [85] = ("dodrio", "0007_00s"),
+        [86] = ("seel", "0007_00s"), [87] = ("dewgong", "0007_00s"),
+        [88] = ("grimer", "0007_00s"), [89] = ("muk", "0007_00s"),
+        [96] = ("drowzee", "0007_00s"), [97] = ("hypno", "0007_00s"),
+        [100] = ("voltorb", "0007_00s"), [101] = ("electrode", "0007_00s"),
+        [571] = ("zoroark", "0007_00s"),
         [152] = ("chikorita", "0001_00s"), [153] = ("bayleef", "0002_00s"), [154] = ("meganium", "0003_00m"),
         [155] = ("cyndaquil", "0004_00s"), [156] = ("quilava", "0005_00s"), [157] = ("typhlosion", "0006_00s"),
         [158] = ("totodile", "0007_00s"), [159] = ("croconaw", "0008_00s"), [160] = ("feraligatr", "0009_00s"),
@@ -40,7 +47,8 @@ internal static class SwShRestorationPartyIcons
             var suffix = (species, form) switch
             {
                 (6, 1) => "-mega-x", (6, 2) => "-mega-y",
-                (74 or 75 or 76, 1) => "-alola",
+                (74 or 75 or 76 or 88 or 89, 1) => "-alola",
+                (58 or 59 or 100 or 101 or 157 or 503 or 571, 1) => "-hisui",
                 _ => throw new InvalidDataException("Restoration party icon form is unsupported."),
             };
             profile = (profile.Sprite + suffix, profile.Frame);

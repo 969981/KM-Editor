@@ -222,6 +222,7 @@ public sealed class TrinityPreviewReader(Func<string, byte[]> read, bool topOrig
         var position = attributes.SingleOrDefault(t => metadata.Value(t, 1) == 1);
         var normal = attributes.SingleOrDefault(t => metadata.Value(t, 1) == 2);
         var uv = attributes.FirstOrDefault(t => metadata.Value(t, 1) == 6 && metadata.Value(t, 2) == 0);
+        var secondaryUv = attributes.SingleOrDefault(t => metadata.Value(t, 1) == 6 && metadata.Value(t, 2) == 1);
         if (position == 0 || metadata.Value(position, 3) != 51) throw new InvalidDataException("Position format is unsupported.");
         float Component(int attribute, int vertex, int component)
         {
@@ -241,11 +242,13 @@ public sealed class TrinityPreviewReader(Func<string, byte[]> read, bool topOrig
         var weightAttribute = attributes.SingleOrDefault(t => metadata.Value(t, 1) == 8);
         if (bones.Length == 0 && weightAttribute != 0) warnings.Add("sharedSkeletonUnavailable");
         var output = new float[checked(count * 16)];
+        var secondary = secondaryUv == 0 ? null : new float[checked(count * 2)];
         for (var v = 0; v < count; v++)
         {
             for (var c = 0; c < 3; c++) output[v * 16 + c] = Component(position, v, c);
             for (var c = 0; c < 3; c++) output[v * 16 + c + 3] = normal == 0 ? (c == 1 ? 1 : 0) : Component(normal, v, c);
             for (var c = 0; c < 2; c++) output[v * 16 + c + 6] = uv == 0 ? 0 : Component(uv, v, c);
+            if (secondary is not null) for (var c = 0; c < 2; c++) secondary[v * 2 + c] = Component(secondaryUv, v, c);
             var total = 0f;
             for (var c = 0; c < 4; c++)
             {
@@ -273,7 +276,7 @@ public sealed class TrinityPreviewReader(Func<string, byte[]> read, bool topOrig
                 if (indices[n] >= count) throw new InvalidDataException("Triangle refers to a missing vertex.");
             }
             if (!materials.TryGetValue(Required(metadata.Text(part, 3)), out var material)) throw new InvalidDataException("Mesh material is missing.");
-            yield return new PreviewPrimitive(output, indices, material, metadata.Text(shape, 0) ?? "");
+            yield return new PreviewPrimitive(output, indices, material, metadata.Text(shape, 0) ?? "") { SecondaryUv = secondary };
         }
     }
 }
