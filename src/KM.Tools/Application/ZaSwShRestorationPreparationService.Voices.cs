@@ -40,7 +40,16 @@ public sealed partial class ZaSwShRestorationPreparationService
             foreach (var identity in identities)
             {
                 var id = identity.Species;
-                var states = ZaRestorationVoiceGraph.ResolvePlayback(source, id, identity.Form);
+                IReadOnlySet<uint>? inactiveGroups = null;
+                if (id == 491)
+                {
+                    const uint donorContext = 0xe0515992;
+                    var key = BitConverter.GetBytes(donorContext);
+                    if (targetBank.Objects.Any(o => o.Payload.AsSpan().IndexOf(key) >= 0))
+                        throw new InvalidDataException("Darkrai's donor voice context overlaps a native context.");
+                    inactiveGroups = new HashSet<uint> { donorContext };
+                }
+                var states = ZaRestorationVoiceGraph.ResolvePlayback(source, id, identity.Form, inactiveGroups);
                 var media = new Dictionary<string, byte[]>(StringComparer.Ordinal);
                 foreach (var state in SwShVoiceWriter.States)
                 {

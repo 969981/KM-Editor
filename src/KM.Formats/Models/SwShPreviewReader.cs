@@ -40,7 +40,15 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
         {
             var name = data.Text(material, 0) ?? throw new InvalidDataException("Material identity is missing.");
             var surface = PreviewSurface.Read(data, material, true);
-            var layerEmission = SwShPreviewLayerEmission.UsesProgram(data, material);
+            var restorationEffect = SwShPreviewRestorationMaterial.Kind(data, material);
+            var layerEmission = SwShPreviewLayerEmission.UsesProgram(data, material) || restorationEffect is 1 or 2;
+            var mapEmission = SwShPreviewLayerEmission.UsesProgram(data, material, KM.Formats.SV.SvSwShLayerEmission.MapProgramName);
+            if (mapEmission)
+            {
+                surface = surface with { MapEmission = true };
+                surface.Values[39][3] = 0;
+                surface.Values[5] = [1, 1, 1, 1];
+            }
             var surfaceLayers = SwShPreviewLayerEmission.UsesProgram(data, material, KM.Formats.SV.SvSwShSurfaceFlow.LayerProgramName);
             if (surfaceLayers) surface = surface with { SurfaceLayers = true };
             if (layerEmission)
@@ -61,9 +69,9 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             var fire = SwShPreviewFire.Kind(data.Text(material, 1));
             var switches = data.Tables(material, 12, 256).ToDictionary(p => data.Text(p, 0) ?? "",
                 p => data.Field(p, 1) is var at && at != 0 ? data.U8(at) : 0, StringComparer.Ordinal);
-            var emission = fire == 0 && switches.GetValueOrDefault("EmissionMaskUse") != 0
+            var emission = mapEmission || fire == 0 && switches.GetValueOrDefault("EmissionMaskUse") != 0
                 && switches.GetValueOrDefault("SwitchEmissionMaskTexUV") == 0;
-            if (emission) surface.Values[1][2] = 1;
+            if (emission && !mapEmission) surface.Values[1][2] = 1;
             var color = Vector4.One;
             var layers = new[] { Vector4.One, Vector4.One, Vector4.One, Vector4.One };
             foreach (var parameter in data.Tables(material, 14, 256))
@@ -108,15 +116,18 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
                     case "ColorBaseV": origins.Y = value; break;
                     case "Layer1BaseU": origins.Z = value; break;
                     case "Layer1BaseV": origins.W = value; break;
-                    case "EmissionMaskVal" when emission: surface.Values[1][2] = value; break;
+                    case "L1ConstantColor0Val" when mapEmission: surface.Values[1][2] = value; break;
+                    case "EmissionMaskVal" when emission && !mapEmission: surface.Values[1][2] = value; break;
                 }
             }
-            if (emission)
+            if (emission && !mapEmission)
             {
                 var gain = data.Tables(material, 13, 256).FirstOrDefault(p => data.Text(p, 0) == "OnGameEmissionVal");
                 if (gain != 0) surface.Values[5][3] = data.Field(gain, 1) is var at && at != 0 ? data.Float(at) : 0;
             }
             if (surfaceLayers) maskUv = underlayUv;
+            surface = SwShPreviewRestorationMaterial.Read(data, material, surface, restorationEffect);
+            if (restorationEffect is 3 or 4) origins = Vector4.Zero;
             if (fire != 0)
             {
                 warnings.Add("materialEffectApproximate");
@@ -127,7 +138,9 @@ public sealed class SwShPreviewReader(Func<string, byte[]> read)
             {
                 var role = data.Text(binding, 0);
                 if (surfaceLayers && role == "Col0ColChangeTex") continue;
-                if (fire != 0) role = SwShPreviewFire.TextureRole(fire, role ?? "");
+                var restorationRole = SwShPreviewRestorationMaterial.TextureRole(restorationEffect, role);
+                if (restorationRole != role) role = restorationRole;
+                else if (fire != 0) role = SwShPreviewFire.TextureRole(fire, role ?? "");
                 else if (role == "LyCol0Tex" && surfaceLayers) role = "Col0ColChangeTex";
                 else if (role == "EmissionMaskTex" && layerEmission) role = "Col0ColChangeTex";
                 else if (role == "EmissionMaskTex" && emission) role = "EmissionMap";

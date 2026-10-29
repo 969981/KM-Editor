@@ -9,6 +9,9 @@ public sealed partial class SwShRestorationPreparationService
 {
     private sealed partial class Preparation
     {
+        private SwShStaticUvAtlas StaticAtlas(PreviewPrimitive primitive, Vector2 scale) => Profile(currentIdentity).CenteredStaticUv
+            ? SwShStaticUvAtlas.CenteredRepeat(primitive, scale) : SwShStaticUvAtlas.For(primitive, scale);
+
         private static PreviewScene UniqueMaterials(PreviewScene scene)
         {
             var names = new HashSet<string>(StringComparer.Ordinal);
@@ -31,6 +34,8 @@ public sealed partial class SwShRestorationPreparationService
             return scene.Primitives.Select((primitive, index) =>
             {
                 if (nativeFlames && primitive.Material.Name == "fire") return null;
+                if (Profile(currentIdentity).LayeredEyes && !Profile(currentIdentity).CornealEyes
+                    && primitive.Material.Name.Contains("eye", StringComparison.Ordinal)) return null;
                 var normalScale = Profile(currentIdentity).NormalUvScales?.GetValueOrDefault(primitive.Name, Vector2.One) ?? Vector2.One;
                 var share = Profile(currentIdentity).SharedMaterialTextures && normalScale == Vector2.One;
                 if (share && shared.TryGetValue(primitive.Material.Name, out var previous)) return previous;
@@ -55,10 +60,12 @@ public sealed partial class SwShRestorationPreparationService
                     cornealNormalHeight: Profile(currentIdentity).CornealNormalHeights?.GetValueOrDefault(primitive.Material.Name, 1) ?? 1,
                     normalUvScale: normalScale,
                     normalUvVerticalTile: Profile(currentIdentity).NormalUvVerticalTiles?.GetValueOrDefault(primitive.Name) ?? 0,
-                    authoredAlpha: Profile(currentIdentity).AuthoredAlpha
-                        && primitive.Material.Name is "l_eye_b" or "l_highlight",
-                    staticUvScale: Profile(currentIdentity).StaticUvScales is { } scales && scales.TryGetValue(primitive.Name, out var uvScale) ? uvScale : null,
-                    encodingCache: textureEncoding);
+                    authoredAlpha: Profile(currentIdentity).TransparentBody && primitive.Material.Alpha != "Opaque"
+                        && !primitive.Material.Name.Contains("eye", StringComparison.Ordinal)
+                        || Profile(currentIdentity).AuthoredAlpha && primitive.Material.Name is "l_eye_b" or "l_highlight",
+                    staticUvAtlas: Profile(currentIdentity).StaticUvScales is { } scales && scales.TryGetValue(primitive.Name, out var uvScale) ? StaticAtlas(bakingPrimitive, uvScale) : null,
+                    encodingCache: textureEncoding,
+                    unlitSurface: Profile(currentIdentity).LavaLayers && primitive.Material.Name == "fire");
                 if (share && material.ConflictingSamples != 0)
                     throw new InvalidDataException("Shared material normal coordinates require another target adapter.");
                 // Eyes can share a layer mask while having different palette colors.

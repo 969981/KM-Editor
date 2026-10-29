@@ -99,6 +99,8 @@ public sealed partial class SwShRestorationPreparationService
             for (var i = 0; i < evolutionCount; i++)
             {
                 var at = evolutionStart + i * 16; var destination = source.U16(at + 12); var form = source.U16(at + 14);
+                // Farigiraf and Twin Beam are unavailable in the native target.
+                if (species == 203 && destination == 928 && form == 0 && source.U16(at + 2) == 21 && source.U16(at + 4) == 888) continue;
                 if (!TryProfile(new(destination, form), out var evolved) || evolved.HatchedSpecies != profile.HatchedSpecies || evolved.HatchedForm != profile.HatchedForm) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
                 var method = source.U16(at + 2); var argument = (int)source.U16(at + 4);
                 if (method is 6 or 8 or 17 or 18 or 19 or 20 or 42)

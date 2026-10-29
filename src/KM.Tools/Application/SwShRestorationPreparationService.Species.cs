@@ -16,10 +16,27 @@ public sealed partial class SwShRestorationPreparationService
         bool ScalarEyes = false, IReadOnlyDictionary<string, string>? MotionOverrides = null, bool AuthoredAlpha = false,
         int? SourceSpecies = null, bool EmptyMouth = false, bool TransparentEyes = false,
         IReadOnlyDictionary<string, System.Numerics.Vector2>? StaticUvScales = null, string? SummaryFramingStem = null,
-        int GenderKind = 0, bool SurfaceFlow = false, bool CompactAnimationResources = false, float FlameColorExposure = 1);
+        int GenderKind = 0, bool SurfaceFlow = false, bool CompactAnimationResources = false, float FlameColorExposure = 1, bool LayeredEyes = false,
+        bool TransparentBody = false, bool CenteredStaticUv = false, bool LavaLayers = false);
+
+    private static IReadOnlyDictionary<string, System.Numerics.Vector2> DeoxysAtlas(string form) =>
+        new Dictionary<string, System.Numerics.Vector2>
+        {
+            [$"pm0386_{form}_00_{(form == "11" ? "jewel" : "body_c")}_mesh_shape"] = new(4, 4),
+            [$"pm0386_{form}_00_sphere_mesh_shape"] = new(4, 4),
+        };
 
     private static readonly IReadOnlyDictionary<SwShPokemonIdentity, SpeciesProfile> FormProfiles = new Dictionary<SwShPokemonIdentity, SpeciesProfile>
     {
+        [new(386, 1)] = new(150, 386, 300, 0, 255, 170, 170, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            CornealEyes: true, LayerEmission: true, SourceStem: "pm0386_12_00", SourceVoiceForm: 0, GenderKind: 3, TransparentBody: true,
+            EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }, StaticUvScales: DeoxysAtlas("12"), CenteredStaticUv: true),
+        [new(386, 2)] = new(150, 386, 300, 0, 255, 170, 170, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            CornealEyes: true, LayerEmission: true, SourceStem: "pm0386_13_00", SourceVoiceForm: 0, GenderKind: 3, TransparentBody: true,
+            EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }, StaticUvScales: DeoxysAtlas("13"), CenteredStaticUv: true),
+        [new(386, 3)] = new(150, 386, 300, 0, 255, 170, 170, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
+            CornealEyes: true, LayerEmission: true, SourceStem: "pm0386_14_00", SourceVoiceForm: 0, GenderKind: 3, TransparentBody: true,
+            EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }, StaticUvScales: DeoxysAtlas("14"), CenteredStaticUv: true),
         [new(58, 1)] = new(58, 58, 70, 25, 63, 80, 80, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true,
             SourceStem: "pm0058_00_41", HatchedForm: 1, ScalarEyes: true, SourceVoiceForm: 0,
             MotionOverrides: new Dictionary<string, string> { ["eye01"] = "00000" }),
@@ -61,6 +78,37 @@ public sealed partial class SwShRestorationPreparationService
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [193] = new(12, 193, 78, 50, 127, 120, 120, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, AnimationOffset: 20000),
+        [203] = new(78, 203, 159, 50, 127, 150, 150, AuthoredMaterials: true, MeshVisibility: true, CornealEyes: true),
+        [204] = new(273, 204, 58, 50, 127, 60, 60, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, LayeredEyes: true, CornealEyes: true, BattleIdle: "00000", EmptyMouth: true,
+            MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }),
+        [205] = new(598, 204, 163, 50, 127, 120, 120, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, LayeredEyes: true, CornealEyes: true, AnimationOffset: 20000, BattleIdle: "00000", EmptyMouth: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .1f, ["r_eye"] = .1f },
+            MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }),
+        [207] = new(330, 207, 86, 50, 127, 110, 110, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [218] = new(568, 218, 50, 50, 127, 70, 70, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, LayeredEyes: true, LayerEmission: true, LavaLayers: true),
+        [219] = new(324, 218, 151, 50, 127, 80, 80, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, LayeredEyes: true, LayerEmission: true, LavaLayers: true),
+        [231] = new(220, 231, 66, 50, 127, 50, 50, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .75f, ["r_eye"] = .75f }),
+        [232] = new(473, 231, 175, 50, 127, 110, 110, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [261] = new(263, 261, 56, 50, 127, 50, 50, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [262] = new(264, 261, 147, 50, 127, 100, 100, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .05f, ["r_eye"] = .05f }),
+        [285] = new(590, 285, 59, 50, 127, 40, 40, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [286] = new(106, 285, 161, 50, 127, 120, 120, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .17f, ["r_eye"] = .17f }),
+        [287] = new(759, 287, 56, 50, 127, 80, 80, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, BattleIdle: "00000"),
+        [288] = new(760, 287, 154, 50, 127, 140, 140, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
+        [289] = new(143, 287, 285, 50, 127, 170, 200, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, BattleIdle: "00000"),
+        [331] = new(556, 331, 67, 50, 127, 40, 40, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, LayeredEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .1f, ["r_eye"] = .1f }),
+        [332] = new(556, 331, 166, 50, 127, 130, 130, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, LayeredEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .02f, ["r_eye"] = .02f }),
+        [386] = new(150, 386, 300, 0, 255, 170, 170, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, LayerEmission: true, SourceStem: "pm0386_11_00", SourceVoiceForm: 0, GenderKind: 3, TransparentBody: true,
+            EmptyMouth: true, MotionOverrides: new Dictionary<string, string> { ["mouth01"] = "00000" }, StaticUvScales: DeoxysAtlas("11"), CenteredStaticUv: true),
+        [469] = new(738, 193, 180, 50, 127, 170, 190, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true, AnimationOffset: 20000, ScalarEyes: true),
+        [472] = new(330, 207, 179, 50, 127, 170, 200, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,
+            CornealNormalHeights: new Dictionary<string, float> { ["l_eye"] = .05f, ["r_eye"] = .05f }),
         [84] = new(83, 84, 62, 50, 127, 110, 140, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
         [85] = new(521, 84, 165, 50, 127, 140, 180, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true),
         [86] = new(363, 86, 65, 50, 127, 90, 110, AuthoredMaterials: true, MeshVisibility: true, SharedMaterialTextures: true, CornealEyes: true,

@@ -6,8 +6,12 @@ namespace KM.Formats.Models;
 public sealed record PreviewSurface(float[][] Values, int[] Textures, float[][] Wraps)
 {
     public bool LayerEmission { get; init; }
+    public bool MapEmission { get; init; }
     public bool SurfaceLayers { get; init; }
+    public int RestorationEffect { get; init; }
+    public float[][] RestorationValues { get; init; } = [];
     public bool TintSubsurfaceByBaseColor { get; init; }
+    public float[] ConstantColorBase { get; init; } = [];
     public int Effect { get; init; }
     public int EffectLink { get; init; }
     public const int ValueCount = 41;
@@ -93,6 +97,7 @@ public sealed record PreviewSurface(float[][] Values, int[] Textures, float[][] 
         for (var i = 0; i < Scalars.Length; i++) for (var j = 0; j < Scalars[i].Length; j++) values[i][j] = S(Scalars[i][j], values[i][j]);
         foreach (var (name, index) in Vectors) values[index] = C(name, values[index]);
         for (var i = 0; i < 4; i++) { values[14 + i] = C($"EmissionColorLayer{i + 1}", values[14 + i]); values[18 + i] = C($"ShadowingColorLayer{i + 1}", values[18 + i]); }
+        var constantColorBase = new float[3];
         if (packed)
         {
             values[2][0] = S("SpecularScale", .04f);
@@ -108,12 +113,14 @@ public sealed record PreviewSurface(float[][] Values, int[] Textures, float[][] 
             for (var i = 0; i < 3; i++)
             {
                 values[6][i] *= shadow[i]; values[8][i] *= S("RimColorVal", 1);
-                values[39][i] *= constant[i] * S("ConstantColorVal", 1) * gameColor[i] * S("OnGameColorVal", 1);
+                constantColorBase[i] = values[39][i] * constant[i] * gameColor[i] * S("OnGameColorVal", 1);
+                values[39][i] = constantColorBase[i] * S("ConstantColorVal", 1);
             }
             values[34][0] *= S("OnGameAlpha", 1);
         }
         else values[39] = C("BaseColorLayer6", [1, 1, 1, 1]);
         values[39][3] = packed ? 1 : 0;
-        return new(values, Enumerable.Repeat(-1, TextureCount).ToArray(), Enumerable.Range(0, TextureCount).Select(_ => new float[4]).ToArray());
+        return new(values, Enumerable.Repeat(-1, TextureCount).ToArray(), Enumerable.Range(0, TextureCount).Select(_ => new float[4]).ToArray())
+        { ConstantColorBase = packed ? constantColorBase : [] };
     }
 }
