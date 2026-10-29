@@ -77,7 +77,7 @@ public sealed class SvTmMachineControlsEditSessionService
             MaterialRecordId,
             MaterialField,
             alwaysVisible,
-            "tracking-window material visibility");
+            "material visibility");
     }
 
     public SvEditSessionValidation Validate(ProjectPaths paths, EditSession session)
@@ -215,7 +215,7 @@ public sealed class SvTmMachineControlsEditSessionService
                     writeInfo.ReplacesExistingOutput,
                     group.Key == SvTmMachineControlsWorkflowService.RecipeDataPath
                         ? "Apply the reviewed TM recipe availability policy."
-                        : "Apply the reviewed TM tracking-window material visibility policy."));
+                        : "Apply the reviewed TM material visibility policy to the recipe panel and tracking window."));
             }
 
             if (outputMode == SvOutputMode.Standalone)

@@ -23,7 +23,8 @@ public sealed partial class ZaSwShRestorationPreparationService
             var speciesCount = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count;
             var femaleCount = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Count(i => Profile(i).SeparateFemale);
             var itemFiles = prepared.Contributions.Where(SwShRestorationMegaItems.IsItemContribution).Select(c => c.Path).Distinct().Count();
-            if (files.Count != 6 + 6 * speciesCount + 3 * femaleCount + itemFiles || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
+            var additionalIcons = SwShRestorationDefinitions.Get(prepared.DefinitionId).Identities.Sum(i => SwShRestorationComposer.IconGenders(i.Species).Count - 1);
+            if (files.Count != 6 + 6 * speciesCount + 3 * femaleCount + itemFiles + additionalIcons || files.Values.Any(v => v is null)) throw new InvalidDataException("Prepared restoration output set is incomplete.");
             var catalog = new SwShPokemonResourceCatalog(files[SwShRestorationComposer.CatalogPath]!);
             var personal = SwShPersonalTable.Parse(files[SwShRestorationComposer.PersonalPath]!, 4096);
             var packs = new Dictionary<string, SwShGfPackFile>(StringComparer.Ordinal);
@@ -67,7 +68,8 @@ public sealed partial class ZaSwShRestorationPreparationService
                 }
                 var giant = SwShGfPackFile.Parse(files[$"romfs/bin/archive/gpokemon/{stem}.gfpak"]!);
                 _ = giant.ReadFileByHash(SwShGfPackFile.HashMemberPath($"bin/pokemon/{stem}/{stem}.gfbgpokecfg"), 1024 * 1024);
-                _ = new ModelTextureDocument(files[SwShRestorationComposer.IconPath(species, identity.Form)]!);
+                foreach (var iconGender in SwShRestorationComposer.IconGenders(species))
+                    _ = new ModelTextureDocument(files[SwShRestorationComposer.IconPath(species, identity.Form, iconGender)]!);
                 }
             }
             var originalBank = new SoundBankDocument(Native(SwShRestorationComposer.VoicesPath[6..]));

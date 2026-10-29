@@ -285,8 +285,8 @@ public static class SwShRestorationComposer
         }
     }
     // Retain the shared route in already prepared packages while also supplying
-    // the native genderless lookup used by these registered sphere identities.
-    public static IReadOnlyList<int> IconGenders(int species) => species is 100 or 101 ? [0, 3] : [0];
+    // the native genderless lookup used by these registered identities.
+    public static IReadOnlyList<int> IconGenders(int species) => species is 100 or 101 or 386 or 491 ? [0, 3] : [0];
     public static string IconPath(int species, int form = 0, int gender = 0) =>
         $"romfs/bin/appli/icon_pokemon/poke_icon_{SwShRestorationSpecies.IconSpecies(species):0000}_{form:00}{(gender == 3 ? "n" : "s")}_n.bntx";
     public static string IconKey(int species, int form = 0, int gender = 0) => form == 0 && gender == 0 ? SwShRestorationSpecies.IconSpecies(species).ToString(CultureInfo.InvariantCulture)

@@ -8,7 +8,7 @@ using KM.SV.TitanSwapper;
 namespace KM.SV.Workflows;
 
 internal sealed record SvSharedScriptState(byte[] Core, IReadOnlyList<string> TitanLabels,
-    bool SummaryStats, bool HasGameplayOptions);
+    bool SummaryStats, bool HasGameplayOptions, bool SummaryStatsNeedsUpdate = false);
 
 // Each helper is recognized completely before removing its exact root call and child.
 internal static class SvSharedScript
@@ -19,6 +19,7 @@ internal static class SvSharedScript
     private const string TitanMarker = "KM_TITAN_LABELS";
     private static readonly Lua54Prototype Titan = Lua54BinaryChunk.Parse(Convert.FromBase64String(SvTitanSwapperBytecode.Value)).Root;
     private static readonly Lua54Prototype Summary = Lua54BinaryChunk.Parse(Convert.FromBase64String(SvSummaryStatsBytecode.Value)).Root;
+    private static readonly Lua54Prototype PreviousSummary = Lua54BinaryChunk.Parse(Convert.FromBase64String(SvSummaryStatsBytecode.PreviousValue)).Root;
     private static readonly Lua54Upvalue[] Environment = [new(0, 0, 0)];
     private static uint[] Call(int child) => [79u | (69u << 7) | ((uint)child << 15), 68u | (69u << 7) | (1u << 16) | (1u << 24)];
 
@@ -32,6 +33,7 @@ internal static class SvSharedScript
             throw new InvalidDataException("Unsupported shared S/V script inventory.");
         IReadOnlyList<string> labels = [];
         var hasSummary = false;
+        var summaryNeedsUpdate = false;
         for (var index = count - 1; index >= 0; index--)
         {
             if (!root.Code.Skip(Insertion).Take(2).SequenceEqual(Call(ChildCount + index)))
@@ -39,10 +41,12 @@ internal static class SvSharedScript
             var helper = root.Children[^1];
             if (!helper.Upvalues.SequenceEqual(Environment))
                 throw new InvalidDataException("A shared script helper environment changed.");
-            if (Matches(chunk, helper, WithEnvironment(Summary)))
+            var isCurrentSummary = Matches(chunk, helper, WithEnvironment(Summary));
+            if (isCurrentSummary || Matches(chunk, helper, WithEnvironment(PreviousSummary)))
             {
                 if (hasSummary) throw new InvalidDataException("Duplicate Summary helper.");
                 hasSummary = true;
+                summaryNeedsUpdate = !isCurrentSummary;
             }
             else
             {
@@ -69,10 +73,17 @@ internal static class SvSharedScript
         var instructions = tm.Code.ToArray();
         instructions[168] = 0x000085C2;
         children[24349] = tm.WithCodeAndConstants(instructions, tm.Constants);
+        var recipe = children[28215];
+        if (recipe.Code.Count != 236 || recipe.Code[50] is not (0x000083C2u or 0x00070380u)
+            || (recipe.Code[50] == 0x00070380u && tm.Code[168] != 0x000B0580u))
+            throw new InvalidDataException("The shared TM recipe display instruction is unsupported.");
+        var recipeInstructions = recipe.Code.ToArray();
+        recipeInstructions[50] = 0x000083C2;
+        children[28215] = recipe.WithCodeAndConstants(recipeInstructions, recipe.Constants);
         var hash = Convert.ToHexString(SHA256.HashData(chunk.WithRoot(root.WithChildren(children)).Serialize()));
         if (hash != SvGameplayOptionsLuaTransformer.VanillaSourceSha256 && hash != SvGameplayOptionsLuaTransformer.DerivedSourceSha256)
             throw new InvalidDataException("The shared script is not a supported S/V 4.0.0 source or recognized composed output.");
-        return new(chunk.Serialize(), labels, hasSummary, hash == SvGameplayOptionsLuaTransformer.DerivedSourceSha256);
+        return new(chunk.Serialize(), labels, hasSummary, hash == SvGameplayOptionsLuaTransformer.DerivedSourceSha256, summaryNeedsUpdate);
     }
 
     public static byte[] Compose(SvSharedScriptState state)

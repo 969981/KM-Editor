@@ -12,7 +12,7 @@ internal static class SvSummaryStatsScript
     public static byte[] Apply(byte[] source, bool enabled)
     {
         var current = SvSharedScript.Read(source);
-        return current.SummaryStats == enabled ? source.ToArray()
+        return current.SummaryStats == enabled && !current.SummaryStatsNeedsUpdate ? source.ToArray()
             : SvSharedScript.Compose(current with { SummaryStats = enabled });
     }
 }

@@ -3434,7 +3434,7 @@
     "tmMachineControls.recipe.available": "全部设为可用",
     "tmMachineControls.recipe.blocked": "当前配方表不是受支持的源，因此无法更改配方可用性。",
     "tmMachineControls.material.title": "材料可见性",
-    "tmMachineControls.material.description": "选择材料名称是仅在发现后显示，还是始终显示在追踪窗口中。",
+    "tmMachineControls.material.description": "选择材料名称是仅在发现后显示，还是始终显示在招式学习器制作机的配方面板和追踪窗口中。",
     "tmMachineControls.material.discovery": "发现后显示",
     "tmMachineControls.material.visible": "始终显示名称",
     "tmMachineControls.material.blocked": "当前追踪脚本不是受支持的源，因此无法更改材料可见性。",
