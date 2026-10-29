@@ -5,7 +5,7 @@ namespace KM.Formats.ZA;
 
 public static class ZaSwShEyeShader
 {
-    public static byte[] Convert(byte[] template)
+    public static byte[] Convert(byte[] template, bool objectNormals = false, bool lava = false)
     {
         int Integer(int offset) => BinaryPrimitives.ReadInt32LittleEndian(template.AsSpan(offset, 4));
         int Pointer(int offset) => checked((int)BinaryPrimitives.ReadUInt64LittleEndian(template.AsSpan(offset, 8)));
@@ -116,15 +116,34 @@ public static class ZaSwShEyeShader
         void Color(int first, int second)
         {
             int[] colors = [first, first + 1, second];
+            if (lava) Constant(94, 1);
             Transform(8); Sample(0x0e, 58, 59, 60);
             for (var component = 0; component < 3; component++) Multiply(colors[component], colors[component], 60 + component);
             foreach (var (row, slot) in new[] { (4, 0x0a), (6, 0x0c) })
             {
                 Transform(row); Sample(slot, 58, 59, 60);
+                if (lava) { Constant(84, 1); Add(84, 84, 63, true); Multiply(94, 94, 84); }
                 for (var component = 0; component < 3; component++)
                 {
                     Add(68, 60 + component, colors[component], true);
                     Fma(colors[component], 68, 63, colors[component]);
+                }
+            }
+            if (lava)
+            {
+                // The native eye surface retains the eyelid occlusion while its
+                // lava glow follows a separate moving detail field.
+                Sample(20, 92, 93, 80); Constant(84, 4);
+                for (var c = 0; c < 3; c++) Multiply(80 + c, 80 + c, 84);
+                Uniform(84, 5, 49); Uniform(85, 5, 46); Fma(86, 56, 84, 85);
+                Uniform(84, 5, 50); Uniform(85, 5, 47); Fma(87, 57, 84, 85);
+                Constant(84, 1); Add(87, 84, 87, true); Sample(22, 86, 87, 88);
+                Move(95, 88); Uniform(84, 5, 42); Multiply(88, 88, 84);
+                for (var c = 0; c < 3; c++)
+                {
+                    Uniform(84, 6, 72 + c); Fma(80 + c, 84, 88, 80 + c); Multiply(80 + c, 80 + c, 94);
+                    Uniform(84, 6, 48 + c); Constant(85, 1); Add(84, 84, 85, true); Fma(84, 84, 95, 85);
+                    Multiply(colors[c], colors[c], 84);
                 }
             }
             Constant(second + 1, 1);
@@ -165,7 +184,7 @@ public static class ZaSwShEyeShader
                     if ((instruction >> 8 & 255) != 1 || (instruction >> 20 & 255) != 0)
                         throw new InvalidDataException("Eye shader normal coordinates are unsupported.");
                 }
-                if (slot is 0x0e or 0x0a or 0x0c)
+                if (slot is 0x0e or 0x0a or 0x0c || lava && slot is 20 or 22)
                 {
                     if (slot == 0x0e) { Constant(first, 0); Constant(first + 1, 0); Constant(second, 166 / 255f); }
                     else
@@ -175,13 +194,29 @@ public static class ZaSwShEyeShader
                     }
                     continue;
                 }
+                if (lava && (instruction >> 34 & 31) == 6 && (instruction >> 20 & 16383) is >= 60 and <= 62
+                    && instruction >> 48 is >= 0x49a0 and <= 0x49a3)
+                    Add((int)(instruction >> 8 & 255), (int)(instruction >> 8 & 255), 80 + (int)(instruction >> 20 & 16383) - 60);
+                if (lava && slot == 8)
+                {
+                    // Mirror-once addressing is independent of the eyelid maps.
+                    // The encoded palette uses a clamped native sampler.
+                    var u = (int)(instruction >> 8 & 255); var v = (int)(instruction >> 20 & 255);
+                    Uniform(69, 5, 45); Constant(70, 1);
+                    Emit(0x5c5810000007ff00UL | 1UL << 49 | (ulong)u << 20 | 68);
+                    Add(68, 68, u, true); Fma(u, 68, 69, u);
+                    Add(68, 70, v, true);
+                    Emit(0x5c5810000007ff00UL | 1UL << 49 | 68UL << 20 | 68);
+                    Add(68, 70, 68, true); Add(68, 68, v, true); Fma(v, 68, 69, v);
+                    Move(92, u); Move(93, v);
+                }
                 code.Add((instruction, schedulingInstruction));
                 if ((instruction & 0xffffffffff00ff00UL) == 0xe043ff910100ff00UL && first == 1)
                 {
                     if (capturedUv) throw new InvalidDataException("Eye shader UV input is ambiguous.");
                     Move(56, 1); Move(57, 0); Move(74, (int)(instruction >> 20 & 255)); capturedUv = true;
                 }
-                if (slot == 0x10) { Normal(first, second); normalPatched = true; }
+                if (slot == 0x10) { if (!objectNormals) Normal(first, second); normalPatched = true; }
                 if (slot == 8) { Color(first, second); colorPatched = true; }
             }
         }
@@ -199,7 +234,7 @@ public static class ZaSwShEyeShader
         template.AsSpan(data + constants, constantLength).CopyTo(output.AsSpan(data + newConstants));
         void Write(int offset, int value) => BinaryPrimitives.WriteInt32LittleEndian(output.AsSpan(offset, 4), value);
         Write(stage + 24, newLength); Write(control + 0x6f8, newEnd - 0x30);
-        Write(control + 0x700, newConstants); Write(control + 0x704, newLength); Write(control + 0x70c, 80);
+        Write(control + 0x700, newConstants); Write(control + 0x704, newLength); Write(control + 0x70c, lava ? 96 : 80);
         for (var index = 0; index < code.Count; index += 3)
         {
             var offset = data + 0x80 + index / 3 * 32;

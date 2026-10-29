@@ -109,10 +109,13 @@ public sealed class SwShModelPreviewService
                 clip = PreviewRigReader.Animation(data, chosen.Id, scene.Rig.Bones);
                 clip = SwShPreviewAnimation.Read(data, clip, warnings, scene.Primitives
                     .Where(p => p.Material.Surface?.Effect > 0).Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal), scene.Primitives
-                    .Where(p => p.Material.Surface is { Effect: 0 } surface && surface.Textures[3] >= 0)
+                    .Where(p => p.Material.Surface is { Effect: 0, RestorationEffect: 0 } surface && surface.Textures[3] >= 0)
                     .Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal), scene.Primitives
                     .Where(p => p.Material.Surface?.LayerEmission == true).Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal), scene.Primitives
-                    .Where(p => p.Material.Surface?.SurfaceLayers == true).Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal));
+                    .Where(p => p.Material.Surface?.SurfaceLayers == true).Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal), scene.Primitives
+                    .Where(p => p.Material.Surface?.MapEmission == true).Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal), scene.Primitives
+                    .Where(p => p.Material.Surface?.RestorationEffect > 0).Select(p => p.Material)
+                    .DistinctBy(m => m.Name).ToDictionary(m => m.Name, m => m.Surface!.RestorationEffect, StringComparer.Ordinal));
             }
             catch (IOException) { warnings.Add("animationUnsupported"); }
         }

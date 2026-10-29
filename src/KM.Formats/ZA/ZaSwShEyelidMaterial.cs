@@ -65,7 +65,9 @@ public static partial class ZaSwShEyelidMaterial
                 wraps.Add(role, new(source.Value(samplers[slot], 9), source.Value(samplers[slot], 10)));
             }
             if (vectors.Values.Any(value => !float.IsFinite(value.X + value.Y + value.Z + value.W))
-                || scalars.Values.Any(value => !float.IsFinite(value)) || scalars.GetValueOrDefault("NormalHeight") != 1)
+                || scalars.Values.Any(value => !float.IsFinite(value)) || scalars.GetValueOrDefault("NormalHeight") != 1
+                    && !(scalars.GetValueOrDefault("NormalHeight") == 0 && textures.ContainsKey("OpacityMap1")
+                        && (primitive.Name.StartsWith("pm0218_", StringComparison.Ordinal) || primitive.Name.StartsWith("pm0219_", StringComparison.Ordinal))))
                 throw new InvalidDataException("Eye parameters are unsupported.");
             var maskIndex = source.Tables(material, 9, 256).SingleOrDefault(parameter => source.Text(parameter, 0) == "UVIndexLayerMask");
             if (maskIndex != 0 && source.Value(maskIndex, 1) != uint.MaxValue)
@@ -78,7 +80,7 @@ public static partial class ZaSwShEyelidMaterial
         return result;
     }
 
-    public static byte[] Template(byte[] bodyModel, byte[] layeredModel)
+    public static byte[] Template(byte[] bodyModel, byte[] layeredModel, bool corneal = false)
     {
         var body = new ModelBuffer(bodyModel); var layered = new ModelBuffer(layeredModel);
         var eye = body.Tables(body.Root, 6, 128).Single(material => body.Text(material, 0) == "Eye");
@@ -92,7 +94,8 @@ public static partial class ZaSwShEyelidMaterial
         foreach (var parameter in switches)
         {
             var name = layered.Text(parameter, 0)!;
-            var expected = name is "Layer1Enable" or "SwitchPriority" or "NormalEdgeEnable" ? 1 : originalSwitches[name];
+            var expected = name is "Layer1Enable" or "SwitchPriority" or "NormalEdgeEnable" ? 1
+                : corneal && name == "SphereMapEnable" ? 0 : originalSwitches[name];
             if (Switch(layered, parameter) != expected) throw new InvalidDataException("Native eye switches need another adapter.");
         }
         var writer = new ModelTableBuilder(bodyModel);
@@ -100,7 +103,7 @@ public static partial class ZaSwShEyelidMaterial
         for (var index = 0; index < switches.Length; index++)
         {
             var name = layered.Text(switches[index], 0)!;
-            var value = name == "Layer1Enable" ? 0 : Switch(layered, switches[index]);
+            var value = name == "Layer1Enable" ? 0 : corneal && name == "SphereMapEnable" ? 1 : Switch(layered, switches[index]);
             var parameter = writer.Table(2, new Dictionary<int, byte[]> { [1] = ModelTableBuilder.Integer(value) });
             writer.Pointer(entries[index], parameter); writer.Text(parameter, 0, name);
         }
@@ -127,6 +130,13 @@ public static partial class ZaSwShEyelidMaterial
             var name = native.Text(material, 0)!;
             if (!names.TryGetValue(name, out var originalName) || !contracts.TryGetValue(originalName, out var contract)) continue;
             var (values, vectors) = Parameters(contract, (_, _) => null);
+            if (contract.Scalars.GetValueOrDefault("NormalHeight") == 0 && contract.Textures.ContainsKey("OpacityMap1"))
+            {
+                var colorWrap = contract.Wraps.GetValueOrDefault("BaseColorMap", Vector2.One);
+                if (colorWrap.X != colorWrap.Y || colorWrap.X is not (1 or 7))
+                    throw new InvalidDataException("Lava eye addressing requires matching clamp modes.");
+                values["ScaleUV"] = colorWrap.X == 7 ? 1 : 0;
+            }
             var scalars = native.Tables(material, 13, 256);
             var scalarSlots = writer.Vector(material, 13, scalars.Length);
             for (var index = 0; index < scalars.Length; index++)
@@ -161,7 +171,8 @@ public static partial class ZaSwShEyelidMaterial
                 for (var component = 0; component < 2; component++)
                     fields[1 + component] = ModelTableBuilder.Integer(wrap[component] switch
                     {
-                        0 => 0, 1 => 1, 6 => 2, 7 when role is "UpperEyelidColorMap" or "LowerEyelidColorMap" or "EyelidShadowMaskMap" => 1,
+                        0 => 0, 1 => 1, 6 => 2, 7 when role is "UpperEyelidColorMap" or "LowerEyelidColorMap" or "EyelidShadowMaskMap"
+                            || contract.Scalars.GetValueOrDefault("NormalHeight") == 0 && contract.Textures.ContainsKey("OpacityMap1") => 1,
                         _ => throw new InvalidDataException("Eye addressing needs another adapter.")
                     });
                 writer.Reference(binding, 2, writer.Table(9, fields));

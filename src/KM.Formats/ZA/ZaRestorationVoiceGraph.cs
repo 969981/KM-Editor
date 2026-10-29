@@ -13,7 +13,8 @@ public static class ZaRestorationVoiceGraph
     public static IReadOnlyDictionary<string, uint> Resolve(SoundBankDocument bank, int species, int form = 0)
         => ResolvePlayback(bank, species, form).ToDictionary(p => p.Key, p => p.Value.MediaId, StringComparer.Ordinal);
 
-    public static IReadOnlyDictionary<string, ZaRestorationVoice> ResolvePlayback(SoundBankDocument bank, int species, int form = 0)
+    public static IReadOnlyDictionary<string, ZaRestorationVoice> ResolvePlayback(SoundBankDocument bank, int species, int form = 0,
+        IReadOnlySet<uint>? inactiveStateGroups = null)
     {
         if (bank.Version != 145 || species is < 1 or > 1025 || form is < 0 or > 99)
             throw new InvalidDataException("Z-A voice bank version or identity is unsupported.");
@@ -27,13 +28,13 @@ public static class ZaRestorationVoiceGraph
         var action = Object(3, U32(evt.Payload, 1));
         if (action.Payload.Length < 6 || action.Payload[0] != 3 || action.Payload[1] != 4)
             throw new InvalidDataException("Z-A voice event does not contain a play action.");
-        var choice = Switch(Object(6, U32(action.Payload, 2)).Payload);
+        var choice = Switch(Object(6, U32(action.Payload, 2)).Payload, bank, inactiveStateGroups);
         var gain = choice.Gain;
         if (choice.Group == SwShVoiceWriter.Hash("FORM"))
         {
             if (!choice.States.TryGetValue(SwShVoiceWriter.Hash($"FORM{form:00}"), out var children) || children.Length != 1)
                 throw new InvalidDataException("Z-A voice form requires another conversion adapter.");
-            choice = Switch(Object(6, children[0]).Payload);
+            choice = Switch(Object(6, children[0]).Payload, bank, inactiveStateGroups);
             gain += choice.Gain;
         }
         else if (form != 0) throw new InvalidDataException("Z-A voice event has no requested form.");
@@ -51,7 +52,8 @@ public static class ZaRestorationVoiceGraph
         return result;
     }
 
-    private static (uint Group, Dictionary<uint, uint[]> States, float Gain) Switch(byte[] bytes)
+    private static (uint Group, Dictionary<uint, uint[]> States, float Gain) Switch(byte[] bytes,
+        SoundBankDocument bank, IReadOnlySet<uint>? inactiveStateGroups)
     {
         // Version 145 adds metadata and attachment flags before the parent data.
         // Parse the property bundle instead of assuming a fixed child offset.
@@ -59,7 +61,7 @@ public static class ZaRestorationVoiceGraph
         byte Byte() { if (at >= bytes.Length) throw new InvalidDataException("Z-A voice switch is truncated."); return bytes[at++]; }
         uint Word() { var value = U32(bytes, at); at += 4; return value; }
         int Count() { var value = Word(); return value <= 128 ? (int)value : throw new InvalidDataException("Z-A voice switch exceeds its budget."); }
-        void Zero() { if (Byte() != 0) throw new InvalidDataException("Z-A voice switch has unsupported effects or routing."); }
+        void Zero() { if (Byte() != 0) throw new InvalidDataException($"Z-A voice switch has unsupported effects or routing at {at - 1}."); }
         for (var i = 0; i < 5; i++) Zero();
         if (Word() != 0) throw new InvalidDataException("Z-A voice switch overrides its output bus.");
         _ = Word(); // Direct parent identity is resolved by the donor game's bank.
@@ -88,7 +90,37 @@ public static class ZaRestorationVoiceGraph
         if ((auxiliaryFlags & 8) != 0) for (var i = 0; i < 4; i++) _ = Word();
         if (Word() != 0) throw new InvalidDataException("Z-A voice switch has unsupported auxiliary routing.");
         Zero(); _ = Byte(); _ = Byte(); _ = Byte(); _ = Byte(); _ = Byte();
-        Zero(); Zero(); // State counts.
+        var stateProperties = Byte();
+        if (stateProperties > 16) throw new InvalidDataException("Z-A cry state property count exceeds its budget.");
+        var statePropertyIds = new HashSet<byte>();
+        for (var i = 0; i < stateProperties; i++)
+        {
+            var property = Byte(); var accumulation = Byte(); var decibels = Byte();
+            if (!statePropertyIds.Add(property) || property > 7 || accumulation is not (2 or 6) || decibels > 1)
+                throw new InvalidDataException("Z-A cry state property requires another adapter.");
+        }
+        var stateGroups = Byte();
+        if (stateGroups > 8 || (stateProperties == 0) != (stateGroups == 0))
+            throw new InvalidDataException("Z-A cry state group count is unsupported.");
+        for (var i = 0; i < stateGroups; i++)
+        {
+            var stateGroup = Word();
+            // A donor-only environment state must never become a permanent
+            // makeup gain. Native context mixing is supplied by the target parent.
+            if (inactiveStateGroups?.Contains(stateGroup) != true || Byte() != 0)
+                throw new InvalidDataException("Z-A cry state group needs an explicit target context adapter.");
+            var contextCount = Byte();
+            if (contextCount is < 1 or > 16) throw new InvalidDataException("Z-A cry state count exceeds its budget.");
+            for (var j = 0; j < contextCount; j++)
+            {
+                _ = Word(); var instance = Word();
+                var instances = bank.Objects.Where(o => o.Type == 1 && o.Id == instance).ToArray();
+                if (instances.Length != 1 || instances[0].Payload.Length != 8
+                    || U32(instances[0].Payload, 0) != 1 || !statePropertyIds.Contains(0)
+                    || BitConverter.UInt32BitsToSingle(U32(instances[0].Payload, 4)) is not 3.6f)
+                    throw new InvalidDataException("Z-A cry state instance requires another adapter.");
+            }
+        }
         var curves = Byte(); Zero();
         if (curves > 1) throw new InvalidDataException("Z-A cry modulation needs another adapter.");
         if (curves == 1)

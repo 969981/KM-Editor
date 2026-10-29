@@ -36,8 +36,8 @@ public sealed class ModelMaterialDocument
             var switches = packedModel ? data.Tables(table, 12, 256).ToDictionary(p => data.Text(p, 0) ?? "",
                 p => data.Field(p, 1) is var at && at != 0 ? data.U8(at) : 0, StringComparer.Ordinal) : [];
             var layerEmission = packedModel && SwShPreviewLayerEmission.UsesProgram(data, table);
-            var emission = packedModel && fire == 0 && switches.GetValueOrDefault("EmissionMaskUse") != 0
-                && switches.GetValueOrDefault("SwitchEmissionMaskTexUV") == 0;
+            var emission = packedModel && (SwShPreviewLayerEmission.UsesProgram(data, table, KM.Formats.SV.SvSwShLayerEmission.MapProgramName)
+                || fire == 0 && switches.GetValueOrDefault("EmissionMaskUse") != 0 && switches.GetValueOrDefault("SwitchEmissionMaskTexUV") == 0);
             bool TexturePreviewed(string role) => fire != 0 ? SwShPreviewFire.TextureRole(fire, role) is not null
                 : RenderedTexture(role) || (emission || layerEmission) && role == "EmissionMaskTex";
             void Numeric(string key, string group, string name, string kind, int at, int components, double fallback = 0, string[]? options = null, FieldLocation? location = null)

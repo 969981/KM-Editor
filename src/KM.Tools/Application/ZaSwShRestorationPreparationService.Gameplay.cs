@@ -39,7 +39,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             var ev = 0;
             for (var i = 0; i < order.Length; i++) { var value = source.U8(yields + order[i]); if (value > 3) throw new InvalidDataException("Source EV yield is unsupported."); ev |= value << (i * 2); }
             Put16(row, 10, ev); row.AsSpan(12, 6).Clear(); var gender = source.Field(table, 10);
-            if (gender == 0 || source.U8(gender) != 0 || source.U8(gender + 1) != profile.FemalePercent)
+            if (gender == 0 || source.U8(gender) != profile.GenderKind || source.U8(gender + 1) != profile.FemalePercent)
                 throw new InvalidDataException("Z-A gender ratio needs another target adapter.");
             row[18] = profile.GenderThreshold; row[19] = checked((byte)Scalar(14)); row[20] = checked((byte)Scalar(15));
             row[21] = checked((byte)Scalar(8)); row[22] = checked((byte)Scalar(11)); row[23] = checked((byte)Scalar(12));
@@ -99,6 +99,13 @@ public sealed partial class ZaSwShRestorationPreparationService
                     continue;
                 }
                 if (!Profiles.TryGetValue(destination, out var evolutionProfile) || evolutionProfile.HatchedSpecies != profile.HatchedSpecies || form != 0) throw new InvalidDataException("Evolution needs an undeclared restoration dependency.");
+                if (species == 603 && destination == 604 && source.U16(at + 2) == 8 && source.U16(at + 4) == 4)
+                {
+                    // Z-A's Thunder Stone parameter 4 maps to native item 83.
+                    Put16(evolution, i * 8, 8); Put16(evolution, i * 8 + 2, 83);
+                    Put16(evolution, i * 8 + 4, destination);
+                    continue;
+                }
                 if (source.U16(at + 2) != 4 || source.U16(at + 4) != 0 || source.U16(at) is < 1 or > 100)
                     throw new InvalidDataException("Z-A evolution condition needs another target adapter.");
                 Put16(evolution, i * 8, source.U16(at + 2)); Put16(evolution, i * 8 + 2, source.U16(at + 4)); Put16(evolution, i * 8 + 4, destination);

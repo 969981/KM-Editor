@@ -37,7 +37,11 @@ public static class ModelTextureIdentity
             if ((format & 255) is not (1 or 6)) throw new InvalidDataException("Texture color encoding cannot be converted to linear.");
             BinaryPrimitives.WriteUInt32LittleEndian(result.AsSpan(info + 28), (format & ~255u) | 1);
         }
-        _ = new ModelTextureDocument(result);
+        // Auxiliary masks and two-channel normals have no color editing surface,
+        // but retain the same native identity layout as color textures.
+        if (data.U32(info + 28) is 0x1d01 or 0x1e01)
+            _ = PreviewTexture.ReadBaseLevel(result);
+        else _ = new ModelTextureDocument(result);
         return result;
     }
 }

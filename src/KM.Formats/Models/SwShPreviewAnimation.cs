@@ -5,7 +5,8 @@ public static class SwShPreviewAnimation
 {
     public static PreviewClip Read(ModelBuffer data, PreviewClip clip, ICollection<string> warnings,
         IReadOnlySet<string>? fireMaterials = null, IReadOnlySet<string>? emissionMaterials = null, IReadOnlySet<string>? layerEmissionMaterials = null,
-        IReadOnlySet<string>? surfaceLayerMaterials = null)
+        IReadOnlySet<string>? surfaceLayerMaterials = null, IReadOnlySet<string>? mapEmissionMaterials = null,
+        IReadOnlyDictionary<string, int>? restorationMaterials = null)
     {
         var visibility = ReadVisibility(data, clip.Frames);
         var materials = new List<PreviewMaterialTrack>();
@@ -15,9 +16,17 @@ public static class SwShPreviewAnimation
             {
                 var name = data.Text(material, 0) ?? throw new InvalidDataException("Material animation target is missing.");
                 var fire = fireMaterials?.Contains(name) == true;
+                var restoration = restorationMaterials?.GetValueOrDefault(name) ?? 0;
                 var effects = new Dictionary<string, PreviewKey[][]>(StringComparer.Ordinal);
                 foreach (var vector in data.Tables(material, 3, 256))
                 {
+                    var eyeRow = restoration is 3 or 4 ? Array.IndexOf(KM.Formats.ZA.ZaSwShEyelidMaterial.VectorNames, data.Text(vector, 0)) : -1;
+                    if (eyeRow >= 0)
+                    {
+                        var row = Keys(data, vector, 1, 3, false, clip.Frames);
+                        materials.Add(new(name, $"RestorationValue{4 + eyeRow}", [row[0], row[1], row[2], []]));
+                        continue;
+                    }
                     if (fire && SwShPreviewFire.ColorSlot(data.Text(vector, 0) ?? "") is var slot && slot >= 0)
                     {
                         var color = Keys(data, vector, 1, 3, false, clip.Frames);
@@ -34,6 +43,23 @@ public static class SwShPreviewAnimation
                 PreviewKey[][] origins = [[], [], [], []];
                 foreach (var scalar in data.Tables(material, 2, 256))
                 {
+                    if (!fire && restoration == 0 && data.Text(scalar, 0) == "ConstantColorVal")
+                    {
+                        materials.Add(new(name, "BaseColorGain", [Keys(data, scalar, 1, 1, false, clip.Frames)[0], [], [], []]));
+                        continue;
+                    }
+                    var restored = restoration > 0 ? SwShPreviewRestorationMaterial.Scalar(data.Text(scalar, 0) ?? "", restoration) : (-1, -1);
+                    if (restored.Item1 >= 0)
+                    {
+                        var target = $"RestorationValue{restored.Item1}";
+                        if (!effects.TryGetValue(target, out var channels)) effects.Add(target, channels = [[], [], [], []]);
+                        channels[restored.Item2] = Keys(data, scalar, 1, 1, false, clip.Frames)[0]; continue;
+                    }
+                    if (mapEmissionMaterials?.Contains(name) == true && Array.IndexOf(KM.Formats.SV.SvSwShLayerEmission.Scalars, data.Text(scalar, 0)) is var mapped && mapped >= 0)
+                    {
+                        if (mapped == 0) materials.Add(new(name, "EmissionGain", [Keys(data, scalar, 1, 1, false, clip.Frames)[0], [], [], []]));
+                        continue;
+                    }
                     var emissionLayer = layerEmissionMaterials?.Contains(name) == true
                         ? Array.IndexOf(KM.Formats.SV.SvSwShLayerEmission.Scalars, data.Text(scalar, 0)) : -1;
                     if (emissionLayer >= 0) { layeredEmission[emissionLayer] = Keys(data, scalar, 1, 1, false, clip.Frames)[0]; continue; }

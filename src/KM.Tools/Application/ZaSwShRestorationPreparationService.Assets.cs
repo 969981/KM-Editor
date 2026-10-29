@@ -37,12 +37,15 @@ public sealed partial class ZaSwShRestorationPreparationService
             SwShRestorationGenderAudit.RequireModels(Donor(profile.PlaAssets ? "bin/pokemon/table/poke_resource_table.trpmcatalog"
                     : "ik_pokemon/catalog/catalog/poke_resource_table.trpmcatalog"),
                 species, identity.Form, genders.ToDictionary(g => g, ModelPath));
-            var result = genders.SelectMany(g => Assets(species, g, profile, identity.Form)).ToList();
+            var declaredMeshes = genders.SelectMany(g => new TrinityPreviewReader(Donor, topOriginMaterialUv: true)
+                .Load(profile.PlaAssets ? ModelPath(g) : "ik_pokemon/data/" + ModelPath(g)).Primitives.Select(p => p.Name)).ToHashSet(StringComparer.Ordinal);
+            var result = genders.SelectMany(g => Assets(species, g, profile, identity.Form, declaredMeshes)).ToList();
             result.Add(File(SwShRestorationComposer.IconPath(species, identity.Form)[6..], SwShRestorationPartyIcons.Create(species, Native, token, identity.Form, textureEncoding)));
             return result;
         }
 
-        private IReadOnlyList<SwShRestorationContribution> Assets(int species, int gender, SpeciesProfile? formProfile = null, int form = 0)
+        private IReadOnlyList<SwShRestorationContribution> Assets(int species, int gender, SpeciesProfile? formProfile = null, int form = 0,
+            IReadOnlySet<string>? declaredMeshes = null)
         {
             var profile = formProfile ?? Profiles[species];
             var groups = new[] { "battle", "camp", "field" };
@@ -58,8 +61,10 @@ public sealed partial class ZaSwShRestorationPreparationService
             Report("reading");
             var scene = NormalizeUvs(sourceScene, true);
             if (scene.Rig.Warnings.Length > 0) throw new InvalidDataException("Source model requires an additional conversion adapter.");
-            string Code(string name, string value) => species == 15 || profile.AirborneBattle && name.StartsWith("ba", StringComparison.Ordinal)
-                ? (int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) + 20000).ToString("00000", System.Globalization.CultureInfo.InvariantCulture) : value;
+            string Code(string name, string value) => profile.MotionOverrides?.GetValueOrDefault(name)
+                ?? (int.Parse(value, System.Globalization.CultureInfo.InvariantCulture) + profile.AnimationOffset
+                    + (species == 15 || profile.AirborneBattle && name.StartsWith("ba", StringComparison.Ordinal) ? 20000 : 0))
+                    .ToString("00000", System.Globalization.CultureInfo.InvariantCulture);
             var campClips = new Dictionary<string, (byte[] Skeleton, PreviewClip Decoded)>(StringComparer.Ordinal);
             if (species == 6 && form is 1 or 2)
             {
@@ -104,6 +109,11 @@ public sealed partial class ZaSwShRestorationPreparationService
             var eyePack = profile.LayeredEyes ? SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0001_00.gfpak")) : null;
             var eyeContracts = profile.LayeredEyes ? ZaSwShEyelidMaterial.Materials(materialBytes, sourceScene, profile.EyeAtlasOffsets) : null;
             if (eyePack is not null) nativeModel = ZaSwShEyelidMaterial.Template(nativeModel, Member(eyePack, "pm0001_00.gfbmdl"));
+            var emissionContracts = profile.LayerEmission ? SvSwShLayerEmission.Contracts(materialBytes, scene) : null;
+            var fresnelPack = emissionContracts?.Values.Any(c => c.FresnelNormal is not null) == true
+                ? SwShGfPackFile.Parse(Native("bin/archive/pokemon/pm0007_00.gfpak")) : null;
+            if (profile.LayerEmission) nativeModel = SvSwShLayerEmission.Template(nativeModel,
+                fresnelPack is null ? SvSwShLayerEmission.ProgramName : SvSwShLayerEmission.FresnelProgramName);
             var nativeMetadata = new ModelBuffer(nativeModel);
             var targetScene = UniqueMaterials(scene);
             if (profile.PairedFlames)
@@ -122,8 +132,8 @@ public sealed partial class ZaSwShRestorationPreparationService
             foreach (var bone in scene.Rig.Bones) aliases.TryAdd(bone.Name, bone.Name.Replace(sourceStem, stem, StringComparison.Ordinal));
             var airborneOffset = profile.AirborneBattle ? AirborneOffset(species, form, Donor(sourceFolder + sourceStem + ".trpokecfg")) : 0;
             var locatorPath = profile.PlaAssets ? sourceRoot + $"locators/{sourceStem}_eff.trskl"
-                : sourceRoot + $"locators/{sourceStem}_{(species == 15 || profile.AirborneBattle ? 20000 : 0):00000}_eff.trskl";
-            var locators = Locators(scene, aliases, Donor(locatorPath), profile.MouthPosition, airborneOffset, profile.PlaAssets);
+                : sourceRoot + $"locators/{sourceStem}_{(species == 15 || profile.AirborneBattle ? 20000 : profile.AnimationOffset):00000}_eff.trskl";
+            var locators = Locators(scene, aliases, Donor(locatorPath), profile.MouthPosition, airborneOffset, profile.PlaAssets, singleEye: species == 491);
             var members = new Dictionary<string, byte[]>(StringComparer.Ordinal); var modelFolder = $"bin/pokemon/{stem}/mdl/"; var animationFolder = $"bin/pokemon/{stem}/anm/";
             var textures = new RestorationTexturePool(members, modelFolder, true);
             var fireTextures = new Dictionary<string, SvSwShFlameTextures>(StringComparer.Ordinal);
@@ -149,7 +159,11 @@ public sealed partial class ZaSwShRestorationPreparationService
                 for (var i = 0; i < count; i++) shaderNames.Add(nativeMetadata.StringAt(start + i * 4));
             }
             foreach (var name in shaderNames) foreach (var extension in new[] { ".bnsh_vsh", ".bnsh_fsh" })
-                members[modelFolder + name + extension] = profile.LayeredEyes && name == ZaSwShEyelidMaterial.ProgramName
+                members[modelFolder + name + extension] = name == SvSwShLayerEmission.FresnelProgramName && fresnelPack is not null
+                    ? extension == ".bnsh_fsh" ? SvSwShLayerEmissionShader.Fresnel(Member(fresnelPack, "Body00" + extension)) : Member(fresnelPack, "Body00" + extension)
+                    : profile.LayerEmission && name == SvSwShLayerEmission.ProgramName
+                    ? extension == ".bnsh_fsh" ? SvSwShLayerEmissionShader.Convert(Member(nativePack, "Body00" + extension)) : Member(nativePack, "Body00" + extension)
+                    : profile.LayeredEyes && name == ZaSwShEyelidMaterial.ProgramName
                     ? extension == ".bnsh_fsh" ? ZaSwShEyeShader.Convert(Member(eyePack!, ZaSwShEyelidMaterial.NativeProgramName + extension))
                         : ZaSwShEyeShader.Vertex(Member(eyePack!, ZaSwShEyelidMaterial.NativeProgramName + extension))
                     : transparentPack is not null && Array.IndexOf(SvSwShTransparentMaterial.Programs, name) is var pass && pass >= 0
@@ -165,6 +179,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                 if (variantScene.Primitives.Count != scene.Primitives.Count || variantScene.Primitives.Where((p, i) => p.Material.Name != scene.Primitives[i].Material.Name).Any())
                     throw new InvalidDataException("Z-A shiny material identities do not match the model.");
                 var sourceMaterialBytes = rare ? Donor(variant!.Materials.Single()) : materialBytes;
+                var paletteEmission = profile.LayerEmission ? SvSwShLayerEmission.Contracts(sourceMaterialBytes, scene) : null;
                 var paletteEyes = profile.LayeredEyes ? ZaSwShEyelidMaterial.Materials(sourceMaterialBytes, sourceScene, profile.EyeAtlasOffsets) : null;
                 var eyeTextures = new Dictionary<int, ZaSwShEyelidMaterial.EyeTextures>();
                 var flameTemplate = FlameTemplate(sourceMaterialBytes);
@@ -219,6 +234,7 @@ public sealed partial class ZaSwShRestorationPreparationService
                 {
                     if (flames.Contains(primitive.Material.Name, StringComparer.Ordinal)) return FireBinding(primitive.Material.Name, false);
                     var nativeMaterial = primitive.Material.Name.Contains("eye", StringComparison.Ordinal) ? 1 : 0;
+                    if (paletteEmission?.ContainsKey(primitive.Material.Name) == true) nativeMaterial = nativeMetadata.Tables(nativeMetadata.Root, 6, 128).Length - 1;
                     if (transparentPack is not null && primitive.Material.Alpha == "Blend")
                         nativeMaterial = nativeMetadata.Tables(nativeMetadata.Root, 6, 128).Length - 2;
                     var textureBindings = nativeMetadata.Tables(nativeMetadata.Tables(nativeMetadata.Root, 6, 128)[nativeMaterial], 11, 64)
@@ -238,6 +254,18 @@ public sealed partial class ZaSwShRestorationPreparationService
                         textureBindings["SphereMapTex"] = SvSwShTransparentMaterial.EnvironmentName;
                     if (profile.NativeFlames && primitive.Material.Name == "fire") textureBindings["EmissionMaskTex"] = sourceStem + "_fire_alb";
                     if (index == emissionIndex) textureBindings["EmissionMaskTex"] = emissionName!;
+                    if (paletteEmission?.TryGetValue(primitive.Material.Name, out var layerEmission) == true)
+                    {
+                        var mask = SvSwShLayerEmission.Mask(layerEmission,
+                            name => Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", name)), token, textureEncoding);
+                        textureBindings["EmissionMaskTex"] = textures.Add(mask.Name, mask.Bytes);
+                        if (layerEmission.FresnelNormal is not null)
+                        {
+                            string Image(string path) => textures.Add(Path.GetFileNameWithoutExtension(path), Donor(TrinityPreviewReader.Resolve(sourceFolder + sourceStem + ".trmtr", path)));
+                            textureBindings["LyCol0Tex"] = Image(layerEmission.FresnelNormal);
+                            textureBindings["EffectTex"] = Image(layerEmission.FresnelNormal1!);
+                        }
+                    }
                     return new SwShMaterialBinding(primitive.Material.Name, nativeMaterial, textureBindings)
                         { ColorUvTransform = baked[index]?.ColorUvTransform ?? new(1, 1, 0, 0) };
                 }).ToArray();
@@ -250,6 +278,9 @@ public sealed partial class ZaSwShRestorationPreparationService
                         targetScene.Primitives.Select((primitive, index) => (primitive.Material.Name, Original: scene.Primitives[index].Material.Name))
                             .ToDictionary(pair => pair.Name, pair => pair.Original)) };
                 converted = converted with { Model = SwShRestorationMaterialResponse.Apply(converted.Model) };
+                if (paletteEmission is not null) converted = converted with { Model = SvSwShLayerEmission.Bind(converted.Model, paletteEmission,
+                    targetScene.Primitives.Select((primitive, index) => (primitive.Material.Name, Original: scene.Primitives[index].Material.Name))
+                        .ToDictionary(pair => pair.Name, pair => pair.Original)) };
                 if (profile.NativeFlames) converted = converted with { Model = ZaSwShFlameMaterial.Emission(converted.Model) };
                 if (emission is not null) converted = converted with { Model = ZaSwShFlameMaterial.Emission(converted.Model, profile.EmissionMaterial!, 0, emission.Gain) };
                 converted = converted with { Model = CompactPrograms(converted.Model) };
@@ -268,7 +299,9 @@ public sealed partial class ZaSwShRestorationPreparationService
                 {
                     var at = framing.Field(framing.Root, field);
                     var destination = target.Field(target.Root, field + 14);
-                    if ((at == 0 && field <= 6) || destination == 0) throw new InvalidDataException("Z-A model framing is incomplete.");
+                    // Darkrai's centered vertical camera offset is encoded as the FlatBuffer default.
+                    var defaultOffset = species == 491 && field == 5;
+                    if ((at == 0 && field <= 6 && !defaultOffset) || destination == 0) throw new InvalidDataException("Z-A model framing is incomplete.");
                     var value = (at == 0 ? 0 : framing.Float(at)) * (field <= 6 ? 100 : 1);
                     if (!float.IsFinite(value) || (field == 3 && value <= 0)) throw new InvalidDataException("Z-A model framing is invalid.");
                     System.Buffers.Binary.BinaryPrimitives.WriteSingleLittleEndian(configuration.AsSpan(destination, 4), value);
@@ -286,9 +319,11 @@ public sealed partial class ZaSwShRestorationPreparationService
             var clips = new Dictionary<string, (byte[] Skeleton, PreviewClip Decoded)>(StringComparer.Ordinal);
             byte[] ConvertMotion(byte[] skeleton, PreviewClip decoded, bool complete, SwShExpressionCurve expression = SwShExpressionCurve.None, bool empty = false)
             {
-                var materialTracks = decoded.Materials.Where(track => !flames.Contains(track.Material, StringComparer.Ordinal)).ToArray();
+                var materialTracks = decoded.Materials.Where(track => !flames.Contains(track.Material, StringComparer.Ordinal)
+                    && (!profile.LayerEmission || !track.Parameter.StartsWith("EmissionIntensityLayer", StringComparison.Ordinal))).ToArray();
                 var converted = ZaSwShAnimationWriter.Convert(skeleton, materialTracks, scene.Rig.Bones, aliases, complete, expression, empty);
                 if (expression != SwShExpressionCurve.None) return converted;
+                if (profile.LayerEmission) converted = SvSwShLayerEmission.Animation(converted, decoded.Materials);
                 if (!profile.PairedFlames) return profile.MeshVisibility ? ZaSwShAnimationWriter.Visibility(converted, decoded.Visibility, meshNames) : converted;
                 foreach (var flame in flames) converted = SvSwShFlameAnimation.Apply(converted, decoded.Materials, materialName: flame);
                 var fireMeshes = targetScene.Primitives.Where(primitive => flames.Contains(primitive.Material.Name, StringComparer.Ordinal))
@@ -307,7 +342,9 @@ public sealed partial class ZaSwShRestorationPreparationService
                 if (!profile.PlaAssets || graph.Any(r => r.Id == materialPath))
                 {
                     var materialAnimation = Donor(materialPath);
-                    clip = profile.PairedFlames ? ZaSwShAnimationWriter.ReadFlameClip(materialAnimation, clip, flames)
+                    clip = profile.LayerEmission ? SvSwShLayerEmission.Read(materialAnimation, clip, scene, emissionContracts!,
+                            sanitized => ZaSwShAnimationWriter.ReadClip(sanitized, clip, profile.MeshVisibility, profile.EmissionMaterial, eyeContracts))
+                        : profile.PairedFlames ? ZaSwShAnimationWriter.ReadFlameClip(materialAnimation, clip, flames)
                         : ZaSwShAnimationWriter.ReadClip(materialAnimation, clip, profile.MeshVisibility, profile.EmissionMaterial, eyeContracts);
                 }
                 // A material can be shared by multiple mesh sections. Each converted
@@ -317,8 +354,27 @@ public sealed partial class ZaSwShRestorationPreparationService
                     .Select(pair => track with { Material = materialNames[pair.i] })).ToArray() };
                 if (profile.SeparateFemale)
                 {
-                    var otherMesh = $"pm{species:0000}_{1 - gender:00}_00_body_c_mesh_shape";
-                    if (clip.Visibility.Where(v => !meshNames.Contains(v.Name)).Any(v => v.Name != otherMesh || v.Keys.Any(k => k.Value.Length != 1 || k.Value[0] != 1)))
+                    if (species == 322)
+                    {
+                        // Numel repeats its gender visibility on three lower LODs.
+                        // Only the highest LOD is exported. Require every discarded
+                        // channel to exactly match its exported source channel.
+                        foreach (var visibility in clip.Visibility.Where(v => declaredMeshes?.Contains(v.Name) != true))
+                        {
+                            var suffix = visibility.Name.Length >= 5 ? visibility.Name[^5..] : "";
+                            var original = suffix is "_lod1" or "_lod2" or "_lod3"
+                                ? clip.Visibility.SingleOrDefault(v => v.Name == visibility.Name[..^5]) : null;
+                            if (original is null || declaredMeshes?.Contains(original.Name) != true
+                                || original.Keys.Length != visibility.Keys.Length
+                                || !original.Keys.Zip(visibility.Keys).All(k => k.First.Frame == k.Second.Frame
+                                    && k.First.Value.SequenceEqual(k.Second.Value)))
+                                throw new InvalidDataException("Numel lower LOD visibility differs from its exported section.");
+                        }
+                        clip = clip with { Visibility = clip.Visibility.Where(v => declaredMeshes!.Contains(v.Name)).ToArray() };
+                    }
+                    // Shared gender animations may address sections that exist only in
+                    // the sibling model. Reject undeclared targets before filtering them.
+                    if (clip.Visibility.Any(v => declaredMeshes?.Contains(v.Name) != true))
                         throw new InvalidDataException("Source gender visibility needs another conversion adapter.");
                     clip = clip with { Visibility = clip.Visibility.Where(v => meshNames.Contains(v.Name)).ToArray() };
                 }
@@ -334,7 +390,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             {
                 Report("animations", motions.Length + nativeClipsDone++, motions.Length + nativeClips.Length);
                 var expression = name == "eye01" ? SwShExpressionCurve.Eyes : name == "mouth01" ? SwShExpressionCurve.Mouth : SwShExpressionCurve.None;
-                var empty = name == "mouth01" || (name == "eye01" && (species == 14 || profile.PlaAssets && species == 47));
+                var empty = name == "mouth01" || (name == "eye01" && (species is 14 or 316 || profile.PlaAssets && species == 47));
                 // An empty facial layer only needs timing. It writes no bones
                 // or material tracks and leaves the authored body motion intact.
                 var sourceCode = Code(name, empty ? "00000" : code);
@@ -363,6 +419,10 @@ public sealed partial class ZaSwShRestorationPreparationService
             members[animationFolder + stem + "_battleidle01.gfbanm"] = SwShAnimationWriter.BattleIdle(members[animationFolder + stem + "_ba10_waitA01.gfbanm"]);
             members[animationFolder + stem + "_gloop01.gfbanm"] = SwShAnimationWriter.GlobalMaterialLoop(Member(nativePack, "pm0007_00_gloop01.gfbanm"),
                 materialNames.Where(name => !flames.Any(flame => name == flame || name == flame + "_mask")).ToArray());
+            var emissionNames = targetScene.Primitives.Where((_, index) => emissionContracts?.ContainsKey(scene.Primitives[index].Material.Name) == true)
+                .Select(p => p.Material.Name).ToHashSet(StringComparer.Ordinal);
+            if (profile.LayerEmission) members[animationFolder + stem + "_gloop01.gfbanm"] = SvSwShLayerEmission.GlobalLoop(
+                members[animationFolder + stem + "_gloop01.gfbanm"], emissionNames);
             if (transparentPack is not null)
                 members[animationFolder + stem + "_gloop01.gfbanm"] = SvSwShTransparentMaterial.GlobalLoop(
                     members[animationFolder + stem + "_gloop01.gfbanm"], targetScene.Primitives
@@ -400,6 +460,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             foreach (var group in groups)
             {
                 var controller = ZaSwShAnimationWriter.Controller(Member(nativePack, "pm0007_00_" + group + ".gfbanmcfg"), "pm0007_00", stem, materialNames, facialBones, profile.LayeredEyes);
+                if (profile.LayerEmission) controller = SvSwShLayerEmission.Controller(controller, emissionNames);
                 if (profile.NativeFlames || profile.PairedFlames)
                     controller = SvSwShFlameAnimation.Controller(controller, flameBones.Select(name => aliases[name]).ToArray(), profile.PairedFlames ? flames : null);
                 if (group == "battle") controller = SwShAnimationWriter.BattleIdleController(controller);
@@ -439,7 +500,11 @@ public sealed partial class ZaSwShRestorationPreparationService
             }
             var giantMembers = new Dictionary<string, byte[]> { [$"bin/pokemon/{stem}/{stem}.gfbgpokecfg"] = giantConfiguration };
             foreach (var name in shaderNames) foreach (var extension in new[] { ".bnsh_vsh", ".bnsh_fsh" })
-                giantMembers[$"bin/pokemon/{stem}/g_shader/{name}{extension}"] = profile.LayeredEyes && name == ZaSwShEyelidMaterial.ProgramName
+                giantMembers[$"bin/pokemon/{stem}/g_shader/{name}{extension}"] = name == SvSwShLayerEmission.FresnelProgramName
+                    ? extension == ".bnsh_fsh" ? SvSwShLayerEmissionShader.Fresnel(Member(giantDonor, "Body00" + extension)) : Member(giantDonor, "Body00" + extension)
+                    : profile.LayerEmission && name == SvSwShLayerEmission.ProgramName
+                    ? extension == ".bnsh_fsh" ? SvSwShLayerEmissionShader.Convert(Member(giantDonor, "Body00" + extension)) : Member(giantDonor, "Body00" + extension)
+                    : profile.LayeredEyes && name == ZaSwShEyelidMaterial.ProgramName
                     ? extension == ".bnsh_fsh" ? ZaSwShEyeShader.Convert(Member(giantEye!, ZaSwShEyelidMaterial.NativeProgramName + extension))
                         : ZaSwShEyeShader.Vertex(Member(giantEye!, ZaSwShEyelidMaterial.NativeProgramName + extension))
                     : giantTransparent is not null && Array.IndexOf(SvSwShTransparentMaterial.Programs, name) is var pass && pass >= 0
@@ -540,7 +605,7 @@ public sealed partial class ZaSwShRestorationPreparationService
             }).ToArray() };
         }
 
-        private static SwShEffectLocator[] Locators(PreviewScene scene, IReadOnlyDictionary<string, string> aliases, byte[] bytes, Vector3? mouthPosition = null, float airborneOffset = 0, bool pla = false)
+        private static SwShEffectLocator[] Locators(PreviewScene scene, IReadOnlyDictionary<string, string> aliases, byte[] bytes, Vector3? mouthPosition = null, float airborneOffset = 0, bool pla = false, bool singleEye = false)
         {
             var source = new ModelBuffer(bytes); var nodes = source.Tables(source.Root, 1, 512);
             var transforms = PreviewRigReader.Skeleton(source);
@@ -571,6 +636,14 @@ public sealed partial class ZaSwShRestorationPreparationService
                 ["EffAttack01_01"] = "EffAttack01", ["EffAttack01_02"] = "EffAttack02", ["EffAttack01_03"] = "EffAttack02",
                 ["EffGcloud01"] = "EffOverHead01",
             };
+            // Darkrai exposes one visible eye and one authored effect attachment.
+            // Both native eye names must follow that same animated source point.
+            if (singleEye)
+            {
+                if (pla || !entries.ContainsKey("eff_eye01") || entries.ContainsKey("eff_eye02"))
+                    throw new InvalidDataException("Single-eye effect attachment no longer matches its source contract.");
+                mapping["EffEye02"] = "eff_eye01";
+            }
             var result = mapping.Select(pair => Convert(pair.Key, pair.Value)).ToList();
             if (airborneOffset != 0)
             {

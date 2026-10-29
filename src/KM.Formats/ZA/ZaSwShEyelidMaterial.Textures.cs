@@ -28,7 +28,7 @@ public static partial class ZaSwShEyelidMaterial
         }
         if (contract.Textures.ContainsKey("HighlightMaskMap") && Image("HighlightMaskMap").Pixels.Where((_, offset) => offset % 4 == 0).Any(value => value != 0))
             throw new InvalidDataException("Independent eye highlights need another adapter.");
-        if (Image("OcclusionMap").Pixels.Where((_, offset) => offset % 4 == 0).Any(value => value != 255))
+        if (contract.Textures.ContainsKey("OcclusionMap") && Image("OcclusionMap").Pixels.Where((_, offset) => offset % 4 == 0).Any(value => value != 255))
             throw new InvalidDataException("Eye occlusion needs another adapter.");
         var original = Image("BaseColorMap"); var mask = Image("LayerMaskMap");
         var width = Math.Max(original.Width, mask.Width); var height = Math.Max(original.Height, mask.Height);
@@ -59,6 +59,21 @@ public static partial class ZaSwShEyelidMaterial
         })
         {
             var shadow = targetRole == "AmbientTex";
+            // An untinted eyelid already contains the required sRGB color and
+            // alpha. Retain its compressed blocks and authored mip chain.
+            if (!shadow && contract.Textures.TryGetValue(sourceRole, out var originalPath)
+                && Tint(tintName, Vector4.One) == Vector4.One)
+            {
+                var bytes = read(originalPath);
+                if (PreviewTexture.ReadBaseLevel(bytes).Format is 0x2006 or 0x1a06 or 0x1b06 or 0x1c06)
+                {
+                    var originalName = Path.GetFileNameWithoutExtension(originalPath);
+                    var name = $"{identity}{index:x}{(shiny ? 's' : 'n')}" + originalName[3..];
+                    files.Add(name, ModelTextureIdentity.Rename(bytes, originalName, name));
+                    bindings.Add(targetRole, name);
+                    continue;
+                }
+            }
             var image = contract.Textures.ContainsKey(sourceRole) ? Image(sourceRole) : new ZaSwShMaterialBaker.Image(4, 4, false, new byte[64]);
             var output = new byte[image.Pixels.Length]; var tint = Tint(tintName, Vector4.One);
             for (var pixel = 0; pixel < image.Width * image.Height; pixel++)
@@ -79,11 +94,35 @@ public static partial class ZaSwShEyelidMaterial
         var normalPixels = normal.Pixels.ToArray();
         for (var pixel = 0; pixel < normal.Width * normal.Height; pixel++)
         {
-            var offset = pixel * 4; var horizontal = normalPixels[offset] / 127.5f - 1; var vertical = normalPixels[offset + 1] / 127.5f - 1;
+            var offset = pixel * 4; var normalHeight = contract.Scalars.GetValueOrDefault("NormalHeight", 1);
+            var horizontal = (normalPixels[offset] / 127.5f - 1) * normalHeight; var vertical = (normalPixels[offset + 1] / 127.5f - 1) * normalHeight;
+            normalPixels[offset] = Encode(horizontal * .5f + .5f, false); normalPixels[offset + 1] = Encode(vertical * .5f + .5f, false);
             normalPixels[offset + 2] = Encode((MathF.Sqrt(MathF.Max(0, 1 - horizontal * horizontal - vertical * vertical)) + 1) * .5f, false);
             normalPixels[offset + 3] = 255;
         }
         Write("NormalMapTex", 'n', normal.Width, normal.Height, normalPixels, false, true);
+        if (contract.Scalars.GetValueOrDefault("NormalHeight") == 0 && contract.Textures.ContainsKey("OpacityMap1"))
+        {
+            var emission = new byte[width * height * 4];
+            for (var y = 0; y < height; y++) for (var x = 0; x < width; x++)
+            {
+                var uv = new Vector2((x + .5f) / width, (y + .5f) / height);
+                var weights = ZaSwShMaterialBaker.Sample(mask, uv, new(1, 1, 0, 0), contract.Wraps["LayerMaskMap"]);
+                var color = Vector3.Zero; float remaining = 1;
+                for (var layer = 3; layer >= 0; layer--)
+                {
+                    var tint = Tint("EmissionColorLayer" + (layer + 1), Vector4.Zero);
+                    var weight = Math.Clamp(weights[layer] * contract.Scalars.GetValueOrDefault("LayerMaskScale" + (layer + 1), 1), 0, 1);
+                    color += new Vector3(tint.X, tint.Y, tint.Z) * (weight * remaining * contract.Scalars.GetValueOrDefault("EmissionIntensityLayer" + (layer + 1)));
+                    remaining *= 1 - weight;
+                }
+                var at = (y * width + x) * 4;
+                for (var c = 0; c < 3; c++) emission[at + c] = Encode(color[c] / 4, false);
+                emission[at + 3] = 255;
+            }
+            Write("SphereMapTex", 'e', width, height, emission, false);
+            var detail = Image("OpacityMap1"); Write("EffectTex", 'd', detail.Width, detail.Height, detail.Pixels, false);
+        }
         return new(bindings, files);
     }
 
