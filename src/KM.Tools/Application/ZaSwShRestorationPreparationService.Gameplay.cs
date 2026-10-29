@@ -115,8 +115,12 @@ public sealed partial class ZaSwShRestorationPreparationService
             var eggMoves = Moves(23).Where(MoveAvailable).ToArray(); var eggs = new byte[4 + eggMoves.Length * 2]; Put16(eggs, 0, personalId); Put16(eggs, 2, eggMoves.Length);
             for (var i = 0; i < eggMoves.Length; i++) Put16(eggs, 4 + i * 2, eggMoves[i]);
             result.Add(File($"bin/pml/tamagowaza/tamagowaza_{personalId:0000}.bin", eggs));
-            var icon = new byte[8]; Put16(icon, 0, species); Put16(icon, 2, identity.Form);
-            result.Add(new(SwShRestorationComposer.IconsPath, SwShRestorationWriter.Icons, SwShRestorationComposer.IconKey(species, identity.Form), null, icon));
+            foreach (var iconGender in SwShRestorationComposer.IconGenders(species))
+            {
+                var icon = new byte[8]; Put16(icon, 0, species); Put16(icon, 2, identity.Form); Put16(icon, 4, iconGender);
+                result.Add(new(SwShRestorationComposer.IconsPath, SwShRestorationWriter.Icons,
+                    SwShRestorationComposer.IconKey(species, identity.Form, iconGender), null, icon));
+            }
             var camp = SwShGfPackFile.Parse(Native(SwShRestorationComposer.CampPath[6..]));
             foreach (var group in new[] { "common", "motion", "face", "ball", "turning" })
             {

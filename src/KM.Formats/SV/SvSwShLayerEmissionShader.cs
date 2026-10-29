@@ -127,7 +127,9 @@ public static class SvSwShLayerEmissionShader
                             Emit(0x5CA8148000070A00UL | 83UL << 20 | 85);
                             Add(82, 82, 84, true); Add(83, 83, 85, true);
                             Constant(88, 1); Add(83, 88, 83, true);
-                            Emit(0xd830000000070000UL | 12UL << 36 | 62UL << 28 | 83UL << 20 | 82UL << 8 | 60, true);
+                            // Tile boundaries make implicit derivatives select averaged mask
+                            // mips. Sample level zero to keep the palette continuous.
+                            Emit(0xd850000000070000UL | 12UL << 36 | 62UL << 28 | 83UL << 20 | 82UL << 8 | 60, true);
                             Constant(68, 0); Constant(69, 0); Constant(70, 0); Constant(71, 1); Constant(74, 1);
                             for (var layer = 3; layer >= 0; layer--)
                             {

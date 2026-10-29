@@ -145,7 +145,8 @@ public static class SwShRestorationDefinitions
                 or "froakie" or "frogadier" or "greninja" or "ekans" or "arbok" or "geodude" or "graveler" or "golem"
                 or "alolan-geodude" or "alolan-graveler" or "alolan-golem" or "turtwig" or "grotle" or "torterra"
                 or "chimchar" or "monferno" or "infernape" or "weedle" or "kakuna" or "beedrill"
-                or "pidgey" or "pidgeotto" or "pidgeot" or "kecleon" => 2,
+                or "pidgey" or "pidgeotto" or "pidgeot" or "kecleon"
+                or "deoxys" or "deoxys-attack" or "deoxys-defense" or "deoxys-speed" or "darkrai" or "alolan-muk" => 2,
             _ => 1,
         } };
     public static SwShRestorationDefinition Get(string id) => id == Piplup.Id ? Piplup : All.SingleOrDefault(d => d.Id == id)
