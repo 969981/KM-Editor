@@ -218,6 +218,10 @@ impl Scene {
             }
             if let Some(surface) = &mesh.surface {
                 if surface.values.len() != 41
+                    || !surface.constant_color_base.is_empty() && surface.constant_color_base.len() != 3
+                    || surface.constant_color_base.iter().any(|v| !v.is_finite() || v.abs() > 1_000_000.0)
+                    || surface.restoration_effect > 4
+                    || surface.restoration_effect > 0 && surface.restoration_values.len() != 10
                     || surface.layer_emission && surface.effect != 0
                     || surface.surface_layers
                         && (surface.layer_emission || surface.effect != 0 || mesh.secondary_uv.is_none())
@@ -233,6 +237,7 @@ impl Scene {
                         .values
                         .iter()
                         .chain(&surface.wraps)
+                        .chain(&surface.restoration_values)
                         .flatten()
                         .any(|v| !v.is_finite() || v.abs() > 1_000_000.0)
                 {

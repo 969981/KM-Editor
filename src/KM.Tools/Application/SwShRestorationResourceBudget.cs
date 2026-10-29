@@ -9,6 +9,10 @@ internal static class SwShRestorationResourceBudget
         var total = resources.Values.Sum(bytes => bytes.LongLength);
         if (total > 16L * 1024 * 1024
             || textures.Sum() > 8L * 1024 * 1024 || textures.Any(length => length > 2L * 1024 * 1024))
-            throw new InvalidDataException($"Converted model resources exceed the supported loading budget: {total} decoded bytes, {textures.Sum()} texture bytes, and {textures.DefaultIfEmpty().Max()} bytes in the largest texture.");
+        {
+            var largest = string.Join(", ", resources.Where(p => p.Key.EndsWith(".bntx", StringComparison.Ordinal))
+                .OrderByDescending(p => p.Value.Length).Take(12).Select(p => $"{Path.GetFileName(p.Key)}={p.Value.Length}"));
+            throw new InvalidDataException($"Converted model resources exceed the supported loading budget: {total} decoded bytes, {textures.Sum()} texture bytes, and {textures.DefaultIfEmpty().Max()} bytes in the largest texture. Largest textures: {largest}");
+        }
     }
 }

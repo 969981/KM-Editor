@@ -243,6 +243,9 @@ impl Assets {
                     if two_channel { 1.0 } else { 0.0 },
                 ]);
             }
+            for i in 0..10 {
+                values.extend_from_slice(&surface.and_then(|s| s.restoration_values.get(i)).copied().unwrap_or([0.0; 4]));
+            }
             values.extend_from_slice(&[
                 if surface.is_some() { 1.0 } else { 0.0 },
                 if primitive.blend { 1.0 } else { 0.0 },
@@ -251,7 +254,7 @@ impl Assets {
                 } else {
                     0.0
                 },
-                surface.map(|s| if s.surface_layers { 4.0 } else if s.layer_emission { 3.0 } else { s.effect as f32 }).unwrap_or(0.0),
+                surface.map(|s| if s.restoration_effect > 0 { 4.0 + s.restoration_effect as f32 } else if s.surface_layers { 4.0 } else if s.layer_emission { 3.0 } else { s.effect as f32 }).unwrap_or(0.0),
             ]);
             let color = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Material color"),

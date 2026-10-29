@@ -1,50 +1,121 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System.Numerics;
 using KM.Formats.Models;
+using KM.Formats.SwSh;
+using KM.Formats.ZA;
 
 namespace KM.Formats.SV;
 
 /// <summary>Retains independently animated source emission layers on the native body surface.</summary>
-public static class SvSwShLayerEmission
+public static partial class SvSwShLayerEmission
 {
     public const string ProgramName = "LayerEmission";
+    public const string MapProgramName = "MapEmission";
+    public const string FresnelProgramName = "FresnelEmission";
+    public const string LavaProgramName = "LavaEmission";
+    public static readonly string[] TransparentPrograms = ["LayerEmissionFront", "LayerEmissionBack"];
     public static readonly string[] Scalars = ["L1ConstantColor0Val", "L1AddColor0Val", "L1ConstantColor1Val", "L1AddColor1Val"];
     public static readonly string[] Vectors = ["L1ConstantColor0", "L1AddColor0", "L1ConstantColor1", "L1AddColor1"];
-    public sealed record Contract(string Name, string Mask, Vector3[] Colors);
+    public sealed record Contract(string Name, string Mask, Vector3[] Colors)
+    {
+        public Vector4 MaskUv { get; init; } = new(1, 1, 0, 0);
+        public Vector2 MaskWrap { get; init; }
+        public float[] Initial { get; init; } = new float[4];
+        public bool Transparent { get; init; }
+        public bool ColorMap { get; init; }
+        public bool BaseColorMap { get; init; }
+        public bool MaskUnused { get; init; }
+        public string? FresnelNormal { get; init; }
+        public string? FresnelNormal1 { get; init; }
+        public bool Lava { get; init; }
+        public string Program(bool inner = false) => Lava ? LavaProgramName : FresnelNormal is not null ? FresnelProgramName : ColorMap ? MapProgramName : Transparent ? TransparentPrograms[inner ? 1 : 0] : ProgramName;
+    }
 
     public static IReadOnlyDictionary<string, Contract> Contracts(byte[] bytes, PreviewScene scene)
     {
+        if (SvSwShLavaMaterial.IsLava(scene)) return SvSwShLavaMaterial.EmissionContracts(bytes, scene);
+        if (scene.Primitives.Any(p => p.Name.StartsWith("pm0179_", StringComparison.Ordinal)
+            || p.Name.StartsWith("pm0180_", StringComparison.Ordinal) || p.Name.StartsWith("pm0181_", StringComparison.Ordinal)))
+            return FresnelContracts(bytes);
         var source = new ModelBuffer(bytes); var result = new Dictionary<string, Contract>(StringComparer.Ordinal);
         var spherical = scene.Primitives.Any(p => p.Name.StartsWith("pm0100_00_41_", StringComparison.Ordinal)
             || p.Name.StartsWith("pm0101_00_41_", StringComparison.Ordinal));
+        var tynamo = scene.Primitives.Any(p => p.Name.StartsWith("pm0602_00_00_", StringComparison.Ordinal));
         var expected = scene.Primitives.Any(p => p.Name.StartsWith("pm0075_00_11_", StringComparison.Ordinal))
             ? new[] { "body_b" } : scene.Primitives.Any(p => p.Name.StartsWith("pm0076_00_11_", StringComparison.Ordinal))
                 ? new[] { "body_a_01", "body_a_02", "body_b_01" }
                 : scene.Primitives.Any(p => p.Name.StartsWith("pm0100_00_41_", StringComparison.Ordinal)) ? new[] { "eye", "body_01" }
                 : scene.Primitives.Any(p => p.Name.StartsWith("pm0101_00_41_", StringComparison.Ordinal)) ? new[] { "eye", "body_a" }
+                : scene.Primitives.Any(p => p.Name.StartsWith("pm0386_11_00_", StringComparison.Ordinal)) ? new[] { "body_b_01", "body_b_02", "body_b_00", "body_a" }
+                : scene.Primitives.Any(p => p.Name.StartsWith("pm0386_", StringComparison.Ordinal)) ? new[] { "body_a_01", "body_a_02", "body_a_00", "body_b" }
+                : tynamo ? new[] { "body_00", "body_01" }
                 : throw new InvalidDataException("Layer emission requires a qualified source model.");
         foreach (var name in expected)
         {
             var sections = scene.Primitives.Count(p => p.Material.Name == name);
-            if (spherical ? sections is < 1 or > 2 : sections != 1) throw new InvalidDataException("Layer emission geometry is ambiguous.");
+            var deoxys = scene.Primitives.Any(p => p.Name.StartsWith("pm0386_", StringComparison.Ordinal));
+            var deoxysSections = name switch
+            {
+                "body_b_00" => 3, "body_a" => 2,
+                "body_b" => 2, "body_a_00" => scene.Primitives.Any(p => p.Name.StartsWith("pm0386_14_", StringComparison.Ordinal)) ? 1 : 2,
+                _ => 1,
+            };
+            if (deoxys ? sections != deoxysSections : spherical ? sections is < 1 or > 2 : sections != 1)
+                throw new InvalidDataException("Layer emission geometry is ambiguous.");
             var material = source.Tables(source.Root, 1, 128).Single(m => source.Text(m, 0) == name);
             var scalars = source.Tables(material, 4, 256).ToDictionary(p => source.Text(p, 0)!, p => source.Field(p, 1) is var at && at != 0 ? source.Float(at) : 0);
             var vectors = source.Tables(material, 7, 256).ToDictionary(p => source.Text(p, 0)!, p =>
             { var at = source.Field(p, 1); return new Vector4(source.Float(at), source.Float(at + 4), source.Float(at + 8), source.Float(at + 12)); });
-            if (!source.Tables(material, 1, 16).Select(t => source.Text(t, 0)).SequenceEqual([spherical ? "SSS" : "Standard"])
-                || vectors["UVScaleOffset"] != new Vector4(1, 1, 0, 0) || scalars["EmissionIntensity"] != 0
-                || Enumerable.Range(1, 4).Any(layer => scalars["LayerMaskScale" + layer] != 1 || scalars["EmissionIntensityLayer" + layer] != 0))
+            var transparent = name.EndsWith("_02", StringComparison.Ordinal) && scene.Primitives.Any(p => p.Name.StartsWith("pm0386_", StringComparison.Ordinal));
+            var colorMap = source.Tables(material, 2, 64).Any(t => source.Text(t, 0) == "EmissionColorMap");
+            if (!source.Tables(material, 1, 16).Select(t => source.Text(t, 0)).SequenceEqual(transparent
+                    ? ["Transparent", "TransparentInner"] : [tynamo ? "IkCharacter" : spherical ? "SSS" : "Standard"])
+                || vectors["UVScaleOffset"] != new Vector4(tynamo ? 2 : 1, 1, 0, 0)
+                || (colorMap ? scalars["EmissionIntensity"] is not (.1f or .2f) : scalars["EmissionIntensity"] != 0)
+                || !colorMap && Enumerable.Range(1, 4).Any(layer => scalars["LayerMaskScale" + layer] != 1 || scalars["EmissionIntensityLayer" + layer] != 0))
                 throw new InvalidDataException("Source emission surface requires another adapter.");
-            var colors = Enumerable.Range(1, 4).Select(layer => vectors["EmissionColorLayer" + layer]).ToArray();
+            var colors = Enumerable.Range(1, 4).Select(layer => colorMap ? new Vector4(0, 0, 0, 1) : vectors["EmissionColorLayer" + layer]).ToArray();
             if (colors.Any(c => !float.IsFinite(c.X + c.Y + c.Z + c.W) || c.X is < 0 or > 2 || c.Y is < 0 or > 2 || c.Z is < 0 or > 2 || c.W != 1))
                 throw new InvalidDataException("Source emission color exceeds its supported range.");
-            var texture = source.Tables(material, 2, 64).Single(t => source.Text(t, 0) == "LayerMaskMap");
-            result.Add(name, new(name, source.Text(texture, 1)!, colors.Select(c => new Vector3(c.X, c.Y, c.Z)).ToArray()));
+            var texture = source.Tables(material, 2, 64).Single(t => source.Text(t, 0) == (colorMap ? "EmissionColorMap" : "LayerMaskMap"));
+            var selector = source.Tables(material, 9, 256).SingleOrDefault(p => source.Text(p, 0) == (colorMap ? "UVIndexEmission" : "UVIndexLayerMask"));
+            var uvIndex = selector == 0 ? uint.MaxValue : source.Value(selector, 1);
+            if (uvIndex is not (0 or uint.MaxValue)) throw new InvalidDataException("Source emission mask coordinates need another adapter.");
+            var samplers = source.Tables(material, 3, 32); var sampler = checked((int)source.Value(texture, 2));
+            if ((uint)sampler >= samplers.Length) throw new InvalidDataException("Source emission sampler is missing.");
+            result.Add(name, new(name, source.Text(texture, 1)!, colors.Select(c => new Vector3(c.X, c.Y, c.Z)).ToArray())
+                { ColorMap = colorMap, BaseColorMap = colorMap
+                    && source.Tables(material, 2, 64).Any(t => source.Text(t, 0) == "BaseColorMap" && source.Text(t, 1) == source.Text(texture, 1))
+                    && !source.Tables(material, 2, 64).Any(t => source.Text(t, 0) == "LayerMaskMap")
+                    && (!vectors.TryGetValue("BaseColor", out var baseColor) || baseColor == Vector4.One),
+                    Initial = colorMap ? [scalars["EmissionIntensity"], 0, 0, 0] : new float[4],
+                    Transparent = transparent, MaskUv = uvIndex == 0 ? new(1, 1, 0, 0) : vectors["UVScaleOffset"],
+                    MaskWrap = new(source.Value(samplers[sampler], 9), source.Value(samplers[sampler], 10)) });
         }
         return result;
     }
 
-    public static byte[] Template(byte[] bytes, string programName = ProgramName)
+    public static (string Name, byte[] Bytes) Mask(Contract contract, Func<string, byte[]> read, CancellationToken token,
+        ModelTextureMipCache? encodingCache = null)
+    {
+        var bytes = read(contract.Mask); var name = Path.GetFileNameWithoutExtension(contract.Mask);
+        if (contract.MaskUv == new Vector4(1, 1, 0, 0)) return (name, bytes);
+        var image = ZaSwShMaterialBaker.Read(bytes); var pixels = new byte[image.Pixels.Length];
+        for (var y = 0; y < image.Height; y++)
+        {
+            token.ThrowIfCancellationRequested();
+            for (var x = 0; x < image.Width; x++)
+            {
+                var value = ZaSwShMaterialBaker.Sample(image, new((x + .5f) / image.Width, (y + .5f) / image.Height), contract.MaskUv, contract.MaskWrap);
+                for (var c = 0; c < 4; c++) pixels[(y * image.Width + x) * 4 + c] = (byte)Math.Clamp((int)MathF.Round(value[c] * 255), 0, 255);
+            }
+        }
+        var target = "e" + name[1..];
+        var document = new ModelTextureDocument(ModelTextureIdentity.Rename(SwShTextureAllocation.Create(bytes, image.Width, image.Height, false, compressed: false), name, target));
+        return (target, document.EncodeMipImages(SwShTextureFiltering.Mips(pixels, image.Width, image.Height, document.MipCount), token, encodingCache));
+    }
+
+    public static byte[] Template(byte[] bytes, string programName = ProgramName, string? sourceProgram = null)
     {
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
         foreach (var field in new[] { 3, 5 })
@@ -56,7 +127,9 @@ public static class SvSwShLayerEmission
             for (var i = 0; i < count; i++) writer.Pointer(slots[i], writer.String(names[i]));
             writer.Pointer(slots[count], writer.String(programName));
         }
-        var originals = source.Tables(source.Root, 6, 128); var original = originals[0];
+        var originals = source.Tables(source.Root, 6, 128);
+        var (programStart, _) = source.Vector(source.Root, 3, 4, 256);
+        var original = sourceProgram is null ? originals[0] : originals.Single(m => source.StringAt(programStart + checked((int)source.Value(m, 8)) * 4) == sourceProgram);
         var slotsMaterials = writer.Vector(source.Root, 6, originals.Length + 1);
         var fields = Enumerable.Range(2, 9).Concat(Enumerable.Range(15, 5));
         var absent = fields.Where(f => f is not (8 or 10) && source.Field(original, f) == 0).ToHashSet();
@@ -73,21 +146,25 @@ public static class SvSwShLayerEmission
     public static byte[] Bind(byte[] bytes, IReadOnlyDictionary<string, Contract> contracts, IReadOnlyDictionary<string, string> names)
     {
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
-        int Program(int field)
+        int Program(int field, string name)
         {
             var (start, count) = source.Vector(source.Root, field, 4, 256);
-            return Enumerable.Range(0, count).Single(i => source.StringAt(start + i * 4) == ProgramName);
+            return Enumerable.Range(0, count).Single(i => source.StringAt(start + i * 4) == name);
         }
         foreach (var material in source.Tables(source.Root, 6, 128))
         {
             if (!names.TryGetValue(source.Text(material, 0)!, out var original) || !contracts.TryGetValue(original, out var contract)) continue;
-            writer.Int32(writer.Field(material, 8), Program(3)); writer.Int32(writer.Field(material, 10), Program(5));
+            var program = contract.Program(source.Text(material, 0)!.EndsWith("_inner", StringComparison.Ordinal));
+            writer.Int32(writer.Field(material, 8), Program(3, program)); writer.Int32(writer.Field(material, 10), Program(5, program));
             foreach (var p in source.Tables(material, 12, 256))
                 if (source.Text(p, 0) is "Layer1Enable" or "EmissionMaskUse" or "SwitchEmissionMaskTexUV")
                 { var at = source.Field(p, 1); if (at != 0) writer.Write(at, [0]); }
             foreach (var p in source.Tables(material, 13, 256))
                 if (Scalars.Contains(source.Text(p, 0)!, StringComparer.Ordinal) || source.Text(p, 0) == "EmissionMaskVal")
-                    writer.Single(source.Field(p, 1), 0);
+                {
+                    var channel = Array.IndexOf(Scalars, source.Text(p, 0));
+                    writer.Single(source.Field(p, 1), channel < 0 ? 0 : contract.Initial[channel]);
+                }
             foreach (var p in source.Tables(material, 14, 256))
             {
                 var index = Array.IndexOf(Vectors, source.Text(p, 0)); if (index < 0) continue;
@@ -97,7 +174,8 @@ public static class SvSwShLayerEmission
         return writer.Finish(source.Root);
     }
 
-    public static PreviewClip Read(byte[] bytes, PreviewClip skeleton, PreviewScene scene, IReadOnlyDictionary<string, Contract> contracts)
+    public static PreviewClip Read(byte[] bytes, PreviewClip skeleton, PreviewScene scene, IReadOnlyDictionary<string, Contract> contracts,
+        Func<byte[], PreviewClip>? decode = null)
     {
         var source = new ModelBuffer(bytes); var writer = new ModelTableBuilder(bytes);
         var rate = source.Value(source.Table(source.Root, 0), 2, (uint)skeleton.Rate);
@@ -117,21 +195,24 @@ public static class SvSwShLayerEmission
                 foreach (var scalar in scalars)
                 {
                     var parameter = source.Text(scalar, 0)!;
-                    var layer = Array.IndexOf(new[] { "EmissionIntensityLayer1", "EmissionIntensityLayer2", "EmissionIntensityLayer3", "EmissionIntensityLayer4" }, parameter);
+                    var fresnel = bound && contracts[name].FresnelNormal is not null;
+                    var layer = fresnel ? parameter switch { "EmissionIntensity" => 0, "EmissionIntensityLayer1" => 1, _ => -1 }
+                        : Array.IndexOf(new[] { "EmissionIntensityLayer1", "EmissionIntensityLayer2", "EmissionIntensityLayer3", "EmissionIntensityLayer4" }, parameter);
                     if (layer < 0) throw new InvalidDataException("Source scalar animation requires another adapter.");
                     var keys = source.Tables(source.Table(scalar, 1), 0, 18000).Select(k =>
                     {
                         float Value(int f) => source.Field(k, f) is var at && at != 0 ? source.Float(at) : 0;
                         return new PreviewKey(Value(0) * skeleton.Rate / rate, [Value(1)]);
                     }).ToArray();
-                    if (keys.Length == 0 || keys.Any(k => !float.IsFinite(k.Frame) || k.Frame < 0 || !float.IsFinite(k.Value[0]) || k.Value[0] is < 0 or > 1)
+                    if (keys.Length == 0 || keys.Any(k => !float.IsFinite(k.Frame) || k.Frame < 0 || !float.IsFinite(k.Value[0]) || k.Value[0] < 0 || k.Value[0] > (fresnel ? 8 : 1))
                         || keys.Zip(keys.Skip(1)).Any(p => p.First.Frame >= p.Second.Frame)) throw new InvalidDataException("Source emission keys are invalid.");
-                    if (bound) additional.Add(new(name, parameter, [keys]));
+                    if (bound) additional.Add(new(name, fresnel ? "EmissionIntensityLayer" + (layer + 1) : parameter, [keys]));
                 }
                 writer.Vector(material, 1, 0);
             }
         }
-        var warnings = new List<string>(); var decoded = PreviewMaterialAnimation.Read(new(writer.Finish(source.Root)), skeleton, warnings, true);
+        var warnings = new List<string>(); var sanitized = writer.Finish(source.Root);
+        var decoded = decode is null ? PreviewMaterialAnimation.Read(new(sanitized), skeleton, warnings, true) : decode(sanitized);
         if (warnings.Count != 0) throw new InvalidDataException("Layer emission source needs another animation adapter.");
         additional = additional.GroupBy(t => (t.Material, t.Parameter)).Select(group =>
         {
@@ -145,7 +226,7 @@ public static class SvSwShLayerEmission
         }).ToList();
         foreach (var name in contracts.Keys) for (var layer = 1; layer <= 4; layer++)
             if (!additional.Any(t => t.Material == name && t.Parameter == "EmissionIntensityLayer" + layer))
-                additional.Add(new(name, "EmissionIntensityLayer" + layer, [[new(0, [0])]]));
+                additional.Add(new(name, "EmissionIntensityLayer" + layer, [[new(0, [contracts[name].Initial[layer - 1]])]]));
         return decoded with { Materials = decoded.Materials.Concat(additional).ToArray() };
     }
 
@@ -157,15 +238,24 @@ public static class SvSwShLayerEmission
         var root = writer.Table(5, absent: Enumerable.Range(0, 5).Where(f => f != 2 && source.Table(source.Root, f) == 0).ToHashSet());
         var parent = writer.Table(1); writer.Reference(root, 2, parent);
         var existing = source.Tables(source.Table(source.Root, 2), 0, 128); var frames = checked((int)source.Value(source.Table(source.Root, 0), 1));
-        if (frames is < 1 or > 18000 || existing.Any(t => groups.Any(g => g.Key == source.Text(t, 0)))) throw new InvalidDataException("Native emission timeline is invalid.");
-        var slots = writer.Vector(parent, 0, existing.Length + groups.Length); var copy = writer.Append(bytes);
+        if (frames is < 1 or > 18000) throw new InvalidDataException("Native emission timeline is invalid.");
+        var retained = existing.Where(t => !groups.Any(g => g.Key == source.Text(t, 0))).ToArray();
+        var slots = writer.Vector(parent, 0, retained.Length + groups.Length); var copy = writer.Append(bytes);
         foreach (var field in new[] { 0, 1, 3, 4 })
             if (source.Table(source.Root, field) is var table && table != 0) writer.Reference(root, field, copy + table);
-        for (var i = 0; i < existing.Length; i++) writer.Pointer(slots[i], copy + existing[i]);
+        for (var i = 0; i < retained.Length; i++) writer.Pointer(slots[i], copy + retained[i]);
         for (var i = 0; i < groups.Length; i++)
         {
-            var material = writer.Table(4); writer.Pointer(slots[existing.Length + i], material); writer.Text(material, 0, groups[i].Key);
-            writer.Vector(material, 1, 0); writer.Vector(material, 3, 0); var values = writer.Vector(material, 2, 4);
+            var material = writer.Table(4); writer.Pointer(slots[retained.Length + i], material); writer.Text(material, 0, groups[i].Key);
+            var prior = existing.SingleOrDefault(t => source.Text(t, 0) == groups[i].Key);
+            foreach (var field in new[] { 1, 3 })
+                if (prior != 0 && source.Table(prior, field) is var table && table != 0) writer.Reference(material, field, copy + table);
+                else writer.Vector(material, field, 0);
+            var priorScalars = prior == 0 ? [] : source.Tables(prior, 2, 256);
+            if (priorScalars.Any(p => Scalars.Contains(source.Text(p, 0)!, StringComparer.Ordinal)))
+                throw new InvalidDataException("Native emission scalar is already animated.");
+            var values = writer.Vector(material, 2, 4 + priorScalars.Length);
+            for (var p = 0; p < priorScalars.Length; p++) writer.Pointer(values[4 + p], copy + priorScalars[p]);
             for (var layer = 0; layer < 4; layer++)
             {
                 var track = groups[i].Single(t => t.Parameter == "EmissionIntensityLayer" + (layer + 1));

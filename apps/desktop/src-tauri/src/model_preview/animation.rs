@@ -90,6 +90,8 @@ pub struct SurfaceInfo {
     pub wraps: Vec<[f32; 4]>,
     #[serde(default, rename = "tintSubsurfaceByBaseColor")]
     pub tint_subsurface_by_base_color: bool,
+    #[serde(default, rename = "constantColorBase")]
+    pub constant_color_base: Vec<f32>,
     #[serde(default, rename = "layerEmission")]
     pub layer_emission: bool,
     #[serde(default, rename = "surfaceLayers")]
@@ -98,6 +100,10 @@ pub struct SurfaceInfo {
     pub effect: u32,
     #[serde(default, rename = "effectLink")]
     pub effect_link: u32,
+    #[serde(default, rename = "restorationEffect")]
+    pub restoration_effect: u32,
+    #[serde(default, rename = "restorationValues")]
+    pub restoration_values: Vec<[f32; 4]>,
 }
 fn all_channels() -> [f32; 4] {
     [1.0; 4]
@@ -145,6 +151,15 @@ impl Rig {
                 .iter()
                 .filter(|track| track.material == self.meshes[index].material)
             {
+                if track.parameter == "BaseColorGain" {
+                    if let Some(gain) = track.channels.first().and_then(|keys| scalar(keys, frame)) {
+                        let color = self.meshes[index].surface.as_ref().map(|s| s.constant_color_base.as_slice()).unwrap_or(&[]);
+                        for channel in 0..3 {
+                            values[channel] = color.get(channel).copied().unwrap_or(base[channel]) * gain;
+                        }
+                    }
+                    continue;
+                }
                 if track.parameter == "UvOrigins" {
                     for (channel, keys) in track.channels.iter().enumerate() {
                         if let Some(value) = scalar(keys, frame) {
@@ -164,6 +179,12 @@ impl Rig {
                     "UnderlayUV" if values.len() >= 60 => 48,
                     "MaskUV" if values.len() >= 36 => 32,
                     "LayerEmission" if values.len() >= 120 && self.meshes[index].surface.as_ref().is_some_and(|s| s.layer_emission) => 116,
+                    parameter if self.meshes[index].surface.as_ref().is_some_and(|s| s.restoration_effect > 0)
+                        && parameter.starts_with("RestorationValue") => {
+                        let Ok(slot) = parameter[16..].parse::<usize>() else { continue };
+                        if slot >= 10 || values.len() < 324 + (slot + 1) * 4 { continue; }
+                        324 + slot * 4
+                    }
                     "EmissionGain" if values.len() >= 74 => 70,
                     "EmissionScale" if values.len() >= 91 => 87,
                     parameter if self.meshes[index].surface.as_ref().is_some_and(|s| s.effect > 0)

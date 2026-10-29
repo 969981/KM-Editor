@@ -81,6 +81,7 @@ public static class SwShRestorationFormSlots
         new(382, 1040, 1, 0, 0),
         new(383, 1041, 1, 0, 0),
         new(384, 972, 1, 972, 1),
+        new(386, 1082, 3, 0, 0),
         new(398, 1042, 1, 0, 0),
         new(428, 1043, 1, 0, 0),
         new(445, 1157, 2, 0, 0),

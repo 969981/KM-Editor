@@ -25,10 +25,31 @@ public sealed partial class ZaSwShRestorationPreparationService
         float BattleHeight, float FieldHeight, string TextureSuffix, bool SourceFraming = false, bool MeshVisibility = false, int FemalePercent = 50, byte GenderThreshold = 127, bool SeparateFemale = false, bool IdleFraming = false, bool MatchNativeGiantHeight = false,
         System.Numerics.Vector3? MouthPosition = null, float? MealVerticalOffset = null, bool NativeFlames = false, string? EmissionMaterial = null, string? ResourceStem = null, bool PairedFlames = false, bool LayeredEyes = false,
         IReadOnlyDictionary<string, System.Numerics.Vector2>? EyeAtlasOffsets = null,
-        string[]? FlameMaterials = null, string? OutputStem = null, bool AirborneBattle = false, bool PlaAssets = false);
+        string[]? FlameMaterials = null, string? OutputStem = null, bool AirborneBattle = false, bool PlaAssets = false,
+        int GenderKind = 0, int AnimationOffset = 0, IReadOnlyDictionary<string, string>? MotionOverrides = null, bool LayerEmission = false);
 
     private static readonly IReadOnlyDictionary<int, SpeciesProfile> Profiles = new Dictionary<int, SpeciesProfile>
     {
+        [179] = new(831, 179, 56, 60, 60, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, LayerEmission: true),
+        [180] = new(25, 179, 128, 80, 80, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, LayerEmission: true),
+        [181] = new(849, 179, 255, 140, 140, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, LayerEmission: true),
+        [228] = new(58, 228, 66, 60, 60, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true),
+        [229] = new(59, 228, 175, 140, 140, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [316] = new(109, 316, 60, 40, 40, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [317] = new(569, 316, 163, 170, 170, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [322] = new(220, 322, 61, 70, 70, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [323] = new(324, 322, 161, 170, 190, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [335] = new(760, 335, 160, 130, 130, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true),
+        [336] = new(350, 336, 160, 170, 270, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true),
+        [353] = new(355, 353, 59, 60, 60, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, AnimationOffset: 20000),
+        [354] = new(356, 353, 159, 110, 110, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true),
+        [396] = new(821, 396, 49, 30, 30, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [397] = new(822, 396, 119, 60, 60, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [398] = new(823, 396, 243, 120, 120, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, SeparateFemale: true),
+        [491] = new(150, 491, 300, 150, 150, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, FemalePercent: 0, GenderThreshold: 255, GenderKind: 3, AnimationOffset: 20000),
+        [602] = new(846, 602, 55, 20, 20, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, AnimationOffset: 10000, LayerEmission: true),
+        [603] = new(147, 602, 142, 120, 120, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, AnimationOffset: 10000, LayeredEyes: true),
+        [604] = new(350, 602, 232, 170, 210, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, AnimationOffset: 10000, LayeredEyes: true, MotionOverrides: new Dictionary<string, string> { ["eye01"] = "08000" }),
         [46] = new(98, 46, 57, 30, 30, "_body_alb", MeshVisibility: true, IdleFraming: true, PlaAssets: true),
         [47] = new(558, 46, 142, 100, 100, "_body_a_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true, PlaAssets: true),
         [56] = new(236, 56, 61, 50, 50, "_body_alb", SourceFraming: true, MeshVisibility: true, IdleFraming: true),

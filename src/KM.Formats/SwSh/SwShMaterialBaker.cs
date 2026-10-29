@@ -20,7 +20,8 @@ public static class SwShMaterialBaker
     public static SwShBakedMaterial Bake(PreviewPrimitive primitive, byte[] sourceMaterials, int materialIndex,
         Func<string, byte[]> readTexture, CancellationToken cancellationToken = default, bool sourceNormalDimensions = false, bool opaqueEyeSurface = false,
         bool cornealEye = false, float cornealNormalHeight = 1, Vector2? normalUvScale = null, int normalUvVerticalTile = 0,
-        bool authoredAlpha = false, Vector2? staticUvScale = null, ModelTextureMipCache? encodingCache = null)
+        bool authoredAlpha = false, Vector2? staticUvScale = null, ModelTextureMipCache? encodingCache = null,
+        SwShStaticUvAtlas? staticUvAtlas = null, bool unlitSurface = false)
     {
         if (materialIndex is < 0 or > 15) throw new InvalidDataException("Material texture identity is outside the supported range.");
         _ = SwShModelWriter.Bounds(primitive, 1);
@@ -30,7 +31,7 @@ public static class SwShMaterialBaker
         var table = tables[0];
         var textures = source.Tables(table, 2, 64).ToDictionary(t => source.Text(t, 0)!, t => source.Text(t, 1)!, StringComparer.Ordinal);
         var eye = primitive.Material.Name.Contains("eye", StringComparison.Ordinal);
-        var atlas = staticUvScale is { } scale ? SwShStaticUvAtlas.For(primitive, scale) : null;
+        var atlas = staticUvAtlas ?? (staticUvScale is { } scale ? SwShStaticUvAtlas.For(primitive, scale) : null);
         if (cornealEye)
         {
             var shaders = source.Tables(table, 1, 16).Select(shader => source.Text(shader, 0)).ToArray();
@@ -55,8 +56,10 @@ public static class SwShMaterialBaker
             }
         template = SwShTextureAllocation.Create(template, colorWidth, colorHeight, container.Srgb);
         container = new ModelTextureDocument(template);
-        var normalBytes = readTexture(textures[cornealEye ? "NormalMap1" : "NormalMap"]);
-        var normalSource = Read(normalBytes);
+        var normalRole = cornealEye ? "NormalMap1" : "NormalMap";
+        var normalSource = textures.TryGetValue(normalRole, out var normalPath) ? Read(readTexture(normalPath))
+            : unlitSurface ? new Image(4, 4, false, Enumerable.Range(0, 16).SelectMany(_ => new byte[] { 128, 128, 255, 255 }).ToArray())
+            : throw new InvalidDataException("A lit material requires its authored normal map.");
         var width = normalSource.Width;
         var height = normalSource.Height;
         var tangentNormals = Resize(normalSource.Pixels, normalSource.Width, normalSource.Height, width, height);
@@ -191,8 +194,12 @@ public static class SwShMaterialBaker
         if (authoredAlpha && primitive.Material.Alpha != "Opaque")
         {
             var baseTexture = readTexture(textures["BaseColorMap"]); var authored = new ModelTextureDocument(baseTexture);
-            if (authored.Width != colorWidth || authored.Height != colorHeight || authored.MipCount != container.MipCount)
-                throw new InvalidDataException("Authored transparency requires matching source image and mip dimensions.");
+            if (authored.Width != colorWidth || authored.Height != colorHeight)
+                throw new InvalidDataException("Authored transparency requires matching source image dimensions.");
+            // Source containers can stop their mip chain before 1 x 1. Keep
+            // that authored chain so its alpha blocks remain valid references.
+            if (authored.MipCount != container.MipCount)
+                mipImages = SwShTextureFiltering.Mips(colorPixels, colorWidth, colorHeight, authored.MipCount, authored.Srgb, sharpen: true);
             var baseName = Path.GetFileNameWithoutExtension(textures["BaseColorMap"]);
             // Rare base images can have a longer identity than their shared mask.
             // Keep that original container name; the preparation pool assigns its
@@ -212,8 +219,13 @@ public static class SwShMaterialBaker
         {
             var colorCrop = atlas.Images(mipImages, colorWidth, colorHeight);
             var basis = alphaReference ?? template;
-            var colorImage = SwShTextureAllocation.Create(basis, colorCrop.Width, colorCrop.Height, container.Srgb);
-            if (alphaReference is not null) colorImage = atlas.Reference(alphaReference, colorImage);
+            // A centered crop can straddle BC7 blocks in its smallest mips.
+            // RGBA retains the decoded authored alpha exactly in that case;
+            // the cropped image remains smaller than the original atlas.
+            var blockAlignedOrigin = atlas.TileX % 1 == 0 && atlas.TileY % 1 == 0;
+            var colorImage = SwShTextureAllocation.Create(basis, colorCrop.Width, colorCrop.Height, container.Srgb,
+                compressed: alphaReference is null || blockAlignedOrigin);
+            if (alphaReference is not null && blockAlignedOrigin) colorImage = atlas.Reference(alphaReference, colorImage);
             container = new(colorImage); mipImages = colorCrop.Images;
             var normalCrop = atlas.Images(normalMips, width, height);
             normalContainer = new(SwShTextureAllocation.Create(normalImage, normalCrop.Width, normalCrop.Height, false)); normalMips = normalCrop.Images;

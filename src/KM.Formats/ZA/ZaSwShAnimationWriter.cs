@@ -113,14 +113,24 @@ public static class ZaSwShAnimationWriter
             throw new InvalidDataException("Z-A visibility or morph animation needs another adapter.");
         if (decoded.Materials.Any(t => t.Parameter is not ("UVScaleOffset" or "UVScaleOffset1")))
             throw new InvalidDataException("Z-A vector material animation needs another adapter.");
-        var result = decoded.Materials.Concat(scalars).ToArray();
-        if (result.GroupBy(t => (t.Material, t.Parameter)).Any(g => g.Count() != 1)) throw new InvalidDataException("Z-A material animation identity is ambiguous.");
+        var result = UniqueTracks(decoded.Materials.Concat(scalars));
         result = MergeBakedHighlights(result);
         if (eyes is not null)
             result = result.Concat(eyes.Values.SelectMany(contract => ZaSwShEyelidMaterial.Tracks(contract,
-                eyeSources.Where(track => track.Material == contract.Name).ToArray(), skeletal.Frames))).ToArray();
+                UniqueTracks(eyeSources.Where(track => track.Material == contract.Name)), skeletal.Frames))).ToArray();
         return decoded with { Materials = result };
     }
+
+    private static PreviewMaterialTrack[] UniqueTracks(IEnumerable<PreviewMaterialTrack> tracks) => tracks
+        .GroupBy(track => (track.Material, track.Parameter)).Select(group =>
+        {
+            var first = group.First();
+            if (group.Any(track => track.Channels.Length != first.Channels.Length || track.Channels.Zip(first.Channels)
+                .Any(pair => pair.First.Length != pair.Second.Length || pair.First.Zip(pair.Second)
+                    .Any(keys => keys.First.Frame != keys.Second.Frame || !keys.First.Value.SequenceEqual(keys.Second.Value)))))
+                throw new InvalidDataException("Z-A material animation identity is ambiguous.");
+            return first;
+        }).ToArray();
 
     private static PreviewMaterialTrack[] MergeBakedHighlights(PreviewMaterialTrack[] result)
     {

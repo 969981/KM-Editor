@@ -82,9 +82,19 @@ public static class SvSwShTransparentMaterial
         return writer.Finish(source.Root);
     }
 
-    public static void RequireSource(byte[] bytes, PreviewScene scene)
+    public static void RequireSource(byte[] bytes, PreviewScene scene, bool deoxys = false)
     {
         var source = new ModelBuffer(bytes);
+        if (deoxys)
+        {
+            var name = scene.Primitives.Any(p => p.Name.StartsWith("pm0386_11_00_", StringComparison.Ordinal)) ? "body_b_02" : "body_a_02";
+            var qualified = scene.Primitives.All(p => p.Name.StartsWith("pm0386_", StringComparison.Ordinal));
+            var surface = source.Tables(source.Root, 1, 128).Single(t => source.Text(t, 0) == name);
+            if (!qualified || !source.Tables(surface, 1, 16).Select(t => source.Text(t, 0)).SequenceEqual(["Transparent", "TransparentInner"])
+                || scene.Primitives.Count(p => p.Material.Name == name && p.Material.Alpha == "BlendPreMultiAlpha") != 1)
+                throw new InvalidDataException("The Deoxys transparent surface requires another conversion adapter.");
+            return;
+        }
         foreach (var (name, shaders) in new[] { ("l_eye_b", new[] { "Transparent", "TransparentInner" }), ("l_highlight", new[] { "Transparent" }) })
         {
             var material = source.Tables(source.Root, 1, 128).Single(t => source.Text(t, 0) == name);
