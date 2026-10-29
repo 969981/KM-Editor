@@ -15,8 +15,17 @@ internal static class SwShRestorationIconUpdate
             || previous.ConverterVersion != next.ConverterVersion || customized.DefinitionId != next.DefinitionId
             || customized.Game != next.Game || customized.DefinitionVersion != next.DefinitionVersion || customized.ConverterVersion != next.ConverterVersion)
             throw new InvalidDataException("Restoration updates require matching definitions and targets.");
-        var icons = SwShRestorationDefinitions.Get(next.DefinitionId).Identities.Select(i =>
-            SwShRestorationComposer.IconPath(i.Species, i.Form)).ToHashSet(StringComparer.Ordinal);
+        var identities = SwShRestorationDefinitions.Get(next.DefinitionId).Identities;
+        var icons = identities.SelectMany(i => SwShRestorationComposer.IconGenders(i.Species).Select(gender =>
+            SwShRestorationComposer.IconPath(i.Species, i.Form, gender))).ToHashSet(StringComparer.Ordinal);
+        var iconRows = identities.SelectMany(i => SwShRestorationComposer.IconGenders(i.Species).Select(gender =>
+        {
+            var row = new byte[8];
+            BinaryPrimitives.WriteUInt16LittleEndian(row, checked((ushort)SwShRestorationSpecies.IconSpecies(i.Species)));
+            BinaryPrimitives.WriteUInt16LittleEndian(row.AsSpan(2), checked((ushort)i.Form));
+            BinaryPrimitives.WriteUInt16LittleEndian(row.AsSpan(4), checked((ushort)gender));
+            return (Key: SwShRestorationComposer.IconKey(i.Species, i.Form, gender), Row: row);
+        })).ToDictionary(item => item.Key, item => item.Row, StringComparer.Ordinal);
         var old = previous.Contributions.ToDictionary(c => (c.Path, c.Key));
         var replacements = next.Contributions.ToDictionary(c => (c.Path, c.Key));
         if (old.Keys.Any(key => !replacements.ContainsKey(key))) throw new InvalidDataException("Restoration update removes resource ownership.");
@@ -38,10 +47,15 @@ internal static class SwShRestorationIconUpdate
         {
             if (!old.TryGetValue((item.Path, item.Key), out var original))
             {
-                if (item.Writer != SwShRestorationWriter.File || item.Key.Length != 0 || item.Before is not null
-                    || !models.Any(stem => item.Path == stem + "_rare.gfpak"))
+                if (item.Before is not null) throw new InvalidDataException("Restoration update changes resource ownership.");
+                if (item.Writer == SwShRestorationWriter.File && item.Key.Length == 0 && icons.Contains(item.Path))
+                    ValidateIcon(item.After);
+                else if (item.Writer == SwShRestorationWriter.Icons && item.Path == SwShRestorationComposer.IconsPath
+                    && iconRows.TryGetValue(item.Key, out var row) && row.AsSpan().SequenceEqual(item.After)) { }
+                else if (item.Writer == SwShRestorationWriter.File && item.Key.Length == 0
+                    && models.Any(stem => item.Path == stem + "_rare.gfpak")) ValidateModelArchive(item);
+                else
                     throw new InvalidDataException("Restoration update changes resource ownership.");
-                ValidateModelArchive(item);
                 continue;
             }
             if (original.Writer != item.Writer || !Equal(original.Before, item.Before))
@@ -49,9 +63,7 @@ internal static class SwShRestorationIconUpdate
             if (Equal(original.After, item.After)) continue;
             if (item.Writer == SwShRestorationWriter.File && icons.Contains(item.Path))
             {
-                var image = new ModelTextureDocument(item.After);
-                if (image.Width != 136 || image.Height != 112 || image.MipCount != 1)
-                    throw new InvalidDataException("Updated party icon layout is invalid.");
+                ValidateIcon(item.After);
             }
             else if (item.Writer == SwShRestorationWriter.File && Archive(item.Path)) ValidateModelArchive(item);
             else if (item.Writer == SwShRestorationWriter.File && Giant(item.Path)) ValidateResourceSubset(original.After, item.After);
@@ -68,6 +80,12 @@ internal static class SwShRestorationIconUpdate
             (!keepModels || !Model(item)) && old.TryGetValue((item.Path, item.Key), out var original) && Equal(original.After, item.After)
                 ? replacements[(item.Path, item.Key)] : item)
             .Concat(next.Contributions.Where(item => !old.ContainsKey((item.Path, item.Key)) && (!keepModels || !Model(item)))).ToArray() };
+    }
+    private static void ValidateIcon(byte[] bytes)
+    {
+        var image = new ModelTextureDocument(bytes);
+        if (image.Width != 136 || image.Height != 112 || image.MipCount != 1)
+            throw new InvalidDataException("Updated party icon layout is invalid.");
     }
     private static void ValidateResourceSubset(byte[] previous, byte[] next)
     {

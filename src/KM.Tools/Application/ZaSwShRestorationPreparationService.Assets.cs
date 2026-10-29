@@ -40,7 +40,9 @@ public sealed partial class ZaSwShRestorationPreparationService
             var declaredMeshes = genders.SelectMany(g => new TrinityPreviewReader(Donor, topOriginMaterialUv: true)
                 .Load(profile.PlaAssets ? ModelPath(g) : "ik_pokemon/data/" + ModelPath(g)).Primitives.Select(p => p.Name)).ToHashSet(StringComparer.Ordinal);
             var result = genders.SelectMany(g => Assets(species, g, profile, identity.Form, declaredMeshes)).ToList();
-            result.Add(File(SwShRestorationComposer.IconPath(species, identity.Form)[6..], SwShRestorationPartyIcons.Create(species, Native, token, identity.Form, textureEncoding)));
+            var icon = SwShRestorationPartyIcons.Create(species, Native, token, identity.Form, textureEncoding);
+            foreach (var gender in SwShRestorationComposer.IconGenders(species))
+                result.Add(File(SwShRestorationComposer.IconPath(species, identity.Form, gender)[6..], icon));
             return result;
         }
 
