@@ -3434,7 +3434,7 @@
     "tmMachineControls.recipe.available": "Открыть все",
     "tmMachineControls.recipe.blocked": "Доступность рецептов нельзя изменить, поскольку текущая таблица не является поддерживаемым источником.",
     "tmMachineControls.material.title": "Видимость материалов",
-    "tmMachineControls.material.description": "Выберите, будут ли названия материалов появляться только после обнаружения или всегда будут видны в окне отслеживания.",
+    "tmMachineControls.material.description": "Выберите, будут ли названия материалов появляться только после обнаружения или всегда будут видны на панели рецептов машины ТМ и в окне отслеживания.",
     "tmMachineControls.material.discovery": "Показывать после обнаружения",
     "tmMachineControls.material.visible": "Всегда показывать названия",
     "tmMachineControls.material.blocked": "Видимость материалов нельзя изменить, поскольку текущий скрипт отслеживания не является поддерживаемым источником.",

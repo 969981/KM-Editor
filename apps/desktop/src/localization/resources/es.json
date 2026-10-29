@@ -3434,7 +3434,7 @@
     "tmMachineControls.recipe.available": "Hacer disponibles todas",
     "tmMachineControls.recipe.blocked": "No se puede cambiar la disponibilidad de las recetas porque la tabla actual no es una fuente compatible.",
     "tmMachineControls.material.title": "Visibilidad de materiales",
-    "tmMachineControls.material.description": "Elige si los nombres de los materiales aparecen solo después de descubrirlos o si siempre son visibles en la ventana de seguimiento.",
+    "tmMachineControls.material.description": "Elige si los nombres de los materiales aparecen solo después de descubrirlos o si siempre son visibles en el panel de recetas de la máquina de MT y en la ventana de seguimiento.",
     "tmMachineControls.material.discovery": "Mostrar al descubrir",
     "tmMachineControls.material.visible": "Mostrar siempre los nombres",
     "tmMachineControls.material.blocked": "No se puede cambiar la visibilidad de los materiales porque el script de seguimiento actual no es una fuente compatible.",
