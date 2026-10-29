@@ -136,7 +136,7 @@ internal sealed class SvSummaryStatsService(ProjectWorkspaceService projects)
     private IReadOnlyList<Output> Prepare(Source source, EditSession session, ICollection<ValidationDiagnostic> diagnostics)
     {
         if (session.PendingEdits.Count != 1 || !Resolve(source, session.PendingEdits[0], diagnostics, out var enabled)) return [];
-        var script = source.Enabled == enabled ? source.Files[SvSummaryStatsScript.VirtualPath].Bytes
+        var script = source.Enabled == enabled && !source.Script.SummaryStatsNeedsUpdate ? source.Files[SvSummaryStatsScript.VirtualPath].Bytes
             : SvSharedScript.Compose(source.Script with { SummaryStats = enabled });
         var outputs = new List<Output> { new(SvSummaryStatsScript.VirtualPath, script) };
         foreach (var language in SvGameTextLanguage.SupportedMessageLanguages)
