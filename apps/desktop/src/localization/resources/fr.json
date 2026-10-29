@@ -3434,7 +3434,7 @@
     "tmMachineControls.recipe.available": "Tout rendre disponible",
     "tmMachineControls.recipe.blocked": "La disponibilité des recettes ne peut pas être modifiée, car la table actuelle n’est pas une source prise en charge.",
     "tmMachineControls.material.title": "Visibilité des matériaux",
-    "tmMachineControls.material.description": "Choisissez si les noms des matériaux n’apparaissent qu’après leur découverte ou s’ils sont toujours visibles dans la fenêtre de suivi.",
+    "tmMachineControls.material.description": "Choisissez si les noms des matériaux n’apparaissent qu’après leur découverte ou s’ils sont toujours visibles dans le panneau des recettes de la Machine à CT et la fenêtre de suivi.",
     "tmMachineControls.material.discovery": "Afficher après découverte",
     "tmMachineControls.material.visible": "Toujours afficher les noms",
     "tmMachineControls.material.blocked": "La visibilité des matériaux ne peut pas être modifiée, car le script de suivi actuel n’est pas une source prise en charge.",

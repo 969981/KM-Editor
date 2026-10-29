@@ -33,7 +33,7 @@ public sealed class SvTmMachineControlsWorkflowService
             project,
             WorkflowId,
             "TM Machine Controls",
-            "Control TM recipe availability and tracking-window material visibility independently.");
+            "Control TM recipe availability and material visibility independently.");
     }
 
     public SvTmMachineControlsWorkflow Load(OpenedProject project)
@@ -194,6 +194,7 @@ public sealed class SvTmMachineControlsWorkflowService
         var (policy, status) = analysis.Kind switch
         {
             SvTmMaterialVisibilityKind.DiscoveryGated => ("discoveryGated", "standard"),
+            SvTmMaterialVisibilityKind.TrackerOnly => ("customized", "customized"),
             SvTmMaterialVisibilityKind.AlwaysVisible => ("alwaysVisible", "installed"),
             _ => ("unknown", "blocked"),
         };
@@ -204,8 +205,13 @@ public sealed class SvTmMachineControlsWorkflowService
             analysis.Kind != SvTmMaterialVisibilityKind.Unsupported
                 && availability == SvWorkflowAvailability.Available,
             StagedPolicy: null,
-            MatchingRecordCount: analysis.Kind == SvTmMaterialVisibilityKind.Unsupported ? 0 : 1,
-            TotalRecordCount: 1);
+            MatchingRecordCount: analysis.Kind switch
+            {
+                SvTmMaterialVisibilityKind.Unsupported => 0,
+                SvTmMaterialVisibilityKind.TrackerOnly => 1,
+                _ => 2,
+            },
+            TotalRecordCount: 2);
     }
 
     private static SvTmMachineControlState BlockedState(

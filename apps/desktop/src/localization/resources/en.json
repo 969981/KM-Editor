@@ -3434,7 +3434,7 @@
     "tmMachineControls.recipe.available": "Make all available",
     "tmMachineControls.recipe.blocked": "Recipe availability cannot be changed because the current table is not a supported source.",
     "tmMachineControls.material.title": "Material visibility",
-    "tmMachineControls.material.description": "Choose whether material names appear only after discovery or are always visible in the tracking window.",
+    "tmMachineControls.material.description": "Choose whether material names appear only after discovery or are always visible in the TM Machine recipe panel and tracking window.",
     "tmMachineControls.material.discovery": "Show after discovery",
     "tmMachineControls.material.visible": "Always show names",
     "tmMachineControls.material.blocked": "Material visibility cannot be changed because the current tracking script is not a supported source.",

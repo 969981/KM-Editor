@@ -3434,7 +3434,7 @@
     "tmMachineControls.recipe.available": "Alle verfügbar machen",
     "tmMachineControls.recipe.blocked": "Die Rezeptverfügbarkeit kann nicht geändert werden, da die aktuelle Tabelle keine unterstützte Quelle ist.",
     "tmMachineControls.material.title": "Materialsichtbarkeit",
-    "tmMachineControls.material.description": "Wähle, ob Materialnamen erst nach ihrer Entdeckung oder im Tracking-Fenster immer sichtbar sind.",
+    "tmMachineControls.material.description": "Wähle, ob Materialnamen erst nach ihrer Entdeckung oder im Rezeptbereich der TM-Maschine und im Tracking-Fenster immer sichtbar sind.",
     "tmMachineControls.material.discovery": "Nach Entdeckung anzeigen",
     "tmMachineControls.material.visible": "Namen immer anzeigen",
     "tmMachineControls.material.blocked": "Die Materialsichtbarkeit kann nicht geändert werden, da das aktuelle Tracking-Skript keine unterstützte Quelle ist.",

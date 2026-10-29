@@ -73,6 +73,13 @@ internal static class SvSharedScript
         var instructions = tm.Code.ToArray();
         instructions[168] = 0x000085C2;
         children[24349] = tm.WithCodeAndConstants(instructions, tm.Constants);
+        var recipe = children[28215];
+        if (recipe.Code.Count != 236 || recipe.Code[50] is not (0x000083C2u or 0x00070380u)
+            || (recipe.Code[50] == 0x00070380u && tm.Code[168] != 0x000B0580u))
+            throw new InvalidDataException("The shared TM recipe display instruction is unsupported.");
+        var recipeInstructions = recipe.Code.ToArray();
+        recipeInstructions[50] = 0x000083C2;
+        children[28215] = recipe.WithCodeAndConstants(recipeInstructions, recipe.Constants);
         var hash = Convert.ToHexString(SHA256.HashData(chunk.WithRoot(root.WithChildren(children)).Serialize()));
         if (hash != SvGameplayOptionsLuaTransformer.VanillaSourceSha256 && hash != SvGameplayOptionsLuaTransformer.DerivedSourceSha256)
             throw new InvalidDataException("The shared script is not a supported S/V 4.0.0 source or recognized composed output.");
