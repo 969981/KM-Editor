@@ -50,6 +50,7 @@ import { type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
 import { type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { type RaidDensWorkflow } from './bridge/raidDensContracts';
 import { type PokeJobsWorkflow } from './bridge/pokeJobsContracts';
+import { type YCommWorkflow } from './bridge/yCommContracts';
 import { type FixAiFlagsWorkflow } from './bridge/fixAiFlagsContracts';
 import { type TrainerWhiteoutWorkflow } from './bridge/trainerWhiteoutContracts';
 import { type HabitatCoordinatesWorkflow } from './bridge/habitatCoordinatesContracts';
@@ -128,6 +129,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
       'catchCap',
       'obedience',
       'pokeJobs',
+      'yComm',
       'ivScreen',
       'hyperTraining',
       'shinyRate',
@@ -210,6 +212,7 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
   'obedience',
   'raidDens',
   'pokeJobs',
+  'yComm',
   'fixAiFlags',
   'trainerWhiteout',
   'moves',
@@ -256,6 +259,7 @@ export const sharedStagedEditorDomains = new Set([
   'workflow.obedience',
   'workflow.raidDens',
   'workflow.pokeJobs',
+  'workflow.yComm',
   'workflow.trainerWhiteout',
   'workflow.moves',
   'workflow.items',
@@ -361,6 +365,7 @@ export type LoadedWorkflowStateBySection = {
   obedienceWorkflow: ObedienceWorkflow | null;
   raidDensWorkflow: RaidDensWorkflow | null;
   pokeJobsWorkflow: PokeJobsWorkflow | null;
+  yCommWorkflow: YCommWorkflow | null;
   fixAiFlagsWorkflow: FixAiFlagsWorkflow | null;
   trainerWhiteoutWorkflow: TrainerWhiteoutWorkflow | null;
   spreadsheetImportWorkflow: SpreadsheetImportWorkflow | null;
@@ -518,6 +523,8 @@ export function getLoadedWorkflowStateForSection(
       return state.raidDensWorkflow !== null;
     case 'pokeJobs':
       return state.pokeJobsWorkflow !== null;
+    case 'yComm':
+      return state.yCommWorkflow !== null;
     case 'fixAiFlags':
       return state.fixAiFlagsWorkflow !== null;
     case 'trainerWhiteout':

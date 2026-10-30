@@ -30,6 +30,7 @@ internal static class SwShIndependentExeFsHookDetector
             || SwShHyperTrainingItemsPatcher.HasInstalledHook(mainBytes)
             || SwShTrainerWhiteoutMainPatcher.HasInstalledHook(mainBytes)
             || KM.SwSh.Obedience.SwShObediencePatcher.HasInstalledHook(mainBytes)
+            || KM.SwSh.YComm.SwShYCommMainPatcher.HasInstalledHook(mainBytes)
             || KM.SwSh.TrainerDynamax.SwShTrainerDynamaxMainPatcher.HasInstalledHook(mainBytes)
             || ivScreenKind is SwShIvScreenInstallKind.InstalledV1 or SwShIvScreenInstallKind.InstalledRawV1 or SwShIvScreenInstallKind.InstalledLegacyV1
             || fpsPatchKind is SwShFpsPatchMainKind.Installed or SwShFpsPatchMainKind.Partial
