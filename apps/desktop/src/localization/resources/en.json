@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pokemon.learnsetClipboard.copy": "Copy Learnset",
+    "pokemon.learnsetClipboard.paste": "Paste Learnset",
+    "pokemon.learnsetClipboard.copied": "Learnset copied.",
+    "pokemon.learnsetClipboard.pasted": "Learnset replaced locally. Use Stage, Review, and Apply to save.",
+    "pokemon.learnsetClipboard.rejected": "The clipboard does not contain a compatible complete learnset, or it could not be read. Nothing was changed.",
     "pokemon.learnsetSync.button": "Sync Learnset",
     "pokemon.learnsetSync.description": "Replace this Mega’s level-up moves with the current learnset of {pokemon}. Use Apply to save.",
     "pokemon.learnsetSync.unavailable": "The corresponding non-Mega form is unavailable.",
@@ -4689,6 +4694,9 @@
     "pla.field.baseExperience": "Base experience"
   },
   "literals": {
+    "Copied learnset level metadata is invalid.": "Copied learnset level metadata is invalid.",
+    "Copied mastery metadata is only supported for Z-A learnsets.": "Copied mastery metadata is only supported for Z-A learnsets.",
+    "Matching learnset level and mastery metadata": "Matching learnset level and mastery metadata",
     "Always male": "Always male",
     "Always female": "Always female",
     "{male}% male / {female}% female": "{male}% male / {female}% female",

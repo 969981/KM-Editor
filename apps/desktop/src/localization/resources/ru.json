@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pokemon.learnsetClipboard.copy": "Копировать набор приёмов",
+    "pokemon.learnsetClipboard.paste": "Вставить набор приёмов",
+    "pokemon.learnsetClipboard.copied": "Набор приёмов скопирован.",
+    "pokemon.learnsetClipboard.pasted": "Набор приёмов заменён локально. Подготовьте, проверьте и примените изменения для сохранения.",
+    "pokemon.learnsetClipboard.rejected": "Буфер обмена не содержит совместимого полного набора приёмов или недоступен для чтения. Ничего не изменено.",
     "pokemon.learnsetSync.button": "Синхронизировать приёмы",
     "pokemon.learnsetSync.description": "Заменяет приёмы этой мегаформы, изучаемые с повышением уровня, текущим набором {pokemon}. Нажмите «Применить», чтобы сохранить.",
     "pokemon.learnsetSync.unavailable": "Соответствующая форма без мегаэволюции недоступна.",
@@ -4689,6 +4694,9 @@
     "pla.field.baseExperience": "Базовый опыт"
   },
   "literals": {
+    "Copied learnset level metadata is invalid.": "Скопированные данные уровня изучения приёма недействительны.",
+    "Copied mastery metadata is only supported for Z-A learnsets.": "Копирование данных освоения поддерживается только для наборов приёмов Z-A.",
+    "Matching learnset level and mastery metadata": "Согласованные данные уровня изучения и освоения приёма",
     "Always male": "Всегда самец",
     "Always female": "Всегда самка",
     "{male}% male / {female}% female": "{male}% самцов / {female}% самок",

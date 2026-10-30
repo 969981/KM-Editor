@@ -2344,6 +2344,11 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             : EditSessionBridgeMapper.ToCore(request.Payload.Session);
         var paths = ProjectBridgeMapper.ToCore(request.Payload.Paths);
 
+        if (!IsPokemonLegendsZA(paths) && request.Payload.LearnsetUpdates.Any(update => update.RawLevel is not null))
+        {
+            throw new ArgumentException("Copied mastery metadata is only supported for Z-A learnsets.");
+        }
+
         if (IsPokemonLegendsZA(paths))
         {
             var response = ZaBridgeMapper.ToPokemonCompositeDto(
@@ -2373,7 +2378,8 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                             update.Action,
                             update.Slot,
                             update.MoveId,
-                            update.Level))
+                            update.Level,
+                            update.RawLevel))
                         .ToArray()));
 
             return SerializeSuccess(response, request.RequestId);

@@ -514,7 +514,8 @@ internal sealed partial class ZaPokemonEditSessionService
                 update.Slot,
                 update.MoveId,
                 update.Level,
-                diagnostics);
+                diagnostics,
+                update.RawLevel);
             if (operation is null)
             {
                 break;
@@ -7262,7 +7263,8 @@ internal sealed partial class ZaPokemonEditSessionService
         int? slot,
         int? moveId,
         int? level,
-        ICollection<ValidationDiagnostic> diagnostics)
+        ICollection<ValidationDiagnostic> diagnostics,
+        int? copiedRawLevel = null)
     {
         var normalizedAction = action == AddAction ? AddAction : action.Trim();
         var targetSlot = normalizedAction == AddAction ? pokemon.Learnset.Count : slot ?? -1;
@@ -7272,6 +7274,20 @@ internal sealed partial class ZaPokemonEditSessionService
         int? rawLevel = level is { } displayLevel
             ? ZaPokemonWorkflowService.EncodeLearnsetRawLevel(displayLevel, existingRawLevel)
             : null;
+        if (copiedRawLevel is not null)
+        {
+            if (normalizedAction is not (AddAction or UpsertAction)
+                || copiedRawLevel is < 0 or > ushort.MaxValue
+                || level is null
+                || ZaPokemonWorkflowService.DecodeLearnsetDisplayLevel(copiedRawLevel.Value) != level)
+            {
+                diagnostics.Add(ZaEditSessionSupport.CreateDiagnostic(DiagnosticSeverity.Error,
+                    "Copied learnset level metadata is invalid.", ZaEditSessionSupport.PokemonDomain,
+                    field: "rawLevel", expected: "Matching learnset level and mastery metadata"));
+                return null;
+            }
+            rawLevel = copiedRawLevel;
+        }
         var operation = new LearnsetOperation(normalizedAction, targetSlot, moveId, level, rawLevel);
         ValidateLearnsetOperation(operation, pokemon, diagnostics);
         return diagnostics.Any(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error) ? null : operation;

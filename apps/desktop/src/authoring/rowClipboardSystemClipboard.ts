@@ -21,10 +21,13 @@ export type RowClipboardTextClipboard = Readonly<{
 }>;
 
 let editorClipboardText = '';
-const editorClipboard: RowClipboardTextClipboard = Object.freeze({
+let editorClipboardRevision = 0;
+export const editorClipboard: RowClipboardTextClipboard = Object.freeze({
   readText: async () => editorClipboardText,
-  writeText: async (value: string) => { editorClipboardText = value; }
+  writeText: async (value: string) => { editorClipboardText = value; editorClipboardRevision++; }
 });
+
+export function getEditorClipboardRevision() { return editorClipboardRevision; }
 
 export function writeRowClipboardEnvelopeToEditorClipboard(envelope: RowClipboardEnvelopeV1) {
   return writeRowClipboardEnvelopeToSystemClipboard(envelope, editorClipboard);
@@ -145,7 +148,7 @@ export async function readRowClipboardEnvelopeFromSystemClipboard(
   }
 }
 
-function resolveSystemClipboard(): RowClipboardTextClipboard | null {
+export function resolveSystemClipboard(): RowClipboardTextClipboard | null {
   if (hasTauriRuntime()) {
     return tauriSystemClipboard;
   }

@@ -244,7 +244,8 @@ public sealed record ZaPokemonLearnsetUpdate(
     string Action,
     int? Slot,
     int? MoveId,
-    int? Level);
+    int? Level,
+    int? RawLevel = null);
 
 public sealed record ZaPokemonEvolutionOperation(
     int PersonalId,

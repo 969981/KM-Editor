@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pokemon.learnsetClipboard.copy": "Copiar movimientos",
+    "pokemon.learnsetClipboard.paste": "Pegar movimientos",
+    "pokemon.learnsetClipboard.copied": "Lista de movimientos copiada.",
+    "pokemon.learnsetClipboard.pasted": "Lista de movimientos reemplazada localmente. Prepara, revisa y aplica los cambios para guardar.",
+    "pokemon.learnsetClipboard.rejected": "El portapapeles no contiene una lista completa de movimientos compatible o no se pudo leer. No se ha cambiado nada.",
     "pokemon.learnsetSync.button": "Sincronizar movimientos",
     "pokemon.learnsetSync.description": "Reemplaza los movimientos por nivel de esta megaevolución con los actuales de {pokemon}. Usa Aplicar para guardar.",
     "pokemon.learnsetSync.unavailable": "La forma correspondiente sin megaevolucionar no está disponible.",
@@ -4689,6 +4694,9 @@
     "pla.field.baseExperience": "Experiencia base"
   },
   "literals": {
+    "Copied learnset level metadata is invalid.": "Los datos del nivel de aprendizaje copiados no son válidos.",
+    "Copied mastery metadata is only supported for Z-A learnsets.": "Los datos de dominio copiados solo son compatibles con las listas de movimientos de Z-A.",
+    "Matching learnset level and mastery metadata": "Datos coincidentes del nivel de aprendizaje y dominio",
     "Always male": "Siempre macho",
     "Always female": "Siempre hembra",
     "{male}% male / {female}% female": "{male}% macho / {female}% hembra",

@@ -1,5 +1,6 @@
 import { evolutionDraftFields, evolutionDraftsEqual, orderEvolutionDraftRows, planEvolutionDraftStage, projectEvolutionDraftRows, replaceEvolutionDraftRecord, settleEvolutionDrafts, type PokemonEvolutionLocalDraft } from './features/pokemon/evolutionDrafts';
-import { learnsetDraftsEqual, projectLearnsetDraftRows, replaceLearnsetDraftRecord, settleLearnsetDrafts, stagedLearnsetSlotMap, type PokemonLearnsetLocalDraft } from './features/pokemon/learnsetDrafts';
+import { learnsetDraftsEqual, projectLearnsetDraftRows, replaceLearnsetDraftRecord, replaceLearnsetDrafts, settleLearnsetDrafts, stagedLearnsetSlotMap, type PokemonLearnsetLocalDraft } from './features/pokemon/learnsetDrafts';
+import { LearnsetClipboardActions } from './features/pokemon/LearnsetClipboardActions';
 import { InteractiveTableRow, VirtualTableBody } from './components/VirtualTable';
 import { PokemonSearchBox, PokemonTable, filterPokemonRecords, formatPokemonTypes, type PokemonSelectionRecord } from './components/PokemonSelection';
 import { stageModelAsset, stageModelTexture } from './features/model-viewer/modelTextureBridge';
@@ -1329,6 +1330,7 @@ type PokemonLearnsetDraftChange = {
   slot: number | null;
   moveId: number | null;
   level: number | null;
+  rawLevel?: number;
 };
 type PokemonLearnsetDraftFields = PokemonLearnsetLocalDraft;
 const emptyPokemonEvolutionDraftsBySlot: Record<
@@ -25717,9 +25719,10 @@ function SelectedPokemonPanel({
       const result = await onCopyLearnsetRow({
         move: target.move,
         personalId: pokemon.personalId,
-        values:
-          learnsetDraftsBySlot[target.move.slot] ??
-          createPokemonLearnsetDraftFields(target.move)
+        values: {
+          level: learnsetDraftsBySlot[target.move.slot]?.level ?? String(target.move.level),
+          moveId: learnsetDraftsBySlot[target.move.slot]?.moveId ?? String(target.move.moveId)
+        }
       });
       if (result.kind === 'failure') {
         setLearnsetClipboardFeedback({ isError: true, message: t(result.feedbackKey) });
@@ -26695,6 +26698,26 @@ function SelectedPokemonPanel({
         <>
           <div className={`inspector-block ${editorFamily}-pokemon-learnset-block`}>
             <h4>Learnset</h4>
+            <LearnsetClipboardActions family={editorFamily}
+              scope={JSON.stringify([learnsetScope, editSession?.sessionId])}
+              revision={JSON.stringify([sourceLearnsetRows, learnsetDraftsBySlot])}
+              busy={isPokemonUpdating || isLearnsetClipboardBusy || pokemonStructureMutationPending !== null}
+              enabled={canEditLearnset && !isLearnsetPasteApplying && pokemonStructureMutationPending === null}
+              entries={reviewPokemonLearnsetDrafts(learnsetSourcePokemon, learnsetDraftsBySlot, learnsetMoveOptions, editorFamily).invalidCount ? null
+                : orderedLearnsetMoves.map(row => ({
+                  moveId: Number(learnsetDraftsBySlot[row.slot]?.moveId ?? row.moveId),
+                  level: Number(learnsetDraftsBySlot[row.slot]?.level ?? row.level),
+                  ...(editorFamily === 'za' ? { mastery: ((learnsetDraftsBySlot[row.slot]?.rawLevel ?? row.rawLevel ?? 0) >> 8) & 255 } : {})
+                }))}
+              onPaste={entries => {
+                const drafts = replaceLearnsetDrafts(sourceLearnsetRows, entries);
+                if (entries.some(row => row.moveId !== 0 && learnsetMoveOptions.length > 0 && !learnsetMoveOptions.some(option => option.value === row.moveId))
+                  || reviewPokemonLearnsetDrafts(learnsetSourcePokemon, drafts, learnsetMoveOptions, editorFamily).invalidCount) return false;
+                setLearnsetDraftsByPokemonId(current => replaceLearnsetDraftRecord(current, pokemon.personalId, drafts));
+                setLearnsetClipboardMenu(null); setLearnsetDragState(null);
+                setSelectedLearnsetSlot(Math.max(-1, ...sourceLearnsetRows.map(row => row.slot)) + 1);
+                return true;
+              }} />
             {editorFamily === 'swsh' ? <MegaLearnsetSync
               pokemon={pokemon} records={pokemonRecords}
               canSync={canModifyLearnsetStructure}
@@ -59249,7 +59272,8 @@ function pokemonLearnsetDraftEqualsRecord(
   draft: PokemonLearnsetDraftFields,
   move: PokemonLearnsetMove
 ) {
-  return draft.level === move.level.toString() && draft.moveId === move.moveId.toString();
+  return draft.level === move.level.toString() && draft.moveId === move.moveId.toString()
+    && (draft.rawLevel === undefined || draft.rawLevel === move.rawLevel);
 }
 
 function reviewPokemonLearnsetDrafts(
@@ -59283,7 +59307,8 @@ function reviewPokemonLearnsetDrafts(
       (gameFamily === 'swsh' && (adding || moveId !== move?.moveId) && !isValidSwShLearnsetMove(moveId, learnsetMoveOptions))) {
       invalidCount++; continue;
     }
-    const change = { action: adding ? 'add' : 'upsert', slot: adding ? null : slots.get(slot)!, moveId, level };
+    const change = { action: adding ? 'add' : 'upsert', slot: adding ? null : slots.get(slot)!, moveId, level,
+      ...(gameFamily === 'za' && draft.rawLevel !== undefined ? { rawLevel: (draft.rawLevel & 0xff00) | level } : {}) };
     if (adding) additions.push(change); else changes.push(change);
   }
   changes.push(...additions);
