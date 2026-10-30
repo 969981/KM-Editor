@@ -49,6 +49,7 @@ export const pokemonEvolutionUpdateSchema = z.strictObject({
 
 export const pokemonLearnsetUpdateSchema = z.strictObject({
   action: z.string(),
+  rawLevel: z.number().int().min(0).max(65535).nullable().optional(),
   level: z.number().int().nonnegative().nullable(),
   moveId: z.number().int().nonnegative().nullable(),
   personalId: z.number().int().nonnegative(),

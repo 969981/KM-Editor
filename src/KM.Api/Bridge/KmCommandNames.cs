@@ -195,6 +195,8 @@ public static class KmCommandNames
     public const string LoadGameOptions = "gameOptions.load";
     public const string LoadObedience = "obedience.load";
     public const string LoadRaidDens = "raidDens.load";
+    public const string LoadPokeJobs = "pokeJobs.load";
+    public const string LoadYComm = "yComm.load";
     public const string LoadFixAiFlags = "fixAiFlags.load";
     public const string StageFixAiFlags = "fixAiFlags.stage";
     public const string LoadTrainerWhiteout = "trainerWhiteout.load";
@@ -204,6 +206,8 @@ public static class KmCommandNames
     public const string StageGameOptions = "gameOptions.stage";
     public const string StageObedience = "obedience.stage";
     public const string StageRaidDens = "raidDens.stage";
+    public const string StagePokeJobs = "pokeJobs.stage";
+    public const string StageYComm = "yComm.stage";
     public const string StageTrainerWhiteout = "trainerWhiteout.stage";
     public const string LoadProfanityFilter = "profanityFilter.load";
     public const string LoadTrainerDynamax = "trainerDynamax.load";

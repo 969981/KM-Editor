@@ -4,11 +4,12 @@ import type { PokemonLearnsetMove } from '../../bridge/contracts';
 export type PokemonLearnsetLocalDraft = {
   moveId: string;
   level: string;
+  rawLevel?: number;
   action?: 'add' | 'remove';
 };
 
 export function learnsetDraftsEqual(left: PokemonLearnsetLocalDraft, right: PokemonLearnsetLocalDraft) {
-  return left.level === right.level && left.moveId === right.moveId && left.action === right.action;
+  return left.level === right.level && left.moveId === right.moveId && left.action === right.action && left.rawLevel === right.rawLevel;
 }
 
 export function replaceLearnsetDraftRecord(
@@ -33,10 +34,19 @@ export function projectLearnsetDraftRows(
       .map(([slot, draft]) => {
         const level = /^\d+$/u.test(draft.level) ? Number(draft.level) : 1;
         const moveId = /^\d+$/u.test(draft.moveId) ? Number(draft.moveId) : 0;
-        return { slot: Number(slot), moveId, level, rawLevel: level,
+        return { slot: Number(slot), moveId, level, rawLevel: draft.rawLevel === undefined ? level : (draft.rawLevel & 0xff00) | level,
           moveName: moveNames.find(option => option.value === moveId)?.label ?? moveId.toString() };
       })
   ];
+}
+
+export function replaceLearnsetDrafts(source: readonly PokemonLearnsetMove[], entries: readonly { moveId: number; level: number; mastery?: number }[]): Record<number, PokemonLearnsetLocalDraft> {
+  const drafts: Record<number, PokemonLearnsetLocalDraft> = {};
+  for (const row of source) drafts[row.slot] = { action: 'remove', moveId: String(row.moveId), level: String(row.level) };
+  let slot = Math.max(-1, ...source.map(row => row.slot)) + 1;
+  for (const row of entries) drafts[slot++] = { action: 'add', moveId: String(row.moveId), level: String(row.level),
+    ...(row.mastery === undefined ? {} : { rawLevel: row.mastery * 256 + row.level }) };
+  return drafts;
 }
 
 export function stagedLearnsetSlotMap(

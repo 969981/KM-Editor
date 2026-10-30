@@ -140,6 +140,8 @@ const registrations = {
   gameOptions: fixedSchemaSlot('gameOptions', 'Starting values and hidden game option selections'),
   obedience: fixedSchemaSlot('obedience', 'Obedience level limits by badge count'),
   raidDens: fixedSchemaSlot('raidDens', 'den interaction dispatch'),
+  pokeJobs: fixedSchemaSlot('pokeJobs', 'Poke Jobs terminal access'),
+  yComm: fixedSchemaSlot('yComm', 'Y Comm access'),
   fixAiFlags: intrinsic('fixAiFlags', 'stored trainer ID'),
   trainerWhiteout: intrinsic('trainerWhiteout', 'stored trainer ID'),
   randomizer: operationScoped('randomizer'),

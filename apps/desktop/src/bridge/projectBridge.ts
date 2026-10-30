@@ -26,6 +26,10 @@ import { type LoadObedienceRequest, type LoadObedienceResponse, type StageObedie
   loadObedienceRequestSchema, loadObedienceResponseSchema, stageObedienceRequestSchema, stageObedienceResponseSchema } from './obedienceContracts';
 import { type LoadRaidDensRequest, type LoadRaidDensResponse, type StageRaidDensRequest, type StageRaidDensResponse,
   loadRaidDensRequestSchema, loadRaidDensResponseSchema, stageRaidDensRequestSchema, stageRaidDensResponseSchema } from './raidDensContracts';
+import { type LoadPokeJobsRequest, type LoadPokeJobsResponse, type StagePokeJobsRequest, type StagePokeJobsResponse,
+  loadPokeJobsRequestSchema, loadPokeJobsResponseSchema, stagePokeJobsRequestSchema, stagePokeJobsResponseSchema } from './pokeJobsContracts';
+import { type LoadYCommRequest, type LoadYCommResponse, type StageYCommRequest, type StageYCommResponse,
+  loadYCommRequestSchema, loadYCommResponseSchema, stageYCommRequestSchema, stageYCommResponseSchema } from './yCommContracts';
 import { type LoadFixAiFlagsRequest, type LoadFixAiFlagsResponse, type StageFixAiFlagsRequest, type StageFixAiFlagsResponse,
   loadFixAiFlagsRequestSchema, loadFixAiFlagsResponseSchema, stageFixAiFlagsRequestSchema, stageFixAiFlagsResponseSchema } from './fixAiFlagsContracts';
 import { type LoadTrainerWhiteoutRequest, type LoadTrainerWhiteoutResponse, type StageTrainerWhiteoutRequest, type StageTrainerWhiteoutResponse,
@@ -871,6 +875,8 @@ export type ProjectBridge = {
   loadGameOptions: (request: LoadGameOptionsRequest) => Promise<LoadGameOptionsResponse>;
   loadObedience: (request: LoadObedienceRequest) => Promise<LoadObedienceResponse>;
   loadRaidDens: (request: LoadRaidDensRequest) => Promise<LoadRaidDensResponse>;
+  loadPokeJobs: (request: LoadPokeJobsRequest) => Promise<LoadPokeJobsResponse>;
+  loadYComm: (request: LoadYCommRequest) => Promise<LoadYCommResponse>;
   loadFixAiFlags: (request: LoadFixAiFlagsRequest) => Promise<LoadFixAiFlagsResponse>;
   stageFixAiFlags: (request: StageFixAiFlagsRequest) => Promise<StageFixAiFlagsResponse>;
   loadTrainerWhiteout: (request: LoadTrainerWhiteoutRequest) => Promise<LoadTrainerWhiteoutResponse>;
@@ -884,6 +890,8 @@ export type ProjectBridge = {
   stageGameOptions: (request: StageGameOptionsRequest) => Promise<StageGameOptionsResponse>;
   stageObedience: (request: StageObedienceRequest) => Promise<StageObedienceResponse>;
   stageRaidDens: (request: StageRaidDensRequest) => Promise<StageRaidDensResponse>;
+  stagePokeJobs: (request: StagePokeJobsRequest) => Promise<StagePokeJobsResponse>;
+  stageYComm: (request: StageYCommRequest) => Promise<StageYCommResponse>;
   stageTrainerWhiteout: (request: StageTrainerWhiteoutRequest) => Promise<StageTrainerWhiteoutResponse>;
   loadHabitatCoordinates: (
     request: LoadHabitatCoordinatesRequest,
@@ -1730,6 +1738,10 @@ export function createProjectBridge(
       loadObedienceRequestSchema.parse(request), loadObedienceResponseSchema),
     loadRaidDens: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadRaidDens,
       loadRaidDensRequestSchema.parse(request), loadRaidDensResponseSchema),
+    loadPokeJobs: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadPokeJobs,
+      loadPokeJobsRequestSchema.parse(request), loadPokeJobsResponseSchema),
+    loadYComm: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadYComm,
+      loadYCommRequestSchema.parse(request), loadYCommResponseSchema),
     loadFixAiFlags: (request) => sendProjectBridgeRequest(transport, kmCommandNames.loadFixAiFlags,
       loadFixAiFlagsRequestSchema.parse(request), loadFixAiFlagsResponseSchema),
     stageFixAiFlags: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageFixAiFlags,
@@ -1756,6 +1768,10 @@ export function createProjectBridge(
       stageObedienceRequestSchema.parse(request), stageObedienceResponseSchema),
     stageRaidDens: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageRaidDens,
       stageRaidDensRequestSchema.parse(request), stageRaidDensResponseSchema),
+    stagePokeJobs: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stagePokeJobs,
+      stagePokeJobsRequestSchema.parse(request), stagePokeJobsResponseSchema),
+    stageYComm: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageYComm,
+      stageYCommRequestSchema.parse(request), stageYCommResponseSchema),
     stageTrainerWhiteout: (request) => sendProjectBridgeRequest(transport, kmCommandNames.stageTrainerWhiteout,
       stageTrainerWhiteoutRequestSchema.parse(request), stageTrainerWhiteoutResponseSchema),
     loadHabitatCoordinates: (request) => {

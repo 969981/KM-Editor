@@ -6,6 +6,8 @@ import {
   Activity,
   ArrowLeftRight,
   Award,
+  BriefcaseBusiness,
+  WifiOff,
   BadgeCheck,
   BadgePlus,
   Ban,
@@ -563,6 +565,16 @@ export const workbenchCapabilityRegistry = [
   workflow({
     description: 'Disable or restore interaction with raid dens.',
     games: swordShieldGames, icon: Mountain, id: 'raidDens', label: 'Raid Dens',
+    showInWorkflowDashboard: false, standalone: true
+  }),
+  workflow({
+    description: 'Disable or restore Poke Jobs at Pokemon Center terminals.',
+    games: swordShieldGames, icon: BriefcaseBusiness, id: 'pokeJobs', label: 'Disable Poke Jobs',
+    showInWorkflowDashboard: false, standalone: true
+  }),
+  workflow({
+    description: 'Hide Y Comm and block its button while keeping Mystery Gift available.',
+    games: swordShieldGames, icon: WifiOff, id: 'yComm', label: 'Disable Y Comm',
     showInWorkflowDashboard: false, standalone: true
   }),
   workflow({

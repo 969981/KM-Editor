@@ -69,6 +69,8 @@ export const workbenchSections = [
   'fpsPatch',
   'profanityFilter',
   'raidDens',
+  'pokeJobs',
+  'yComm',
   'fixAiFlags',
   'trainerWhiteout',
   'trainerDynamax',

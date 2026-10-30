@@ -54,6 +54,7 @@ internal static class SwShExeFsReservedRegionLedger
     public const string OwnerHeldItemChance = "Held Item Chance";
     public const string OwnerGameOptions = "Game Options";
     public const string OwnerObedience = "Obedience";
+    public const string OwnerYComm = "Disable Y Comm";
     public const string OwnerTypeChart = "Type Chart";
 
     public const string ExeFsMainPath = SwShExeFsPatchWorkflowService.ExeFsMainPath;
@@ -68,6 +69,7 @@ internal static class SwShExeFsReservedRegionLedger
         .. KM.SwSh.HyperTraining.SwShHyperTrainingItemsPatcher.Reservations(),
         .. KM.SwSh.HyperTraining.SwShHyperTrainingPickerPatcher.Reservations(),
         .. KM.SwSh.Obedience.SwShObediencePatcher.CreateReservations(),
+        .. KM.SwSh.YComm.SwShYCommMainPatcher.Reservations(),
         .. KM.SwSh.GameOptions.SwShGameOptionsPatcher.CreateReservations(),
         .. KM.SwSh.RuntimeSettings.SwShCameraControlProfile.CreateReservations(),
         KM.SwSh.RuntimeSettings.SwShBattleItemsProfile.Reservation,
@@ -427,6 +429,7 @@ internal static class SwShExeFsReservedRegionLedger
                 || string.Equals(owner, OwnerHeldItemChance, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerGameOptions, StringComparison.Ordinal)
                 || string.Equals(owner, OwnerObedience, StringComparison.Ordinal)
+                || string.Equals(owner, OwnerYComm, StringComparison.Ordinal)
                 || string.Equals(owner, KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Owner, StringComparison.Ordinal))
             && game is ProjectGame.Sword or ProjectGame.Shield)
         {
@@ -511,6 +514,7 @@ internal static class SwShExeFsReservedRegionLedger
                         && !string.Equals(region.Owner, OwnerGameOptions, StringComparison.Ordinal)
                         && !string.Equals(region.Owner, KM.SwSh.HyperTraining.SwShHyperTrainingItemsPatcher.Owner, StringComparison.Ordinal)
                         && !string.Equals(region.Owner, OwnerObedience, StringComparison.Ordinal)
+                        && !string.Equals(region.Owner, OwnerYComm, StringComparison.Ordinal)
                         && !string.Equals(region.Owner, KM.SwSh.ShakingTrees.SwShTreeQuantityPatcher.Owner, StringComparison.Ordinal))
                     || !region.FeatureId.Contains(inactiveDynamaxGameToken, StringComparison.Ordinal))
                 .ToArray();

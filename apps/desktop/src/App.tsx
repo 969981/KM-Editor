@@ -1,5 +1,6 @@
 import { evolutionDraftFields, evolutionDraftsEqual, orderEvolutionDraftRows, planEvolutionDraftStage, projectEvolutionDraftRows, replaceEvolutionDraftRecord, settleEvolutionDrafts, type PokemonEvolutionLocalDraft } from './features/pokemon/evolutionDrafts';
-import { learnsetDraftsEqual, projectLearnsetDraftRows, replaceLearnsetDraftRecord, settleLearnsetDrafts, stagedLearnsetSlotMap, type PokemonLearnsetLocalDraft } from './features/pokemon/learnsetDrafts';
+import { learnsetDraftsEqual, projectLearnsetDraftRows, replaceLearnsetDraftRecord, replaceLearnsetDrafts, settleLearnsetDrafts, stagedLearnsetSlotMap, type PokemonLearnsetLocalDraft } from './features/pokemon/learnsetDrafts';
+import { LearnsetClipboardActions } from './features/pokemon/LearnsetClipboardActions';
 import { InteractiveTableRow, VirtualTableBody } from './components/VirtualTable';
 import { PokemonSearchBox, PokemonTable, filterPokemonRecords, formatPokemonTypes, type PokemonSelectionRecord } from './components/PokemonSelection';
 import { stageModelAsset, stageModelTexture } from './features/model-viewer/modelTextureBridge';
@@ -476,6 +477,8 @@ import { HeldItemChanceSection } from './features/held-item-chance/HeldItemChanc
 import { GameOptionsSection } from './features/game-options/GameOptionsSection';
 import { ObedienceSection } from './features/obedience/ObedienceSection';
 import { RaidDensSection } from './features/raid-dens/RaidDensSection';
+import { PokeJobsSection } from './features/poke-jobs/PokeJobsSection';
+import { YCommSection } from './features/y-comm/YCommSection';
 import { FixAiFlagsSection } from './features/fix-ai-flags/FixAiFlagsSection';
 import { TrainerWhiteoutSection } from './features/trainer-whiteout/TrainerWhiteoutSection';
 import { treeValues, treeFieldKey, type TreeUpdate, type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
@@ -489,6 +492,8 @@ import { encodeGameOptionsSelections, getGameOptionsPendingSelections, type Game
 import { encodeObedienceSelections, getObediencePendingSelections, type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { encodeMarnieBoostSelections, getMarnieBoostPendingSelections, type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
 import { type RaidDensWorkflow } from './bridge/raidDensContracts';
+import { getPokeJobsPendingDisabled, type PokeJobsWorkflow } from './bridge/pokeJobsContracts';
+import { getYCommPendingDisabled, type YCommWorkflow } from './bridge/yCommContracts';
 import { type FixAiFlagsWorkflow, type FixAiFlagsSelection } from './bridge/fixAiFlagsContracts';
 import { type TrainerWhiteoutWorkflow, type TrainerWhiteoutChange } from './bridge/trainerWhiteoutContracts';
 import { BlueberrySection } from './features/blueberry/BlueberrySection';
@@ -1329,6 +1334,7 @@ type PokemonLearnsetDraftChange = {
   slot: number | null;
   moveId: number | null;
   level: number | null;
+  rawLevel?: number;
 };
 type PokemonLearnsetDraftFields = PokemonLearnsetLocalDraft;
 const emptyPokemonEvolutionDraftsBySlot: Record<
@@ -3228,6 +3234,8 @@ export function App({
   const gameOptionsWorkflow = useWorkbenchStore(state => state.gameOptionsWorkflow);
   const obedienceWorkflow = useWorkbenchStore(state => state.obedienceWorkflow);
   const raidDensWorkflow = useWorkbenchStore(state => state.raidDensWorkflow);
+  const pokeJobsWorkflow = useWorkbenchStore(state => state.pokeJobsWorkflow);
+  const yCommWorkflow = useWorkbenchStore(state => state.yCommWorkflow);
   const fixAiFlagsWorkflow = useWorkbenchStore(state => state.fixAiFlagsWorkflow);
   const trainerWhiteoutWorkflow = useWorkbenchStore(state => state.trainerWhiteoutWorkflow);
   const setBbqRewardsWorkflow = useWorkbenchStore(state => state.setBbqRewardsWorkflow);
@@ -3242,6 +3250,8 @@ export function App({
   const setGameOptionsWorkflow = useWorkbenchStore(state => state.setGameOptionsWorkflow);
   const setObedienceWorkflow = useWorkbenchStore(state => state.setObedienceWorkflow);
   const setRaidDensWorkflow = useWorkbenchStore(state => state.setRaidDensWorkflow);
+  const setPokeJobsWorkflow = useWorkbenchStore(state => state.setPokeJobsWorkflow);
+  const setYCommWorkflow = useWorkbenchStore(state => state.setYCommWorkflow);
   const setFixAiFlagsWorkflow = useWorkbenchStore(state => state.setFixAiFlagsWorkflow);
   const setTrainerWhiteoutWorkflow = useWorkbenchStore(state => state.setTrainerWhiteoutWorkflow);
   const [isBbqRewardsLoading, setIsBbqRewardsLoading] = useState(false);
@@ -3256,6 +3266,8 @@ export function App({
   const [isGameOptionsLoading, setIsGameOptionsLoading] = useState(false);
   const [isObedienceLoading, setIsObedienceLoading] = useState(false);
   const [isRaidDensLoading, setIsRaidDensLoading] = useState(false);
+  const [isPokeJobsLoading, setIsPokeJobsLoading] = useState(false);
+  const [isYCommLoading, setIsYCommLoading] = useState(false);
   const [isFixAiFlagsLoading, setIsFixAiFlagsLoading] = useState(false);
   const [isTrainerWhiteoutLoading, setIsTrainerWhiteoutLoading] = useState(false);
   const [isBbqRewardsStaging, setIsBbqRewardsStaging] = useState(false);
@@ -3270,6 +3282,8 @@ export function App({
   const [isGameOptionsStaging, setIsGameOptionsStaging] = useState(false);
   const [isObedienceStaging, setIsObedienceStaging] = useState(false);
   const [isRaidDensStaging, setIsRaidDensStaging] = useState(false);
+  const [isPokeJobsStaging, setIsPokeJobsStaging] = useState(false);
+  const [isYCommStaging, setIsYCommStaging] = useState(false);
   const [isFixAiFlagsStaging, setIsFixAiFlagsStaging] = useState(false);
   const [isTrainerWhiteoutStaging, setIsTrainerWhiteoutStaging] = useState(false);
   const bbqRewardsGenerationRef = useRef(0);
@@ -3284,6 +3298,8 @@ export function App({
   const gameOptionsGenerationRef = useRef(0);
   const obedienceGenerationRef = useRef(0);
   const raidDensGenerationRef = useRef(0);
+  const pokeJobsGenerationRef = useRef(0);
+  const yCommGenerationRef = useRef(0);
   const fixAiFlagsGenerationRef = useRef(0);
   const trainerWhiteoutGenerationRef = useRef(0);
   const [isHabitatCoordinatesLoading, setIsHabitatCoordinatesLoading] = useState(false);
@@ -4142,6 +4158,8 @@ export function App({
           gameOptionsWorkflow,
           obedienceWorkflow,
           raidDensWorkflow,
+          pokeJobsWorkflow,
+          yCommWorkflow,
           fixAiFlagsWorkflow,
           trainerWhiteoutWorkflow,
           fashionUnlockWorkflow,
@@ -4200,6 +4218,8 @@ export function App({
       gameOptionsWorkflow,
       obedienceWorkflow,
       raidDensWorkflow,
+      pokeJobsWorkflow,
+      yCommWorkflow,
       fixAiFlagsWorkflow,
       trainerWhiteoutWorkflow,
       fashionUnlockWorkflow,
@@ -4325,6 +4345,8 @@ export function App({
     gameOptionsWorkflow,
     obedienceWorkflow,
     raidDensWorkflow,
+    pokeJobsWorkflow,
+    yCommWorkflow,
     fixAiFlagsWorkflow,
     trainerWhiteoutWorkflow,
     fashionUnlockWorkflow,
@@ -4469,6 +4491,10 @@ export function App({
     (dirty: boolean) => registerEditorDraftDirty('obedience', dirty), [registerEditorDraftDirty]);
   const handleRaidDensDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('raidDens', dirty), [registerEditorDraftDirty]);
+  const handlePokeJobsDirtyChange = useCallback(
+    (dirty: boolean) => registerEditorDraftDirty('pokeJobs', dirty), [registerEditorDraftDirty]);
+  const handleYCommDirtyChange = useCallback(
+    (dirty: boolean) => registerEditorDraftDirty('yComm', dirty), [registerEditorDraftDirty]);
   const handleFixAiFlagsDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('fixAiFlags', dirty), [registerEditorDraftDirty]);
   const handleTrainerWhiteoutDirtyChange = useCallback(
@@ -10528,6 +10554,88 @@ export function App({
     return accepted;
   };
 
+  const handleOpenPokeJobsWorkflow = async () => {
+    const generation = pokeJobsGenerationRef.current;
+    await runRetainedWorkflowLoad('pokeJobs', setIsPokeJobsLoading,
+      () => bridge.loadPokeJobs({ paths: createProjectPaths(draftPaths) }),
+      response => setPokeJobsWorkflow(response.workflow),
+      () => generation === pokeJobsGenerationRef.current);
+  };
+
+  const handleStagePokeJobs = async (disabled: boolean) => {
+    const activeSession = getEditSessionForSection('pokeJobs');
+    if (!activeSession) return false;
+    let accepted = false;
+    pokeJobsGenerationRef.current += 1;
+    setIsPokeJobsStaging(true);
+    prepareScopedEditorPanelAction('pokeJobs');
+    try {
+      await runEditSessionMutation(async session => {
+        const response = await bridge.stagePokeJobs({ paths: createProjectPaths(draftPaths), session, disabled });
+        const edits = response.session.pendingEdits.filter(edit => edit.domain === 'workflow.pokeJobs');
+        const acknowledged = edits.length === 0 ? response.workflow.disabled === disabled :
+          edits.length === 1 && getPokeJobsPendingDisabled(response.session) === disabled;
+        const matches = response.workflow.canEdit && response.workflow.detectedGame === draftPaths.selectedGame &&
+          response.session.sessionId === activeSession.sessionId && acknowledged;
+        const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
+        if (!matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error'))
+          diagnostics.push({ severity: 'error', domain: 'workflow.pokeJobs', code: 'KM-SWSH-POKE-JOBS-SESSION-INVALID', message: t('pokeJobs.failed') });
+        const didSucceed = matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error');
+        return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
+      }, response => {
+        setScopedEditorPanelDiagnostics('pokeJobs', response.diagnostics);
+        if (response.didSucceed) {
+          accepted = true;
+          setPokeJobsWorkflow(response.workflow);
+          setEditSessionSection('pokeJobs');
+        }
+      }, activeSession);
+    } catch (error) { setScopedEditorPanelDiagnostics('pokeJobs', toBridgeDiagnostics(error)); }
+    finally { setIsPokeJobsStaging(false); }
+    return accepted;
+  };
+
+  const handleOpenYCommWorkflow = async () => {
+    const generation = yCommGenerationRef.current;
+    await runRetainedWorkflowLoad('yComm', setIsYCommLoading,
+      () => bridge.loadYComm({ paths: createProjectPaths(draftPaths) }),
+      response => setYCommWorkflow(response.workflow),
+      () => generation === yCommGenerationRef.current);
+  };
+
+  const handleStageYComm = async (disabled: boolean) => {
+    const activeSession = getEditSessionForSection('yComm');
+    if (!activeSession) return false;
+    let accepted = false;
+    yCommGenerationRef.current += 1;
+    setIsYCommStaging(true);
+    prepareScopedEditorPanelAction('yComm');
+    try {
+      await runEditSessionMutation(async session => {
+        const response = await bridge.stageYComm({ paths: createProjectPaths(draftPaths), session, disabled });
+        const edits = response.session.pendingEdits.filter(edit => edit.domain === 'workflow.yComm');
+        const acknowledged = edits.length === 0 ? response.workflow.disabled === disabled :
+          edits.length === 1 && getYCommPendingDisabled(response.session) === disabled;
+        const matches = response.workflow.canEdit && response.workflow.detectedGame === draftPaths.selectedGame &&
+          response.session.sessionId === activeSession.sessionId && acknowledged;
+        const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
+        if (!matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error'))
+          diagnostics.push({ severity: 'error', domain: 'workflow.yComm', code: 'KM-SWSH-Y-COMM-SESSION-INVALID', message: t('yComm.failed') });
+        const didSucceed = matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error');
+        return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
+      }, response => {
+        setScopedEditorPanelDiagnostics('yComm', response.diagnostics);
+        if (response.didSucceed) {
+          accepted = true;
+          setYCommWorkflow(response.workflow);
+          setEditSessionSection('yComm');
+        }
+      }, activeSession);
+    } catch (error) { setScopedEditorPanelDiagnostics('yComm', toBridgeDiagnostics(error)); }
+    finally { setIsYCommStaging(false); }
+    return accepted;
+  };
+
   const handleOpenFixAiFlagsWorkflow = async () => {
     const generation = fixAiFlagsGenerationRef.current;
     await runRetainedWorkflowLoad('fixAiFlags', setIsFixAiFlagsLoading,
@@ -12647,6 +12755,12 @@ export function App({
         case 'raidDens':
           if (!currentState.raidDensWorkflow) await handleOpenRaidDensWorkflow();
           break;
+        case 'pokeJobs':
+          if (!currentState.pokeJobsWorkflow) await handleOpenPokeJobsWorkflow();
+          break;
+        case 'yComm':
+          if (!currentState.yCommWorkflow) await handleOpenYCommWorkflow();
+          break;
         case 'fixAiFlags':
           if (!currentState.fixAiFlagsWorkflow) await handleOpenFixAiFlagsWorkflow();
           break;
@@ -13062,6 +13176,12 @@ export function App({
       case 'raidDens':
         if (!raidDensWorkflow && !isRaidDensLoading) { markLazyLoadStarted(); void handleOpenRaidDensWorkflow(); }
         break;
+      case 'pokeJobs':
+        if (!pokeJobsWorkflow && !isPokeJobsLoading) { markLazyLoadStarted(); void handleOpenPokeJobsWorkflow(); }
+        break;
+      case 'yComm':
+        if (!yCommWorkflow && !isYCommLoading) { markLazyLoadStarted(); void handleOpenYCommWorkflow(); }
+        break;
       case 'fixAiFlags':
         if (!fixAiFlagsWorkflow && !isFixAiFlagsLoading) { markLazyLoadStarted(); void handleOpenFixAiFlagsWorkflow(); }
         break;
@@ -13353,6 +13473,8 @@ export function App({
     gameOptionsWorkflow,
     obedienceWorkflow,
     raidDensWorkflow,
+    pokeJobsWorkflow,
+    yCommWorkflow,
     fixAiFlagsWorkflow,
     trainerWhiteoutWorkflow,
     fashionUnlockWorkflow,
@@ -13394,6 +13516,8 @@ export function App({
     isGameOptionsLoading,
     isObedienceLoading,
     isRaidDensLoading,
+    isPokeJobsLoading,
+    isYCommLoading,
     isFixAiFlagsLoading,
     isTrainerWhiteoutLoading,
     isFashionUnlockLoading,
@@ -18700,6 +18824,8 @@ export function App({
       'gameOptions',
       'obedience',
       'raidDens',
+      'pokeJobs',
+      'yComm',
       'fixAiFlags',
       'trainerWhiteout',
       'giftPokemon',
@@ -18763,6 +18889,8 @@ export function App({
       gameOptions: setIsGameOptionsLoading,
       obedience: setIsObedienceLoading,
       raidDens: setIsRaidDensLoading,
+      pokeJobs: setIsPokeJobsLoading,
+      yComm: setIsYCommLoading,
       fixAiFlags: setIsFixAiFlagsLoading,
       trainerWhiteout: setIsTrainerWhiteoutLoading,
       fashionUnlock: setIsFashionUnlockLoading,
@@ -19007,6 +19135,18 @@ export function App({
       reloadTasks.push(async () => {
         const response = await bridge.loadRaidDens({ paths });
         if (canCommitRefresh()) setRaidDensWorkflow(response.workflow);
+      });
+    }
+    if (pokeJobsWorkflow && refreshSections.has('pokeJobs')) {
+      reloadTasks.push(async () => {
+        const response = await bridge.loadPokeJobs({ paths });
+        if (canCommitRefresh()) setPokeJobsWorkflow(response.workflow);
+      });
+    }
+    if (yCommWorkflow && refreshSections.has('yComm')) {
+      reloadTasks.push(async () => {
+        const response = await bridge.loadYComm({ paths });
+        if (canCommitRefresh()) setYCommWorkflow(response.workflow);
       });
     }
     if (fixAiFlagsWorkflow && refreshSections.has('fixAiFlags')) {
@@ -21568,6 +21708,26 @@ export function App({
                 onDirtyStateChange={handleRaidDensDirtyChange} onRefresh={handleOpenRaidDensWorkflow}
                 isLoading={isRaidDensLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('raidDens')} />
           ) : null}
+          {activeSection === 'pokeJobs' ? (
+            isPokeJobsLoading && !pokeJobsWorkflow ? <WorkflowLoadingPanel label={t('pokeJobs.title')} /> :
+              <PokeJobsSection workflow={pokeJobsWorkflow} session={getEditSessionForSection('pokeJobs')}
+                key={getEditSessionForSection('pokeJobs')?.sessionId ?? 'viewing'}
+                isStaging={isPokeJobsStaging} isEditing={getEditSessionForSection('pokeJobs') !== null}
+                isEditStarting={isEditStarting} onStartEditSession={handleStartEditSession}
+                onCancelEditSession={requestCancelEditSession} onStage={handleStagePokeJobs}
+                onDirtyStateChange={handlePokeJobsDirtyChange} onRefresh={handleOpenPokeJobsWorkflow}
+                isLoading={isPokeJobsLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('pokeJobs')} />
+          ) : null}
+          {activeSection === 'yComm' ? (
+            isYCommLoading && !yCommWorkflow ? <WorkflowLoadingPanel label={t('yComm.title')} /> :
+              <YCommSection workflow={yCommWorkflow} session={getEditSessionForSection('yComm')}
+                key={getEditSessionForSection('yComm')?.sessionId ?? 'viewing'}
+                isStaging={isYCommStaging} isEditing={getEditSessionForSection('yComm') !== null}
+                isEditStarting={isEditStarting} onStartEditSession={handleStartEditSession}
+                onCancelEditSession={requestCancelEditSession} onStage={handleStageYComm}
+                onDirtyStateChange={handleYCommDirtyChange} onRefresh={handleOpenYCommWorkflow}
+                isLoading={isYCommLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('yComm')} />
+          ) : null}
           {activeSection === 'fixAiFlags' ? (
             isFixAiFlagsLoading && !fixAiFlagsWorkflow ? <WorkflowLoadingPanel label={t('fixAiFlags.title')} /> :
               <FixAiFlagsSection workflow={fixAiFlagsWorkflow} session={getEditSessionForSection('fixAiFlags')}
@@ -21769,6 +21929,8 @@ export function App({
                 gameOptionsWorkflow,
                 obedienceWorkflow,
                 raidDensWorkflow,
+                pokeJobsWorkflow,
+                yCommWorkflow,
                 fixAiFlagsWorkflow,
                 trainerWhiteoutWorkflow,
                 angeFightWorkflow,
@@ -25717,9 +25879,10 @@ function SelectedPokemonPanel({
       const result = await onCopyLearnsetRow({
         move: target.move,
         personalId: pokemon.personalId,
-        values:
-          learnsetDraftsBySlot[target.move.slot] ??
-          createPokemonLearnsetDraftFields(target.move)
+        values: {
+          level: learnsetDraftsBySlot[target.move.slot]?.level ?? String(target.move.level),
+          moveId: learnsetDraftsBySlot[target.move.slot]?.moveId ?? String(target.move.moveId)
+        }
       });
       if (result.kind === 'failure') {
         setLearnsetClipboardFeedback({ isError: true, message: t(result.feedbackKey) });
@@ -26695,6 +26858,26 @@ function SelectedPokemonPanel({
         <>
           <div className={`inspector-block ${editorFamily}-pokemon-learnset-block`}>
             <h4>Learnset</h4>
+            <LearnsetClipboardActions family={editorFamily}
+              scope={JSON.stringify([learnsetScope, editSession?.sessionId])}
+              revision={JSON.stringify([sourceLearnsetRows, learnsetDraftsBySlot])}
+              busy={isPokemonUpdating || isLearnsetClipboardBusy || pokemonStructureMutationPending !== null}
+              enabled={canEditLearnset && !isLearnsetPasteApplying && pokemonStructureMutationPending === null}
+              entries={reviewPokemonLearnsetDrafts(learnsetSourcePokemon, learnsetDraftsBySlot, learnsetMoveOptions, editorFamily).invalidCount ? null
+                : orderedLearnsetMoves.map(row => ({
+                  moveId: Number(learnsetDraftsBySlot[row.slot]?.moveId ?? row.moveId),
+                  level: Number(learnsetDraftsBySlot[row.slot]?.level ?? row.level),
+                  ...(editorFamily === 'za' ? { mastery: ((learnsetDraftsBySlot[row.slot]?.rawLevel ?? row.rawLevel ?? 0) >> 8) & 255 } : {})
+                }))}
+              onPaste={entries => {
+                const drafts = replaceLearnsetDrafts(sourceLearnsetRows, entries);
+                if (entries.some(row => row.moveId !== 0 && learnsetMoveOptions.length > 0 && !learnsetMoveOptions.some(option => option.value === row.moveId))
+                  || reviewPokemonLearnsetDrafts(learnsetSourcePokemon, drafts, learnsetMoveOptions, editorFamily).invalidCount) return false;
+                setLearnsetDraftsByPokemonId(current => replaceLearnsetDraftRecord(current, pokemon.personalId, drafts));
+                setLearnsetClipboardMenu(null); setLearnsetDragState(null);
+                setSelectedLearnsetSlot(Math.max(-1, ...sourceLearnsetRows.map(row => row.slot)) + 1);
+                return true;
+              }} />
             {editorFamily === 'swsh' ? <MegaLearnsetSync
               pokemon={pokemon} records={pokemonRecords}
               canSync={canModifyLearnsetStructure}
@@ -35237,6 +35420,8 @@ function formatPendingEditDomain(domain: string) {
     'workflow.gameOptions': 'Game Options',
     'workflow.obedience': 'Obedience Level',
     'workflow.raidDens': 'Raid Dens',
+    'workflow.pokeJobs': 'Disable Poke Jobs',
+    'workflow.yComm': 'Disable Y Comm',
     'workflow.trainerWhiteout': 'Trainer Whiteout',
     'workflow.bbqRewards': 'BBQ Rewards',
     'workflow.supportBoard': 'Support Board',
@@ -35312,6 +35497,8 @@ function getPendingEditSection(edit: PendingEdit): WorkbenchSection | null {
     'workflow.gameOptions': 'gameOptions',
     'workflow.obedience': 'obedience',
     'workflow.raidDens': 'raidDens',
+    'workflow.pokeJobs': 'pokeJobs',
+    'workflow.yComm': 'yComm',
     'workflow.trainerWhiteout': 'trainerWhiteout',
     'workflow.bbqRewards': 'bbqRewards',
     'workflow.supportBoard': 'supportBoard',
@@ -35782,6 +35969,16 @@ function getPendingEditDisplayDetails(
       return createPendingEditDisplayDetails(edit, {
         editorLabel, recordLocalizationKey: 'raidDens.title', fieldLocalizationKey: 'raidDens.interaction',
         newValueLocalizationKey: edit.newValue === 'true' ? 'raidDens.disabled' : 'raidDens.enabled'
+      });
+    case 'workflow.pokeJobs':
+      return createPendingEditDisplayDetails(edit, {
+        editorLabel, recordLocalizationKey: 'pokeJobs.title', fieldLocalizationKey: 'pokeJobs.interaction',
+        newValueLocalizationKey: edit.newValue === 'true' ? 'pokeJobs.disabled' : 'pokeJobs.enabled'
+      });
+    case 'workflow.yComm':
+      return createPendingEditDisplayDetails(edit, {
+        editorLabel, recordLocalizationKey: 'yComm.title', fieldLocalizationKey: 'yComm.interaction',
+        newValueLocalizationKey: edit.newValue === 'true' ? 'yComm.disabled' : 'yComm.enabled'
       });
     case 'workflow.trainerWhiteout':
       return createPendingEditDisplayDetails(edit, {
@@ -57348,6 +57545,8 @@ export type PendingEditContext = {
   gameOptionsWorkflow?: GameOptionsWorkflow | null;
   obedienceWorkflow?: ObedienceWorkflow | null;
   raidDensWorkflow?: RaidDensWorkflow | null;
+  pokeJobsWorkflow?: PokeJobsWorkflow | null;
+  yCommWorkflow?: YCommWorkflow | null;
   fixAiFlagsWorkflow?: FixAiFlagsWorkflow | null;
   trainerWhiteoutWorkflow?: TrainerWhiteoutWorkflow | null;
   bbqRewardsWorkflow?: BlueberryWorkflow | null;
@@ -59249,7 +59448,8 @@ function pokemonLearnsetDraftEqualsRecord(
   draft: PokemonLearnsetDraftFields,
   move: PokemonLearnsetMove
 ) {
-  return draft.level === move.level.toString() && draft.moveId === move.moveId.toString();
+  return draft.level === move.level.toString() && draft.moveId === move.moveId.toString()
+    && (draft.rawLevel === undefined || draft.rawLevel === move.rawLevel);
 }
 
 function reviewPokemonLearnsetDrafts(
@@ -59283,7 +59483,8 @@ function reviewPokemonLearnsetDrafts(
       (gameFamily === 'swsh' && (adding || moveId !== move?.moveId) && !isValidSwShLearnsetMove(moveId, learnsetMoveOptions))) {
       invalidCount++; continue;
     }
-    const change = { action: adding ? 'add' : 'upsert', slot: adding ? null : slots.get(slot)!, moveId, level };
+    const change = { action: adding ? 'add' : 'upsert', slot: adding ? null : slots.get(slot)!, moveId, level,
+      ...(gameFamily === 'za' && draft.rawLevel !== undefined ? { rawLevel: (draft.rawLevel & 0xff00) | level } : {}) };
     if (adding) additions.push(change); else changes.push(change);
   }
   changes.push(...additions);

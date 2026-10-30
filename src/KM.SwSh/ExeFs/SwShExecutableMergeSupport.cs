@@ -149,6 +149,14 @@ public static class SwShExecutableMergeSupport
             catch (InvalidDataException) { return false; }
         }
         var originalRates = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(original));
+        if (KM.SwSh.YComm.SwShYCommMainPatcher.Reservations()
+            .Where(region => !region.FeatureId.Contains(game == ProjectGame.Sword ? "-shield-" : "-sword-", StringComparison.Ordinal))
+            .Any(region => !beforeOptions.Text.DecompressedData.AsSpan(region.StartOffset!.Value, region.Length!.Value)
+                .SequenceEqual(afterOptions.Text.DecompressedData.AsSpan(region.StartOffset.Value, region.Length.Value))))
+        {
+            try { _ = KM.SwSh.YComm.SwShYCommMainPatcher.Read(merged, game); }
+            catch (InvalidDataException) { return false; }
+        }
         var mergedRates = SwShHeldItemChancePatcher.Rates(NsoFile.Parse(merged));
         if (!originalRates.SequenceEqual(mergedRates) || SwShHeldItemChancePatcher.CreateReservations()
             .Where(region => !region.FeatureId.Contains(game == ProjectGame.Sword ? "-shield-" : "-sword-", StringComparison.Ordinal))

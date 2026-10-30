@@ -44,7 +44,8 @@ public sealed record PokemonLearnsetUpdateDto(
     string Action,
     int? Slot,
     int? MoveId,
-    int? Level);
+    int? Level,
+    int? RawLevel = null);
 
 public sealed record UpdatePokemonCompositeRequest(
     ProjectPathsDto Paths,

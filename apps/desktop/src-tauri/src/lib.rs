@@ -266,6 +266,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "placement.object.load",
     "placement.object.update",
     "placement.objects.update",
+    "pokeJobs.load",
+    "pokeJobs.stage",
     "pokemon.composite.update",
     "pokemon.dex.megas.sync.stage",
     "pokemon.dex.move",
@@ -405,6 +407,8 @@ const ROUTED_PROJECT_BRIDGE_COMMANDS: &[&str] = &[
     "workspace.projectState.delete",
     "workspace.projectState.read",
     "workspace.projectState.write",
+    "yComm.load",
+    "yComm.stage",
     "zaCache.clear",
     "zaCache.settings.update",
     "zaCache.status",
@@ -2877,6 +2881,8 @@ fn is_project_bridge_workflow_load_command(command: &str) -> bool {
             | "gameOptions.load"
             | "marnieBoosts.load"
             | "raidDens.load"
+            | "pokeJobs.load"
+            | "yComm.load"
             | "trainerWhiteout.load"
             | "raidBattles.load"
             | "raidBonusRewards.load"
@@ -3046,6 +3052,8 @@ fn is_replay_safe_edit_session_command(command: &str) -> bool {
             | "gameOptions.stage"
             | "marnieBoosts.stage"
             | "raidDens.stage"
+            | "pokeJobs.stage"
+            | "yComm.stage"
             | "fixAiFlags.load"
             | "fixAiFlags.stage"
             | "trainerWhiteout.stage"
