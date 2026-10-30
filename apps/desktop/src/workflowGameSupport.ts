@@ -49,6 +49,7 @@ import { type HeldItemChanceWorkflow } from './bridge/heldItemChanceContracts';
 import { type GameOptionsWorkflow } from './bridge/gameOptionsContracts';
 import { type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { type RaidDensWorkflow } from './bridge/raidDensContracts';
+import { type PokeJobsWorkflow } from './bridge/pokeJobsContracts';
 import { type FixAiFlagsWorkflow } from './bridge/fixAiFlagsContracts';
 import { type TrainerWhiteoutWorkflow } from './bridge/trainerWhiteoutContracts';
 import { type HabitatCoordinatesWorkflow } from './bridge/habitatCoordinatesContracts';
@@ -126,6 +127,7 @@ export const workflowNavigationGroups: WorkflowNavigationGroup[] = [
       'npcItemGift',
       'catchCap',
       'obedience',
+      'pokeJobs',
       'ivScreen',
       'hyperTraining',
       'shinyRate',
@@ -207,6 +209,7 @@ export const sharedStagedEditorSectionIds = new Set<WorkbenchSection>([
   'gameOptions',
   'obedience',
   'raidDens',
+  'pokeJobs',
   'fixAiFlags',
   'trainerWhiteout',
   'moves',
@@ -252,6 +255,7 @@ export const sharedStagedEditorDomains = new Set([
   'workflow.gameOptions',
   'workflow.obedience',
   'workflow.raidDens',
+  'workflow.pokeJobs',
   'workflow.trainerWhiteout',
   'workflow.moves',
   'workflow.items',
@@ -356,6 +360,7 @@ export type LoadedWorkflowStateBySection = {
   gameOptionsWorkflow: GameOptionsWorkflow | null;
   obedienceWorkflow: ObedienceWorkflow | null;
   raidDensWorkflow: RaidDensWorkflow | null;
+  pokeJobsWorkflow: PokeJobsWorkflow | null;
   fixAiFlagsWorkflow: FixAiFlagsWorkflow | null;
   trainerWhiteoutWorkflow: TrainerWhiteoutWorkflow | null;
   spreadsheetImportWorkflow: SpreadsheetImportWorkflow | null;
@@ -511,6 +516,8 @@ export function getLoadedWorkflowStateForSection(
       return state.marnieBoostsWorkflow !== null;
     case 'raidDens':
       return state.raidDensWorkflow !== null;
+    case 'pokeJobs':
+      return state.pokeJobsWorkflow !== null;
     case 'fixAiFlags':
       return state.fixAiFlagsWorkflow !== null;
     case 'trainerWhiteout':

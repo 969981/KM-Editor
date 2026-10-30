@@ -477,6 +477,7 @@ import { HeldItemChanceSection } from './features/held-item-chance/HeldItemChanc
 import { GameOptionsSection } from './features/game-options/GameOptionsSection';
 import { ObedienceSection } from './features/obedience/ObedienceSection';
 import { RaidDensSection } from './features/raid-dens/RaidDensSection';
+import { PokeJobsSection } from './features/poke-jobs/PokeJobsSection';
 import { FixAiFlagsSection } from './features/fix-ai-flags/FixAiFlagsSection';
 import { TrainerWhiteoutSection } from './features/trainer-whiteout/TrainerWhiteoutSection';
 import { treeValues, treeFieldKey, type TreeUpdate, type ShakingTreesWorkflow } from './bridge/shakingTreesContracts';
@@ -490,6 +491,7 @@ import { encodeGameOptionsSelections, getGameOptionsPendingSelections, type Game
 import { encodeObedienceSelections, getObediencePendingSelections, type ObedienceWorkflow } from './bridge/obedienceContracts';
 import { encodeMarnieBoostSelections, getMarnieBoostPendingSelections, type MarnieBoostsWorkflow } from './bridge/marnieBoostsContracts';
 import { type RaidDensWorkflow } from './bridge/raidDensContracts';
+import { getPokeJobsPendingDisabled, type PokeJobsWorkflow } from './bridge/pokeJobsContracts';
 import { type FixAiFlagsWorkflow, type FixAiFlagsSelection } from './bridge/fixAiFlagsContracts';
 import { type TrainerWhiteoutWorkflow, type TrainerWhiteoutChange } from './bridge/trainerWhiteoutContracts';
 import { BlueberrySection } from './features/blueberry/BlueberrySection';
@@ -3230,6 +3232,7 @@ export function App({
   const gameOptionsWorkflow = useWorkbenchStore(state => state.gameOptionsWorkflow);
   const obedienceWorkflow = useWorkbenchStore(state => state.obedienceWorkflow);
   const raidDensWorkflow = useWorkbenchStore(state => state.raidDensWorkflow);
+  const pokeJobsWorkflow = useWorkbenchStore(state => state.pokeJobsWorkflow);
   const fixAiFlagsWorkflow = useWorkbenchStore(state => state.fixAiFlagsWorkflow);
   const trainerWhiteoutWorkflow = useWorkbenchStore(state => state.trainerWhiteoutWorkflow);
   const setBbqRewardsWorkflow = useWorkbenchStore(state => state.setBbqRewardsWorkflow);
@@ -3244,6 +3247,7 @@ export function App({
   const setGameOptionsWorkflow = useWorkbenchStore(state => state.setGameOptionsWorkflow);
   const setObedienceWorkflow = useWorkbenchStore(state => state.setObedienceWorkflow);
   const setRaidDensWorkflow = useWorkbenchStore(state => state.setRaidDensWorkflow);
+  const setPokeJobsWorkflow = useWorkbenchStore(state => state.setPokeJobsWorkflow);
   const setFixAiFlagsWorkflow = useWorkbenchStore(state => state.setFixAiFlagsWorkflow);
   const setTrainerWhiteoutWorkflow = useWorkbenchStore(state => state.setTrainerWhiteoutWorkflow);
   const [isBbqRewardsLoading, setIsBbqRewardsLoading] = useState(false);
@@ -3258,6 +3262,7 @@ export function App({
   const [isGameOptionsLoading, setIsGameOptionsLoading] = useState(false);
   const [isObedienceLoading, setIsObedienceLoading] = useState(false);
   const [isRaidDensLoading, setIsRaidDensLoading] = useState(false);
+  const [isPokeJobsLoading, setIsPokeJobsLoading] = useState(false);
   const [isFixAiFlagsLoading, setIsFixAiFlagsLoading] = useState(false);
   const [isTrainerWhiteoutLoading, setIsTrainerWhiteoutLoading] = useState(false);
   const [isBbqRewardsStaging, setIsBbqRewardsStaging] = useState(false);
@@ -3272,6 +3277,7 @@ export function App({
   const [isGameOptionsStaging, setIsGameOptionsStaging] = useState(false);
   const [isObedienceStaging, setIsObedienceStaging] = useState(false);
   const [isRaidDensStaging, setIsRaidDensStaging] = useState(false);
+  const [isPokeJobsStaging, setIsPokeJobsStaging] = useState(false);
   const [isFixAiFlagsStaging, setIsFixAiFlagsStaging] = useState(false);
   const [isTrainerWhiteoutStaging, setIsTrainerWhiteoutStaging] = useState(false);
   const bbqRewardsGenerationRef = useRef(0);
@@ -3286,6 +3292,7 @@ export function App({
   const gameOptionsGenerationRef = useRef(0);
   const obedienceGenerationRef = useRef(0);
   const raidDensGenerationRef = useRef(0);
+  const pokeJobsGenerationRef = useRef(0);
   const fixAiFlagsGenerationRef = useRef(0);
   const trainerWhiteoutGenerationRef = useRef(0);
   const [isHabitatCoordinatesLoading, setIsHabitatCoordinatesLoading] = useState(false);
@@ -4144,6 +4151,7 @@ export function App({
           gameOptionsWorkflow,
           obedienceWorkflow,
           raidDensWorkflow,
+          pokeJobsWorkflow,
           fixAiFlagsWorkflow,
           trainerWhiteoutWorkflow,
           fashionUnlockWorkflow,
@@ -4202,6 +4210,7 @@ export function App({
       gameOptionsWorkflow,
       obedienceWorkflow,
       raidDensWorkflow,
+      pokeJobsWorkflow,
       fixAiFlagsWorkflow,
       trainerWhiteoutWorkflow,
       fashionUnlockWorkflow,
@@ -4327,6 +4336,7 @@ export function App({
     gameOptionsWorkflow,
     obedienceWorkflow,
     raidDensWorkflow,
+    pokeJobsWorkflow,
     fixAiFlagsWorkflow,
     trainerWhiteoutWorkflow,
     fashionUnlockWorkflow,
@@ -4471,6 +4481,8 @@ export function App({
     (dirty: boolean) => registerEditorDraftDirty('obedience', dirty), [registerEditorDraftDirty]);
   const handleRaidDensDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('raidDens', dirty), [registerEditorDraftDirty]);
+  const handlePokeJobsDirtyChange = useCallback(
+    (dirty: boolean) => registerEditorDraftDirty('pokeJobs', dirty), [registerEditorDraftDirty]);
   const handleFixAiFlagsDirtyChange = useCallback(
     (dirty: boolean) => registerEditorDraftDirty('fixAiFlags', dirty), [registerEditorDraftDirty]);
   const handleTrainerWhiteoutDirtyChange = useCallback(
@@ -10530,6 +10542,47 @@ export function App({
     return accepted;
   };
 
+  const handleOpenPokeJobsWorkflow = async () => {
+    const generation = pokeJobsGenerationRef.current;
+    await runRetainedWorkflowLoad('pokeJobs', setIsPokeJobsLoading,
+      () => bridge.loadPokeJobs({ paths: createProjectPaths(draftPaths) }),
+      response => setPokeJobsWorkflow(response.workflow),
+      () => generation === pokeJobsGenerationRef.current);
+  };
+
+  const handleStagePokeJobs = async (disabled: boolean) => {
+    const activeSession = getEditSessionForSection('pokeJobs');
+    if (!activeSession) return false;
+    let accepted = false;
+    pokeJobsGenerationRef.current += 1;
+    setIsPokeJobsStaging(true);
+    prepareScopedEditorPanelAction('pokeJobs');
+    try {
+      await runEditSessionMutation(async session => {
+        const response = await bridge.stagePokeJobs({ paths: createProjectPaths(draftPaths), session, disabled });
+        const edits = response.session.pendingEdits.filter(edit => edit.domain === 'workflow.pokeJobs');
+        const acknowledged = edits.length === 0 ? response.workflow.disabled === disabled :
+          edits.length === 1 && getPokeJobsPendingDisabled(response.session) === disabled;
+        const matches = response.workflow.canEdit && response.workflow.detectedGame === draftPaths.selectedGame &&
+          response.session.sessionId === activeSession.sessionId && acknowledged;
+        const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
+        if (!matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error'))
+          diagnostics.push({ severity: 'error', domain: 'workflow.pokeJobs', code: 'KM-SWSH-POKE-JOBS-SESSION-INVALID', message: t('pokeJobs.failed') });
+        const didSucceed = matches && !diagnostics.some(diagnostic => diagnostic.severity === 'error');
+        return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
+      }, response => {
+        setScopedEditorPanelDiagnostics('pokeJobs', response.diagnostics);
+        if (response.didSucceed) {
+          accepted = true;
+          setPokeJobsWorkflow(response.workflow);
+          setEditSessionSection('pokeJobs');
+        }
+      }, activeSession);
+    } catch (error) { setScopedEditorPanelDiagnostics('pokeJobs', toBridgeDiagnostics(error)); }
+    finally { setIsPokeJobsStaging(false); }
+    return accepted;
+  };
+
   const handleOpenFixAiFlagsWorkflow = async () => {
     const generation = fixAiFlagsGenerationRef.current;
     await runRetainedWorkflowLoad('fixAiFlags', setIsFixAiFlagsLoading,
@@ -12649,6 +12702,9 @@ export function App({
         case 'raidDens':
           if (!currentState.raidDensWorkflow) await handleOpenRaidDensWorkflow();
           break;
+        case 'pokeJobs':
+          if (!currentState.pokeJobsWorkflow) await handleOpenPokeJobsWorkflow();
+          break;
         case 'fixAiFlags':
           if (!currentState.fixAiFlagsWorkflow) await handleOpenFixAiFlagsWorkflow();
           break;
@@ -13064,6 +13120,9 @@ export function App({
       case 'raidDens':
         if (!raidDensWorkflow && !isRaidDensLoading) { markLazyLoadStarted(); void handleOpenRaidDensWorkflow(); }
         break;
+      case 'pokeJobs':
+        if (!pokeJobsWorkflow && !isPokeJobsLoading) { markLazyLoadStarted(); void handleOpenPokeJobsWorkflow(); }
+        break;
       case 'fixAiFlags':
         if (!fixAiFlagsWorkflow && !isFixAiFlagsLoading) { markLazyLoadStarted(); void handleOpenFixAiFlagsWorkflow(); }
         break;
@@ -13355,6 +13414,7 @@ export function App({
     gameOptionsWorkflow,
     obedienceWorkflow,
     raidDensWorkflow,
+    pokeJobsWorkflow,
     fixAiFlagsWorkflow,
     trainerWhiteoutWorkflow,
     fashionUnlockWorkflow,
@@ -13396,6 +13456,7 @@ export function App({
     isGameOptionsLoading,
     isObedienceLoading,
     isRaidDensLoading,
+    isPokeJobsLoading,
     isFixAiFlagsLoading,
     isTrainerWhiteoutLoading,
     isFashionUnlockLoading,
@@ -18702,6 +18763,7 @@ export function App({
       'gameOptions',
       'obedience',
       'raidDens',
+      'pokeJobs',
       'fixAiFlags',
       'trainerWhiteout',
       'giftPokemon',
@@ -18765,6 +18827,7 @@ export function App({
       gameOptions: setIsGameOptionsLoading,
       obedience: setIsObedienceLoading,
       raidDens: setIsRaidDensLoading,
+      pokeJobs: setIsPokeJobsLoading,
       fixAiFlags: setIsFixAiFlagsLoading,
       trainerWhiteout: setIsTrainerWhiteoutLoading,
       fashionUnlock: setIsFashionUnlockLoading,
@@ -19009,6 +19072,12 @@ export function App({
       reloadTasks.push(async () => {
         const response = await bridge.loadRaidDens({ paths });
         if (canCommitRefresh()) setRaidDensWorkflow(response.workflow);
+      });
+    }
+    if (pokeJobsWorkflow && refreshSections.has('pokeJobs')) {
+      reloadTasks.push(async () => {
+        const response = await bridge.loadPokeJobs({ paths });
+        if (canCommitRefresh()) setPokeJobsWorkflow(response.workflow);
       });
     }
     if (fixAiFlagsWorkflow && refreshSections.has('fixAiFlags')) {
@@ -21570,6 +21639,16 @@ export function App({
                 onDirtyStateChange={handleRaidDensDirtyChange} onRefresh={handleOpenRaidDensWorkflow}
                 isLoading={isRaidDensLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('raidDens')} />
           ) : null}
+          {activeSection === 'pokeJobs' ? (
+            isPokeJobsLoading && !pokeJobsWorkflow ? <WorkflowLoadingPanel label={t('pokeJobs.title')} /> :
+              <PokeJobsSection workflow={pokeJobsWorkflow} session={getEditSessionForSection('pokeJobs')}
+                key={getEditSessionForSection('pokeJobs')?.sessionId ?? 'viewing'}
+                isStaging={isPokeJobsStaging} isEditing={getEditSessionForSection('pokeJobs') !== null}
+                isEditStarting={isEditStarting} onStartEditSession={handleStartEditSession}
+                onCancelEditSession={requestCancelEditSession} onStage={handleStagePokeJobs}
+                onDirtyStateChange={handlePokeJobsDirtyChange} onRefresh={handleOpenPokeJobsWorkflow}
+                isLoading={isPokeJobsLoading} panelOutput={getOutputSafeScopedEditorPanelOutput('pokeJobs')} />
+          ) : null}
           {activeSection === 'fixAiFlags' ? (
             isFixAiFlagsLoading && !fixAiFlagsWorkflow ? <WorkflowLoadingPanel label={t('fixAiFlags.title')} /> :
               <FixAiFlagsSection workflow={fixAiFlagsWorkflow} session={getEditSessionForSection('fixAiFlags')}
@@ -21771,6 +21850,7 @@ export function App({
                 gameOptionsWorkflow,
                 obedienceWorkflow,
                 raidDensWorkflow,
+                pokeJobsWorkflow,
                 fixAiFlagsWorkflow,
                 trainerWhiteoutWorkflow,
                 angeFightWorkflow,
@@ -35260,6 +35340,7 @@ function formatPendingEditDomain(domain: string) {
     'workflow.gameOptions': 'Game Options',
     'workflow.obedience': 'Obedience Level',
     'workflow.raidDens': 'Raid Dens',
+    'workflow.pokeJobs': 'Disable Poke Jobs',
     'workflow.trainerWhiteout': 'Trainer Whiteout',
     'workflow.bbqRewards': 'BBQ Rewards',
     'workflow.supportBoard': 'Support Board',
@@ -35335,6 +35416,7 @@ function getPendingEditSection(edit: PendingEdit): WorkbenchSection | null {
     'workflow.gameOptions': 'gameOptions',
     'workflow.obedience': 'obedience',
     'workflow.raidDens': 'raidDens',
+    'workflow.pokeJobs': 'pokeJobs',
     'workflow.trainerWhiteout': 'trainerWhiteout',
     'workflow.bbqRewards': 'bbqRewards',
     'workflow.supportBoard': 'supportBoard',
@@ -35805,6 +35887,11 @@ function getPendingEditDisplayDetails(
       return createPendingEditDisplayDetails(edit, {
         editorLabel, recordLocalizationKey: 'raidDens.title', fieldLocalizationKey: 'raidDens.interaction',
         newValueLocalizationKey: edit.newValue === 'true' ? 'raidDens.disabled' : 'raidDens.enabled'
+      });
+    case 'workflow.pokeJobs':
+      return createPendingEditDisplayDetails(edit, {
+        editorLabel, recordLocalizationKey: 'pokeJobs.title', fieldLocalizationKey: 'pokeJobs.interaction',
+        newValueLocalizationKey: edit.newValue === 'true' ? 'pokeJobs.disabled' : 'pokeJobs.enabled'
       });
     case 'workflow.trainerWhiteout':
       return createPendingEditDisplayDetails(edit, {
@@ -57371,6 +57458,7 @@ export type PendingEditContext = {
   gameOptionsWorkflow?: GameOptionsWorkflow | null;
   obedienceWorkflow?: ObedienceWorkflow | null;
   raidDensWorkflow?: RaidDensWorkflow | null;
+  pokeJobsWorkflow?: PokeJobsWorkflow | null;
   fixAiFlagsWorkflow?: FixAiFlagsWorkflow | null;
   trainerWhiteoutWorkflow?: TrainerWhiteoutWorkflow | null;
   bbqRewardsWorkflow?: BlueberryWorkflow | null;

@@ -52,8 +52,10 @@ using KM.SwSh.HeldItemChance;
 using KM.SwSh.GameOptions;
 using KM.SwSh.Obedience;
 using KM.Api.RaidDens;
+using KM.Api.PokeJobs;
 using KM.Api.TrainerWhiteout;
 using KM.SwSh.RaidDens;
+using KM.SwSh.PokeJobs;
 using KM.SwSh.TrainerWhiteout;
 using KM.Api.Projects;
 using KM.Api.Research;
@@ -220,6 +222,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
     private readonly SwShGameOptionsService gameOptionsService;
     private readonly SwShObedienceService obedienceService;
     private readonly SwShRaidDensService raidDensService;
+    private readonly SwShPokeJobsService pokeJobsService;
     private readonly SwShTrainerWhiteoutService trainerWhiteoutService;
     private readonly SwShAiFlagsRepairService aiFlagsRepairService;
     private readonly SwShProfanityFilterService profanityFilterService;
@@ -354,6 +357,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         gameOptionsService = new SwShGameOptionsService(this.projectWorkspaceService);
         obedienceService = new SwShObedienceService(this.projectWorkspaceService);
         raidDensService = new SwShRaidDensService(this.projectWorkspaceService);
+        pokeJobsService = new SwShPokeJobsService(this.projectWorkspaceService);
         trainerWhiteoutService = new SwShTrainerWhiteoutService(this.projectWorkspaceService);
         aiFlagsRepairService = new SwShAiFlagsRepairService(this.projectWorkspaceService);
         this.profanityFilterService = profanityFilterService ?? new SwShProfanityFilterService(this.projectWorkspaceService);
@@ -804,6 +808,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.LoadGameOptions => DispatchLoadGameOptions(requestJson),
                 KmCommandNames.LoadObedience => DispatchLoadObedience(requestJson),
                 KmCommandNames.LoadRaidDens => DispatchLoadRaidDens(requestJson),
+                KmCommandNames.LoadPokeJobs => DispatchLoadPokeJobs(requestJson),
                 KmCommandNames.LoadFixAiFlags => DispatchLoadFixAiFlags(requestJson),
                 KmCommandNames.StageFixAiFlags => DispatchStageFixAiFlags(requestJson),
                 KmCommandNames.LoadTrainerWhiteout => DispatchLoadTrainerWhiteout(requestJson),
@@ -813,6 +818,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
                 KmCommandNames.StageGameOptions => DispatchStageGameOptions(requestJson),
                 KmCommandNames.StageObedience => DispatchStageObedience(requestJson),
                 KmCommandNames.StageRaidDens => DispatchStageRaidDens(requestJson),
+                KmCommandNames.StagePokeJobs => DispatchStagePokeJobs(requestJson),
                 KmCommandNames.StageTrainerWhiteout => DispatchStageTrainerWhiteout(requestJson),
                 KmCommandNames.LoadProfanityFilter => DispatchLoadProfanityFilter(requestJson),
                 KmCommandNames.LoadTrainerDynamax => DispatchLoadTrainerDynamax(requestJson),
@@ -5811,6 +5817,27 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         workflow.DetectedGame is null ? null : ProjectBridgeMapper.ToDto(workflow.DetectedGame.Value),
         workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray());
 
+    private string DispatchLoadPokeJobs(string requestJson)
+    {
+        var request = DeserializeRequest<LoadPokeJobsRequest>(requestJson);
+        return SerializeSuccess(new LoadPokeJobsResponse(ToDto(pokeJobsService.Load(
+            ProjectBridgeMapper.ToCore(request.Payload.Paths)))), request.RequestId);
+    }
+
+    private string DispatchStagePokeJobs(string requestJson)
+    {
+        var request = DeserializeRequest<StagePokeJobsRequest>(requestJson);
+        var result = pokeJobsService.Stage(ProjectBridgeMapper.ToCore(request.Payload.Paths),
+            request.Payload.Disabled, request.Payload.Session is null ? null : EditSessionBridgeMapper.ToCore(request.Payload.Session));
+        return SerializeSuccess(new StagePokeJobsResponse(ToDto(result.Workflow),
+            EditSessionBridgeMapper.ToDto(result.Session), result.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray()), request.RequestId);
+    }
+
+    private static PokeJobsWorkflowDto ToDto(SwShPokeJobsWorkflow workflow) => new(
+        workflow.CanEdit, workflow.Disabled, workflow.SourceLayer,
+        workflow.DetectedGame is null ? null : ProjectBridgeMapper.ToDto(workflow.DetectedGame.Value),
+        workflow.Diagnostics.Select(ProjectBridgeMapper.ToDto).ToArray());
+
     private string DispatchLoadFixAiFlags(string requestJson)
     {
         var request = DeserializeRequest<LoadFixAiFlagsRequest>(requestJson);
@@ -6543,6 +6570,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.GameOptions => gameOptionsService.Validate(paths, session),
             EditSessionDomain.Obedience => obedienceService.Validate(paths, session),
             EditSessionDomain.RaidDens => raidDensService.Validate(paths, session),
+            EditSessionDomain.PokeJobs => pokeJobsService.Validate(paths, session),
             EditSessionDomain.TrainerWhiteout => trainerWhiteoutService.Validate(paths, session),
             EditSessionDomain.FashionUnlock => fashionUnlockEditSessionService.Validate(paths, session),
             EditSessionDomain.GymUniformRemoval => gymUniformRemovalEditSessionService.Validate(paths, session),
@@ -6595,6 +6623,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.GameOptions => gameOptionsService.CreateChangePlan(paths, session),
             EditSessionDomain.Obedience => obedienceService.CreateChangePlan(paths, session),
             EditSessionDomain.RaidDens => raidDensService.CreateChangePlan(paths, session),
+            EditSessionDomain.PokeJobs => pokeJobsService.CreateChangePlan(paths, session),
             EditSessionDomain.TrainerWhiteout => trainerWhiteoutService.CreateChangePlan(paths, session),
             EditSessionDomain.FashionUnlock => fashionUnlockEditSessionService.CreateChangePlan(paths, session),
             EditSessionDomain.GymUniformRemoval => gymUniformRemovalEditSessionService.CreateChangePlan(paths, session),
@@ -6648,6 +6677,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.GameOptions => gameOptionsService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.Obedience => obedienceService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.RaidDens => raidDensService.ApplyChangePlan(paths, session, reviewedPlan),
+            EditSessionDomain.PokeJobs => pokeJobsService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.TrainerWhiteout => trainerWhiteoutService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.FashionUnlock => fashionUnlockEditSessionService.ApplyChangePlan(paths, session, reviewedPlan),
             EditSessionDomain.GymUniformRemoval => gymUniformRemovalEditSessionService.ApplyChangePlan(paths, session, reviewedPlan),
@@ -6943,6 +6973,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             "workflow.gameOptions" => EditSessionDomain.GameOptions,
             "workflow.obedience" => EditSessionDomain.Obedience,
             "workflow.raidDens" => EditSessionDomain.RaidDens,
+            "workflow.pokeJobs" => EditSessionDomain.PokeJobs,
             "workflow.trainerWhiteout" => EditSessionDomain.TrainerWhiteout,
             "workflow.fairyGymBoosts" => EditSessionDomain.FairyGymBoosts,
             "workflow.fashionUnlock" => EditSessionDomain.FashionUnlock,
@@ -6978,6 +7009,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.GameOptions or
             EditSessionDomain.Obedience or
             EditSessionDomain.RaidDens or
+            EditSessionDomain.PokeJobs or
             EditSessionDomain.TrainerWhiteout or
             EditSessionDomain.ModelTextures or
             EditSessionDomain.Items or
@@ -7033,6 +7065,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             EditSessionDomain.GameOptions => "workflow.gameOptions",
             EditSessionDomain.Obedience => "workflow.obedience",
             EditSessionDomain.RaidDens => "workflow.raidDens",
+            EditSessionDomain.PokeJobs => "workflow.pokeJobs",
             EditSessionDomain.TrainerWhiteout => "workflow.trainerWhiteout",
             EditSessionDomain.FairyGymBoosts => "workflow.fairyGymBoosts",
             EditSessionDomain.FashionUnlock => "workflow.fashionUnlock",
@@ -7117,6 +7150,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             ["workflow.gameOptions"] => EditSessionDomain.GameOptions,
             ["workflow.obedience"] => EditSessionDomain.Obedience,
             ["workflow.raidDens"] => EditSessionDomain.RaidDens,
+            ["workflow.pokeJobs"] => EditSessionDomain.PokeJobs,
             ["workflow.trainerWhiteout"] => EditSessionDomain.TrainerWhiteout,
             ["workflow.fairyGymBoosts"] => EditSessionDomain.FairyGymBoosts,
             ["workflow.fashionUnlock"] => EditSessionDomain.FashionUnlock,
@@ -8624,6 +8658,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.LoadGameOptions or
             KmCommandNames.LoadObedience or
             KmCommandNames.LoadRaidDens or
+            KmCommandNames.LoadPokeJobs or
             KmCommandNames.LoadFixAiFlags or
             KmCommandNames.StageFixAiFlags or
             KmCommandNames.LoadTrainerWhiteout or
@@ -8633,6 +8668,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
             KmCommandNames.StageGameOptions or
             KmCommandNames.StageObedience or
             KmCommandNames.StageRaidDens or
+            KmCommandNames.StagePokeJobs or
             KmCommandNames.StageTrainerWhiteout or
             KmCommandNames.LoadFairyGymBoostsWorkflow or
             KmCommandNames.StageFairyGymBoosts or
@@ -9260,6 +9296,7 @@ public sealed partial class ProjectBridgeDispatcher : IDisposable
         GameOptions,
         Obedience,
         RaidDens,
+        PokeJobs,
         TrainerWhiteout,
         FairyGymBoosts,
         FashionUnlock,
