@@ -41,6 +41,10 @@ const reviewDiagnosticLocalizationKeys: Readonly<Record<string, string>> = {
 };
 
 const diagnosticLocalizationKeys: Readonly<Record<string, string>> = {
+  'KM-SWSH-POKE-JOBS-SOURCE-INVALID': 'pokeJobs.diagnostic.source',
+  'KM-SWSH-POKE-JOBS-SESSION-INVALID': 'pokeJobs.diagnostic.session',
+  'KM-SWSH-POKE-JOBS-PLAN-STALE': 'pokeJobs.diagnostic.stale',
+  'KM-SWSH-POKE-JOBS-APPLY-FAILED': 'pokeJobs.diagnostic.apply',
   'KM-SWSH-POKEMON-HELD-ITEMS-INVALID': 'pokemon.heldItems.invalid',
   'KM-SWSH-POKEMON-HELD-ITEMS-REPAIR-STAGED': 'pokemon.heldItems.repairStaged',
   'KM-SWSH-POKEMON-HELD-ITEMS-REPAIR-FAILED': 'pokemon.heldItems.repairFailed',
