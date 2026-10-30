@@ -157,6 +157,9 @@ function resolveDestination(diagnostic: ApiDiagnostic): WorkbenchSection | null 
   if (diagnostic.code?.startsWith('KM-SWSH-POKE-JOBS-') || diagnostic.domain === 'workflow.pokeJobs') {
     return 'pokeJobs';
   }
+  if (diagnostic.code?.startsWith('KM-SWSH-Y-COMM-') || diagnostic.domain === 'workflow.yComm') {
+    return 'yComm';
+  }
   if (diagnostic.code === projectBridgeErrorCodes.trainerWhiteoutInvalid || diagnostic.domain === 'workflow.trainerWhiteout') {
     return 'trainerWhiteout';
   }

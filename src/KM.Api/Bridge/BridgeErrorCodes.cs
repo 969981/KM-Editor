@@ -70,9 +70,13 @@ public static class BridgeErrorCodes
     public const string ShakingTreesApplyFailed = "KM-SWSH-TREES-APPLY-FAILED";
     public const string RaidDensInvalid = "KM-SWSH-RAID-DENS-INVALID";
     public const string PokeJobsSourceInvalid = "KM-SWSH-POKE-JOBS-SOURCE-INVALID";
+    public const string YCommSourceInvalid = "KM-SWSH-Y-COMM-SOURCE-INVALID";
     public const string PokeJobsSessionInvalid = "KM-SWSH-POKE-JOBS-SESSION-INVALID";
+    public const string YCommSessionInvalid = "KM-SWSH-Y-COMM-SESSION-INVALID";
     public const string PokeJobsPlanStale = "KM-SWSH-POKE-JOBS-PLAN-STALE";
+    public const string YCommPlanStale = "KM-SWSH-Y-COMM-PLAN-STALE";
     public const string PokeJobsApplyFailed = "KM-SWSH-POKE-JOBS-APPLY-FAILED";
+    public const string YCommApplyFailed = "KM-SWSH-Y-COMM-APPLY-FAILED";
     public const string AiFlagsRepairInvalid = "KM-SWSH-AI-FLAGS-REPAIR-INVALID";
     public const string TrainerWhiteoutInvalid = "KM-SWSH-TRAINER-WHITEOUT-INVALID";
     public const string TrainerDynamaxInvalid = "KM-SWSH-TRAINER-DYNAMAX-INVALID";

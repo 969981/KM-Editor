@@ -91,6 +91,7 @@ public static class SwShKnownExecutableCompositionVerifier
                 || !NormalizeAdventures(retail, ref normalized, expectedGame, baseAdventureArchive, currentAdventureArchive, ref recognizedTransformation)
                 || !NormalizeTrainers(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeObedience(retail, ref normalized, expectedGame, ref recognizedTransformation)
+                || !NormalizeYComm(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeGameOptions(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeLegacyGameplaySettings(retail, ref normalized, expectedGame, ref recognizedTransformation)
                 || !NormalizeIvScreen(retail, ref normalized, expectedGame, ref recognizedTransformation)
@@ -375,6 +376,15 @@ public static class SwShKnownExecutableCompositionVerifier
         var current = SwShObediencePatcher.Read(normalized, expectedGame);
         if (current.Selections.SequenceEqual(SwShObediencePatcher.Defaults)) return true;
         normalized = SwShObediencePatcher.Apply(retail, normalized, expectedGame, SwShObediencePatcher.Defaults);
+        recognizedTransformation = true;
+        return true;
+    }
+
+    private static bool NormalizeYComm(byte[] retail, ref byte[] normalized,
+        ProjectGame expectedGame, ref bool recognizedTransformation)
+    {
+        if (!KM.SwSh.YComm.SwShYCommMainPatcher.Read(normalized, expectedGame).Disabled) return true;
+        normalized = KM.SwSh.YComm.SwShYCommMainPatcher.Apply(retail, normalized, expectedGame, false);
         recognizedTransformation = true;
         return true;
     }
