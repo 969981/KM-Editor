@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pokemon.learnsetClipboard.copy": "复制招式学习表",
+    "pokemon.learnsetClipboard.paste": "粘贴招式学习表",
+    "pokemon.learnsetClipboard.copied": "已复制招式学习表。",
+    "pokemon.learnsetClipboard.pasted": "已在本地替换招式学习表。请暂存、检查并应用更改以保存。",
+    "pokemon.learnsetClipboard.rejected": "剪贴板中没有兼容的完整招式学习表，或无法读取剪贴板。未作任何更改。",
     "pokemon.learnsetSync.button": "同步招式表",
     "pokemon.learnsetSync.description": "将此超级进化形态升级时学会的招式替换为{pokemon}当前的招式表。点击“应用”以保存。",
     "pokemon.learnsetSync.unavailable": "对应的非超级进化形态不可用。",
@@ -4689,6 +4694,9 @@
     "pla.field.baseExperience": "基础经验值"
   },
   "literals": {
+    "Copied learnset level metadata is invalid.": "复制的招式学习等级数据无效。",
+    "Copied mastery metadata is only supported for Z-A learnsets.": "复制的精通数据仅适用于 Z-A 的招式学习表。",
+    "Matching learnset level and mastery metadata": "匹配的招式学习等级和精通数据",
     "Always male": "始终为雄性",
     "Always female": "始终为雌性",
     "{male}% male / {female}% female": "{male}% 雄性 / {female}% 雌性",

@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pokemon.learnsetClipboard.copy": "Lernliste kopieren",
+    "pokemon.learnsetClipboard.paste": "Lernliste einfügen",
+    "pokemon.learnsetClipboard.copied": "Lernliste kopiert.",
+    "pokemon.learnsetClipboard.pasted": "Lernliste lokal ersetzt. Zum Speichern vormerken, prüfen und anwenden.",
+    "pokemon.learnsetClipboard.rejected": "Die Zwischenablage enthält keine kompatible vollständige Lernliste oder konnte nicht gelesen werden. Es wurde nichts geändert.",
     "pokemon.learnsetSync.button": "Attacken synchronisieren",
     "pokemon.learnsetSync.description": "Ersetzt die durch Levelaufstieg erlernten Attacken dieser Mega-Form durch die aktuellen von {pokemon}. Mit Anwenden speichern.",
     "pokemon.learnsetSync.unavailable": "Die entsprechende Form ohne Mega-Entwicklung ist nicht verfügbar.",
@@ -4689,6 +4694,9 @@
     "pla.field.baseExperience": "Basis-Erfahrung"
   },
   "literals": {
+    "Copied learnset level metadata is invalid.": "Die kopierten Lernleveldaten sind ungültig.",
+    "Copied mastery metadata is only supported for Z-A learnsets.": "Kopierte Meisterungsdaten werden nur für Z-A-Lernlisten unterstützt.",
+    "Matching learnset level and mastery metadata": "Übereinstimmende Lernlevel- und Meisterungsdaten",
     "Always male": "Immer männlich",
     "Always female": "Immer weiblich",
     "{male}% male / {female}% female": "{male}% männlich / {female}% weiblich",

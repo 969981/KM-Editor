@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pokemon.learnsetClipboard.copy": "Копіювати набір прийомів",
+    "pokemon.learnsetClipboard.paste": "Вставити набір прийомів",
+    "pokemon.learnsetClipboard.copied": "Набір прийомів скопійовано.",
+    "pokemon.learnsetClipboard.pasted": "Набір прийомів замінено локально. Підготуйте, перевірте та застосуйте зміни для збереження.",
+    "pokemon.learnsetClipboard.rejected": "Буфер обміну не містить сумісного повного набору прийомів або недоступний для читання. Нічого не змінено.",
     "pokemon.learnsetSync.button": "Синхронізувати прийоми",
     "pokemon.learnsetSync.description": "Замінює прийоми цієї мегаформи, що вивчаються з підвищенням рівня, поточним набором {pokemon}. Натисніть «Застосувати», щоб зберегти.",
     "pokemon.learnsetSync.unavailable": "Відповідна форма без мегаеволюції недоступна.",
@@ -4689,6 +4694,9 @@
     "pla.field.baseExperience": "Базовий досвід"
   },
   "literals": {
+    "Copied learnset level metadata is invalid.": "Скопійовані дані рівня вивчення прийому недійсні.",
+    "Copied mastery metadata is only supported for Z-A learnsets.": "Копіювання даних опанування підтримується лише для наборів прийомів Z-A.",
+    "Matching learnset level and mastery metadata": "Узгоджені дані рівня вивчення та опанування прийому",
     "Always male": "Завжди самець",
     "Always female": "Завжди самка",
     "{male}% male / {female}% female": "{male}% самців / {female}% самок",

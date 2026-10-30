@@ -1,5 +1,10 @@
 {
   "keys": {
+    "pokemon.learnsetClipboard.copy": "Copier les capacités apprises",
+    "pokemon.learnsetClipboard.paste": "Coller les capacités apprises",
+    "pokemon.learnsetClipboard.copied": "Liste des capacités copiée.",
+    "pokemon.learnsetClipboard.pasted": "Liste des capacités remplacée localement. Préparez, vérifiez et appliquez les modifications pour enregistrer.",
+    "pokemon.learnsetClipboard.rejected": "Le presse-papiers ne contient pas de liste complète compatible ou n’a pas pu être lu. Aucune modification effectuée.",
     "pokemon.learnsetSync.button": "Synchroniser les capacités",
     "pokemon.learnsetSync.description": "Remplace les capacités apprises par niveau de cette Méga-Évolution par celles actuelles de {pokemon}. Utilisez Appliquer pour enregistrer.",
     "pokemon.learnsetSync.unavailable": "La forme correspondante sans Méga-Évolution est indisponible.",
@@ -4689,6 +4694,9 @@
     "pla.field.baseExperience": "Expérience de base"
   },
   "literals": {
+    "Copied learnset level metadata is invalid.": "Les données de niveau copiées sont invalides.",
+    "Copied mastery metadata is only supported for Z-A learnsets.": "Les données de maîtrise copiées sont uniquement prises en charge pour les capacités apprises dans Z-A.",
+    "Matching learnset level and mastery metadata": "Données cohérentes de niveau et de maîtrise",
     "Always male": "Toujours mâle",
     "Always female": "Toujours femelle",
     "{male}% male / {female}% female": "{male}% mâle / {female}% femelle",

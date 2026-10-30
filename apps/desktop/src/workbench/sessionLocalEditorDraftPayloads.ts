@@ -19,7 +19,7 @@ export type OrdinaryPokemonDraftPayload = {
     }
   >;
   fields: Record<string, string>;
-  learnsetSlots: Record<string, { level: string; moveId: string; action?: 'add' | 'remove' }>;
+  learnsetSlots: Record<string, { level: string; moveId: string; rawLevel?: number; action?: 'add' | 'remove' }>;
 };
 
 export type OrdinaryTextDraftPayload = {

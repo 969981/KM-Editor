@@ -8,6 +8,7 @@ import { useLocalization } from '../../localization';
 import { usePlaRowClipboard } from './usePlaRowClipboard';
 import { isPlaFieldValueValid, resolvePlaField, updatePlaDependentValues, validPlaLearnsetRows } from './plaDraftValidation';
 import type { PlaEditorProps } from './PlaEditorSection';
+import { LearnsetClipboardActions } from '../pokemon/LearnsetClipboardActions';
 
 const editableEvolutionMethods = new Set([1, 2, 3, 4, 8, 17, 18, 21, 22, 23, 24]);
 type Props = {
@@ -88,6 +89,17 @@ export function PlaPokemonRows({ kind, rows, fields, enabled, onChange, fieldLab
     && (isEvolution ? editableEvolutionMethods.has(Number(newRow.method)) : validPlaLearnsetRows(withNewRow));
   return <div className="learnset-editor">
     <h4>{t(`pla.kind.${kind}`)}</h4>
+    {!isEvolution ? <LearnsetClipboardActions family="pla"
+      scope={JSON.stringify([source.paths, source.session?.sessionId, recordId])} revision={JSON.stringify(rows)}
+      busy={busy} enabled={canEdit}
+      entries={validPlaLearnsetRows(rows) && rows.every(row => fields.every((field, column) => isPlaFieldValueValid(field, row[column])))
+        ? rows.map(row => ({ level: Number(row[0]), mastery: Number(row[1]), moveId: Number(row[2]) })) : null}
+      onPaste={entries => {
+        const next = entries.map(row => [String(row.level), String(row.mastery), String(row.moveId)]);
+        if (!validPlaLearnsetRows(next) || next.some(row => fields.some((field, column) => !isPlaFieldValueValid(field, row[column])))) return false;
+        drag.current = null; rowKeys.current.keys = next.map(() => rowKeys.current.next++);
+        onChange(next); setRequestedIndex(0); return true;
+      }} /> : null}
     {!isEvolution ? clipboard.content : null}
     <ul className="learnset-list">
       {rows.map((row, rowIndex) => <li className="learnset-list-item" key={rowKeys.current.keys[rowIndex]} tabIndex={isEvolution ? undefined : 0} {...(!isEvolution ? clipboard.bind(String(rowIndex)) : {})}
