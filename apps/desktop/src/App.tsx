@@ -9404,7 +9404,7 @@ export function App({
     []
   );
 
-  const handleCheckForUpdates = useCallback(async () => {
+  const handleCheckForUpdates = useCallback(async (source: 'startup' | 'manual') => {
     if (updateCheckOperationRef.current !== null) return;
     const updateCheckOperation = {};
     updateCheckOperationRef.current = updateCheckOperation;
@@ -9421,22 +9421,20 @@ export function App({
     });
 
     try {
+      let nativeCheckFailure: { error: unknown } | undefined;
       if (desktopServices.isAvailable) {
+        let nativeUpdate: NativeUpdate | null = null;
         try {
-          const nativeUpdate = await desktopServices.checkForNativeUpdate();
-          if (updateCheckRunRef.current !== runId) {
-            void nativeUpdate?.close().catch(() => undefined);
-            return;
-          }
+          nativeUpdate = await desktopServices.checkForNativeUpdate();
+        } catch (error) {
+          nativeCheckFailure = { error };
+        }
+        if (updateCheckRunRef.current !== runId) {
+          void nativeUpdate?.close().catch(() => undefined);
+          return;
+        }
 
-          if (!nativeUpdate) {
-            setUpdateCheckStatus({
-              kind: 'upToDate',
-              message: `KM Editor v${appVersion} is up to date.`
-            });
-            return;
-          }
-
+        if (nativeUpdate) {
           availableNativeUpdateRef.current = nativeUpdate;
           setAvailableUpdate({
             body: nativeUpdate.body,
@@ -9449,38 +9447,28 @@ export function App({
             message: `KM Editor v${nativeUpdate.version} is ready to install.`
           });
           return;
-        } catch (nativeError) {
-          const fallbackUpdate = await fetchAvailableUpdate(appVersion);
-          if (updateCheckRunRef.current !== runId) {
-            return;
-          }
-
-          if (!fallbackUpdate) {
-            throw nativeError;
-          }
-
-          setAvailableUpdate({
-            ...fallbackUpdate,
-            fallbackReason: toErrorMessage(nativeError, {
-              code: desktopErrorCodes.updateCheckFailed,
-              domain: 'desktop',
-              message: 'Could not check for native updates.'
-            })
-          });
-          setUpdateCheckStatus({
-            kind: 'available',
-            message: `KM Editor v${fallbackUpdate.version} is available on GitHub.`
-          });
-          return;
         }
       }
 
-      const update = await fetchAvailableUpdate(appVersion);
+      let update: ReleasePageUpdate | null = null;
+      // A newly published release can be visible before the latest updater manifest catches up.
+      if (source === 'manual' || !desktopServices.isAvailable || nativeCheckFailure) {
+        try {
+          update = await fetchAvailableUpdate(appVersion);
+        } catch (error) {
+          if (!desktopServices.isAvailable || nativeCheckFailure) {
+            throw error;
+          }
+        }
+      }
       if (updateCheckRunRef.current !== runId) {
         return;
       }
 
       if (!update) {
+        if (nativeCheckFailure) {
+          throw nativeCheckFailure.error;
+        }
         setUpdateCheckStatus({
           kind: 'upToDate',
           message: `KM Editor v${appVersion} is up to date.`
@@ -9488,7 +9476,18 @@ export function App({
         return;
       }
 
-      setAvailableUpdate(update);
+      setAvailableUpdate(
+        nativeCheckFailure
+          ? {
+              ...update,
+              fallbackReason: toErrorMessage(nativeCheckFailure.error, {
+                code: desktopErrorCodes.updateCheckFailed,
+                domain: 'desktop',
+                message: 'Could not check for native updates.'
+              })
+            }
+          : update
+      );
       setUpdateCheckStatus({
         kind: 'available',
         message: `KM Editor v${update.version} is available on GitHub.`
@@ -9512,6 +9511,7 @@ export function App({
       }
     }
   }, [
+    appVersion,
     closeNativeUpdate,
     desktopServices.checkForNativeUpdate,
     desktopServices.isAvailable
@@ -9523,7 +9523,7 @@ export function App({
     }
 
     const timeoutId = window.setTimeout(() => {
-      void handleCheckForUpdates();
+      void handleCheckForUpdates('startup');
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
@@ -10332,22 +10332,21 @@ export function App({
     prepareScopedEditorPanelAction('restoreMissingPokemon');
     try {
       await runEditSessionMutation(async (session, reportProgress) => {
-        let next = session;
-        let response: Awaited<ReturnType<typeof bridge.stageRestoration>> | null = null;
-        let completed = 0;
-        for (const selection of selections) {
-          const entry = restoreMissingPokemonWorkflow?.entries.find(entry => entry.definitionId === selection.definitionId);
-          const subject = entry?.formLabel ? t(`restoration.form.${entry.formLabel}`, { name: entry.name }) : entry?.name;
-          reportProgress({ subject, completed, total: selections.length });
-          response = await bridge.stageRestoration({ paths: createProjectPaths(draftPaths), session: next, ...selection });
-          if (response.diagnostics.some(d => d.severity === 'error')) break;
-          reportProgress({ completed: ++completed });
-          next = response.session;
-        }
-        if (!response) throw new Error(t('restoration.failed'));
+        const entry = selections.length === 1
+          ? restoreMissingPokemonWorkflow?.entries.find(entry => entry.definitionId === selections[0].definitionId)
+          : undefined;
+        const subject = entry?.formLabel ? t(`restoration.form.${entry.formLabel}`, { name: entry.name }) : entry?.name;
+        reportProgress({ subject });
+        const response = await bridge.stageRestoration({ paths: createProjectPaths(draftPaths), session, selections }, progress => {
+          if (progress.phase === 'staging') {
+            reportProgress({ completed: progress.completed, total: progress.total });
+          } else {
+            reportProgress({ phase: progress.phase, completed: undefined, total: undefined });
+          }
+        });
         const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
         const matches = response.session.sessionId === activeSession.sessionId && selections.every(selection =>
-          response!.workflow.entries.some(entry => entry.definitionId === selection.definitionId && entry.staged
+          response.workflow.entries.some(entry => entry.definitionId === selection.definitionId && entry.staged
             && entry.selected === selection.enabled && (selection.removeAssets ? entry.removalStaged : !entry.removalStaged && entry.preparedHash === selection.preparedHash)));
         const didSucceed = matches && !diagnostics.some(d => d.severity === 'error');
         return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
@@ -20147,7 +20146,7 @@ export function App({
       onChangeLanguage={handleInterfaceLanguageChange}
       onChangeSvCacheLimit={showingWelcome ? welcomeCache.changeLimit : handleChangeSvCacheLimit}
       onChangeSvCacheMode={showingWelcome ? welcomeCache.changeMode : handleChangeSvCacheMode}
-      onCheckForUpdates={handleCheckForUpdates}
+      onCheckForUpdates={() => void handleCheckForUpdates('manual')}
       onOpenAvailableUpdate={handleOpenAvailableUpdate}
       onRestartAfterUpdate={handleRestartAfterUpdate}
       onClearSvCache={() => setIsSvCacheClearConfirmOpen(true)}
@@ -68065,6 +68064,7 @@ async function fetchAvailableUpdate(currentVersion: string): Promise<ReleasePage
 
   try {
     response = await fetch(githubReleasesApiUrl, {
+      cache: 'no-store',
       headers: {
         Accept: 'application/vnd.github+json'
       },
