@@ -1,5 +1,11 @@
 {
   "keys": {
+    "bugReport.generate": "生成错误报告",
+    "bugReport.generating": "正在生成报告...",
+    "bugReport.goToReport": "转到报告",
+    "bugReport.generateFailed": "无法生成报告。",
+    "bugReport.saveFailed": "无法保存报告。请重试。",
+    "bugReport.openFailed": "无法打开报告文件夹。请重试。",
     "pokemon.materialDrops.bulkTitle": "材料掉落数量",
     "pokemon.materialDrops.bulkDescription": "为当前会掉落材料的所有宝可梦设置数量。没有材料、掉落概率为 0% 或数量为 0 的物种会被跳过。材料和掉落概率保持不变。",
     "pokemon.materialDrops.bulkRange": "每次掉落的材料数量（{minimum} 至 {maximum}）",

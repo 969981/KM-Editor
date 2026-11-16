@@ -1,5 +1,11 @@
 {
   "keys": {
+    "bugReport.generate": "Створити звіт про помилку",
+    "bugReport.generating": "Створення звіту...",
+    "bugReport.goToReport": "Перейти до звіту",
+    "bugReport.generateFailed": "Не вдалося створити звіт.",
+    "bugReport.saveFailed": "Не вдалося зберегти звіт. Спробуйте ще раз.",
+    "bugReport.openFailed": "Не вдалося відкрити папку зі звітом. Спробуйте ще раз.",
     "pokemon.materialDrops.bulkTitle": "Кількість матеріалу",
     "pokemon.materialDrops.bulkDescription": "Задайте кількість для всіх покемонів, з яких зараз випадає матеріал. Види без матеріалу, з імовірністю 0 % або з кількістю 0 пропускаються. Матеріал та імовірність випадіння залишаються тими самими.",
     "pokemon.materialDrops.bulkRange": "Кількість за одне випадіння (від {minimum} до {maximum})",

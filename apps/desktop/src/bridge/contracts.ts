@@ -645,14 +645,17 @@ export const listWorkflowsRequestSchema = z.strictObject({
 });
 export const loadItemsWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const loadPokemonWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const loadMovesWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const textWorkflowQuerySchema = z.strictObject({
@@ -670,22 +673,27 @@ export const loadTextWorkflowRequestSchema = z.strictObject({
 
 export const loadTrainersWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  trainerIds: z.array(z.number().int().nonnegative()).nonempty().optional(),
 });
 
 export const loadGiftPokemonWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const loadTradePokemonWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const loadStaticEncountersWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const loadRentalPokemonWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const dynamaxAdventureEditableFieldNameSchema = z.enum([
@@ -799,14 +807,17 @@ export const loadShopsWorkflowRequestSchema = z.strictObject({
 
 export const loadEncountersWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  tableIds: z.array(z.string().min(1)).min(1).max(10000).optional(),
 });
 
 export const loadRaidBattlesWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  tableIds: z.array(z.string().min(1)).min(1).max(10000).optional(),
 });
 
 export const loadTeraRaidsWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  recordIds: z.array(z.string().min(1)).min(1).max(10000).optional(),
 });
 
 export const loadRaidRewardsWorkflowRequestSchema = z.strictObject({
@@ -819,10 +830,12 @@ export const loadRaidBonusRewardsWorkflowRequestSchema = z.strictObject({
 
 export const loadPlacementWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  objectIds: z.array(z.string().min(1)).min(1).max(10000).optional(),
 });
 
 export const loadBehaviorWorkflowRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  entryIndices: z.array(z.number().int().nonnegative()).min(1).max(10000).optional(),
 });
 
 export const loadFlagworkSaveWorkflowRequestSchema = z.strictObject({
@@ -1307,6 +1320,8 @@ export const workflowAvailabilitySchema = z.enum([
 ]);
 
 export const workflowSummarySchema = z.strictObject({
+  unassessedDiagnosticFiles: z.array(z.string()).optional(),
+  isPartial: z.boolean().optional(),
   availability: workflowAvailabilitySchema,
   description: z.string(),
   diagnostics: z.array(apiDiagnosticSchema),
@@ -2880,12 +2895,16 @@ export const trainersWorkflowSchema = z.strictObject({
 
 export const trainersWorkflowDeltaSchema = z.strictObject({
   diagnostics: z.array(apiDiagnosticSchema),
+  isPartial: z.boolean().default(false),
+  preserveClassBallScope: z.boolean().default(false),
   stats: trainersWorkflowStatsSchema,
   trainers: z.array(trainerRecordSchema),
 });
 
 export const loadTrainersWorkflowResponseSchema = z.strictObject({
   workflow: trainersWorkflowSchema,
+  isPartial: z.boolean().optional().default(false),
+  preserveClassBallScope: z.boolean().optional().default(false),
 });
 
 export const giftPokemonProvenanceSchema = z.strictObject({
@@ -5089,7 +5108,7 @@ export const placementWorkflowStatsSchema = z.strictObject({
   totalObjectCount: z.number().int().nonnegative(),
 });
 
-export const placementWorkflowSchema = z.strictObject({
+const fullPlacementWorkflowSchema = z.strictObject({
   categories: z.array(placementCategorySchema).nullish(),
   diagnostics: z.array(apiDiagnosticSchema),
   editableFields: z.array(placementEditableFieldSchema),
@@ -5097,6 +5116,32 @@ export const placementWorkflowSchema = z.strictObject({
   stats: placementWorkflowStatsSchema,
   summary: workflowSummarySchema,
 });
+
+const compactPlacementWorkflowSchema = fullPlacementWorkflowSchema.extend({
+  fieldDefinitions: z.array(placementFieldValueSchema.omit({ value: true, displayValue: true })),
+  objects: z.array(placedObjectRecordSchema.extend({
+    fields: z.array(z.strictObject({
+      fieldId: z.number().int().nonnegative(),
+      value: z.string(),
+      displayValue: z.string(),
+    })).nullish(),
+  })),
+}).transform(({ fieldDefinitions, objects, ...workflow }, context) => ({
+  ...workflow,
+  objects: objects.map((object, objectIndex) => ({
+    ...object,
+    fields: object.fields == null ? object.fields : object.fields.map(({ fieldId, ...value }, fieldIndex) => {
+      const definition = fieldDefinitions[fieldId];
+      if (!definition) context.addIssue({
+        code: "custom", message: "Unknown placement field definition.",
+        path: ["objects", objectIndex, "fields", fieldIndex, "fieldId"],
+      });
+      return { ...definition!, ...value };
+    }),
+  })),
+}));
+
+export const placementWorkflowSchema = z.union([compactPlacementWorkflowSchema, fullPlacementWorkflowSchema]);
 
 export const loadPlacementWorkflowResponseSchema = z.strictObject({
   workflow: placementWorkflowSchema,
@@ -7000,6 +7045,7 @@ export function createBridgeResponseSchema<TPayloadSchema extends ZodTypeAny>(
       error: apiErrorSchema.nullable().optional(),
       payload: payloadSchema.nullable().optional(),
       requestId: z.string().nullable().optional(),
+      supportDiagnostics: z.unknown().optional(),
     })
     .superRefine((response, context) => {
       const hasPayload =

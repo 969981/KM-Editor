@@ -1,5 +1,11 @@
 {
   "keys": {
+    "bugReport.generate": "Fehlerbericht erstellen",
+    "bugReport.generating": "Bericht wird erstellt...",
+    "bugReport.goToReport": "Zum Bericht",
+    "bugReport.generateFailed": "Der Bericht konnte nicht erstellt werden.",
+    "bugReport.saveFailed": "Der Bericht konnte nicht gespeichert werden. Erneut versuchen.",
+    "bugReport.openFailed": "Der Berichtsordner konnte nicht geöffnet werden. Erneut versuchen.",
     "pokemon.materialDrops.bulkTitle": "Materialmenge",
     "pokemon.materialDrops.bulkDescription": "Lege die Menge für alle Pokémon fest, die derzeit Material fallen lassen. Arten ohne Material, mit einer Fundrate von 0 % oder einer Menge von 0 werden übersprungen. Material und Fundrate bleiben gleich.",
     "pokemon.materialDrops.bulkRange": "Materialmenge pro Fund ({minimum} bis {maximum})",

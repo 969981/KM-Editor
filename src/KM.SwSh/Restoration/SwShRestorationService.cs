@@ -315,6 +315,8 @@ public sealed partial class SwShRestorationService
             var shared = includeAllKeys ? peerKeys.Where(IsShared).ToHashSet() : peerKeys;
             foreach (var item in effective.Contributions.Where(c => c.Writer == SwShRestorationWriter.File))
             {
+                // Native parent tables own only the added regional route.
+                if (SwShRestorationEvolutionPolicy.IsNativeParentFile(SwShRestorationDefinitions.Get(intent.DefinitionId), item)) continue;
                 if (!System.IO.File.Exists(Output(paths, item.Path))) continue;
                 var nativeFallback = intent.Enabled && item.Before is not null
                     && (BoundedRead(Output(paths, item.Path)).AsSpan().SequenceEqual(item.Before)
@@ -422,6 +424,7 @@ public sealed partial class SwShRestorationService
         }
         AddSamplerSupport(paths, state, outputs, sources);
         var storedState = SwShRestorationStateStore.Store(paths, state); using (storedState.Lease) { }
+        state = SwShRestorationStateStore.ReadState(paths, storedState.Hash).State;
         if (!outputs.ContainsKey(SwShRestorationComposer.PersonalPath)) outputs.Add(SwShRestorationComposer.PersonalPath, Current(SwShRestorationComposer.PersonalPath)
             ?? throw new InvalidDataException("Restoration state requires a personal data anchor."));
         return new(outputs, storedState.Hash, snapshot.Hash, state, sources.OrderBy(s => s.RelativePath, StringComparer.Ordinal).ThenBy(s => s.Layer).ToArray(),

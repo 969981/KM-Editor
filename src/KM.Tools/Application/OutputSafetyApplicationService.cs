@@ -9,6 +9,7 @@ using System.Text;
 using KM.Api.Diagnostics;
 using KM.Api.Editing;
 using KM.Api.Output;
+using KM.Api.Projects;
 using KM.Core.Files;
 using KM.Core.Output;
 using KM.Core.Projects;
@@ -507,33 +508,24 @@ public sealed class OutputSafetyApplicationService
         BuildSupportReportRequest request,
         CancellationToken cancellationToken = default)
     {
-        var context = ResolveScope(request?.Scope);
-        var outputMode = await GetCurrentOutputModeAsync(
-                context,
-                cancellationToken,
-                fallback: "not-recorded")
-            .ConfigureAwait(false);
-        var report = await context.Coordinator.CreateSupportReportAsync(
-            context.ProjectId,
-            GetApplicationVersion(),
-            context.GameFamily,
-            outputMode,
-            ["KM-OUTPUT-SUPPORT-REPORT-REDACTED"],
-            cancellationToken).ConfigureAwait(false);
+        // Optional inventory reads never acquire locks, recover, migrate or scan
+        // installed game files. The default remains a metadata-free fallback.
+        cancellationToken.ThrowIfCancellationRequested();
+        var family = request?.Scope?.Paths?.SelectedGame switch
+        {
+            ProjectGameDto.Sword or ProjectGameDto.Shield => "swordShield",
+            ProjectGameDto.Scarlet or ProjectGameDto.Violet => "scarletViolet",
+            ProjectGameDto.ZA => "pokemonLegendsZA",
+            ProjectGameDto.PLA => "pokemonLegendsArceus",
+            _ => "unknown",
+        };
+        var changes = request is { IncludeChanges: true, Scope.Paths: not null }
+            ? await SupportChangeInventory.ReadAsync(ProjectBridgeMapper.ToCore(request.Scope.Paths), cancellationToken).ConfigureAwait(false)
+            : null;
         return new BuildSupportReportResponse(new OutputSupportReportDto(
-            SchemaVersion: 1,
-            report.ApplicationVersion,
-            ToGameFamilyKey(report.GameFamily),
-            report.OutputMode,
-            report.DiagnosticCodes,
-            report.TransactionPhases.Select(ToDto).ToArray(),
-            report.IntegrityCounts.Select(count => new OutputIntegrityCountDto(
-                ToDto(count.Classification),
-                count.Count)).ToArray(),
-            report.OwnershipFileCount,
-            report.CheckpointCount,
-            report.HistoryReceiptCount,
-            report.CreatedAtUtc));
+            2, GetApplicationVersion(), family, "not-recorded",
+            ["KM-OUTPUT-SUPPORT-REPORT-REDACTED"], [], [], null, null, null,
+            DateTimeOffset.UtcNow, "not-collected", changes));
     }
 
     private static async Task<(

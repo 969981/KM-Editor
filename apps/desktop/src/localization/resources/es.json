@@ -1,5 +1,11 @@
 {
   "keys": {
+    "bugReport.generate": "Generar informe de errores",
+    "bugReport.generating": "Generando informe...",
+    "bugReport.goToReport": "Ir al informe",
+    "bugReport.generateFailed": "No se pudo generar el informe.",
+    "bugReport.saveFailed": "No se pudo guardar el informe. Inténtalo de nuevo.",
+    "bugReport.openFailed": "No se pudo abrir la carpeta del informe. Inténtalo de nuevo.",
     "pokemon.materialDrops.bulkTitle": "Cantidad de material",
     "pokemon.materialDrops.bulkDescription": "Establece la cantidad para todos los Pokémon que actualmente sueltan un material. Se omiten las especies sin material, con una probabilidad del 0 % o con una cantidad de 0. El material y la probabilidad se mantienen.",
     "pokemon.materialDrops.bulkRange": "Materiales por caída ({minimum} a {maximum})",

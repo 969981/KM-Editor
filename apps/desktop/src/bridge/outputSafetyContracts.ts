@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { kmErrorCodeSchema } from '../errorCodes';
+import { supportChangeInventorySchema } from './supportInventoryContracts';
 import {
   apiDiagnosticSchema,
   outputTransactionResultSchema,
@@ -460,15 +461,16 @@ export const applyProjectRelocationResponseSchema = z.strictObject({
 });
 
 export const buildSupportReportRequestSchema = z.strictObject({
-  scope: outputSafetyScopeSchema
+  scope: outputSafetyScopeSchema,
+  includeChanges: z.boolean().optional()
 });
 export const outputSupportReportSchema = z.strictObject({
   applicationVersion: z.string().min(1).max(128),
-  checkpointCount: z.number().int().nonnegative(),
+  checkpointCount: z.number().int().nonnegative().nullable(),
   createdAtUtc: dateTimeOffsetSchema,
   diagnosticCodes: z.array(kmErrorCodeSchema).max(256),
-  gameFamily: z.enum(['swordShield', 'scarletViolet', 'pokemonLegendsZA', 'pokemonLegendsArceus']),
-  historyReceiptCount: z.number().int().nonnegative(),
+  gameFamily: z.enum(['swordShield', 'scarletViolet', 'pokemonLegendsZA', 'pokemonLegendsArceus', 'unknown']),
+  historyReceiptCount: z.number().int().nonnegative().nullable(),
   integrityCounts: z
     .array(
       z.strictObject({
@@ -478,8 +480,10 @@ export const outputSupportReportSchema = z.strictObject({
     )
     .max(7),
   outputMode: boundedIdentifierSchema,
-  ownershipFileCount: z.number().int().nonnegative(),
-  schemaVersion: z.literal(1),
+  ownershipFileCount: z.number().int().nonnegative().nullable(),
+  inventoryStatus: z.enum(['collected', 'not-collected']),
+  changes: supportChangeInventorySchema.nullable().optional(),
+  schemaVersion: z.literal(2),
   transactionPhases: z.array(outputTransactionPhaseSchema).max(8)
 });
 export const buildSupportReportResponseSchema = z.strictObject({

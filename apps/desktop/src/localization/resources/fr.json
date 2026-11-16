@@ -1,5 +1,11 @@
 {
   "keys": {
+    "bugReport.generate": "Générer le rapport",
+    "bugReport.generating": "Génération du rapport...",
+    "bugReport.goToReport": "Accéder au rapport",
+    "bugReport.generateFailed": "Le rapport n’a pas pu être généré.",
+    "bugReport.saveFailed": "Le rapport n’a pas pu être enregistré. Réessayer.",
+    "bugReport.openFailed": "Le dossier du rapport n’a pas pu être ouvert. Réessayer.",
     "pokemon.materialDrops.bulkTitle": "Quantité de matériau",
     "pokemon.materialDrops.bulkDescription": "Définissez la quantité pour tous les Pokémon qui donnent actuellement un matériau. Les espèces sans matériau, avec un taux de 0 % ou une quantité de 0 sont ignorées. Le matériau et son taux restent les mêmes.",
     "pokemon.materialDrops.bulkRange": "Matériaux par obtention (de {minimum} à {maximum})",
