@@ -48,13 +48,21 @@ jobs:
             exit 0
           fi
 
-          # Do not use -X ours or force-push. Conflicts require explicit review.
-          if ! git merge --no-ff --no-edit upstream/master -m "chore(sync): merge upstream $upstream_sha"; then
-            git diff --name-only --diff-filter=U || true
-            git merge --abort || true
-            echo "::error::Upstream merge conflicts with portable changes. Resolve on master before the next scheduled run."
+          # Preserve fork workflows: a normal GitHub Actions token cannot publish
+          # upstream workflow changes, and the fork has an independent portable CI.
+          before="$(git rev-parse HEAD)"
+          if ! git merge --no-ff --no-commit upstream/master; then
+            # Resolve ONLY the exact reviewed portability/diagnostics conflicts.
+            # Future upstream changes, unknown paths or altered blob SHAs fail closed.
+            python3 .github/scripts/resolve-known-km-merge.py
+          fi
+          git restore --source="$before" --staged --worktree -- .github/workflows
+          if [[ -n "$(git ls-files -u)" ]]; then
+            echo "::error::Unexpected unmerged files after reviewed resolution."
             exit 1
           fi
+          git diff --cached --check
+          git commit -m "chore(sync): merge upstream $upstream_sha"
 
           source_sha="$(git rev-parse HEAD)"
           git push origin HEAD:master
