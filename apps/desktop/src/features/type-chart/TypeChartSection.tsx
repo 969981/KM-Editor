@@ -54,8 +54,8 @@ export function TypeChartSection({
   isChangePlanApplying: boolean;
   isChangePlanCreating: boolean;
   isStaging: boolean;
-  onApplyChangePlan: () => void;
-  onCreateChangePlan: () => void;
+  onApplyChangePlan?: () => void;
+  onCreateChangePlan?: () => void;
   onDirtyChange: (isDirty: boolean) => void;
   onStageChart: (values: TypeChartEffectivenessValue[]) => void;
   onStageUninstall: () => void;
@@ -281,26 +281,30 @@ export function TypeChartSection({
                   <span>{isStaging ? 'Staging' : 'Stage Uninstall'}</span>
                 </button>
               ) : null}
-              <button
-                aria-busy={isChangePlanCreating || undefined}
-                className="secondary-button"
-                disabled={!canReviewPlan}
-                onClick={onCreateChangePlan}
-                type="button"
-              >
-                <ClipboardCheck aria-hidden="true" size={16} />
-                <span>{isChangePlanCreating ? 'Reviewing' : 'Review'}</span>
-              </button>
-              <button
-                aria-busy={isChangePlanApplying || undefined}
-                className="primary-button"
-                disabled={!canApplyPlan}
-                onClick={onApplyChangePlan}
-                type="button"
-              >
-                <Save aria-hidden="true" size={16} />
-                <span>{isChangePlanApplying ? 'Applying' : 'Apply'}</span>
-              </button>
+              {onCreateChangePlan && onApplyChangePlan ? (
+                <>
+                  <button
+                    aria-busy={isChangePlanCreating || undefined}
+                    className="secondary-button"
+                    disabled={!canReviewPlan}
+                    onClick={onCreateChangePlan}
+                    type="button"
+                  >
+                    <ClipboardCheck aria-hidden="true" size={16} />
+                    <span>{isChangePlanCreating ? 'Reviewing' : 'Review'}</span>
+                  </button>
+                  <button
+                    aria-busy={isChangePlanApplying || undefined}
+                    className="primary-button"
+                    disabled={!canApplyPlan}
+                    onClick={onApplyChangePlan}
+                    type="button"
+                  >
+                    <Save aria-hidden="true" size={16} />
+                    <span>{isChangePlanApplying ? 'Applying' : 'Apply'}</span>
+                  </button>
+                </>
+              ) : null}
             </div>
 
             <dl className="encounter-slot-detail">

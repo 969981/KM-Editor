@@ -366,7 +366,7 @@ import {
   resolveMoveTimingEditableField
 } from './movesEditor';
 import { hasTeraBlastEdits, localizeTeraBlastField, teraBlastDefaultFields } from './teraBlastEditor';
-import { canAccessWorkflowSectionForHealth, getGameScopedWorkflowSummaries, getLoadedWorkflowStateForSection, isPokemonLegendsZAAdvancedEditorSection, isPokemonLegendsZAGame, isScarletVioletAdvancedEditorSection, isScarletVioletGame, isSharedStagedEditorSection, isTrinityCacheGame, isWorkflowNavigationVisibleForGame, isWorkflowSection, isWorkflowSupportedForGame, pokemonLegendsZAAdvancedEditorDomains, resolveWorkflowDataSection, scarletVioletAdvancedEditorDomains, isSharedStagedEditorDomain, standaloneWorkflowSectionIds, workflowNavigationGroups } from './workflowGameSupport';
+import { canAccessWorkflowSectionForHealth, getGameScopedWorkflowSummaries, getLoadedWorkflowStateForSection, isPokemonLegendsZAGame, isScarletVioletAdvancedEditorSection, isScarletVioletGame, isSharedStagedEditorSection, isTrinityCacheGame, isWorkflowNavigationVisibleForGame, isWorkflowSection, isWorkflowSupportedForGame, resolveWorkflowDataSection, scarletVioletAdvancedEditorDomains, isSharedStagedEditorDomain, standaloneWorkflowSectionIds, workflowNavigationGroups } from './workflowGameSupport';
 import {
   WorkflowLoadGeneration,
   getEditSessionOwnerSections,
@@ -3920,10 +3920,11 @@ export function App({
             id: 'trinityModManager' as const,
             label: t('changeSets.outputMode.trinityModManager')
           },
-          { id: 'trinityBypass' as const, label: t('changeSets.outputMode.trinityBypass') }
+          { id: 'trinityBypass' as const, label: t('changeSets.outputMode.trinityBypass') },
+          ...(isPokemonLegendsZAProject ? [{ id: 'zaRecomp' as const, label: 'ZA Recomp' }] : [])
         ]
       : [{ id: 'standalone' as const, label: t('changeSets.outputMode.standalone') }],
-    [supportsTrinityOutput, t]
+    [isPokemonLegendsZAProject, supportsTrinityOutput, t]
   );
   const availableChangeSetOutputProfiles = useMemo(
     () => (projectWorkspaceDocument?.outputProfiles ?? []).map((profile) => ({
@@ -4411,26 +4412,12 @@ export function App({
       activeSectionOwnsEditSession ||
       isScarletVioletAdvancedEditorSection(activeSection, selectedGame)
     );
-  const editSessionIsPokemonLegendsZAAdvancedEditor =
-    editSession !== null &&
-    isPokemonLegendsZAGame(selectedGame) &&
-    editSession.pendingEdits.length > 0 &&
-    editSession.pendingEdits.every((edit) =>
-      pokemonLegendsZAAdvancedEditorDomains.has(edit.domain)
-    );
-  const activeSectionOwnsPokemonLegendsZAAdvancedEditSession =
-    editSessionIsPokemonLegendsZAAdvancedEditor &&
-    (
-      activeSectionOwnsEditSession ||
-      isPokemonLegendsZAAdvancedEditorSection(activeSection, selectedGame)
-    );
   const activeSectionOwnsDexLayoutEditSession =
     activeSection === 'dexLayout' &&
     editSessionSection === 'dexLayout' &&
     editSession !== null;
   const activeSectionOwnsAdvancedEditSession =
     activeSectionOwnsScarletVioletAdvancedEditSession ||
-    activeSectionOwnsPokemonLegendsZAAdvancedEditSession ||
     activeSectionOwnsDexLayoutEditSession;
   const getEditSessionForSection = useMemo(
     () => createEditSessionSectionSelector(
@@ -4635,8 +4622,7 @@ export function App({
   };
 
   const getScopedEditorOutputMode = (section: WorkbenchSection): ChangePlanOutputMode | undefined =>
-    isScarletVioletAdvancedEditorSection(section, selectedGame) ||
-    isPokemonLegendsZAAdvancedEditorSection(section, selectedGame)
+    isScarletVioletAdvancedEditorSection(section, selectedGame)
       ? 'standalone'
       : undefined;
 
@@ -18669,6 +18655,9 @@ export function App({
       return;
     }
 
+    const outputMode = editSession.authoringBinding == null
+      ? getScopedEditorOutputMode(section)
+      : (editSession.authoringBinding.outputMode ?? undefined);
     const operation = {};
     editSessionReviewOperationRef.current = operation;
     const runId = editSessionReviewRunRef.current + 1;
@@ -18699,10 +18688,7 @@ export function App({
 
     try {
       const response = await bridge.createChangePlan({
-        outputMode:
-          editSession.authoringBinding == null
-            ? getScopedEditorOutputMode(section)
-            : (editSession.authoringBinding.outputMode ?? undefined),
+        outputMode,
         paths: createProjectPaths(draftPaths),
         session: editSession
       });
@@ -18715,6 +18701,7 @@ export function App({
           actionDiagnostics: currentStates[section]?.actionDiagnostics ?? [],
           applyResult: null,
           changePlan: response.changePlan,
+          outputMode,
           changePlanSessionSignature: getEditSessionSignature(editSession)
         }
       }));
@@ -18789,7 +18776,7 @@ export function App({
       if (effectiveOutputMode) {
         setWorkProgress(
           createIndeterminateWorkProgress(
-            'Preparing Trinity Output',
+            'Preparing output plan',
             'Creating the selected output package plan',
             ['Preparing output plan', 'Writing reviewed output', 'Refreshing loaded editors'],
             0
@@ -18814,7 +18801,7 @@ export function App({
         }
       }
 
-      const applyLabel = effectiveOutputMode ? 'Writing Trinity Output' : 'Applying Changes';
+      const applyLabel = effectiveOutputMode ? 'Writing output files' : 'Applying Changes';
       const progress = createReviewedApplyProgress(planToApply, applyLabel, () =>
         isCurrentProjectOperation() && editSessionRef.current === reviewedSession &&
         visibleChangePlanRef.current === planToApply
@@ -19848,6 +19835,7 @@ export function App({
     editSessionApplyRunRef.current = runId;
     const reviewedSession = editSession;
     const reviewedPlan = panelOutput.changePlan;
+    const outputMode = scopedEditorPanelStatesRef.current[section]?.outputMode;
     const reviewedSessionSignature = getEditSessionSignature(reviewedSession);
     const reviewedPlanFingerprint = calculatePendingPayloadSha256(
       JSON.stringify(reviewedPlan)
@@ -19867,6 +19855,7 @@ export function App({
         isCurrentProjectOperation() &&
         getEditSessionSignature(editSessionRef.current) === reviewedSessionSignature &&
         currentPanelState?.changePlanSessionSignature === reviewedSessionSignature &&
+        currentPanelState.outputMode === outputMode &&
         currentPlan !== null &&
         calculatePendingPayloadSha256(JSON.stringify(currentPlan)) === reviewedPlanFingerprint
       );
@@ -19886,6 +19875,7 @@ export function App({
         actionDiagnostics: currentStates[section]?.actionDiagnostics ?? [],
         applyResult: null,
         changePlan: currentStates[section]?.changePlan ?? null,
+        outputMode,
         changePlanSessionSignature: currentStates[section]?.changePlanSessionSignature ?? null
       }
     }));
@@ -19894,10 +19884,7 @@ export function App({
       const wasBoundChangeSetSession = reviewedSession.authoringBinding !== null;
       const response = await bridge.applyChangePlan({
         changePlan: reviewedPlan,
-        outputMode:
-          reviewedSession.authoringBinding == null
-            ? getScopedEditorOutputMode(section)
-            : (reviewedSession.authoringBinding.outputMode ?? undefined),
+        outputMode,
         paths,
         session: reviewedSession
       }, progress.report);
@@ -20760,7 +20747,6 @@ export function App({
                   registerEditorDraftDirty('dexLayout', isDirty)
                 }
                 onMovePlacement={handleMovePokemonDexPlacement}
-                onOpenChanges={() => handleNavigateSection('changes')}
                 onResizeDex={handleResizePokemonDex}
                 onStageMegaSync={() =>
                   void handleStagePokemonDexMegaSync()
@@ -20910,7 +20896,6 @@ export function App({
               <TrainerPoolsSection
                 editSession={getEditSessionForSection('trainerPools')}
                 isStaging={isTrainerPoolsStaging}
-                onOpenChanges={() => void handleNavigateSection('changes')}
                 onStageSwap={handleStageTrainerPoolSwap}
                 workflow={trainerPoolsWorkflow}
               />
@@ -20924,7 +20909,6 @@ export function App({
                 editSession={getEditSessionForSection('fashionCatalog')}
                 isStaging={isFashionCatalogStaging}
                 onDirtyStateChange={handleFashionCatalogDirtyChange}
-                onOpenChanges={() => void handleNavigateSection('changes')}
                 onStageFieldEdit={handleStageFashionCatalogFieldEdit}
                 panelOutput={getOutputSafeScopedEditorPanelOutput('fashionCatalog')}
                 workflow={fashionCatalogWorkflow}
@@ -21555,8 +21539,12 @@ export function App({
                 isChangePlanApplying={isChangePlanApplying}
                 isChangePlanCreating={isChangePlanCreating}
                 isStaging={isTypeChartStaging}
-                onApplyChangePlan={() => void handleApplyScopedEditorChangePlan('typeChart')}
-                onCreateChangePlan={() => void handleCreateScopedEditorChangePlan('typeChart')}
+                {...(isPokemonLegendsZAProject
+                  ? {}
+                  : {
+                      onApplyChangePlan: () => void handleApplyScopedEditorChangePlan('typeChart'),
+                      onCreateChangePlan: () => void handleCreateScopedEditorChangePlan('typeChart')
+                    })}
                 onDirtyChange={(isDirty) => registerEditorDraftDirty('typeChart', isDirty)}
                 onStageChart={handleStageTypeChart}
                 onStageUninstall={handleStageTypeChartUninstall}
@@ -21574,8 +21562,6 @@ export function App({
                 isChangePlanApplying={isChangePlanApplying}
                 isChangePlanCreating={isChangePlanCreating}
                 isStaging={isAngeFightStaging}
-                onApplyChangePlan={() => void handleApplyScopedEditorChangePlan('angeFight')}
-                onCreateChangePlan={() => void handleCreateScopedEditorChangePlan('angeFight')}
                 onDirtyChange={(isDirty) => registerEditorDraftDirty('angeFight', isDirty)}
                 onStageFight={handleStageAngeFight}
                 onStageUninstall={handleStageAngeFightUninstall}
@@ -21612,8 +21598,12 @@ export function App({
                 editSession={getEditSessionForSection('fashionUnlock')}
                 isChangePlanApplying={isChangePlanApplying}
                 isChangePlanCreating={isChangePlanCreating}
-                onApplyChangePlan={() => void handleApplyScopedEditorChangePlan('fashionUnlock')}
-                onCreateChangePlan={() => void handleCreateScopedEditorChangePlan('fashionUnlock')}
+                {...(isPokemonLegendsZAProject
+                  ? {}
+                  : {
+                      onApplyChangePlan: () => void handleApplyScopedEditorChangePlan('fashionUnlock'),
+                      onCreateChangePlan: () => void handleCreateScopedEditorChangePlan('fashionUnlock')
+                    })}
                 onStageInstall={handleStageFashionUnlockInstall}
                 onStageUninstall={handleStageFashionUnlockUninstall}
                 panelOutput={getOutputSafeScopedEditorPanelOutput('fashionUnlock')}
@@ -22174,6 +22164,7 @@ export function App({
               isEditSessionMutating={isEditSessionMutating}
               isSessionValidating={isSessionValidating}
               supportsTrinityOutput={supportsTrinityOutput && !editSession?.authoringBinding}
+              supportsZaRecompOutput={isPokemonLegendsZAProject && !editSession?.authoringBinding}
               onCancelEditSession={handleCancelEditSession}
               onOpenEditor={handleNavigateSection}
               onRemovePendingEdit={handleRemovePendingEdit}
@@ -58612,6 +58603,7 @@ function ChangesSection({
   isChangePlanCreating,
   isEditSessionMutating,
   supportsTrinityOutput,
+  supportsZaRecompOutput,
   isSessionValidating,
   onCancelEditSession,
   onOpenEditor,
@@ -58633,6 +58625,7 @@ function ChangesSection({
   isChangePlanCreating: boolean;
   isEditSessionMutating: boolean;
   supportsTrinityOutput: boolean;
+  supportsZaRecompOutput: boolean;
   isSessionValidating: boolean;
   onCancelEditSession: () => void;
   onOpenEditor: (section: WorkbenchSection) => void;
@@ -58837,6 +58830,23 @@ function ChangesSection({
               />
             </button>
           )}
+          {supportsTrinityOutput && supportsZaRecompOutput ? (
+            <button
+              aria-busy={isChangePlanApplying || undefined}
+              className="secondary-button"
+              disabled={!canSaveValidatedChanges}
+              onClick={() => onRequestTrinityOutput('zaRecomp')}
+              type="button"
+            >
+              <BusyActionContent
+                busyLabel="Outputting"
+                icon={<Package aria-hidden="true" size={18} />}
+                isBusy={isChangePlanApplying}
+                label="Output for ZA Recomp"
+                size={18}
+              />
+            </button>
+          ) : null}
           <button
             className="danger-button"
             disabled={
@@ -58858,7 +58868,9 @@ function ChangesSection({
           <div className="changes-output-restriction" role="note">
             <AlertTriangle aria-hidden="true" size={16} />
             <span>
-              {translateLiteral(hybridOutputExplanation)}
+              {translateLiteral(supportsZaRecompOutput
+                ? 'Standalone and Trinity outputs write to standard exefs/main. ZA Recomp puts its executable patch in the same mod folder as the RomFS edits.'
+                : hybridOutputExplanation)}
               {!canPreserveTrinityBypass ? (
                 <>
                   {' '}

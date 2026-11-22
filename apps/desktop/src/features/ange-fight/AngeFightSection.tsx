@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 
 import {
-  ClipboardCheck,
   RotateCcw,
   Save,
   Swords,
@@ -60,8 +59,6 @@ export function AngeFightSection({
   isChangePlanApplying,
   isChangePlanCreating,
   isStaging,
-  onApplyChangePlan,
-  onCreateChangePlan,
   onDirtyChange,
   onStageFight,
   onStageUninstall,
@@ -72,8 +69,6 @@ export function AngeFightSection({
   isChangePlanApplying: boolean;
   isChangePlanCreating: boolean;
   isStaging: boolean;
-  onApplyChangePlan: () => void;
-  onCreateChangePlan: () => void;
   onDirtyChange: (isDirty: boolean) => void;
   onStageFight: (
     blueFlowerHp: number,
@@ -144,7 +139,6 @@ export function AngeFightSection({
     field: 'editor',
     message: editorError
   });
-  const hasStagedChange = stagedState !== null;
   const isBusy = isStaging || isChangePlanCreating || isChangePlanApplying;
   const canDisplayEditor = isDisplayableAngeFightWorkflow(workflow);
   const canEdit =
@@ -169,21 +163,6 @@ export function AngeFightSection({
     !hasInvalidPendingEdit &&
     !hasConflictingPendingEdit &&
     !isDirty &&
-    !isBusy;
-  const canReviewPlan =
-    hasStagedChange &&
-    !isDirty &&
-    !hasInvalidPendingEdit &&
-    !hasConflictingPendingEdit &&
-    !isBusy;
-  const canApplyPlan =
-    hasStagedChange &&
-    !isDirty &&
-    !hasInvalidPendingEdit &&
-    !hasConflictingPendingEdit &&
-    panelOutput.changePlan !== null &&
-    panelOutput.changePlan.canApply &&
-    panelOutput.changePlan.writes.length > 0 &&
     !isBusy;
 
   useEffect(() => {
@@ -407,26 +386,6 @@ export function AngeFightSection({
               >
                 <Trash2 aria-hidden="true" size={16} />
                 <span>{isStaging ? 'Staging' : 'Stage Uninstall'}</span>
-              </button>
-              <button
-                aria-busy={isChangePlanCreating || undefined}
-                className="secondary-button"
-                disabled={!canReviewPlan}
-                onClick={onCreateChangePlan}
-                type="button"
-              >
-                <ClipboardCheck aria-hidden="true" size={16} />
-                <span>{isChangePlanCreating ? 'Reviewing' : 'Review'}</span>
-              </button>
-              <button
-                aria-busy={isChangePlanApplying || undefined}
-                className="primary-button"
-                disabled={!canApplyPlan}
-                onClick={onApplyChangePlan}
-                type="button"
-              >
-                <Save aria-hidden="true" size={16} />
-                <span>{isChangePlanApplying ? 'Applying' : 'Apply'}</span>
               </button>
             </div>
 

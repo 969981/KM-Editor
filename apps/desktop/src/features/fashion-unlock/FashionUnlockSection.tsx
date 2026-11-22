@@ -34,8 +34,8 @@ export function FashionUnlockSection({
   editSession: EditSession | null;
   isChangePlanApplying: boolean;
   isChangePlanCreating: boolean;
-  onApplyChangePlan: () => void;
-  onCreateChangePlan: () => void;
+  onApplyChangePlan?: () => void;
+  onCreateChangePlan?: () => void;
   onStageInstall: () => void;
   onStageUninstall: () => void;
   panelOutput: WorkflowPanelOutput;
@@ -196,14 +196,18 @@ export function FashionUnlockSection({
                     <Trash2 aria-hidden="true" size={16} />
                     <span>{stagingAction === 'uninstall' ? 'Staging uninstall' : 'Stage Uninstall'}</span>
                   </button>
-                  <button className="secondary-button" disabled={!canReviewPlan} onClick={onCreateChangePlan} type="button">
-                    <ClipboardCheck aria-hidden="true" size={16} />
-                    <span>{isChangePlanCreating ? 'Reviewing' : 'Review'}</span>
-                  </button>
-                  <button className="primary-button" disabled={!canApplyPlan} onClick={onApplyChangePlan} type="button">
-                    <Save aria-hidden="true" size={16} />
-                    <span>{isChangePlanApplying ? 'Applying' : 'Apply'}</span>
-                  </button>
+                  {onCreateChangePlan && onApplyChangePlan ? (
+                    <>
+                      <button className="secondary-button" disabled={!canReviewPlan} onClick={onCreateChangePlan} type="button">
+                        <ClipboardCheck aria-hidden="true" size={16} />
+                        <span>{isChangePlanCreating ? 'Reviewing' : 'Review'}</span>
+                      </button>
+                      <button className="primary-button" disabled={!canApplyPlan} onClick={onApplyChangePlan} type="button">
+                        <Save aria-hidden="true" size={16} />
+                        <span>{isChangePlanApplying ? 'Applying' : 'Apply'}</span>
+                      </button>
+                    </>
+                  ) : null}
                 </div>
 
                 <dl className="encounter-slot-detail">
