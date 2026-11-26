@@ -20,6 +20,7 @@ use std::os::windows::io::AsRawHandle;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use tauri::{Emitter, Manager};
+#[cfg(not(windows))]
 use tauri_plugin_shell::ShellExt;
 
 #[cfg(windows)]
@@ -44,6 +45,7 @@ async fn get_app_memory() -> Result<process_memory::MemorySnapshot, String> {
         .map_err(|_| "unavailable".to_owned())?
 }
 
+#[cfg(not(windows))]
 const BRIDGE_SIDECAR_NAME: &str = "km-tools-bridge";
 // The bridge wire protocol is stateful and line-oriented. Keep mutations on the owning
 // sidecar while proven immutable reads use a small, resource-bounded pool of long-lived
@@ -3436,6 +3438,35 @@ fn resolve_project_bridge_command(
     resolve_dev_bridge_command(bridge_mode)
 }
 
+#[cfg(windows)]
+fn resolve_bundled_bridge_command(
+    _app_handle: &tauri::AppHandle,
+    bridge_mode: &str,
+) -> Result<Option<Command>, String> {
+    let executable = std::env::current_exe()
+        .map_err(|error| format!("Could not resolve the KM Editor executable: {error}"))?;
+    let bridge = executable.with_file_name("bridge").join("km-tools-bridge.exe");
+    #[cfg(debug_assertions)]
+    let bridge = if bridge.is_file() {
+        bridge
+    } else {
+        let target = format!("{}-pc-windows-msvc", std::env::consts::ARCH);
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("binaries")
+            .join("bridge")
+            .join(target)
+            .join("km-tools-bridge.exe")
+    };
+    if !bridge.is_file() {
+        return Ok(None);
+    }
+
+    let mut command = Command::new(bridge);
+    command.arg(bridge_mode);
+    Ok(Some(command))
+}
+
+#[cfg(not(windows))]
 fn resolve_bundled_bridge_command(
     app_handle: &tauri::AppHandle,
     bridge_mode: &str,
@@ -3934,6 +3965,12 @@ fn create_open_path_command(path: &Path) -> Command {
     command
 }
 
+mod artwork;
+mod delivery;
+mod windows_update;
+
+pub use artwork::sync_for_installation as sync_artwork_for_installation;
+
 // Portable mode is activated by the marker shipped alongside the executable.
 fn portable_data_directory() -> Option<PathBuf> {
     let executable = std::env::current_exe().ok()?;
@@ -3985,6 +4022,7 @@ pub fn run() {
         .expect("KM Editor could not establish its stable Windows taskbar identity");
 
     tauri::Builder::default()
+        .register_uri_scheme_protocol("km-artwork", |_context, request| artwork::response(request))
         .manage(CloseGuardState {
             is_guarded: AtomicBool::new(false),
             shutdown_started: AtomicBool::new(false),
@@ -4013,6 +4051,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             is_portable_mode,
+            artwork::sync_artwork,
+            windows_update::install_windows_update,
             get_support_diagnostics,
             support_reports::save_support_report,
             support_reports::open_support_report,

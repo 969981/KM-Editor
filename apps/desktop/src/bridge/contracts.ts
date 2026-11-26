@@ -636,6 +636,7 @@ export const openProjectRequestSchema = z.strictObject({
 });
 export const validateProjectRequestSchema = z.strictObject({
   paths: projectPathsSchema,
+  reportProgress: z.boolean().optional(),
 });
 export const refreshFileGraphRequestSchema = z.strictObject({
   paths: projectPathsSchema,
@@ -898,6 +899,12 @@ export const projectPathRoleSchema = z.enum([
   "pokemonLegendsZASupportFolder",
   "pokemonLegendsArceusSupportFolder",
 ]);
+
+export const projectPathCheckProgressSchema = z.strictObject({
+  role: projectPathRoleSchema,
+  completed: z.boolean(),
+});
+export type ProjectPathCheckProgress = z.infer<typeof projectPathCheckProgressSchema>;
 
 export const projectPathStatusSchema = z.enum([
   "notSet",
@@ -1825,6 +1832,7 @@ export const stagePokemonDexMegaSyncResponseSchema = z.strictObject({
 export const moveProvenanceSchema = z.strictObject({
   fileState: projectFileGraphEntryStateSchema,
   sourceFile: z.string(),
+  sourcePath: z.string().nullish(),
   sourceLayer: projectFileLayerSchema,
 });
 
@@ -2756,6 +2764,8 @@ export const trainerProvenanceSchema = z.strictObject({
   teamFileState: projectFileGraphEntryStateSchema,
   teamSourceFile: z.string(),
   teamSourceLayer: projectFileLayerSchema,
+  sourceStoragePath: z.string().optional(),
+  teamStoragePath: z.string().optional(),
 });
 
 export const trainerPokemonStatsSchema = z.strictObject({

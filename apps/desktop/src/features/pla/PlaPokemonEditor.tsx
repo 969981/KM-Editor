@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 import { plaFieldHelp } from './plaFieldHelp';
 import { useMemo, useState } from 'react';
-import { Dna, RefreshCw, RotateCcw, Save, Search, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Dna, RefreshCw, RotateCcw, Save, Search, Trash2, X } from 'lucide-react';
 import type { PlaField } from '../../bridge/plaProjectBridge';
 import { EditorSessionBar, EditorSessionBarActions } from '../../components/EditorSessionBar';
+import { EditorDetailGroup, EditorDetailValue, PokemonDetailsStats } from '../../components/EditorRecordDetails';
 import { FieldLabel } from '../../components/FieldLabel';
 import { PokemonSearchBox, PokemonTable } from '../../components/PokemonSelection';
 import { PokemonYieldConfirmationModal } from '../../components/PokemonYieldConfirmationModal';
@@ -44,10 +45,10 @@ export function PlaPokemonEditor(props: PlaEditorProps) {
   const enabled = props.session !== null && editor.isCurrentScope;
   const busy = loading || staging || props.isBusy;
   const fieldLabel = (field: PlaField) => field.key.startsWith('tutor.') ? field.label : t(`pla.field.${field.key}`);
-  const input = (field: PlaField, value: string, change: (value: string) => void, disabled: boolean, id: string) => {
+  const input = (field: PlaField, value: string, change: (value: string) => void, disabled: boolean, id: string, label = fieldLabel(field)) => {
     const invalid = !isPlaFieldValueValid(field, value);
-    if (field.kind === 'boolean') return <input type="checkbox" id={id} aria-label={fieldLabel(field)} checked={value === '1'} disabled={disabled} onChange={event => change(event.target.checked ? '1' : '0')} />;
-    if (field.choices) return <SearchableOptionInput id={id} ariaLabel={fieldLabel(field)} ariaInvalid={invalid || undefined} value={value} disabled={disabled} onChange={change}
+    if (field.kind === 'boolean') return <input type="checkbox" id={id} aria-label={label} checked={value === '1'} disabled={disabled} onChange={event => change(event.target.checked ? '1' : '0')} />;
+    if (field.choices) return <SearchableOptionInput id={id} ariaLabel={label} ariaInvalid={invalid || undefined} value={value} disabled={disabled} onChange={change}
       options={(field.choices.some(choice => choice.value === value) ? field.choices : [{ value, label: value }, ...field.choices]).map(choice =>
         ['method', 'growthRate'].includes(field.key) && field.choices?.some(item => item.value === choice.value)
           ? { ...choice, label: t(`pla.choice.${field.key}.${choice.value}`) }
@@ -87,13 +88,15 @@ export function PlaPokemonEditor(props: PlaEditorProps) {
     const change = (next: string[][]) => setValue(kind, 'entries', JSON.stringify(next.map(row => row.map(value => /^\d+$/u.test(value) ? Number(value) : value))));
     return <PlaPokemonRows key={`${kind}:${record.id}`} kind={kind} rows={rows} fields={page.rowFields} enabled={enabled}
       source={props} recordId={record.id} recordLabel={recordName(record.label)} busy={busy || loading}
-      onChange={change} fieldLabel={fieldLabel} renderInput={input} />;
+      onChange={change} fieldLabel={fieldLabel} renderInput={input}
+      canSave={kind === 'evolutions' && enabled && !busy && editor.hasDraft(kind, record) && !editor.invalidKinds.includes(kind)}
+      onSave={kind === 'evolutions' ? () => void editor.stage(['evolutions']) : undefined} />;
   };
   const refresh = <button type="button" className="secondary-button compact-button" disabled={loading || busy} onClick={editor.refresh}><RefreshCw size={16} aria-hidden="true" />{translateLiteral('Refresh')}</button>;
   return <><section className="panel wide-panel pla-editor pla-data-editor pla-pokemon-section" aria-labelledby="pla-editor-title">
     <div className="panel-heading"><Dna size={18} aria-hidden="true" /><h2 id="pla-editor-title">{translateLiteral('Pokemon')}</h2>{refresh}</div>
     <SectionedEditorWorkspace sessionKey={JSON.stringify(['pla', 'pokemon', props.paths])}
-      initialSection="speciesData" activeSectionRequest={navigationRequest} sectionShortcut={speciesFieldFinder.shortcut} pinnedBrowser browserVisibleRows={3}
+      initialSection="speciesData" activeSectionRequest={navigationRequest} sectionShortcut={speciesFieldFinder.shortcut} browserVisibleRows={3}
       browser={<PokemonTable records={records} selectedId={records.find(record => record.id === editor.selectedId)?.personalId} pendingIds={pending}
             onSelect={id => editor.setSelectedId(records.find(record => record.personalId === id)?.id ?? null)} formatName={record => record.label} resetKey={editor.query} />}
       browserControls={<PokemonSearchBox disabled={false} value={editor.query} onChange={editor.onQuery} />}
@@ -117,12 +120,23 @@ export function PlaPokemonEditor(props: PlaEditorProps) {
       </EditorWorkspaceHeader>
       {selected ? <>
         <EditorWorkspaceSection id="details" label={t('editorSections.details')}>
-          <div className="inspector-block">
-            <div className="panel-heading"><ShieldCheck size={18} aria-hidden="true" /><h3>{translateLiteral('Selected Pokemon')}</h3></div>
-            <dl className="item-provenance-list pokemon-summary-metadata">
-              <div><dt>{translateLiteral('ID')}</dt><dd>{selected.id}</dd></div>
-              <div><dt>{translateLiteral('Types')}</dt><dd>{[...new Set([choiceLabel('type1', values.type1), choiceLabel('type2', values.type2)])].join(' / ')}</dd></div>
-            </dl>
+          <div className="pokemon-overview-identity">
+            <h3 data-localization-ignore="true">{recordName(selected.label)}</h3>
+            {selected.metadata?.formName ? <span data-localization-ignore="true">{selected.metadata.formName}</span> : null}
+          </div>
+          <div className="editor-detail-columns">
+            <PokemonDetailsStats stats={speciesStatFields.map(([key]) => ({
+              label: t(`pla.field.${key}`), value: values[key], number: /^\d+$/u.test(values[key]) ? Number(values[key]) : null
+            }))} />
+            <EditorDetailGroup label="Details">
+              <dl className="editor-detail-list">
+                <EditorDetailValue label="ID">{selected.id}</EditorDetailValue>
+                <EditorDetailValue label="Types" dataValue>{[...new Set([choiceLabel('type1', values.type1), choiceLabel('type2', values.type2)])].join(' / ')}</EditorDetailValue>
+                {pages.personal?.fields.filter(field => personalGroups[2].keys.includes(field.key)).map(field =>
+                  <EditorDetailValue key={field.key} label={fieldLabel(field)}>{choiceLabel(field.key, values[field.key])}</EditorDetailValue>
+                )}
+              </dl>
+            </EditorDetailGroup>
           </div>
         </EditorWorkspaceSection>
         <EditorWorkspaceSection id="speciesData" label={t('editorSections.speciesData')}
@@ -158,7 +172,7 @@ export function PlaPokemonEditor(props: PlaEditorProps) {
         </EditorWorkspaceSection>
         <EditorWorkspaceSection id="evolutions" label={t('pla.kind.evolutions')}
           modified={editor.hasDraft('evolutions')} invalid={editor.invalidKinds.includes('evolutions')}>
-            <div className="inspector-block pla-pokemon-evolutions-block">{rowEditor('evolutions')}<p className="field-note">{t('pla.notice.evolutions')}</p></div>
+            <div className="inspector-block pokemon-detail-panel pla-pokemon-evolutions-block">{rowEditor('evolutions')}<p className="field-note">{t('pla.notice.evolutions')}</p></div>
         </EditorWorkspaceSection>
       </> : null}
       <EditorWorkspaceSection id="tutors" label={t('pla.kind.tutors')}

@@ -6,6 +6,8 @@ import { learnsetDraftsEqual, projectLearnsetDraftRows, replaceLearnsetDraftReco
 import { LearnsetClipboardActions } from './features/pokemon/LearnsetClipboardActions';
 import { InteractiveTableRow, VirtualTableBody } from './components/VirtualTable';
 import { EditorLayoutScope, RecordEditorWorkspace, EditorRecordHeading, EditorWorkspaceHeader, EditorWorkspaceSection, SectionedEditorWorkspace } from './components/SectionedEditorWorkspace';
+import { MoveDetails, MoveEditorWorkspace, MoveFlagCount, type MoveFieldControl, type MoveFieldGroup } from './features/moves/MoveEditorWorkspace';
+import { EditorDetailGroup, EditorDetailValue, PokemonDetailsStats } from './components/EditorRecordDetails';
 import { SpeciesDataMatrix, useSpeciesFieldFinder } from './components/SpeciesDataMatrix';
 import { PokemonSearchBox, PokemonTable, filterPokemonRecords, formatPokemonTypes, type PokemonSelectionRecord } from './components/PokemonSelection';
 import { stageModelAsset, stageModelTexture } from './features/model-viewer/modelTextureBridge';
@@ -18,9 +20,15 @@ import MergeWorkspace from './features/mod-merger/MergeWorkspace';
 import { AdvancedEditorDetails } from './components/AdvancedEditorDetails';
 import { BetaEditorsSettings } from './features/settings/BetaEditorsSettings';
 import './components/advancedEditorWorkspace.css';
+import './components/editorWorkspaceProperties.css';
+import './components/editorSpecializedWorkspaces.css';
+import './features/project-setup/projectSetup.css';
+import './features/pokemon/pokemonDetailSections.css';
 import './features/type-chart/typeChartTheme.css';
+import './features/encounters/wildEncounters.css';
 import { handleRowClipboardShortcut } from './authoring/rowClipboardShortcuts';
-import { buildZaTrainerChangeUpdates, trainerAiFlagEnabled, toggleTrainerAiFlag } from './features/trainers/trainerAiFlags';
+import { buildZaTrainerChangeUpdates, getTrainerAiFlagGroup, trainerAiFlagEnabled, toggleTrainerAiFlag } from './features/trainers/trainerAiFlags';
+import './features/trainers/trainerEditor.css';
 import { ItemIcon } from './features/items/ItemIcon';
 
 import {
@@ -28,6 +36,7 @@ import {
   AlertTriangle,
   ArrowDown,
   ArrowLeftRight,
+  ArrowRight,
   ArrowUp,
   CheckCircle,
   ChevronDown,
@@ -125,7 +134,8 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  type CSSProperties
 } from 'react';
 import { useCoalescedTextInputState } from './components/useCoalescedTextInputState';
 import {
@@ -188,6 +198,7 @@ import {
   type PlacementEditableField,
   type PlacementWorkflow,
   type ProjectHealth,
+  type ProjectPaths,
   type ProjectGame,
   type ProjectPathRole,
   type ProjectPathValidation,
@@ -324,7 +335,7 @@ import {
   toDesktopErrorDiagnostics,
   toProjectBridgeDiagnostics
 } from './uiErrorDiagnostics';
-import { formatDiagnosticMessage } from './diagnostics';
+import { formatDiagnosticMessage, formatDiagnosticSummary } from './diagnostics';
 import {
   clearLegacyProjectPathDraft,
   clearLegacyValidatedProjectPathCache,
@@ -344,14 +355,11 @@ import {
 import { parseEditableIntegerDraft } from './editableFieldHelpers';
 import { getItemMachineCompatibilityRows, itemMachineCompatibilityGroup, setItemMachineCompatibilityDrafts, type ItemMachineCompatibilityRow } from './features/items/itemMachineCompatibility';
 import { getContextualItemEditableFields } from './itemsEditor';
+import { describeItemBehavior, isItemMachineField, itemPriceFields } from './itemEditorLayout';
+import { ItemBehavior, ItemDataLayout } from './features/items/ItemEditorWorkspace';
 import {
   evaluateMoveFieldsUpdate,
   formatMoveAccuracy,
-  formatMoveEffectChance,
-  formatMoveHealingValue,
-  formatMoveHitRange,
-  formatMoveInflictedEffectTurns,
-  formatMoveRecoilValue,
   getEditableMoveFieldValue,
   getMoveEditableFieldGroup,
   getMoveEditableFieldLabel,
@@ -416,6 +424,8 @@ import {
   EditorSessionBarActions
 } from './components/EditorSessionBar';
 import { FieldLabel } from './components/FieldLabel';
+import { getPlacementEditorLayout, placementAxes } from './features/placement/placementEditorLayout';
+import './features/placement/placementEditor.css';
 import { ContextHelp } from './components/ContextHelp';
 import { HoverTooltip } from './components/HoverTooltip';
 import { editorPortalHostId } from './components/editorPortal';
@@ -443,7 +453,7 @@ import { useEditorCategories } from './features/categories/categoryPreferences';
 import { isCustomCategoryId } from './features/categories/categoryLayout';
 import { AppSidebar } from './components/AppSidebar';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
-import { LoadingProgress, LoadingProgressSteps } from './components/LoadingProgress';
+import { LoadingProgress, LoadingProgressBar, LoadingProgressSteps } from './components/LoadingProgress';
 import { EditorOperationProgress, useEditorOperationProgress, type EditorProgressDetails } from './components/EditorOperationProgress';
 import {
   TrainerPartySlotContextMenu,
@@ -606,7 +616,6 @@ import {
   type PlacementFieldControl,
   type PlacementObjectGroup,
   buildPlacementObjectGroups,
-  formatPlacementCoordinates,
   formatPlacementObjectDisplayLabel,
   formatPlacementObjectDisplayMap,
   getPlacementInspectorPrimaryData,
@@ -726,6 +735,9 @@ import {
   PersonalizationSettingsPanel,
   ThemeSettingsPanel
 } from './features/settings/PersonalizationSettingsPanel';
+import {
+  ArtworkSettingsPanel, artworkUrl, useArtworkRevision, useInitialArtworkSync
+} from './features/settings/ArtworkSettingsPanel';
 import { WhatChangedTour } from './features/updates/WhatChangedTour';
 import { shouldShowWhatChangedTour } from './features/updates/whatChangedCatalog';
 import {
@@ -1403,6 +1415,11 @@ const pathStatusLabels = {
   valid: 'Valid',
   wrongKind: 'Wrong kind'
 } as const;
+
+type ProjectSetupValidation = {
+  checking: ProjectPathRole | null;
+  completed: ProjectPathRole[];
+};
 
 const applyProgressStepIndex = {
   verifying: 1,
@@ -2104,6 +2121,7 @@ export function App({
   bridge?: ProjectBridge;
   desktopServices?: DesktopServices;
 } = {}) {
+  useInitialArtworkSync();
   const [appVersion, setAppVersion] = useState(bundledAppVersion);
   useEffect(() => {
     if (!desktopServices.isAvailable) return;
@@ -3168,6 +3186,7 @@ export function App({
   const activeSectionLabel = t(getWorkbenchSectionLabelKey(activeSection));
   const activeWikiUrl = getSectionWikiUrl(activeSection, selectedGame);
   const [isProjectScopeTransitioning, setIsProjectScopeTransitioning] = useState(false);
+  const [projectSetupValidation, setProjectSetupValidation] = useState<ProjectSetupValidation | null>(null);
   const isBusy =
     projectStatus === 'opening' ||
     projectStatus === 'validating' ||
@@ -8661,10 +8680,36 @@ export function App({
       projectScopeGenerationRef.current += 1;
       setProjectStatus('validating');
       setBridgeDiagnostics([]);
+      setProjectSetupValidation({ checking: null, completed: [] });
 
       try {
         const paths = createProjectPaths(draftPaths);
-        const response = await bridge.validateProject({ paths });
+        const showPathHighlights = document.documentElement.dataset.kmMotion !== 'reduce'
+          && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        let progressUpdates = Promise.resolve();
+        const response = await bridge.validateProject({ paths }, ({ role, completed }) => {
+          const showUpdate = () => {
+            if (projectValidationRunRef.current !== runId) return;
+            setProjectSetupValidation((previous) => {
+              if (!previous) return previous;
+              return completed
+                ? { checking: null, completed: [...previous.completed, role] }
+                : { ...previous, checking: role };
+            });
+          };
+          if (!showPathHighlights) {
+            showUpdate();
+            return;
+          }
+          progressUpdates = progressUpdates.then(async () => {
+            showUpdate();
+            if (!completed || role === 'outputRoot') {
+              // Fast checks can finish together. Show each active row and the final progress value.
+              await new Promise<void>((resolve) => window.setTimeout(resolve, 75));
+            }
+          });
+        });
+        await progressUpdates;
         if (projectValidationRunRef.current !== runId) {
           return;
         }
@@ -8701,6 +8746,8 @@ export function App({
           return;
         }
         setBridgeDiagnostics(toBridgeDiagnostics(error));
+      } finally {
+        if (projectValidationRunRef.current === runId) setProjectSetupValidation(null);
       }
     } finally {
       finishProjectScopeTransition(transition);
@@ -10279,7 +10326,7 @@ export function App({
       () => bridge.loadRestoration({ paths: createProjectPaths(draftPaths), session: useWorkbenchStore.getState().editSession }),
       response => setRestorationWorkflow(response.workflow), () => generation === restorationGenerationRef.current);
   };
-  const handleStageRestoration = async (selections: RestorationSelection[], repairAudio = false) => {
+  const handleStageRestoration = async (selections: RestorationSelection[], checkIntegrity = false) => {
     const activeSession = getEditSessionForSection('restoreMissingPokemon');
     if (!activeSession) return false;
     let accepted = false; restorationGenerationRef.current += 1; setIsRestorationStaging(true);
@@ -10292,7 +10339,7 @@ export function App({
         const subject = entry?.formLabel ? t(`restoration.form.${entry.formLabel}`, { name: entry.name }) : entry?.name;
         reportProgress({ subject });
         const request = { paths: createProjectPaths(draftPaths), session };
-        const response = await bridge.stageRestoration(repairAudio ? { ...request, repairAudio: true } : { ...request, selections }, progress => {
+        const response = await bridge.stageRestoration(checkIntegrity ? { ...request, checkIntegrity: true } : { ...request, selections }, progress => {
           if (progress.phase === 'staging') {
             reportProgress({ completed: progress.completed, total: progress.total });
           } else {
@@ -10300,18 +10347,16 @@ export function App({
           }
         });
         const diagnostics = [...response.diagnostics, ...response.workflow.diagnostics];
-        const matches = response.session.sessionId === activeSession.sessionId && (repairAudio
-          ? response.workflow.audioRepairStaged || response.audioRepairUpToDate
-          : selections.every(selection => response.workflow.entries.some(entry => entry.definitionId === selection.definitionId
+        const matches = response.session.sessionId === activeSession.sessionId && (checkIntegrity
+          || selections.every(selection => response.workflow.entries.some(entry => entry.definitionId === selection.definitionId
             && entry.staged && entry.selected === selection.enabled
             && (selection.removeAssets ? entry.removalStaged : !entry.removalStaged && entry.preparedHash === selection.preparedHash))));
         const didSucceed = matches && !diagnostics.some(d => d.severity === 'error');
         return { ...response, diagnostics, didSucceed, session: didSucceed ? response.session : session };
       }, response => {
-        setScopedEditorPanelDiagnostics('restoreMissingPokemon', response.audioRepairUpToDate
-          ? [...response.diagnostics, { severity: 'info', message: t('restoration.audioUpToDate') }]
-          : response.diagnostics);
-        if (response.didSucceed) { accepted = true; setRestorationWorkflow(response.workflow); setEditSessionSection('restoreMissingPokemon'); }
+        setScopedEditorPanelDiagnostics('restoreMissingPokemon', response.diagnostics);
+        if (checkIntegrity || response.didSucceed) setRestorationWorkflow(response.workflow);
+        if (response.didSucceed) { accepted = true; setEditSessionSection('restoreMissingPokemon'); }
       }, activeSession, undefined, undefined, selections.some(selection => selection.removeAssets) ? 'remove' : 'stage');
     } catch (error) { setScopedEditorPanelDiagnostics('restoreMissingPokemon', toBridgeDiagnostics(error)); }
     finally { setIsRestorationStaging(false); }
@@ -13198,19 +13243,13 @@ export function App({
       case 'trainers':
         if (
           (!trainersWorkflow && !isTrainersLoading) ||
-          ((selectedGame === 'sword' || selectedGame === 'shield') &&
-            !pokemonWorkflow &&
-            !isPokemonLoading)
+          (!pokemonWorkflow && !isPokemonLoading)
         ) {
           markLazyLoadStarted();
           if (!trainersWorkflow && !isTrainersLoading) {
             void handleOpenTrainersWorkflow();
           }
-          if (
-            (selectedGame === 'sword' || selectedGame === 'shield') &&
-            !pokemonWorkflow &&
-            !isPokemonLoading
-          ) {
+          if (!pokemonWorkflow && !isPokemonLoading) {
             void handleOpenPokemonWorkflow();
           }
         }
@@ -19116,9 +19155,10 @@ export function App({
       throw error;
     });
 
-    const reloadTasks: Array<() => Promise<void>> = [];
+    const reloadTasks = new Map<StoredRetainedWorkflowSection, () => Promise<void>>();
     if (itemsWorkflow && refreshSections.has('items')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'items',
         async () => {
           const response = await bridge.loadItemsWorkflow({ paths, recordIndices: ['sword', 'shield', 'scarlet', 'violet', 'za'].includes(paths.selectedGame ?? "")
             ? appliedNumericRecordIds(appliedEdits, 'workflow.items') : undefined });
@@ -19129,7 +19169,8 @@ export function App({
       );
     }
     if (pokemonWorkflow && refreshSections.has('pokemon')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'pokemon',
         async () => {
           const response = await bridge.loadPokemonWorkflow({ paths, recordIndices: ['sword', 'shield', 'scarlet', 'violet', 'za'].includes(paths.selectedGame ?? "")
             ? appliedNumericRecordIds(appliedEdits, 'workflow.pokemon') : undefined });
@@ -19140,7 +19181,8 @@ export function App({
       );
     }
     if (movesWorkflow && refreshSections.has('moves')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'moves',
         async () => {
           const response = await bridge.loadMovesWorkflow({ paths, recordIndices: ['sword', 'shield', 'scarlet', 'violet', 'za'].includes(paths.selectedGame ?? "")
             ? appliedNumericRecordIds(appliedEdits, 'workflow.moves') : undefined });
@@ -19151,7 +19193,8 @@ export function App({
       );
     }
     if (textWorkflow && refreshSections.has('text')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'text',
         async () => {
           const queryRevision = textQueryRevisionRef.current;
           const response = await bridge.loadTextWorkflow({
@@ -19171,7 +19214,8 @@ export function App({
       );
     }
     if (trainersWorkflow && refreshSections.has('trainers')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'trainers',
         async () => {
           const trainerIds = isSwordShieldProject && writtenFiles
             ? getTrainerPartyRefreshIds(trainersWorkflow, writtenFiles)
@@ -19195,7 +19239,8 @@ export function App({
       );
     }
     if (trainerPoolsWorkflow && refreshSections.has('trainerPools')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'trainerPools',
         async () => {
           const response = await bridge.loadTrainerPoolsWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19205,7 +19250,8 @@ export function App({
       );
     }
     if (fashionCatalogWorkflow && refreshSections.has('fashionCatalog')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'fashionCatalog',
         async () => {
           const response = await bridge.loadFashionCatalogWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19215,115 +19261,127 @@ export function App({
       );
     }
     if (marnieBoostsWorkflow && refreshSections.has('marnieBoosts')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('marnieBoosts', async () => {
         const response = await bridge.loadMarnieBoosts({ paths });
         if (canCommitRefresh()) setMarnieBoostsWorkflow(response.workflow);
       });
     }
     if (restoreMissingPokemonWorkflow && refreshSections.has('restoreMissingPokemon')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('restoreMissingPokemon', async () => {
         const response = await bridge.loadRestoration({ paths, session: useWorkbenchStore.getState().editSession });
         if (canCommitRefresh()) setRestorationWorkflow(response.workflow);
       });
     }
     if (shakingTreesWorkflow && refreshSections.has('shakingTrees')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('shakingTrees', async () => {
         const response = await bridge.loadShakingTrees({ paths });
         if (canCommitRefresh()) setShakingTreesWorkflow(response.workflow);
       });
     }
     if (heldItemChanceWorkflow && refreshSections.has('heldItemChance')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('heldItemChance', async () => {
         const response = await bridge.loadHeldItemChance({ paths });
         if (canCommitRefresh()) setHeldItemChanceWorkflow(response.workflow);
       });
     }
     if (gameOptionsWorkflow && refreshSections.has('gameOptions')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('gameOptions', async () => {
         const response = await bridge.loadGameOptions({ paths });
         if (canCommitRefresh()) setGameOptionsWorkflow(response.workflow);
       });
     }
     if (obedienceWorkflow && refreshSections.has('obedience')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('obedience', async () => {
         const response = await bridge.loadObedience({ paths });
         if (canCommitRefresh()) setObedienceWorkflow(response.workflow);
       });
     }
     if (raidDensWorkflow && refreshSections.has('raidDens')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('raidDens', async () => {
         const response = await bridge.loadRaidDens({ paths });
         if (canCommitRefresh()) setRaidDensWorkflow(response.workflow);
       });
     }
     if (pokeJobsWorkflow && refreshSections.has('pokeJobs')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('pokeJobs', async () => {
         const response = await bridge.loadPokeJobs({ paths });
         if (canCommitRefresh()) setPokeJobsWorkflow(response.workflow);
       });
     }
     if (yCommWorkflow && refreshSections.has('yComm')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('yComm', async () => {
         const response = await bridge.loadYComm({ paths });
         if (canCommitRefresh()) setYCommWorkflow(response.workflow);
       });
     }
-    if ((mysteryGiftWorkflow || royalGiftWorkflow) && (refreshSections.has('mysteryGift') || refreshSections.has('royalGift'))) {
-      reloadTasks.push(async () => {
-        const response = await bridge.loadCustomGifts({ paths });
-        if (canCommitRefresh()) { setMysteryGiftWorkflow(response.workflow); setRoyalGiftWorkflow(response.workflow); }
+    // Both editors read the same catalog and commit it under their own refresh tokens.
+    let customGiftsReload: ReturnType<typeof bridge.loadCustomGifts> | undefined;
+    const loadCustomGiftsForRefresh = () =>
+      (customGiftsReload ??= bridge.loadCustomGifts({ paths }));
+    if (mysteryGiftWorkflow && refreshSections.has('mysteryGift')) {
+      reloadTasks.set('mysteryGift', async () => {
+        const response = await loadCustomGiftsForRefresh();
+        if (canCommitRefresh()) setMysteryGiftWorkflow(response.workflow);
+      });
+    }
+
+    if (royalGiftWorkflow && refreshSections.has('royalGift')) {
+      reloadTasks.set('royalGift', async () => {
+        const response = await loadCustomGiftsForRefresh();
+        if (canCommitRefresh()) setRoyalGiftWorkflow(response.workflow);
       });
     }
     if (fixAiFlagsWorkflow && refreshSections.has('fixAiFlags')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('fixAiFlags', async () => {
         const response = await bridge.loadFixAiFlags({ paths });
         if (canCommitRefresh()) setFixAiFlagsWorkflow(response.workflow);
       });
     }
     if (trainerWhiteoutWorkflow && refreshSections.has('trainerWhiteout')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('trainerWhiteout', async () => {
         const response = await bridge.loadTrainerWhiteout({ paths });
         if (canCommitRefresh()) setTrainerWhiteoutWorkflow(response.workflow);
       });
     }
     if (bbqRewardsWorkflow && refreshSections.has('bbqRewards')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('bbqRewards', async () => {
         const response = await bridge.loadBlueberry({ editor: 'bbqRewards', paths, session: getEditSessionForSection('bbqRewards') });
         if (canCommitRefresh()) setBbqRewardsWorkflow(response.workflow);
       });
     }
     if (supportBoardWorkflow && refreshSections.has('supportBoard')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('supportBoard', async () => {
         const response = await bridge.loadBlueberry({ editor: 'supportBoard', paths, session: getEditSessionForSection('supportBoard') });
         if (canCommitRefresh()) setSupportBoardWorkflow(response.workflow);
       });
     }
     if (snacksworthWorkflow && refreshSections.has('snacksworth')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('snacksworth', async () => {
         const response = await bridge.loadBlueberry({ editor: 'snacksworth', paths, session: getEditSessionForSection('snacksworth') });
         if (canCommitRefresh()) setSnacksworthWorkflow(response.workflow);
       });
     }
     if (starmobilesWorkflow && refreshSections.has('starmobiles')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('starmobiles', async () => {
         const response = await bridge.loadStarmobiles({ paths, session: getEditSessionForSection('starmobiles') });
         if (canCommitRefresh()) setStarmobilesWorkflow(response.workflow);
       });
     }
     if (titanSwapperWorkflow && refreshSections.has('titanSwapper')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('titanSwapper', async () => {
         const response = await bridge.loadTitanSwapper({ paths, session: getEditSessionForSection('titanSwapper') });
         if (canCommitRefresh()) setTitanSwapperWorkflow(response.workflow);
       });
     }
     if (summaryStatsWorkflow && refreshSections.has('summaryStats')) {
-      reloadTasks.push(async () => {
+      reloadTasks.set('summaryStats', async () => {
         const response = await bridge.loadSummaryStats({ paths, session: getEditSessionForSection('summaryStats') });
         if (canCommitRefresh()) setSummaryStatsWorkflow(response.workflow);
       });
     }
     if (habitatCoordinatesWorkflow && refreshSections.has('habitatCoordinates')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'habitatCoordinates',
         async () => {
           const page = habitatCoordinatesWorkflow.page;
           const response = await bridge.loadHabitatCoordinates({
@@ -19343,7 +19401,8 @@ export function App({
       );
     }
     if (giftPokemonWorkflow && refreshSections.has('giftPokemon')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'giftPokemon',
         async () => {
           const response = await bridge.loadGiftPokemonWorkflow({ paths,
             recordIndices: ['sword', 'shield', 'scarlet', 'violet', 'za'].includes(paths.selectedGame ?? "")
@@ -19355,7 +19414,8 @@ export function App({
       );
     }
     if (tradePokemonWorkflow && refreshSections.has('tradePokemon')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'tradePokemon',
         async () => {
           const response = await bridge.loadTradePokemonWorkflow({ paths,
             recordIndices: ['sword', 'shield', 'scarlet', 'violet', 'za'].includes(paths.selectedGame ?? "")
@@ -19367,7 +19427,8 @@ export function App({
       );
     }
     if (staticEncountersWorkflow && refreshSections.has('staticEncounters')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'staticEncounters',
         async () => {
           const response = await bridge.loadStaticEncountersWorkflow({ paths,
             recordIndices: (paths.selectedGame === 'sword' || paths.selectedGame === 'shield')
@@ -19379,7 +19440,8 @@ export function App({
       );
     }
     if (rentalPokemonWorkflow && refreshSections.has('rentalPokemon')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'rentalPokemon',
         async () => {
           const response = await bridge.loadRentalPokemonWorkflow({ paths,
             recordIndices: (paths.selectedGame === 'sword' || paths.selectedGame === 'shield')
@@ -19391,7 +19453,8 @@ export function App({
       );
     }
     if (dynamaxAdventuresWorkflow && refreshSections.has('dynamaxAdventures')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'dynamaxAdventures',
         async () => {
           const response = await bridge.loadDynamaxAdventuresWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19401,7 +19464,8 @@ export function App({
       );
     }
     if (shopsWorkflow && refreshSections.has('shops')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'shops',
         async () => {
           const response = await bridge.loadShopsWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19415,7 +19479,8 @@ export function App({
       );
     }
     if (tmMachineControlsWorkflow && refreshSections.has('tmMachineControls')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'tmMachineControls',
         async () => {
           const response = await bridge.loadTmMachineControls({ paths });
           if (canCommitRefresh()) {
@@ -19425,7 +19490,8 @@ export function App({
       );
     }
     if (encountersWorkflow && refreshSections.has('encounters')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'encounters',
         async () => {
           const response = await bridge.loadEncountersWorkflow({ paths, tableIds: paths.selectedGame === 'za' ? appliedZaEncounterTableIds(appliedEdits, encountersWorkflow) : appliedEncounterTableIds(appliedEdits) });
           if (canCommitRefresh()) {
@@ -19435,7 +19501,8 @@ export function App({
       );
     }
     if (teraRaidsWorkflow && refreshSections.has('teraRaids')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'teraRaids',
         async () => {
           const response = await bridge.loadTeraRaidsWorkflow({ paths, recordIds: appliedTeraRaidRecordIds(appliedEdits) });
           if (canCommitRefresh()) {
@@ -19445,7 +19512,8 @@ export function App({
       );
     }
     if (raidBattlesWorkflow && refreshSections.has('raidBattles')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'raidBattles',
         async () => {
           const response = await bridge.loadRaidBattlesWorkflow({ paths, tableIds: appliedRaidTableIds(appliedEdits) });
           if (canCommitRefresh()) {
@@ -19455,7 +19523,8 @@ export function App({
       );
     }
     if (raidRewardsWorkflow && refreshSections.has('raidRewards')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'raidRewards',
         async () => {
           const response = await bridge.loadRaidRewardsWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19465,7 +19534,8 @@ export function App({
       );
     }
     if (raidBonusRewardsWorkflow && refreshSections.has('raidBonusRewards')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'raidBonusRewards',
         async () => {
           const response = await bridge.loadRaidBonusRewardsWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19475,7 +19545,8 @@ export function App({
       );
     }
     if (placementWorkflow && refreshSections.has('placement')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'placement',
         async () => {
           const response = isSwordShieldProject
             ? await bridge.openSwShPlacementCatalog({ paths })
@@ -19491,7 +19562,8 @@ export function App({
       );
     }
     if (behaviorWorkflow && refreshSections.has('behavior')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'behavior',
         async () => {
           const response = await bridge.loadBehaviorWorkflow({ paths, entryIndices: !isSwordShieldProject ? undefined : appliedRecordIndices(appliedEdits, 'workflow.behavior', 'behavior') });
           if (canCommitRefresh()) {
@@ -19501,7 +19573,8 @@ export function App({
       );
     }
     if (flagworkSaveWorkflow && refreshSections.has('flagworkSave')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'flagworkSave',
         async () => {
           const response = await bridge.loadFlagworkSaveWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19511,7 +19584,8 @@ export function App({
       );
     }
     if (bagHookWorkflow && refreshSections.has('bagHook')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'bagHook',
         async () => {
           const response = await bridge.loadBagHookWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19521,7 +19595,8 @@ export function App({
       );
     }
     if (catchCapWorkflow && refreshSections.has('catchCap')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'catchCap',
         async () => {
           const response = await bridge.loadCatchCapWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19531,7 +19606,8 @@ export function App({
       );
     }
     if (hyperTrainingWorkflow && refreshSections.has('hyperTraining')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'hyperTraining',
         async () => {
           const response = await bridge.loadHyperTrainingWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19541,7 +19617,8 @@ export function App({
       );
     }
     if (shinyRateWorkflow && refreshSections.has('shinyRate')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'shinyRate',
         async () => {
           const response = await bridge.loadShinyRateWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19551,7 +19628,8 @@ export function App({
       );
     }
     if (typeChartWorkflow && refreshSections.has('typeChart')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'typeChart',
         async () => {
           const response = await bridge.loadTypeChartWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19561,7 +19639,8 @@ export function App({
       );
     }
     if (angeFightWorkflow && refreshSections.has('angeFight')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'angeFight',
         async () => {
           const response = await bridge.loadAngeFightWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19571,7 +19650,8 @@ export function App({
       );
     }
     if (fairyGymBoostsWorkflow && refreshSections.has('fairyGymBoosts')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'fairyGymBoosts',
         async () => {
           const response = await bridge.loadFairyGymBoostsWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19581,7 +19661,8 @@ export function App({
       );
     }
     if (fashionUnlockWorkflow && refreshSections.has('fashionUnlock')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'fashionUnlock',
         async () => {
           const response = await bridge.loadFashionUnlockWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19591,7 +19672,8 @@ export function App({
       );
     }
     if (gymUniformRemovalWorkflow && refreshSections.has('gymUniformRemoval')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'gymUniformRemoval',
         async () => {
           const response = await bridge.loadGymUniformRemovalWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19601,7 +19683,8 @@ export function App({
       );
     }
     if (hyperspaceBypassWorkflow && refreshSections.has('hyperspaceBypass')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'hyperspaceBypass',
         async () => {
           const response = await bridge.loadHyperspaceBypassWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19611,7 +19694,8 @@ export function App({
       );
     }
     if (ivScreenWorkflow && refreshSections.has('ivScreen')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'ivScreen',
         async () => {
           const response = await bridge.loadIvScreenWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19621,7 +19705,8 @@ export function App({
       );
     }
     if (exeFsPatchWorkflow && refreshSections.has('exefsPatches')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'exefsPatches',
         async () => {
           const response = await bridge.loadExeFsPatchWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19631,7 +19716,8 @@ export function App({
       );
     }
     if (royalCandyWorkflow && refreshSections.has('royalCandy')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'royalCandy',
         async () => {
           const response = await bridge.loadRoyalCandyWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19641,7 +19727,8 @@ export function App({
       );
     }
     if (startingItemsWorkflow && refreshSections.has('startingItems')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'startingItems',
         async () => {
           const response = await bridge.loadStartingItemsWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19651,7 +19738,8 @@ export function App({
       );
     }
     if (npcItemGiftWorkflow && refreshSections.has('npcItemGift')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'npcItemGift',
         async () => {
           const response = await bridge.loadNpcItemGiftWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19661,7 +19749,8 @@ export function App({
       );
     }
     if (battleCafeRewardsWorkflow && refreshSections.has('battleCafeRewards')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'battleCafeRewards',
         async () => {
           const response = await bridge.loadBattleCafeRewardsWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19671,7 +19760,8 @@ export function App({
       );
     }
     if (spreadsheetImportWorkflow && refreshSections.has('spreadsheetImport')) {
-      reloadTasks.push(
+      reloadTasks.set(
+        'spreadsheetImport',
         async () => {
           const response = await bridge.loadSpreadsheetImportWorkflow({ paths });
           if (canCommitRefresh()) {
@@ -19681,17 +19771,19 @@ export function App({
       );
     }
 
-    if (reloadTasks.length !== reloadSectionOrder.length) {
+    if (
+      reloadTasks.size !== reloadSectionOrder.length ||
+      reloadSectionOrder.some((section) => !reloadTasks.has(section))
+    ) {
       evictFailedWorkflowRefreshes();
       finishWorkflowRefreshes();
       throw new Error('Loaded workflow refresh ordering is out of sync.');
     }
 
     try {
-      for (let index = 0; index < reloadTasks.length; index += 1) {
-        const reloadTask = reloadTasks[index];
-        const section = reloadSectionOrder[index];
-        if (!reloadTask || !section) {
+      for (const section of reloadSectionOrder) {
+        const reloadTask = reloadTasks.get(section);
+        if (!reloadTask) {
           continue;
         }
 
@@ -20122,9 +20214,7 @@ export function App({
     <SettingsSection
       appVersion={appVersion}
       availableUpdateKind={availableUpdate?.kind ?? null}
-      personalizationSettings={
-        <PersonalizationSettingsPanel />
-      }
+      personalizationSettings={<PersonalizationSettingsPanel />}
       themeSettings={<ThemeSettingsPanel />}
       hasBlockingProjectOperation={hasCriticalWriteOperation}
       hasSvCacheRequestError={showingWelcome ? welcomeCache.error : currentSvCacheRequestError}
@@ -20332,9 +20422,10 @@ export function App({
           aria-busy={isProjectScopeTransitioning || undefined}
           className="workspace-content"
           data-workspace-section={activeSection}
-          data-editor-workspace={getWorkbenchCapabilityRegistration(activeSection).navigationKind === 'workflow' ||
-            activeSection === 'exefsPatches' ? '' : undefined}
-          inert={isProjectScopeTransitioning ? true : undefined}
+          data-editor-workspace={['workflow', 'hidden'].includes(
+            getWorkbenchCapabilityRegistration(activeSection).navigationKind
+          ) ? '' : undefined}
+          inert={isProjectScopeTransitioning && activeSection !== 'health' ? true : undefined}
         >
           <EditorLayoutScope.Provider value={JSON.stringify([activeProjectId, selectedGame])}>
           <Fragment
@@ -20345,7 +20436,6 @@ export function App({
               draftPaths={draftPaths}
               health={health}
               isDesktopAvailable={desktopServices.isAvailable}
-              bridgeDiagnostics={bridgeDiagnostics}
               isBusy={isBusy || hasCriticalWriteOperation}
               isOutputRootCreating={isOutputRootCreating}
               hasSvCacheRequestError={currentSvCacheRequestError}
@@ -20382,6 +20472,7 @@ export function App({
               projectStatus={projectStatus}
               selectedGame={selectedGame}
               svCacheStatus={currentSvCacheStatus}
+              validation={projectSetupValidation}
             />
           ) : null}
           <div className="km-retained-workbench" hidden={activeSection !== 'workbench'}>
@@ -20762,7 +20853,6 @@ export function App({
                 ordinaryDraftProject={ordinaryDraftProjectContext}
                 editSession={getEditSessionForSection('text')}
                 isEditStarting={isEditStarting}
-                isPagedResultWindow={supportsTextQuery}
                 isTextLoading={isTextLoading}
                 isTextQueryPending={isTextQueryPending}
                 isTextUpdating={isTextUpdating}
@@ -20786,6 +20876,7 @@ export function App({
               <WorkflowLoadingPanel label="Trainers" />
             ) : isPokemonLegendsZAProject ? (
               <ZaTrainersSection
+                projectPaths={createProjectPaths(draftPaths)}
                 hasProtectedTrainerDrafts={hasProtectedTrainerDrafts}
                 ordinaryDraftProject={ordinaryDraftProjectContext}
                 editSession={getEditSessionForSection('trainers')}
@@ -20810,6 +20901,7 @@ export function App({
               />
             ) : isScarletVioletProject ? (
               <SvTrainersSection
+                projectPaths={createProjectPaths(draftPaths)}
                 hasProtectedTrainerDrafts={hasProtectedTrainerDrafts}
                 ordinaryDraftProject={ordinaryDraftProjectContext}
                 editSession={getEditSessionForSection('trainers')}
@@ -20833,6 +20925,7 @@ export function App({
               />
             ) : (
               <SwShTrainersSection
+                projectPaths={createProjectPaths(draftPaths)}
                 hasProtectedTrainerDrafts={hasProtectedTrainerDrafts}
                 ordinaryDraftProject={ordinaryDraftProjectContext}
                 editSession={getEditSessionForSection('trainers')}
@@ -21348,6 +21441,7 @@ export function App({
                         isDetailLoading: isSwShPlacementDetailLoading,
                         isPageLoading: isSwShPlacementPageLoading,
                         isPageStale: isSwShPlacementPageStale,
+                        objects: swShPlacementPage?.objects ?? emptyPlacedObjects,
                         limit: swShPlacementPage?.limit ?? swShPlacementPageSize,
                         offset: swShPlacementPage?.offset ?? swShPlacementOffset,
                         onCategoryChange: (categoryId) => {
@@ -22163,7 +22257,10 @@ export function App({
             />
           ) : null}
           <CommonBottomDiagnosticsSection
-            diagnostics={bottomDiagnostics}
+            compact={activeSection === 'health'}
+            diagnostics={activeSection === 'health' && health
+              ? deduplicateDiagnostics([...bottomDiagnostics, ...health.diagnostics])
+              : bottomDiagnostics}
             showProjectSetupConfirmations={activeSection === 'health'}
           />
           {personalWorkspaceError && activeSection === 'workbench' ? (
@@ -22463,7 +22560,6 @@ function WorkflowLoadingPanel({ label }: { label: string }) {
 }
 
 function HealthSection({
-  bridgeDiagnostics,
   draftPaths,
   hasSvCacheRequestError,
   hasSvCacheWarmupError,
@@ -22486,9 +22582,9 @@ function HealthSection({
   projectRelocationAction,
   projectStatus,
   selectedGame,
-  svCacheStatus
+  svCacheStatus,
+  validation
 }: {
-  bridgeDiagnostics: ApiDiagnostic[];
   draftPaths: ProjectPathDraft;
   hasSvCacheRequestError: boolean;
   hasSvCacheWarmupError: boolean;
@@ -22512,19 +22608,30 @@ function HealthSection({
   projectStatus: 'idle' | 'validating' | 'opening' | 'open';
   selectedGame: ProjectGame;
   svCacheStatus: TrinityCacheStatus | null;
+  validation: ProjectSetupValidation | null;
 }) {
-  const { t } = useLocalization();
+  const { t, translateLiteral } = useLocalization();
   const outputRootPath = draftPaths.outputRootPath.trim();
   const gameDefinition = gameDefinitions[selectedGame];
   const GameIcon = gameDefinition.icon;
-  const visiblePathFields = pathFields.filter((pathField) =>
-    isProjectPathFieldVisible(pathField, selectedGame)
-  );
+  const visiblePathFields = pathFields.filter((field) => isProjectPathFieldVisible(field, selectedGame));
+  const supportField = visiblePathFields.find((field) => field.scope);
+  const baseFields = visiblePathFields.filter((field) => field.role === 'baseRomFs' || field.role === 'baseExeFs');
+  const saveField = visiblePathFields.find((field) => field.role === 'saveFile');
+  const outputField = visiblePathFields.find((field) => field.role === 'outputRoot');
+  const isValidating = projectStatus === 'validating' || validation !== null;
+  const completedCount = validation?.completed.length ?? 0;
+  const activeField = visiblePathFields.find((field) => field.role === validation?.checking);
+  const validationMessage = activeField
+    ? t('projectPaths.progress.checking', { field: translateLiteral(activeField.label) })
+    : completedCount === visiblePathFields.length
+      ? t('projectPaths.progress.finishing')
+      : t('settings.cache.status.validatingPaths');
   const canShowSvCacheProgress = isProjectCacheGame(selectedGame);
-  const cacheSourceState: CacheProgressSourceState = !health
-    ? projectStatus === 'validating' || projectStatus === 'opening'
-      ? 'validating'
-      : 'unvalidated'
+  const cacheSourceState: CacheProgressSourceState = isValidating || projectStatus === 'opening'
+    ? 'validating'
+    : !health
+      ? 'unvalidated'
     : hasSvCacheRequestError
       ? 'error'
       : hasValidProjectCacheSource(selectedGame, health)
@@ -22534,28 +22641,84 @@ function HealthSection({
     ? t('settings.cache.swsh.title')
     : getTrinityCacheTitle(selectedGame);
 
-  return (
-    <>
-      <section aria-labelledby="project-gate-heading" className="panel project-gate">
-        <div className="panel-heading">
-          <FolderOpen aria-hidden="true" size={18} />
-          <h2 className="context-help-heading" id="project-gate-heading">
-            <span>Project Paths</span>
-            <ContextHelp label="Project Paths">{t('projectPaths.help.statuses')}</ContextHelp>
-          </h2>
-        </div>
+  const renderPath = (field: ProjectPathField) => {
+    const result = health?.paths.find((path) => path.role === field.role);
+    const issue = result?.diagnostics.find(({ severity }) => severity === 'error')
+      ?? result?.diagnostics.find(({ severity }) => severity === 'warning');
+    const inputId = `${field.field}-input`;
+    const statusId = `${field.field}-status`;
+    const issueId = `${field.field}-issue`;
+    const label = translateLiteral(field.label);
+    const value = draftPaths[field.field];
+    const checking = validation?.checking === field.role;
+    const checked = validation?.completed.includes(field.role);
+    const hasIssue = Boolean(issue);
+    const StatusIcon = checking ? Search : hasIssue ? AlertTriangle
+      : result?.status === 'valid' ? CheckCircle : null;
+    const statusClass = result?.status === 'notSet' && !hasIssue
+      ? 'path-status path-status-muted'
+      : getPathStatusClassName(result);
+    const statusLabel = checking
+      ? translateLiteral('Checking')
+      : translateLiteral(result ? pathStatusLabels[result.status] : 'Not checked');
 
-        <div className="selected-game-banner">
-          <div className="selected-game-label">
-            <GameIcon aria-hidden="true" size={22} />
-            <span>{gameDefinition.title}</span>
+    return (
+      <div className="project-setup-path path-field" data-checking={checking || undefined}
+        data-checked={checked || undefined} key={field.role}>
+        <div className="project-setup-path-heading">
+          <FieldLabel help={t(field.helpKey)} htmlFor={inputId} label={label} />
+          <small className={statusClass} id={statusId}>
+            {StatusIcon ? <StatusIcon aria-hidden="true" size={13} /> : null}
+            {statusLabel}
+          </small>
+        </div>
+        <div className="path-input-row">
+          <input
+            aria-describedby={hasIssue ? `${statusId} ${issueId}` : statusId}
+            aria-invalid={issue?.severity === 'error' || undefined}
+            disabled={isBusy}
+            id={inputId}
+            onChange={(event) => onSetDraftPath(field.field, event.target.value)}
+            placeholder={translateLiteral('Not set')}
+            title={value || undefined}
+            value={value}
+          />
+          <button
+            aria-label={t('projectPaths.browseFor', { field: label })}
+            className="secondary-button icon-button"
+            disabled={!isDesktopAvailable || isBusy}
+            onClick={() => onPickProjectPath(field)}
+            title={t('projectPaths.browseFor', { field: label })}
+            type="button"
+          >
+            {field.kind === 'file' ? <Save aria-hidden="true" size={16} /> : <FolderOpen aria-hidden="true" size={16} />}
+          </button>
+        </div>
+        {issue ? <p className="project-setup-path-issue" data-severity={issue.severity} id={issueId}>
+          {formatDiagnosticSummary(issue, translateLiteral, t)}
+        </p> : null}
+      </div>
+    );
+  };
+
+  return (
+      <section aria-labelledby="project-gate-heading" className="panel project-gate project-setup">
+        <header className="project-setup-header">
+          <div className="project-setup-identity">
+            <h2 className="context-help-heading" id="project-gate-heading">
+              <FolderOpen aria-hidden="true" size={18} />
+              <span>{t('workbench.section.health.label')}</span>
+              <ContextHelp label={t('workbench.section.health.label')}>{t('projectPaths.help.statuses')}</ContextHelp>
+            </h2>
+            <div className="project-setup-game">
+              <GameIcon aria-hidden="true" size={18} />
+              <strong>{translateLiteral(gameDefinition.label)}</strong>
+              <span className="context-help-heading">
+                <code>{gameDefinition.titleId}</code>
+                <ContextHelp label={t('projectPaths.titleIdLabel')}>{t('projectPaths.help.titleId')}</ContextHelp>
+              </span>
+            </div>
           </div>
-          <span className="context-help-heading">
-            <code>{gameDefinition.titleId}</code>
-            <ContextHelp label={t('projectPaths.titleIdLabel')}>
-              {t('projectPaths.help.titleId')}
-            </ContextHelp>
-          </span>
           <button
             className="secondary-button"
             disabled={isBusy || pendingEditCount > 0}
@@ -22565,119 +22728,87 @@ function HealthSection({
             <ArrowLeftRight aria-hidden="true" size={18} />
             <span>Change Game</span>
           </button>
-        </div>
+        </header>
 
-        <div className="path-form">
-          {visiblePathFields.map((pathField) => {
-            const pathValidation = health?.paths.find((path) => path.role === pathField.role);
-            const inputId = `${pathField.field}-input`;
-
-            return (
-              <div className="path-field" key={pathField.field}>
-                <FieldLabel
-                  help={t(pathField.helpKey)}
-                  htmlFor={inputId}
-                  label={pathField.label}
-                />
-                <div className="path-input-row">
-                  <input
-                    aria-describedby={`${pathField.field}-status`}
-                    disabled={isBusy}
-                    id={inputId}
-                    onChange={(event) => onSetDraftPath(pathField.field, event.target.value)}
-                    placeholder="Not set"
-                    value={draftPaths[pathField.field]}
-                  />
-                  <button
-                    aria-label={`Browse for ${pathField.label}`}
-                    className="secondary-button icon-button"
-                    disabled={!isDesktopAvailable || isBusy}
-                    onClick={() => onPickProjectPath(pathField)}
-                    title={`Browse for ${pathField.label}`}
-                    type="button"
-                  >
-                    {pathField.kind === 'file' ? (
-                      <Save aria-hidden="true" size={18} />
-                    ) : (
-                      <FolderOpen aria-hidden="true" size={18} />
-                    )}
-                  </button>
-                </div>
-                <small
-                  className={getPathStatusClassName(pathValidation)}
-                  id={`${pathField.field}-status`}
+        <div className="project-setup-columns">
+          <section aria-labelledby="project-setup-sources" className="project-setup-column">
+            <h3 id="project-setup-sources"><Layers aria-hidden="true" size={16} />{translateLiteral('Source files')}</h3>
+            {baseFields.map(renderPath)}
+            {supportField ? (
+              <div className="project-setup-support">
+                {renderPath(supportField)}
+                <button
+                  aria-busy={isSupportSearchRunning || undefined}
+                  className="secondary-button project-setup-find"
+                  disabled={!isDesktopAvailable || isBusy || isSupportSearchRunning}
+                  onClick={onRequestSupportSearch}
+                  title="Search local drives for oo2core_8_win64.dll and fill the folder."
+                  type="button"
                 >
-                  {pathValidation ? pathStatusLabels[pathValidation.status] : 'Not checked'}
-                </small>
+                  <BusyActionContent
+                    busyLabel="Finding oo2core_8_win64.dll"
+                    icon={<Search aria-hidden="true" size={16} />}
+                    isBusy={isSupportSearchRunning}
+                    label="Find oo2core_8_win64.dll"
+                    size={16}
+                  />
+                </button>
               </div>
-            );
-          })}
+            ) : null}
+            {saveField ? renderPath(saveField) : null}
+          </section>
+
+          <section aria-labelledby="project-setup-output" className="project-setup-column">
+            <h3 id="project-setup-output"><Package aria-hidden="true" size={16} />{t('projectPaths.outputHeading')}</h3>
+            {outputField ? renderPath(outputField) : null}
+            <div className="project-setup-output-actions">
+              <button
+                className="secondary-button"
+                disabled={!isDesktopAvailable || isBusy || outputRootPath.length === 0}
+                onClick={onOpenOutputRoot}
+                type="button"
+              >
+                <ExternalLink aria-hidden="true" size={16} />
+                <span>Open Output Root</span>
+              </button>
+              <button
+                aria-busy={isOutputRootCreating || undefined}
+                className="secondary-button"
+                disabled={!isDesktopAvailable || isBusy || isOutputRootCreating || outputRootPath.length > 0}
+                onClick={onCreateOutputRootFolder}
+                type="button"
+              >
+                <BusyActionContent
+                  busyLabel="Creating Output Root Folder"
+                  icon={<Plus aria-hidden="true" size={16} />}
+                  isBusy={isOutputRootCreating}
+                  label="Create Output Root Folder"
+                  size={16}
+                />
+              </button>
+              {projectRelocationAction}
+            </div>
+          </section>
         </div>
 
-        <div className="action-row">
+        <div className="project-setup-validation">
           <button
-            aria-busy={(projectStatus === 'validating') || undefined}
-            className="secondary-button"
+            aria-busy={isValidating || undefined}
+            className="primary-button"
             disabled={isBusy}
             onClick={onValidateProject}
             type="button"
           >
-            <BusyActionContent
-              busyLabel="Validating"
-              icon={<RefreshCw aria-hidden="true" size={18} />}
-              isBusy={projectStatus === 'validating'}
-              label="Validate Paths"
-              size={18}
-            />
+            <ClipboardCheck aria-hidden="true" size={18} />
+            <span>Validate Paths</span>
           </button>
-          <button
-            className="secondary-button"
-            disabled={!isDesktopAvailable || isBusy || outputRootPath.length === 0}
-            onClick={onOpenOutputRoot}
-            type="button"
-          >
-            <ExternalLink aria-hidden="true" size={18} />
-            <span>Open Output Root</span>
-          </button>
-          {projectRelocationAction}
-          <button
-            aria-busy={isOutputRootCreating || undefined}
-            className="secondary-button"
-            disabled={
-              !isDesktopAvailable ||
-              isBusy ||
-              isOutputRootCreating ||
-              outputRootPath.length > 0
-            }
-            onClick={onCreateOutputRootFolder}
-            type="button"
-          >
-            <BusyActionContent
-              busyLabel="Creating Output Root Folder"
-              icon={<Plus aria-hidden="true" size={18} />}
-              isBusy={isOutputRootCreating}
-              label="Create Output Root Folder"
-              size={18}
-            />
-          </button>
-          {isTrinityCacheGame(selectedGame) || selectedGame === 'pla' ? (
-            <button
-              aria-busy={isSupportSearchRunning || undefined}
-              className="secondary-button"
-              disabled={!isDesktopAvailable || isBusy || isSupportSearchRunning}
-              onClick={onRequestSupportSearch}
-              title="Search local drives for oo2core_8_win64.dll and fill the folder."
-              type="button"
-            >
-              <BusyActionContent
-                busyLabel="Finding oo2core_8_win64.dll"
-                icon={<Search aria-hidden="true" size={18} />}
-                isBusy={isSupportSearchRunning}
-                label="Find oo2core_8_win64.dll"
-                size={18}
-              />
-            </button>
-          ) : null}
+          <div className="project-setup-validation-progress" aria-live="polite" data-active={isValidating}>
+            {isValidating ? <>
+              <span>{validationMessage}</span>
+              <progress aria-label={translateLiteral('Validation')} max={visiblePathFields.length}
+                value={validation ? completedCount : undefined} />
+            </> : null}
+          </div>
         </div>
 
         {canShowSvCacheProgress ? (
@@ -22693,9 +22824,6 @@ function HealthSection({
           />
         ) : null}
       </section>
-
-      <DiagnosticsSection diagnostics={[...bridgeDiagnostics, ...(health?.diagnostics ?? [])]} />
-    </>
   );
 }
 
@@ -22790,85 +22918,100 @@ function SvCacheProgressPanel({
             ? `Persistent ${cacheTitle} warmup is off in Minimal mode.`
             : effectiveStatus!.message;
 
-  const running = isRetrying || isChecking || isValidatingPaths || (isWarming && !isWarmupPaused && !isError);
-  const measured = !isMinimal && effectiveStatus !== null && !isAwaitingValidation && !isValidatingPaths;
+  const measured = !isMinimal && effectiveStatus !== null && totalUnitCount > 0;
+  const showProgress = measured || isChecking || (isError && isRetrying);
+  const sizeLabel = effectiveStatus ? formatCacheSizeLabel(
+    effectiveStatus.cacheSizeBytes, formatLocale, t('settings.cache.size.none'), translateLiteral('Unavailable')
+  ) : null;
+  const statusLabel = translateLiteral(isRetrying
+    ? isWarmupPaused ? 'Retrying cache build' : 'Retrying cache check'
+    : phaseLabel);
   return (
-    <LoadingProgress className="sv-cache-progress-panel" label={cacheTitle}
-      status={running ? 'running' : isError ? 'error' : isWarmupPaused ? 'paused' : isReady && !isMinimal ? 'complete' : 'idle'}
-      statusLabel={translateLiteral(isRetrying ? isWarmupPaused ? 'Retrying cache build' : 'Retrying cache check' : phaseLabel)}
-      detail={translateLiteral(message)}
-      completed={measured ? completedUnitCount : undefined} total={measured ? totalUnitCount : undefined}>
-      <dl className="work-progress-detail">
-        <div>
-          <dt>Mode</dt>
-          <dd>
-            {isAwaitingValidation
-              ? translateLiteral('Not checked')
-              : isValidatingPaths
-                ? validationLabel
-              : isError && !effectiveStatus
-              ? 'Unavailable'
-              : isError
-                ? `${formatSvCacheModeLabel(effectiveStatus!.settings.mode)} (last known)`
-                : isSetupRequired
-                  ? 'Setup required'
-                  : effectiveStatus
-                    ? formatSvCacheModeLabel(effectiveStatus.settings.mode)
-                    : 'Checking'}
-          </dd>
+    <div className="project-setup-cache">
+      <details className="project-setup-disclosure">
+        <summary>
+          <Layers aria-hidden="true" size={16} />
+          <strong>{cacheTitle}</strong>
+          <span className="project-setup-cache-state">{statusLabel}</span>
+          {measured ? <span>{percent}%</span> : null}
+          {sizeLabel ? <span>{sizeLabel}</span> : null}
+          <ChevronDown aria-hidden="true" size={16} />
+        </summary>
+        <div className="project-setup-cache-detail">
+          <p>{translateLiteral(message)}</p>
+          <dl className="work-progress-detail">
+            <div>
+              <dt>Mode</dt>
+              <dd>
+                {isAwaitingValidation
+                  ? translateLiteral('Not checked')
+                  : isValidatingPaths
+                    ? validationLabel
+                  : isError && !effectiveStatus
+                  ? 'Unavailable'
+                  : isError
+                    ? `${formatSvCacheModeLabel(effectiveStatus!.settings.mode)} (last known)`
+                    : isSetupRequired
+                      ? 'Setup required'
+                      : effectiveStatus
+                        ? formatSvCacheModeLabel(effectiveStatus.settings.mode)
+                        : 'Checking'}
+              </dd>
+            </div>
+            {!isMinimal ? (
+              <div>
+                <dt>Progress</dt>
+                <dd>
+                  {isAwaitingValidation || isValidatingPaths
+                    ? validationLabel
+                    : isError && !effectiveStatus
+                    ? 'Retry required'
+                    : isError
+                      ? `${percent}% (${completedUnitCount} of ${totalUnitCount}, last known)`
+                      : isSetupRequired
+                        ? 'Waiting for Project Setup'
+                        : isChecking
+                          ? 'Checking'
+                          : `${percent}% (${completedUnitCount} of ${totalUnitCount})`}
+                </dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>{t('settings.cache.size.label')}</dt>
+              <dd>
+                {sizeLabel ?? translateLiteral('Unavailable')}
+              </dd>
+            </div>
+          </dl>
+          {isError || isWarmupPaused ? (
+            <div className="action-row">
+              <button
+                aria-busy={isRetrying || undefined}
+                className="secondary-button"
+                disabled={isRetrying}
+                onClick={onRetry}
+                type="button"
+              >
+                <BusyActionContent
+                  busyLabel={isWarmupPaused ? 'Retrying cache build' : 'Retrying cache check'}
+                  icon={<RefreshCw aria-hidden="true" size={18} />}
+                  isBusy={isRetrying}
+                  label={isWarmupPaused ? 'Retry cache build' : 'Retry cache check'}
+                  size={18}
+                />
+              </button>
+            </div>
+          ) : null}
         </div>
-        {!isMinimal ? (
-          <div>
-            <dt>Progress</dt>
-            <dd>
-              {isAwaitingValidation || isValidatingPaths
-                ? validationLabel
-                : isError && !effectiveStatus
-                ? 'Retry required'
-                : isError
-                  ? `${percent}% (${completedUnitCount} of ${totalUnitCount}, last known)`
-                  : isSetupRequired
-                    ? 'Waiting for Project Setup'
-                    : isChecking
-                      ? 'Checking'
-                      : `${percent}% (${completedUnitCount} of ${totalUnitCount})`}
-            </dd>
-          </div>
-        ) : null}
-        <div>
-          <dt>{t('settings.cache.size.label')}</dt>
-          <dd>
-            {effectiveStatus
-              ? formatCacheSizeLabel(
-                  effectiveStatus.cacheSizeBytes,
-                  formatLocale,
-                  t('settings.cache.size.none'),
-                  translateLiteral('Unavailable')
-                )
-              : translateLiteral('Unavailable')}
-          </dd>
-        </div>
-      </dl>
-      {isError || isWarmupPaused ? (
-        <div className="action-row">
-          <button
-            aria-busy={isRetrying || undefined}
-            className="secondary-button"
-            disabled={isRetrying}
-            onClick={onRetry}
-            type="button"
-          >
-            <BusyActionContent
-              busyLabel={isWarmupPaused ? 'Retrying cache build' : 'Retrying cache check'}
-              icon={<RefreshCw aria-hidden="true" size={18} />}
-              isBusy={isRetrying}
-              label={isWarmupPaused ? 'Retry cache build' : 'Retry cache check'}
-              size={18}
-            />
-          </button>
+      </details>
+      {showProgress ? (
+        <div className="project-setup-cache-progress">
+          <LoadingProgressBar label={cacheTitle} measurement={measured
+            ? { value: completedUnitCount, max: totalUnitCount }
+            : undefined} />
         </div>
       ) : null}
-    </LoadingProgress>
+    </div>
   );
 }
 
@@ -22938,7 +23081,7 @@ function ItemsSection({
   selectedItemId,
   workflow
 }: ItemsSectionProps) {
-  const { t } = useLocalization();
+  const { t, translateLiteral } = useLocalization();
   const showUnusedItems = useWorkbenchStore((state) => state.showUnusedItems);
   const setShowUnusedItems = useWorkbenchStore((state) => state.setShowUnusedItems);
   const loadedItems = useMemo(
@@ -23003,7 +23146,9 @@ function ItemsSection({
     () => loadedItems.find((item) => item.itemId === selectedItemId) ?? filteredItems[0] ?? null,
     [filteredItems, loadedItems, selectedItemId]
   );
-  const secondaryPriceLabels = getItemSecondaryPriceLabels(editorFamily);
+  const priceColumns = itemPriceFields.filter(([key]) =>
+    workflow?.editableFields.some(field => field.field === key)
+  );
 
   const browserControls = (
         <div className="items-toolbar">
@@ -23114,20 +23259,22 @@ function ItemsSection({
         {workflow ? (
           <SelectedItemPanel browserControls={browserControls} editorHeader={editorHeader} browser={
             <div
-              aria-colcount={8}
+              aria-colcount={4 + priceColumns.length}
               aria-label="Items"
               aria-rowcount={filteredItems.length + 1}
-              className="items-table"
+              className="items-table item-record-table"
               role="table"
+              style={{ '--item-price-columns': priceColumns.length } as CSSProperties}
             >
               <div className="items-row items-row-heading" role="row">
                 <span role="columnheader">ID</span>
                 <span role="columnheader">Name</span>
                 <span role="columnheader">Category</span>
-                <span role="columnheader">Buy</span>
-                <span role="columnheader">Sell</span>
-                <span role="columnheader">{secondaryPriceLabels.primary}</span>
-                <span role="columnheader">{secondaryPriceLabels.secondary}</span>
+                {priceColumns.map(([key, label]) => (
+                  <span role="columnheader" key={key}>
+                    {translateLiteral(editorFamily === 'sv' && key === 'wattsPrice' ? 'BP' : label)}
+                  </span>
+                ))}
                 <span role="columnheader">Source</span>
               </div>
               <VirtualTableBody
@@ -23138,16 +23285,16 @@ function ItemsSection({
                     className={`items-row ${selectedItem?.itemId === item.itemId ? 'items-row-selected' : ''} ${
                       pendingItemIds.has(item.itemId) ? 'items-row-pending' : ''
                     }`}
+                    aria-selected={selectedItem?.itemId === item.itemId}
                     onClick={() => onSelectItem(item.itemId)}
                     role="row"
                   >
                     <span role="cell">{item.itemId}</span>
                     <span role="cell">{item.name}</span>
                     <span role="cell">{item.category}</span>
-                    <span role="cell">{item.buyPrice}</span>
-                    <span role="cell">{item.sellPrice}</span>
-                    <span role="cell">{item.wattsPrice}</span>
-                    <span role="cell">{item.alternatePrice}</span>
+                    {priceColumns.map(([key]) => (
+                      <span role="cell" key={key}>{getEditableItemFieldValue(item, key)}</span>
+                    ))}
                     <span role="cell">{formatSourceLayer(item.provenance.sourceLayer)}</span>
                   </InteractiveTableRow>
                 )}
@@ -23180,17 +23327,6 @@ function ItemsSection({
       <DiagnosticsSection diagnostics={workflow?.diagnostics ?? []} />
     </>
   );
-}
-
-function getItemSecondaryPriceLabels(editorFamily: EditorUiFamily) {
-  switch (editorFamily) {
-    case 'sv':
-      return { primary: 'BP', secondary: 'Unused' };
-    case 'za':
-      return { primary: 'Mega Shards', secondary: 'Colorful Screws' };
-    default:
-      return { primary: 'Watts', secondary: 'Alt' };
-  }
 }
 
 type ItemEditorDraftPayload = OrdinaryFieldDraftPayload & {
@@ -23254,6 +23390,7 @@ function SelectedItemPanel({
   const [compatibilityDraftsByItemId, setCompatibilityDraftsByItemId] = useState<
     Record<string, Record<string, string>>
   >({});
+  const [itemSectionRequest, setItemSectionRequest] = useState<{ sectionId: string; focus: boolean }>();
   const [itemSourceMutationError, setItemSourceMutationError] = useState<string | null>(null);
   const [compatibilitySearchText, setCompatibilitySearchText] =
     useCoalescedTextInputState();
@@ -23262,10 +23399,6 @@ function SelectedItemPanel({
   const contextualEditableFields = useMemo(
     () => getContextualItemEditableFields(editableFields, editorFamily, item),
     [editableFields, editorFamily, item]
-  );
-  const itemFieldGroups = useMemo(
-    () => groupNumericEditableFields(contextualEditableFields, getItemEditableFieldGroup),
-    [contextualEditableFields]
   );
   const itemDraftDefaults = useMemo(
     () =>
@@ -23620,9 +23753,28 @@ function SelectedItemPanel({
     technicalMachineCompatibilityDraftDefaults
   ]);
 
+  const showMachineFields = item?.metadata.machineSlot != null ||
+    item?.metadata.isOwnedTechnicalMachineSlot === true || item?.metadata.machineMoveId != null;
+  const visibleItemFields = contextualEditableFields.filter(field =>
+    !isItemMachineField(field.field) || showMachineFields ||
+    itemDraftSummary.changedFields.some(change => change.field === field.field) ||
+    itemDraftSummary.invalidFields.some(issue => issue.field === field.field)
+  );
+  const behavior = item ? describeItemBehavior(
+    item,
+    editorFamily,
+    visibleItemFields,
+    field => getEditableItemFieldValue(item, field),
+    stagedItemChanges.filter(change =>
+      visibleItemFields.some(field => field.field === change.field && !getItemFieldDisabledReason(field, editorFamily, item))
+    ),
+    id => items.find(entry => entry.itemId === id)?.name
+  ) : [];
+
   return (
     <SectionedEditorWorkspace sessionKey={`${ordinaryDraftProject?.projectId ?? 'project'}:${editorFamily}:items`}
-      initialSection="itemData" pinnedBrowser browserVisibleRows={4} browser={browser}
+      initialSection="itemData" browserVisibleRows={4} browser={browser}
+      activeSectionRequest={itemSectionRequest} sectionTransitionDuration={250}
       browserControls={browserControls} sessionBar={<>{editorHeader}{editSession && item ? (
               <EditorSessionBarActions>
                 <button
@@ -23740,166 +23892,122 @@ function SelectedItemPanel({
       {item ? (
         <>
           <EditorWorkspaceSection id="details" label={t('editorSections.details')}>
-          <dl className="item-provenance-list">
-            <div>
-              <dt>Name</dt>
-              <dd>{item.name}</dd>
-            </div>
-            <div>
-              <dt>Source file</dt>
-              <dd className="pokemon-source-path" data-localization-ignore="true" title={item.provenance.sourceFile}>{item.provenance.sourceFile}</dd>
-            </div>
-            <div>
-              <dt>Layer</dt>
-              <dd>{formatSourceLayer(item.provenance.sourceLayer)}</dd>
-            </div>
-            <div>
-              <dt>File state</dt>
-              <dd>{formatFileState(item.provenance.fileState)}</dd>
-            </div>
-            <div>
-              <dt>Shared row</dt>
-              <dd>{formatSharedItemIds(item)}</dd>
-            </div>
-            {editorFamily === 'za' && item.metadata.machineMoveId !== null ? (
-              <>
-                <div>
-                  <dt>Current TM move</dt>
-                  <dd>{item.metadata.machineMoveName ?? item.metadata.machineMoveId}</dd>
-                </div>
-                <div>
-                  <dt>Verified base move</dt>
-                  <dd>
-                    {item.metadata.baseMachineMoveName ??
-                      item.metadata.baseMachineMoveId ??
-                      'Unavailable'}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Compatible Pokemon rows</dt>
-                  <dd>
-                    {technicalMachineCompatibilityRows.length > 0
-                      ? enabledTechnicalMachineCompatibilityCount
-                      : item.metadata.compatiblePokemonCount}
-                  </dd>
-                </div>
-              </>
-            ) : null}
-            {editorFamily === 'za' && item.metadata.isOwnedTechnicalMachineSlot ? (
-              <>
-                <div>
-                  <dt>{t('za.items.tmStatus.ownership')}</dt>
-                  <dd>{t('za.items.tmStatus.owned')}</dd>
-                </div>
-                <div>
-                  <dt>{t('za.items.tmStatus.projection')}</dt>
-                  <dd>
-                    {item.metadata.isProjectedTechnicalMachineSlot
-                      ? t('za.items.tmStatus.projected')
-                      : t('za.items.tmStatus.loaded')}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t('za.items.tmStatus.provisioning')}</dt>
-                  <dd>
-                    {item.metadata.isTechnicalMachineProvisioned
-                      ? t('za.items.tmStatus.provisioned')
-                      : t('za.items.tmStatus.notProvisioned')}
-                  </dd>
-                </div>
-              </>
-            ) : null}
-          </dl>
+          <div className="item-editor-columns">
+            <EditorDetailGroup label={translateLiteral('Item')}>
+              <dl className="editor-detail-list">
+                <EditorDetailValue label={translateLiteral('ID')} dataValue>{item.itemId}</EditorDetailValue>
+                <EditorDetailValue label={translateLiteral('Name')} dataValue>{item.name}</EditorDetailValue>
+                <EditorDetailValue label={translateLiteral('Category')}>{item.category}</EditorDetailValue>
+                <EditorDetailValue label={translateLiteral('Shared row')}>{formatSharedItemIds(item)}</EditorDetailValue>
+                {editorFamily === 'za' && item.metadata.machineMoveId !== null ? <>
+                  <EditorDetailValue label={translateLiteral('Current TM move')}>{item.metadata.machineMoveName ?? item.metadata.machineMoveId}</EditorDetailValue>
+                  <EditorDetailValue label={translateLiteral('Verified base move')}>{item.metadata.baseMachineMoveName ?? item.metadata.baseMachineMoveId ?? translateLiteral('Unavailable')}</EditorDetailValue>
+                  <EditorDetailValue label={translateLiteral('Compatible Pokemon rows')}>
+                    {technicalMachineCompatibilityRows.length > 0 ? enabledTechnicalMachineCompatibilityCount : item.metadata.compatiblePokemonCount}
+                  </EditorDetailValue>
+                </> : null}
+                {editorFamily === 'za' && item.metadata.isOwnedTechnicalMachineSlot ? <>
+                  <EditorDetailValue label={t('za.items.tmStatus.ownership')}>{t('za.items.tmStatus.owned')}</EditorDetailValue>
+                  <EditorDetailValue label={t('za.items.tmStatus.projection')}>
+                    {t(item.metadata.isProjectedTechnicalMachineSlot ? 'za.items.tmStatus.projected' : 'za.items.tmStatus.loaded')}
+                  </EditorDetailValue>
+                  <EditorDetailValue label={t('za.items.tmStatus.provisioning')}>
+                    {t(item.metadata.isTechnicalMachineProvisioned ? 'za.items.tmStatus.provisioned' : 'za.items.tmStatus.notProvisioned')}
+                  </EditorDetailValue>
+                </> : null}
+              </dl>
+            </EditorDetailGroup>
+            <EditorDetailGroup label={translateLiteral('Source')}>
+              <dl className="editor-detail-list">
+                <EditorDetailValue label={translateLiteral('Source file')} dataValue path>{item.provenance.sourceFile}</EditorDetailValue>
+                <EditorDetailValue label={translateLiteral('Layer')}>{formatSourceLayer(item.provenance.sourceLayer)}</EditorDetailValue>
+                <EditorDetailValue label={translateLiteral('File state')}>{formatFileState(item.provenance.fileState)}</EditorDetailValue>
+              </dl>
+            </EditorDetailGroup>
+          </div>
           </EditorWorkspaceSection>
 
           <EditorWorkspaceSection id="itemData" label={translateLiteral('Item Data')}
-            modified={itemDraftSummary.changedFields.length > 0 || itemDraftSummary.invalidFields.length > 0}
-            invalid={itemDraftSummary.invalidFields.length > 0}>
+            modified={itemDraftSummary.changedFields.length > 0 || itemDraftSummary.invalidFields.length > 0 || localTechnicalMachineCompatibilityDraftCount > 0}
+            invalid={itemDraftSummary.invalidFields.length > 0 || hasUnavailableTechnicalMachineCompatibilityDrafts || hasConflictingTechnicalMachineDrafts}>
           <div className="item-edit-form">
 
-            <div className="editable-field-groups">
-              {editorFamily === 'za' && item.metadata.machineMoveId !== null ? (
-                <p className="field-note">
-                  Changing a TM move migrates compatible Pokemon rows and synchronizes the disc icon in the same
-                  reviewed output.
-                </p>
-              ) : null}
-              {editorFamily === 'za' &&
-              item.metadata.isProjectedTechnicalMachineSlot &&
+            {item.sharedItemIds.length > 1 ? (
+              <p className="field-note item-shared-warning" role="status">
+                <AlertTriangle aria-hidden="true" size={16} />
+                {translateLiteral('Changes affect every item that shares this row.')} {formatSharedItemIds(item)}
+              </p>
+            ) : null}
+            {editorFamily === 'za' && item.metadata.isProjectedTechnicalMachineSlot &&
               item.metadata.baseMachineMoveId === null ? (
                 <p className="field-note">{t('za.items.tmProjected.assignmentHelp')}</p>
               ) : null}
-              {itemFieldGroups.map((group) => (
-                <fieldset
-                  className={[
-                    'editable-field-group',
-                    group.group === 'Item Data' || group.group === 'Use Flags'
-                      ? 'item-field-group-wide'
-                      : '',
-                    group.group === 'Use Flags' ? 'item-use-flags-group' : ''
-                  ].filter(Boolean).join(' ')}
-                  key={group.group}
-                >
-                  <legend>{group.group}</legend>
-                  <div className="editable-field-grid">
-                    {group.fields.map((field) => {
-                      const currentValue = getEditableItemFieldValue(item, field.field);
-                      const draftValue = fieldDrafts[field.field] ?? '';
-                      const draftState = getTrainerFieldDraftState(
-                        draftValue,
-                        currentValue,
-                        field
-                      );
-                      const disabledReason =
-                        getItemFieldDisabledReason(field, editorFamily, item) ??
-                        (field.field === itemMachineMoveIdFieldName &&
-                          !hasLocalTechnicalMachineMoveDraft
-                          ? technicalMachineMoveDraftBlockedReason
-                          : null);
+            <ItemDataLayout
+              fields={visibleItemFields}
+              keyFor={field => field.field}
+              hasIssue={field => itemDraftSummary.invalidFields.some(issue => issue.field === field.field)}
+              machineHelp={editorFamily === 'za' && item.metadata.machineMoveId !== null ? (
+                <ContextHelp label={translateLiteral('TM assignment')}>
+                  {translateLiteral('Changing a TM move migrates compatible Pokemon rows and synchronizes the disc icon in the same reviewed output.')}
+                </ContextHelp>
+              ) : undefined}
+              renderField={field => {
+                const currentValue = getEditableItemFieldValue(item, field.field);
+                const draftValue = fieldDrafts[field.field] ?? '';
+                const draftState = getTrainerFieldDraftState(
+                  draftValue,
+                  currentValue,
+                  field
+                );
+                const disabledReason =
+                  getItemFieldDisabledReason(field, editorFamily, item) ??
+                  (field.field === itemMachineMoveIdFieldName &&
+                    !hasLocalTechnicalMachineMoveDraft
+                    ? technicalMachineMoveDraftBlockedReason
+                    : null);
 
-                      return (
-                        <GiftPokemonDraftField
-                          currentValue={currentValue}
-                          disabled={
-                            !canEditItems ||
-                            editSession === null ||
-                            disabledReason !== null
-                          }
-                          disabledReason={disabledReason ?? undefined}
-                          draftState={draftState}
-                          draftValue={draftValue}
-                          field={field}
-                          helpDomain="items"
-                          helpGame={editorFamily}
-                          helpText={field.helpText}
-                          idPrefix="item-field"
-                          key={field.field}
-                          onChange={(value) => {
-                            const nextDrafts = synchronizeLinkedItemPriceDrafts(
-                              field.field,
-                              value,
-                              {
-                                ...fieldDrafts,
-                                [field.field]: value
-                              },
-                              itemDraftDefaults
-                            );
-                            setFieldDraftsByItemId((currentDrafts) =>
-                              setSparseFieldDraftRecord(
-                                currentDrafts,
-                                getItemStorageDraftKey(item),
-                                nextDrafts,
-                                itemDraftDefaults
-                              )
-                            );
-                          }}
-                        />
+                return (
+                  <GiftPokemonDraftField
+                    checkbox
+                    wrapSelectedValue
+                    currentValue={currentValue}
+                    disabled={
+                      !canEditItems ||
+                      editSession === null ||
+                      disabledReason !== null
+                    }
+                    disabledReason={disabledReason ?? undefined}
+                    draftState={draftState}
+                    draftValue={draftValue}
+                    field={field}
+                    helpDomain="items"
+                    helpGame={editorFamily}
+                    helpText={field.helpText}
+                    idPrefix="item-field"
+                    key={field.field}
+                    onChange={(value) => {
+                      const nextDrafts = synchronizeLinkedItemPriceDrafts(
+                        field.field,
+                        value,
+                        {
+                          ...fieldDrafts,
+                          [field.field]: value
+                        },
+                        itemDraftDefaults
                       );
-                    })}
-                  </div>
-                </fieldset>
-              ))}
-            </div>
+                      setFieldDraftsByItemId((currentDrafts) =>
+                        setSparseFieldDraftRecord(
+                          currentDrafts,
+                          getItemStorageDraftKey(item),
+                          nextDrafts,
+                          itemDraftDefaults
+                        )
+                      );
+                    }}
+                  />
+                );
+              }}
+            />
             {onStageItemVanilla ? (
               <div className="za-encounter-revert-action">
                 <button
@@ -23951,12 +24059,15 @@ function SelectedItemPanel({
                 </small>
               </div>
             ) : null}
-          </div>
-          </EditorWorkspaceSection>
-
-          {showTechnicalMachineCompatibility ? (
-            <EditorWorkspaceSection id="compatibility" label={t('za.items.compatibility.heading')}
-              modified={localTechnicalMachineCompatibilityDraftCount > 0} invalid={hasUnavailableTechnicalMachineCompatibilityDrafts || hasConflictingTechnicalMachineDrafts}>
+            {showTechnicalMachineCompatibility ? (
+              <details className="item-disclosure" key={item.itemId}>
+                <summary>
+                  {t('za.items.compatibility.heading')}
+                  {localTechnicalMachineCompatibilityDraftCount > 0 ? <span className="editable-field-status"> ({localTechnicalMachineCompatibilityDraftCount})</span> : null}
+                  {hasUnavailableTechnicalMachineCompatibilityDrafts || hasConflictingTechnicalMachineDrafts ? (
+                    <span className="editable-field-error">{translateLiteral('Review required')}</span>
+                  ) : null}
+                </summary>
             <section className="inspector-block za-tm-compatibility-block">
               <div className="za-tm-compatibility-heading">
                 <h4>{t('za.items.compatibility.heading')}</h4>
@@ -24114,24 +24225,14 @@ function SelectedItemPanel({
                 </div>
               )}
             </section>
-            </EditorWorkspaceSection>
-          ) : null}
+              </details>
+            ) : null}
+          </div>
+          </EditorWorkspaceSection>
 
-          {item.detailGroups.map((group) => (
-            <EditorWorkspaceSection id={`detail-${encodeURIComponent(group.label)}`} label={translateLiteral(group.label)} key={group.label}>
-            <section className="inspector-block" key={group.label}>
-              <h4>{group.label}</h4>
-              <dl className="item-provenance-list compact-dl">
-                {group.details.map((detail) => (
-                  <div key={`${group.label}:${detail.label}`}>
-                    <dt>{detail.label}</dt>
-                    <dd>{detail.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-            </EditorWorkspaceSection>
-          ))}
+          <EditorWorkspaceSection id="behavior" label={translateLiteral('In-Game Behavior')}>
+            <ItemBehavior groups={behavior} onEdit={() => setItemSectionRequest({ sectionId: 'itemData', focus: true })} />
+          </EditorWorkspaceSection>
         </>
       ) : (
         <p className="empty-copy">No item selected.</p>
@@ -24454,87 +24555,6 @@ function PokemonSection({
   );
 }
 
-function SelectedPokemonSummaryCard({
-  dexEditor,
-  editorFamily,
-  pokemon,
-  variant = 'detailed',
-  showIdentity = true
-}: {
-  dexEditor?: PokemonDexEditor | null;
-  editorFamily: EditorUiFamily;
-  pokemon: PokemonRecord;
-  variant?: 'context' | 'detailed';
-  showIdentity?: boolean;
-}) {
-  const isContext = variant === 'context';
-  const pokemonLabel = formatPokemonRecordName(pokemon, editorFamily);
-  const pokemonFormLabel = editorFamily === 'swsh'
-    ? pokemon.formLabel
-    : formatSpeciesFormOptionLabel(pokemon.form, {
-        gameFamily: editorFamily,
-        species: pokemon.name,
-        speciesId: pokemon.speciesId
-      });
-
-  return (
-    <div
-      className={`${editorFamily}-pokemon-summary-card pokemon-summary-card ${
-        isContext ? 'pokemon-summary-card-context' : 'pokemon-summary-card-detailed'
-      }`}
-    >
-      {showIdentity ? (
-        <>
-          <PokemonSprite
-            className="pokemon-summary-sprite"
-            editorFamily={editorFamily}
-            form={getPokemonRecordDisplayForm(pokemon, editorFamily)}
-            name={pokemonLabel}
-            speciesId={pokemon.speciesId}
-            spriteName={pokemon.spriteName}
-          />
-          <div className="pokemon-summary-main">
-            <strong data-localization-ignore="true">{pokemonLabel}</strong>
-            <span data-localization-ignore="true">
-              {pokemon.speciesId} / {pokemonFormLabel}
-            </span>
-          </div>
-        </>
-      ) : null}
-      <dl className="item-provenance-list pokemon-summary-metadata">
-        <div>
-          <dt>Personal ID</dt>
-          <dd>{pokemon.personalId}</dd>
-        </div>
-        <div>
-          <dt>Types</dt>
-          <dd data-localization-ignore="true">{formatPokemonTypes(pokemon)}</dd>
-        </div>
-        <div>
-          <dt>Dex</dt>
-          <dd>{formatPokemonDexPresence(pokemon, dexEditor)}</dd>
-        </div>
-        {!isContext ? (
-          <>
-            <div>
-              <dt>Source file</dt>
-              <dd className="pokemon-source-path" data-localization-ignore="true" title={pokemon.provenance.sourceFile}>{pokemon.provenance.sourceFile}</dd>
-            </div>
-            <div>
-              <dt>Layer</dt>
-              <dd>{formatSourceLayer(pokemon.provenance.sourceLayer)}</dd>
-            </div>
-            <div>
-              <dt>File state</dt>
-              <dd>{formatFileState(pokemon.provenance.fileState)}</dd>
-            </div>
-          </>
-        ) : null}
-      </dl>
-    </div>
-  );
-}
-
 function getPokemonRecordDisplayForm(pokemon: PokemonSelectionRecord, editorFamily: EditorUiFamily) {
   if (editorFamily !== 'swsh') {
     return pokemon.form;
@@ -24633,6 +24653,7 @@ function ZaPokemonDexPlacementEditor({
   dexEditor,
   draft,
   editSessionActive,
+  hasStagedPlacement,
   isPokemonUpdating,
   onDraftChange,
   onStageSwap,
@@ -24642,6 +24663,7 @@ function ZaPokemonDexPlacementEditor({
   dexEditor: PokemonDexEditor;
   draft: ZaPokemonDexSwapDraftSnapshot | null;
   editSessionActive: boolean;
+  hasStagedPlacement: boolean;
   isPokemonUpdating: boolean;
   onDraftChange: (draft: ZaPokemonDexSwapDraftSnapshot | null) => void;
   onStageSwap?: (
@@ -24652,6 +24674,10 @@ function ZaPokemonDexPlacementEditor({
   pokemon: PokemonRecord;
 }) {
   const { t, translateLiteral } = useLocalization();
+  const [lastStagedSwap, setLastStagedSwap] = useState<{
+    source: PokemonDexPlacement;
+    target: PokemonDexPlacement;
+  } | null>(null);
   const currentPlacement =
     dexEditor.placements.find((placement) => placement.speciesId === pokemon.speciesId) ?? null;
   const defaultDestinationDexKind: PokemonDexPlacement['dexKind'] =
@@ -24681,12 +24707,15 @@ function ZaPokemonDexPlacementEditor({
           }
     );
   };
-  const formatPlacementLabel = useCallback(
-    (placement: PokemonDexPlacement) =>
+  const formatSlot = useCallback((placement: PokemonDexPlacement) =>
       `${translateLiteral(formatPokemonDexKind(placement.dexKind))} #${formatPokemonDexNumber(
         placement.displayedNumber
-      )} - ${placement.label}`,
+      )}`,
     [translateLiteral]
+  );
+  const formatPlacementLabel = useCallback(
+    (placement: PokemonDexPlacement) => `${formatSlot(placement)} · ${placement.label}`,
+    [formatSlot]
   );
 
   useEffect(() => {
@@ -24733,19 +24762,19 @@ function ZaPokemonDexPlacementEditor({
     currentPlacement !== null &&
     targetPlacement !== null &&
     targetPlacement.speciesId !== currentPlacement.speciesId;
+  const occupies = (species: PokemonDexPlacement, slot: PokemonDexPlacement) =>
+    dexEditor.placements.some(placement => placement.speciesId === species.speciesId
+      && placement.dexKind === slot.dexKind && placement.displayedNumber === slot.displayedNumber);
+  const stagedSwap = hasStagedPlacement && lastStagedSwap?.source.speciesId === pokemon.speciesId
+    && occupies(lastStagedSwap.source, lastStagedSwap.target) && occupies(lastStagedSwap.target, lastStagedSwap.source)
+    ? lastStagedSwap : null;
+  const preview = currentPlacement && targetPlacement ? { source: currentPlacement, target: targetPlacement } : null;
+  const displayedSwap = preview ?? stagedSwap;
 
   return (
-    <div className="inspector-block za-pokemon-dex-placement-block">
-      <div className="za-pokemon-dex-placement-heading">
-        <div>
-          <h4>{translateLiteral('Pokédex Placement')}</h4>
-          <p>
-            {translateLiteral(
-              'Swap occupied slots so Pokédex numbers stay unique and both Pokédexes remain complete.'
-            )}
-          </p>
-        </div>
-        <ArrowLeftRight aria-hidden="true" size={18} />
+    <div className="inspector-block za-pokemon-dex-placement-block pokemon-detail-panel">
+      <div className="pokemon-detail-heading">
+        <h4>{translateLiteral('Pokédex Placement')}</h4>
       </div>
 
       {!dexEditor.canEdit ? (
@@ -24760,17 +24789,11 @@ function ZaPokemonDexPlacementEditor({
         </div>
       ) : currentPlacement ? (
         <>
-          <dl className="za-pokemon-dex-current">
-            <div>
+          <div className="pokemon-detail-fields pokemon-dex-fields">
+            <dl className="pokemon-detail-reference">
               <dt>{translateLiteral('Current placement')}</dt>
-              <dd>
-                {translateLiteral(formatPokemonDexKind(currentPlacement.dexKind))}{' '}
-                #{formatPokemonDexNumber(currentPlacement.displayedNumber)}
-              </dd>
-            </div>
-          </dl>
-
-          <div className="za-pokemon-dex-swap-controls">
+              <dd>{formatSlot(currentPlacement)}</dd>
+            </dl>
             <div className="path-field">
               <FieldLabel
                 help={t('fieldHelp.catalog.pokemon.dexDestination')}
@@ -24780,7 +24803,7 @@ function ZaPokemonDexPlacementEditor({
               <SearchableOptionInput
                 ariaLabel={translateLiteral('Destination Pokédex')}
                 data-km-source-site="za-pokemon-destination-dex-option"
-                disabled={!editSessionActive || !canEditPokemon || !dexEditor.canEdit}
+                disabled={!editSessionActive || !canEditPokemon || !dexEditor.canEdit || isPokemonUpdating}
                 id="za-pokemon-destination-dex"
                 isFiniteCatalog
                 localizeOptions={false}
@@ -24816,7 +24839,7 @@ function ZaPokemonDexPlacementEditor({
               />
               <SearchableOptionInput
                 ariaLabel={translateLiteral('Occupied destination slot')}
-                disabled={!editSessionActive || !canEditPokemon || !dexEditor.canEdit}
+                disabled={!editSessionActive || !canEditPokemon || !dexEditor.canEdit || isPokemonUpdating}
                 emptyOptionLabel="Choose a Pokédex slot"
                 id="za-pokemon-destination-slot"
                 onChange={(value) => {
@@ -24830,29 +24853,7 @@ function ZaPokemonDexPlacementEditor({
             </div>
           </div>
 
-          {targetPlacement ? (
-            <div className="za-pokemon-dex-swap-preview" role="status">
-              <strong>{translateLiteral('Swap preview')}</strong>
-              <span>
-                <span data-localization-ignore="true">
-                  {formatPlacementLabel(currentPlacement)}
-                </span>{' '}
-                →{' '}
-                {translateLiteral(formatPokemonDexKind(targetPlacement.dexKind))} #
-                {formatPokemonDexNumber(targetPlacement.displayedNumber)}
-              </span>
-              <span>
-                <span data-localization-ignore="true">
-                  {formatPlacementLabel(targetPlacement)}
-                </span>{' '}
-                →{' '}
-                {translateLiteral(formatPokemonDexKind(currentPlacement.dexKind))} #
-                {formatPokemonDexNumber(currentPlacement.displayedNumber)}
-              </span>
-            </div>
-          ) : null}
-
-          <div className="draft-action-row">
+          <div className="draft-action-row pokemon-detail-actions">
             <button
               aria-busy={isPokemonUpdating || undefined}
               className="primary-button"
@@ -24876,6 +24877,7 @@ function ZaPokemonDexPlacementEditor({
                     isSubmittedDraftCurrent
                   );
                   if (didStage && isSubmittedDraftCurrent()) {
+                    setLastStagedSwap({ source: currentPlacement, target: targetPlacement });
                     onDraftChange(null);
                   }
                 }
@@ -24895,6 +24897,20 @@ function ZaPokemonDexPlacementEditor({
               </span>
             ) : null}
           </div>
+          {displayedSwap ? (
+            <div className="pokemon-dex-preview" role="status">
+              <strong>{preview ? translateLiteral('Swap preview') : t('pokemon.dexSwapStaged')}</strong>
+              <dl>
+                {[[displayedSwap.source, displayedSwap.target], [displayedSwap.target, displayedSwap.source]]
+                  .map(([occupant, slot]) => (
+                    <div key={occupant.speciesId}>
+                      <dt data-localization-ignore="true">{occupant.label}</dt>
+                      <dd><span>{formatSlot(occupant)}</span><ArrowRight size={14} aria-hidden="true" /><span>{formatSlot(slot)}</span></dd>
+                    </div>
+                  ))}
+              </dl>
+            </div>
+          ) : null}
         </>
       ) : (
         <p className="empty-copy">
@@ -25097,6 +25113,10 @@ function SelectedPokemonPanel({
     [editableFields, pokemon]
   );
   const alphaMove = editorFamily === 'za' ? pokemon?.alphaMove ?? null : null;
+  const alphaMoveOptions = useMemo(
+    () => alphaMove?.options.map(({ value, label }) => ({ value, label: formatPokemonAlphaMove(value, label) })) ?? [],
+    [alphaMove?.options]
+  );
   const alphaMoveDraftKey = pokemon
     ? `${pokemon.speciesId.toString()}:${pokemon.form.toString()}`
     : '';
@@ -25132,6 +25152,10 @@ function SelectedPokemonPanel({
   const pokemonDraftRecordKey = pokemon?.personalId.toString() ?? null;
   const learnsetStageSource = useRef<{ scope: string; rows: PokemonLearnsetMove[]; evolutions: PokemonEvolutionRecord[] } | null>(null);
   const [isEvolutionStagePending, setIsEvolutionStagePending] = useState(false);
+  const [evolutionDisclosure, setEvolutionDisclosure] = useState<{
+    personalId: number;
+    row: number | 'new';
+  } | null>(null);
   const learnsetScope = JSON.stringify([ordinaryDraftProject, pokemon?.personalId]);
   const learnsetProject = JSON.stringify(ordinaryDraftProject);
   const latestLearnsetProject = useRef(learnsetProject);
@@ -26180,9 +26204,10 @@ function SelectedPokemonPanel({
         parsedEvolutionSpecies,
         pokemonSpeciesLabels,
         evolutionFormDraft,
-        editorFamily
+        editorFamily,
+        pokemonRecords
       ),
-    [editorFamily, evolutionFormDraft, parsedEvolutionSpecies, pokemonSpeciesLabels]
+    [editorFamily, evolutionFormDraft, parsedEvolutionSpecies, pokemonRecords, pokemonSpeciesLabels]
   );
   const parsedNewEvolutionMethod = parseEditableIntegerDraft(
     newEvolutionMethodDraft,
@@ -26202,9 +26227,10 @@ function SelectedPokemonPanel({
         parsedNewEvolutionSpecies,
         pokemonSpeciesLabels,
         newEvolutionFormDraft,
-        editorFamily
+        editorFamily,
+        pokemonRecords
       ),
-    [editorFamily, newEvolutionFormDraft, parsedNewEvolutionSpecies, pokemonSpeciesLabels]
+    [editorFamily, newEvolutionFormDraft, parsedNewEvolutionSpecies, pokemonRecords, pokemonSpeciesLabels]
   );
   const parsedNewEvolutionForm = parseEditableIntegerDraft(
     newEvolutionFormDraft,
@@ -26390,13 +26416,13 @@ function SelectedPokemonPanel({
     const previousForm = parseOptionalInteger(evolutionFormDraft) ?? selectedEvolution?.form ?? 0;
     const resolvedForm =
       targetSpeciesId !== null && targetSpeciesId !== previousSpeciesId
-        ? resolveSpeciesChangeForm({
+        ? resolveEvolutionSpeciesChangeForm({
             gameFamily: editorFamily,
             pokemonRecords,
+            speciesLabels: pokemonSpeciesLabels,
             previousForm,
             sourceForm: selectedEvolution?.form ?? 0,
             sourceSpeciesId: selectedEvolution?.species ?? null,
-            speciesField: { options: pokemonSpeciesOptions },
             targetSpeciesId
           })
         : null;
@@ -26419,13 +26445,13 @@ function SelectedPokemonPanel({
     const previousForm = parseOptionalInteger(newEvolutionFormDraft) ?? 0;
     const resolvedForm =
       targetSpeciesId !== null && targetSpeciesId !== previousSpeciesId
-        ? resolveSpeciesChangeForm({
+        ? resolveEvolutionSpeciesChangeForm({
             gameFamily: editorFamily,
             pokemonRecords,
+            speciesLabels: pokemonSpeciesLabels,
             previousForm,
             sourceForm: 0,
             sourceSpeciesId: null,
-            speciesField: { options: pokemonSpeciesOptions },
             targetSpeciesId
           })
         : null;
@@ -26586,6 +26612,16 @@ function SelectedPokemonPanel({
     }
     if (latestLearnsetScope.current === learnsetScope) {
       const evolutionSlots = planEvolutionDraftStage(sourceEvolutionRows, payloadBeforeStage.evolutionSlots, editorFamily === 'swsh').slots;
+      setEvolutionDisclosure(current => {
+        if (current?.personalId !== pokemon.personalId || current.row === 'new') {
+          return current;
+        }
+        const slot = evolutionSlots.get(current.row);
+        if (slot === undefined) {
+          return null;
+        }
+        return slot === current.row ? current : { ...current, row: slot };
+      });
       if (latestEvolutionSelection.current !== null) onSelectPokemonEvolution(evolutionSlots.get(latestEvolutionSelection.current) ?? null);
       const slots = stagedLearnsetSlotMap(sourceLearnsetRows, payloadBeforeStage.learnsetSlots);
       setSelectedLearnsetSlot(current => slots.get(current) ?? current);
@@ -26641,17 +26677,424 @@ function SelectedPokemonPanel({
       crownDexIndex: parseOptionalInteger(personalDrafts.crownDexIndex ?? '') ?? pokemon.dexPresence.crownDexIndex
     }
   } : null;
-  const workingStats = ['hp', 'attack', 'defense', 'specialAttack', 'specialDefense', 'speed']
-    .map(field => parseOptionalInteger(personalDrafts[field] ?? String(pokemon ? getEditablePersonalFieldValue(pokemon, field) ?? '' : '')));
   const hasNewEvolutionDraft = pokemonDraftRecordKey !== null && !!newEvolutionDraftsByPokemonId[pokemonDraftRecordKey];
   const hasNewLearnsetDraft = pokemonDraftRecordKey !== null && !!newLearnsetDraftsByPokemonId[pokemonDraftRecordKey];
+
+  const openEvolution = evolutionDisclosure?.personalId === pokemon?.personalId ? evolutionDisclosure?.row : undefined;
+  const evolutionEditorId = 'pokemon-evolution-row-editor';
+  const newEvolutionEditorId = 'pokemon-evolution-new-editor';
+  const expandedEvolutionEditor = pokemon && selectedEvolution && openEvolution === selectedEvolution.slot ? (
+    <div className="evolution-disclosure" id={evolutionEditorId}>
+      <div className="path-field">
+        <FieldLabel
+          help={t('fieldHelp.catalog.pokemon.evolutionMethod')}
+          htmlFor="pokemon-evolution-method"
+          label={translateLiteral('Method')}
+        />
+        <SearchableOptionInput
+          wrapSelectedValue
+          ariaLabel={translateLiteral('Method')}
+          disabled={!canEditEvolutionFields}
+          id="pokemon-evolution-method"
+          onChange={(nextMethod) => {
+            const nextOption = findEvolutionMethodOption(
+              selectedEvolutionMethodOptions,
+              nextMethod
+            );
+            const nextArgument = getDefaultEvolutionArgumentDraft(nextOption);
+            setEvolutionMethodDraft(nextMethod);
+            setEvolutionArgumentDraft(nextArgument);
+            if (nextOption?.usesLevel === false) {
+              setEvolutionLevelDraft('0');
+            }
+            updateSelectedEvolutionDraft({
+              argument: nextArgument,
+              ...(nextOption?.usesLevel === false ? { level: '0' } : {}),
+              method: nextMethod
+            });
+          }}
+          options={selectedEvolutionMethodOptions}
+          value={evolutionMethodDraft}
+        />
+      </div>
+      {usesSeparateEvolutionArgument(selectedEvolutionMethodOption) ? (
+        <div className="path-field">
+          <FieldLabel
+            help={t('fieldHelp.catalog.pokemon.evolutionArgument')}
+            htmlFor="pokemon-evolution-argument"
+            label={translateLiteral(selectedEvolutionMethodOption?.argumentLabel ?? 'Argument')}
+          />
+          {selectedEvolutionMethodOption?.argumentOptions.length ? (
+            <SearchableOptionInput
+              wrapSelectedValue
+              ariaLabel={translateLiteral(
+                selectedEvolutionMethodOption.argumentLabel
+              )}
+              disabled={!canEditEvolutionFields}
+              id="pokemon-evolution-argument"
+              localizeOptions={!evolutionArgumentUsesGameText(selectedEvolutionMethodOption.argumentKind)}
+              onChange={(value) => {
+                setEvolutionArgumentDraft(value);
+                updateSelectedEvolutionDraft({ argument: value });
+              }}
+              options={selectedEvolutionArgumentOptions}
+              value={evolutionArgumentDraft}
+            />
+          ) : (
+            <input
+              disabled={!canEditEvolutionFields}
+              id="pokemon-evolution-argument"
+              max={65535}
+              min={0}
+              onChange={(event) => {
+                setEvolutionArgumentDraft(event.target.value);
+                updateSelectedEvolutionDraft({ argument: event.target.value });
+              }}
+              type="number"
+              value={evolutionArgumentDraft}
+            />
+          )}
+        </div>
+      ) : selectedEvolutionMethodOption ? (
+        <EvolutionStoredArgument value={evolutionArgumentDraft} />
+      ) : null}
+      <div className="path-field">
+        <FieldLabel
+          help={t('fieldHelp.catalog.pokemon.evolutionTargetSpecies')}
+          htmlFor="pokemon-evolution-species"
+          label={translateLiteral('Species')}
+        />
+        {pokemonSpeciesOptions.length > 0 ? (
+          <SearchableOptionInput
+            wrapSelectedValue
+            ariaLabel={translateLiteral('Species')}
+            disabled={!canEditEvolutionFields}
+            id="pokemon-evolution-species"
+            onChange={handleSelectedEvolutionSpeciesChange}
+            options={addCurrentPokemonFieldOption(
+              pokemonSpeciesOptions,
+              evolutionSpeciesDraft,
+              'Species',
+              pokemonSpeciesLabels
+            )}
+            value={evolutionSpeciesDraft}
+          />
+        ) : (
+          <input
+            disabled={!canEditEvolutionFields}
+            id="pokemon-evolution-species"
+            max={65535}
+            min={0}
+            onChange={(event) =>
+              handleSelectedEvolutionSpeciesChange(event.target.value)
+            }
+            type="number"
+            value={evolutionSpeciesDraft}
+          />
+        )}
+      </div>
+      <div className="path-field">
+        <FieldLabel
+          help={t('fieldHelp.catalog.pokemon.evolutionTargetForm')}
+          htmlFor="pokemon-evolution-form"
+          label={translateLiteral('Form')}
+        />
+        <SearchableOptionInput
+          wrapSelectedValue
+          ariaLabel={translateLiteral('Form')}
+          disabled={!canEditEvolutionFields}
+          id="pokemon-evolution-form"
+          onChange={(value) => {
+            setEvolutionFormDraft(value);
+            updateSelectedEvolutionDraft({ form: value });
+          }}
+          options={selectedEvolutionFormOptions}
+          value={evolutionFormDraft}
+        />
+      </div>
+      <div className="path-field">
+        <FieldLabel
+          help={`${t('fieldHelp.catalog.pokemon.evolutionLevel')}${
+            selectedEvolutionUsesLevel
+              ? ''
+              : ` ${t('za.pokemon.evolutions.levelIgnoredHelp')}`
+          }`}
+          htmlFor="pokemon-evolution-level"
+          label={
+            selectedEvolutionUsesLevel
+              ? translateLiteral('Level')
+              : t('za.pokemon.evolutions.levelNotUsed')
+          }
+        />
+        <input
+          disabled={!canEditEvolutionFields || !selectedEvolutionUsesLevel}
+          id="pokemon-evolution-level"
+          max={evolutionMaximumLevel}
+          min={0}
+          onChange={(event) => {
+            setEvolutionLevelDraft(event.target.value);
+            updateSelectedEvolutionDraft({ level: event.target.value });
+          }}
+          title={
+            selectedEvolutionUsesLevel
+              ? undefined
+              : t('za.pokemon.evolutions.levelIgnoredHelp')
+          }
+          type="number"
+          value={evolutionLevelDraft}
+        />
+      </div>
+      <div className="learnset-button-row">
+        <button
+          aria-busy={isPokemonUpdating || undefined}
+          className="primary-button"
+          disabled={!canSaveSelectedEvolution}
+          onClick={() => void saveSelectedEvolution()}
+          title="Save Changes"
+          type="button"
+        >
+          <BusyActionContent
+            busyLabel="Saving"
+            icon={<Save aria-hidden="true" size={16} />}
+            isBusy={isPokemonUpdating}
+            label="Save Changes"
+          />
+        </button>
+        <span
+          aria-live="polite"
+          className={`draft-action-summary evolution-draft-status ${
+            selectedEvolutionDraftStatus === 'Invalid'
+              ? 'editable-field-error'
+              : ''
+          }`}
+        >
+          {selectedEvolutionDraftStatus}
+        </span>
+        <button
+          aria-label="Move evolution row up"
+          className="secondary-button icon-button"
+          disabled={!canModifyEvolutionStructure || previousEvolutionSlot === null}
+          onClick={() => moveEvolutionRow(-1)}
+          title="Move evolution row up"
+          type="button"
+        >
+          <ArrowUp aria-hidden="true" size={16} />
+        </button>
+        <button
+          aria-label="Move evolution row down"
+          className="secondary-button icon-button"
+          disabled={
+            !canModifyEvolutionStructure || nextEvolutionSlot === null
+          }
+          onClick={() => moveEvolutionRow(1)}
+          title="Move evolution row down"
+          type="button"
+        >
+          <ArrowDown aria-hidden="true" size={16} />
+        </button>
+        <button
+          aria-label="Remove evolution row"
+          className="secondary-button icon-button danger-icon-button"
+          disabled={!canModifyEvolutionStructure}
+          onClick={() => {
+            if (!canModifyEvolutionStructure) return;
+            setEvolutionDisclosure(null);
+            setEvolutionDraftsByPokemonId(current => {
+              const drafts = { ...(current[pokemon.personalId] ?? {}) };
+              if (drafts[selectedEvolution.slot]?.action === 'add') delete drafts[selectedEvolution.slot];
+              else drafts[selectedEvolution.slot] = { ...createPokemonEvolutionDraftFields(selectedEvolution), action: 'remove' };
+              return replaceEvolutionDraftRecord(current, pokemon.personalId, orderEvolutionDraftRows(sourceEvolutionRows, drafts,
+                orderedEvolutions.filter(row => row.slot !== selectedEvolution.slot).map(row => row.slot)));
+            });
+          }}
+          title="Remove evolution row"
+          type="button"
+        >
+          <Trash2 aria-hidden="true" size={16} />
+        </button>
+      </div>
+    </div>
+  ) : null;
+  const expandedNewEvolutionEditor = pokemon && openEvolution === 'new' ? (
+    <div className="evolution-disclosure" id={newEvolutionEditorId}>
+      <div className="path-field">
+        <FieldLabel
+          help={t('fieldHelp.catalog.pokemon.evolutionMethod')}
+          htmlFor="pokemon-new-evolution-method"
+          label={translateLiteral('New method')}
+        />
+        <SearchableOptionInput
+          wrapSelectedValue
+          ariaLabel={translateLiteral('New method')}
+          disabled={!canEditEvolution}
+          id="pokemon-new-evolution-method"
+          onChange={(nextMethod) => {
+            const nextOption = findEvolutionMethodOption(
+              newEvolutionMethodOptions,
+              nextMethod
+            );
+            setNewEvolutionMethodDraft(nextMethod);
+            setNewEvolutionArgumentDraft(getDefaultEvolutionArgumentDraft(nextOption));
+            if (nextOption?.usesLevel === false) {
+              setNewEvolutionLevelDraft('0');
+            }
+          }}
+          options={newEvolutionMethodOptions}
+          value={newEvolutionMethodDraft}
+        />
+      </div>
+      {usesSeparateEvolutionArgument(newEvolutionMethodOption) ? (
+        <div className="path-field">
+          <FieldLabel
+            help={t('fieldHelp.catalog.pokemon.evolutionArgument')}
+            htmlFor="pokemon-new-evolution-argument"
+            label={translateLiteral(
+              newEvolutionMethodOption?.argumentLabel ?? 'New argument'
+            )}
+          />
+          {newEvolutionMethodOption?.argumentOptions.length ? (
+            <SearchableOptionInput
+              wrapSelectedValue
+              ariaLabel={translateLiteral(newEvolutionMethodOption.argumentLabel)}
+              disabled={!canEditEvolution}
+              id="pokemon-new-evolution-argument"
+              localizeOptions={!evolutionArgumentUsesGameText(newEvolutionMethodOption.argumentKind)}
+              onChange={setNewEvolutionArgumentDraft}
+              options={newEvolutionArgumentOptions}
+              value={newEvolutionArgumentDraft}
+            />
+          ) : (
+            <input
+              disabled={!canEditEvolution}
+              id="pokemon-new-evolution-argument"
+              max={65535}
+              min={0}
+              onChange={(event) => setNewEvolutionArgumentDraft(event.target.value)}
+              type="number"
+              value={newEvolutionArgumentDraft}
+            />
+          )}
+        </div>
+      ) : newEvolutionMethodOption ? (
+        <EvolutionStoredArgument value={newEvolutionArgumentDraft} />
+      ) : null}
+      <div className="path-field">
+        <FieldLabel
+          help={t('fieldHelp.catalog.pokemon.evolutionTargetSpecies')}
+          htmlFor="pokemon-new-evolution-species"
+          label={translateLiteral('New species')}
+        />
+        {pokemonSpeciesOptions.length > 0 ? (
+          <SearchableOptionInput
+            wrapSelectedValue
+            ariaLabel={translateLiteral('New species')}
+            disabled={!canEditEvolution}
+            id="pokemon-new-evolution-species"
+            onChange={handleNewEvolutionSpeciesChange}
+            options={addCurrentPokemonFieldOption(
+              pokemonSpeciesOptions,
+              newEvolutionSpeciesDraft,
+              'Species',
+              pokemonSpeciesLabels
+            )}
+            value={newEvolutionSpeciesDraft}
+          />
+        ) : (
+          <input
+            disabled={!canEditEvolution}
+            id="pokemon-new-evolution-species"
+            max={65535}
+            min={0}
+            onChange={(event) =>
+              handleNewEvolutionSpeciesChange(event.target.value)
+            }
+            type="number"
+            value={newEvolutionSpeciesDraft}
+          />
+        )}
+      </div>
+      <div className="path-field">
+        <FieldLabel
+          help={t('fieldHelp.catalog.pokemon.evolutionTargetForm')}
+          htmlFor="pokemon-new-evolution-form"
+          label={translateLiteral('New form')}
+        />
+        <SearchableOptionInput
+          wrapSelectedValue
+          ariaLabel={translateLiteral('New form')}
+          disabled={!canEditEvolution}
+          id="pokemon-new-evolution-form"
+          onChange={setNewEvolutionFormDraft}
+          options={newEvolutionFormOptions}
+          value={newEvolutionFormDraft}
+        />
+      </div>
+      <div className="path-field">
+        <FieldLabel
+          help={`${t('fieldHelp.catalog.pokemon.evolutionLevel')}${
+            newEvolutionUsesLevel
+              ? ''
+              : ` ${t('za.pokemon.evolutions.levelIgnoredHelp')}`
+          }`}
+          htmlFor="pokemon-new-evolution-level"
+          label={
+            newEvolutionUsesLevel
+              ? translateLiteral('New level')
+              : t('za.pokemon.evolutions.levelNotUsed')
+          }
+        />
+        <input
+          disabled={!canEditEvolution || !newEvolutionUsesLevel}
+          id="pokemon-new-evolution-level"
+          max={evolutionMaximumLevel}
+          min={0}
+          onChange={(event) => setNewEvolutionLevelDraft(event.target.value)}
+          title={
+            newEvolutionUsesLevel
+              ? undefined
+              : t('za.pokemon.evolutions.levelIgnoredHelp')
+          }
+          type="number"
+          value={newEvolutionLevelDraft}
+        />
+      </div>
+      <div className="learnset-button-row">
+        <button
+        aria-label="Add evolution row"
+        className="primary-button"
+        disabled={!canAddEvolution}
+        onClick={() => {
+          if (!canAddEvolution) return;
+          const slot = Math.max(-1, ...sourceEvolutionRows.map(row => row.slot), ...Object.keys(evolutionDraftsBySlot).map(Number)) + 1;
+          setEvolutionDraftsByPokemonId(current => {
+            const drafts = { ...(current[pokemon.personalId] ?? {}), [slot]: { ...newEvolutionCreationDraft, action: 'add' as const } };
+            return replaceEvolutionDraftRecord(current, pokemon.personalId, orderEvolutionDraftRows(sourceEvolutionRows, drafts,
+              [...orderedEvolutions.map(row => row.slot), slot]));
+          });
+          onSelectPokemonEvolution(slot);
+          setEvolutionDisclosure({ personalId: pokemon.personalId, row: slot });
+          setNewEvolutionDraftsByPokemonId(current => {
+            const next = { ...current }; delete next[pokemon.personalId]; return next;
+          });
+        }}
+        type="button"
+      >
+        <Plus aria-hidden="true" size={16} />
+        <span>{translateLiteral('Add Row')}</span>
+        </button>
+        <button className="secondary-button" onClick={() => setEvolutionDisclosure(null)} type="button">
+          {translateLiteral('Cancel')}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
 
   return (
     <SectionedEditorWorkspace
       sessionKey={`${ordinaryDraftProject?.projectId ?? 'project'}:${editorFamily}:pokemon`}
       initialSection="speciesData"
       sectionShortcut={speciesFieldFinder.shortcut}
-      pinnedBrowser
       browser={pokemonTable}
       browserControls={browserControls}
       browserVisibleRows={3}
@@ -26763,121 +27206,57 @@ function SelectedPokemonPanel({
         {pokemon && detailsPokemon ? (
           <>
           <EditorWorkspaceSection id="details" label={t('editorSections.details')}>
-          <div className="pokemon-details-grid">
-            <SelectedPokemonSummaryCard
-              dexEditor={dexEditor}
-              editorFamily={editorFamily}
-              pokemon={detailsPokemon}
-            />
 
-          <div className={`inspector-block ${editorFamily}-pokemon-stats-block`}>
-            <h4>Base Stats</h4>
-            <dl className="item-provenance-list compact-dl">
-              <div>
-                <dt>HP</dt>
-                <dd>{workingPersonalLabel('hp', pokemon.baseStats.hp)}</dd>
-              </div>
-              <div>
-                <dt>Attack</dt>
-                <dd>{workingPersonalLabel('attack', pokemon.baseStats.attack)}</dd>
-              </div>
-              <div>
-                <dt>Defense</dt>
-                <dd>{workingPersonalLabel('defense', pokemon.baseStats.defense)}</dd>
-              </div>
-              <div>
-                <dt>Sp. Atk</dt>
-                <dd>{workingPersonalLabel('specialAttack', pokemon.baseStats.specialAttack)}</dd>
-              </div>
-              <div>
-                <dt>Sp. Def</dt>
-                <dd>{workingPersonalLabel('specialDefense', pokemon.baseStats.specialDefense)}</dd>
-              </div>
-              <div>
-                <dt>Speed</dt>
-                <dd>{workingPersonalLabel('speed', pokemon.baseStats.speed)}</dd>
-              </div>
-              <div>
-                <dt>Total</dt>
-                <dd>{workingStats.every(value => value !== null) ? workingStats.reduce<number>((sum, value) => sum + (value ?? 0), 0) : '-'}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className={`inspector-block ${editorFamily}-pokemon-traits-block`}>
-            <h4>Traits</h4>
-            <dl className="item-provenance-list compact-dl">
-              <div>
-                <dt>Ability 1</dt>
-                <dd data-localization-ignore="true">{workingPersonalLabel('ability1', pokemon.abilities.ability1Label)}</dd>
-              </div>
-              <div>
-                <dt>Ability 2</dt>
-                <dd data-localization-ignore="true">{workingPersonalLabel('ability2', pokemon.abilities.ability2Label)}</dd>
-              </div>
-              <div>
-                <dt>Hidden</dt>
-                <dd data-localization-ignore="true">{workingPersonalLabel('hiddenAbility', pokemon.abilities.hiddenAbilityLabel)}</dd>
-              </div>
-              <div>
-                <dt>Catch rate</dt>
-                <dd>{workingPersonalLabel('catchRate', pokemon.catchRate)}</dd>
-              </div>
-              <div>
-                <dt>Base EXP</dt>
-                <dd>{workingPersonalLabel('baseExperience', pokemon.baseExperience)}</dd>
-              </div>
-              <div>
-                <dt>Gender</dt>
-                <dd>{workingPersonalLabel('genderRatio', pokemon.genderRatioLabel)}</dd>
-              </div>
-              <div>
-                <dt>Height / weight</dt>
-                <dd>
-                  {workingPersonalLabel('height', pokemon.height)} / {workingPersonalLabel('weight', pokemon.weight)}
-                </dd>
-              </div>
-            </dl>
-          </div>
-          </div>
+            <div className="pokemon-overview-identity">
+              <PokemonSprite className="pokemon-summary-sprite" editorFamily={editorFamily}
+                form={getPokemonRecordDisplayForm(pokemon, editorFamily)}
+                name={formatPokemonRecordName(pokemon, editorFamily)} speciesId={pokemon.speciesId} spriteName={pokemon.spriteName} />
+              <h3 data-localization-ignore="true">{formatPokemonRecordName(pokemon, editorFamily)}</h3>
+              <span data-localization-ignore="true">
+                {pokemon.speciesId} / {editorFamily === 'swsh' ? pokemon.formLabel : formatSpeciesFormOptionLabel(pokemon.form, {
+                  gameFamily: editorFamily, species: pokemon.name, speciesId: pokemon.speciesId
+                })}
+              </span>
+            </div>
+            <div className="editor-detail-columns">
+              <PokemonDetailsStats stats={trainerProjectedStatRows.map(({ key, label }) => ({
+                label: translateLiteral(label),
+                value: workingPersonalLabel(key, getEditablePersonalFieldValue(pokemon, key)),
+                number: parseOptionalInteger(personalDrafts[key] ?? String(getEditablePersonalFieldValue(pokemon, key)))
+              }))} />
+              <EditorDetailGroup label="Traits">
+                <dl className="editor-detail-list">
+                  <EditorDetailValue label="Ability 1" dataValue>{workingPersonalLabel('ability1', pokemon.abilities.ability1Label)}</EditorDetailValue>
+                  <EditorDetailValue label="Ability 2" dataValue>{workingPersonalLabel('ability2', pokemon.abilities.ability2Label)}</EditorDetailValue>
+                  <EditorDetailValue label="Hidden Ability" dataValue>{workingPersonalLabel('hiddenAbility', pokemon.abilities.hiddenAbilityLabel)}</EditorDetailValue>
+                  <EditorDetailValue label="Catch rate">{workingPersonalLabel('catchRate', pokemon.catchRate)}</EditorDetailValue>
+                  <EditorDetailValue label="Base EXP">{workingPersonalLabel('baseExperience', pokemon.baseExperience)}</EditorDetailValue>
+                  <EditorDetailValue label="Gender">{workingPersonalLabel('genderRatio', pokemon.genderRatioLabel)}</EditorDetailValue>
+                  <EditorDetailValue label="Height / weight">
+                    {workingPersonalLabel('height', pokemon.height)} / {workingPersonalLabel('weight', pokemon.weight)}
+                  </EditorDetailValue>
+                </dl>
+              </EditorDetailGroup>
+              <EditorDetailGroup label="Details">
+                <dl className="editor-detail-list">
+                  <EditorDetailValue label="Personal ID">{pokemon.personalId}</EditorDetailValue>
+                  <EditorDetailValue label="Types" dataValue>{formatPokemonTypes(detailsPokemon)}</EditorDetailValue>
+                  <EditorDetailValue label="Dex">{formatPokemonDexPresence(detailsPokemon, dexEditor)}</EditorDetailValue>
+                  <EditorDetailValue label="Layer">{formatSourceLayer(pokemon.provenance.sourceLayer)}</EditorDetailValue>
+                  <EditorDetailValue label="File state">{formatFileState(pokemon.provenance.fileState)}</EditorDetailValue>
+                  <EditorDetailValue label="Source file" path dataValue>{pokemon.provenance.sourceFile}</EditorDetailValue>
+                </dl>
+              </EditorDetailGroup>
+            </div>
           </EditorWorkspaceSection>
 
           {editorFamily === 'za' && alphaMove ? (
             <EditorWorkspaceSection id="alphaMove" label={translateLiteral('Alpha Move')}
               modified={alphaMoveDraftState.isChanged} invalid={!alphaMoveDraftState.isValid}>
-            <div className="inspector-block za-pokemon-alpha-move-block">
+            <div className="inspector-block za-pokemon-alpha-move-block pokemon-detail-panel">
               <h4>Alpha Move</h4>
               {alphaMove ? (
-                <>
-                  <dl className="item-provenance-list compact-dl">
-                    <div>
-                      <dt>Current</dt>
-                      <dd>
-                        {alphaMove.moveId === null ? (
-                          'Unavailable'
-                        ) : (
-                          <span data-localization-ignore="true">
-                            {formatPokemonAlphaMove(alphaMove.moveId, alphaMove.moveName)}
-                          </span>
-                        )}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Vanilla</dt>
-                      <dd>
-                        {alphaMove.vanillaMoveId === null ? (
-                          'Unavailable'
-                        ) : (
-                          <span data-localization-ignore="true">
-                            {formatPokemonAlphaMove(
-                              alphaMove.vanillaMoveId,
-                              alphaMove.vanillaMoveName
-                            )}
-                          </span>
-                        )}
-                      </dd>
-                    </div>
-                  </dl>
+                <div className="pokemon-detail-fields pokemon-alpha-fields">
                   <div
                     className={`path-field editable-field-control ${
                       alphaMoveDraftState.isChanged ? 'editable-field-changed' : ''
@@ -26896,6 +27275,7 @@ function SelectedPokemonPanel({
                       ariaDescribedBy={alphaMoveDescriptionIds || undefined}
                       ariaInvalid={alphaMoveDraftState.error ? true : undefined}
                       disabled={!canEditAlphaMove}
+                      emptyOptionLabel={alphaMove.moveId === null ? translateLiteral('Unavailable') : undefined}
                       id="pokemon-alpha-exclusive-move"
                       onChange={(value) => {
                         setAlphaMoveDraftsByPokemonKey((currentDrafts) => {
@@ -26908,7 +27288,8 @@ function SelectedPokemonPanel({
                           return nextDrafts;
                         });
                       }}
-                      options={alphaMove.options}
+                      localizeOptions={false}
+                      options={alphaMoveOptions}
                       value={alphaMoveDraft}
                     />
                     {alphaMoveDisabledReason ? (
@@ -26924,7 +27305,16 @@ function SelectedPokemonPanel({
                       <small className="editable-field-status">Changed</small>
                     ) : null}
                   </div>
-                  <div className="draft-action-row">
+                  <dl className="pokemon-detail-reference">
+                    <dt>{translateLiteral('Vanilla')}</dt>
+                    <dd>{alphaMove.vanillaMoveId === null
+                      ? translateLiteral('Unavailable')
+                      : <span data-localization-ignore="true">
+                          {formatPokemonAlphaMove(alphaMove.vanillaMoveId, alphaMove.vanillaMoveName)}
+                        </span>}
+                    </dd>
+                  </dl>
+                  <div className="pokemon-alpha-restore">
                     <button
                       className="secondary-button"
                       disabled={!canResetAlphaMoveDraftToVanilla}
@@ -26964,7 +27354,7 @@ function SelectedPokemonPanel({
                       <span className="draft-action-summary">Modified from vanilla</span>
                     ) : null}
                   </div>
-                </>
+                </div>
               ) : (
                 <p className="empty-copy">
                   Alpha-exclusive move data is unavailable for this project.
@@ -26986,6 +27376,10 @@ function SelectedPokemonPanel({
               dexEditor={dexEditor}
               draft={selectedDexSwapDraft}
               editSessionActive={editSession !== null}
+              hasStagedPlacement={editSession?.pendingEdits.some(edit =>
+                isDexLayoutPendingEdit(edit) ||
+                (edit.domain === 'workflow.pokemon' && edit.recordId === 'dex-placement' && edit.field === 'dexPlacement')
+              ) ?? false}
               isPokemonUpdating={isPokemonUpdating}
               onDraftChange={updateSelectedDexSwapDraft}
               onStageSwap={
@@ -27688,493 +28082,78 @@ function SelectedPokemonPanel({
           <EditorWorkspaceSection id="evolutions" label={translateLiteral('Evolutions')}
             modified={evolutionDraftReview.changes.length > 0 || evolutionDraftReview.invalidCount > 0 || hasNewEvolutionDraft}
             invalid={evolutionDraftReview.invalidCount > 0 || (hasNewEvolutionDraft && !isNewEvolutionDraftValid)}>
-          <div className={`inspector-block ${editorFamily}-pokemon-evolutions-block`}>
-            <h4>Evolutions</h4>
-            <div className="learnset-editor">
-              {orderedEvolutions.length > 0 ? (
-                <ul className="learnset-list">
-                  {orderedEvolutions.map((evolution) => {
-                    const evolutionMethodOption = evolutionMethodOptions.find(
-                      (option) => option.value === evolution.method
-                    );
-                    const evolutionSpeciesLabel = formatReferenceLabel(
-                      pokemonSpeciesLabels,
-                      evolution.species,
-                      'Species'
-                    );
-                    const evolutionFormLabel = formatEvolutionFormReference(
-                      pokemonSpeciesLabels,
-                      evolution.species,
-                      evolution.form,
-                      editorFamily
-                    );
-                    const evolutionSpriteName = getPokemonSpriteNameForSpecies(
-                      pokemonRecords,
-                      evolution.species,
-                      evolution.form,
-                      editorFamily,
-                      evolutionSpeciesLabel
-                    );
-
-                    return (
-                      <li key={evolution.slot}>
-                        <button
-                          className={`learnset-row evolution-row ${
-                            selectedEvolution?.slot === evolution.slot
-                              ? 'learnset-row-selected'
-                              : ''
-                          }`}
-                          onClick={() => onSelectPokemonEvolution(evolution.slot)}
-                          type="button"
-                        >
-                          <PokemonSprite
-                            className="pokemon-row-sprite"
-                            name={getReferenceSpriteName(evolutionSpriteName)}
-                            preferStatic
-                          />
-                          <span title={`Slot ${evolution.slot + 1}`}>#{evolution.slot + 1}</span>
-                          <span
-                            data-localization-ignore="true"
-                            title={formatEvolutionMethodSummary(evolution)}
-                          >
-                            {formatEvolutionMethodSummary(evolution)}
-                          </span>
-                          <strong data-localization-ignore="true" title={evolutionSpeciesLabel}>
-                            {evolutionSpeciesLabel}
-                          </strong>
-                          <span data-localization-ignore="true" title={evolutionFormLabel}>
-                            {evolutionFormLabel}
-                          </span>
-                          <span
-                            title={
-                              evolutionMethodOption?.usesLevel === false
-                                ? t('za.pokemon.evolutions.storedLevelNotUsed', {
-                                    level: evolution.level
-                                  })
-                                : undefined
-                            }
-                          >
-                            {evolutionMethodOption?.usesLevel === false
-                              ? t('za.pokemon.evolutions.levelNotUsed')
-                              : `Lv. ${evolution.level}`}
-                          </span>
-                          <span
-                            data-localization-ignore="true"
-                            title={formatEvolutionArgumentSummary(evolution)}
-                          >
-                            {formatEvolutionArgumentSummary(evolution)}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="empty-copy">No evolution entries.</p>
-              )}
-
-              {selectedEvolution ? (
-                <div className="learnset-edit-grid evolution-edit-grid">
-                  <div className="path-field">
-                    <FieldLabel
-                      help={t('fieldHelp.catalog.pokemon.evolutionMethod')}
-                      htmlFor="pokemon-evolution-method"
-                      label={translateLiteral('Method')}
-                    />
-                    <SearchableOptionInput
-                      wrapSelectedValue
-                      ariaLabel={translateLiteral('Method')}
-                      disabled={!canEditEvolutionFields}
-                      id="pokemon-evolution-method"
-                      onChange={(nextMethod) => {
-                        const nextOption = findEvolutionMethodOption(
-                          selectedEvolutionMethodOptions,
-                          nextMethod
-                        );
-                        const nextArgument = getDefaultEvolutionArgumentDraft(nextOption);
-                        setEvolutionMethodDraft(nextMethod);
-                        setEvolutionArgumentDraft(nextArgument);
-                        if (nextOption?.usesLevel === false) {
-                          setEvolutionLevelDraft('0');
-                        }
-                        updateSelectedEvolutionDraft({
-                          argument: nextArgument,
-                          ...(nextOption?.usesLevel === false ? { level: '0' } : {}),
-                          method: nextMethod
-                        });
-                      }}
-                      options={selectedEvolutionMethodOptions}
-                      value={evolutionMethodDraft}
-                    />
-                  </div>
-                  <div className="path-field">
-                    <FieldLabel
-                      help={t('fieldHelp.catalog.pokemon.evolutionArgument')}
-                      htmlFor="pokemon-evolution-argument"
-                      label={translateLiteral(
-                        selectedEvolutionMethodOption?.argumentLabel ?? 'Argument'
-                      )}
-                    />
-                    {usesEvolutionArgumentSelector(selectedEvolutionMethodOption) &&
-                    selectedEvolutionArgumentOptions.length > 0 ? (
-                      <SearchableOptionInput
-                        wrapSelectedValue
-                        ariaLabel={translateLiteral(
-                          selectedEvolutionMethodOption?.argumentLabel ?? 'Argument'
-                        )}
-                        disabled={!canEditEvolutionFields}
-                        id="pokemon-evolution-argument"
-                        localizeOptions={!evolutionArgumentUsesGameText(selectedEvolutionMethodOption?.argumentKind)}
-                        onChange={(value) => {
-                          setEvolutionArgumentDraft(value);
-                          updateSelectedEvolutionDraft({ argument: value });
-                        }}
-                        options={selectedEvolutionArgumentOptions}
-                        value={evolutionArgumentDraft}
-                      />
-                    ) : (
-                      <input
-                        disabled={
-                          !canEditEvolutionFields ||
-                          !usesEvolutionArgumentNumberInput(selectedEvolutionMethodOption)
-                        }
-                        id="pokemon-evolution-argument"
-                        max={65535}
-                        min={0}
-                        onChange={(event) => {
-                          setEvolutionArgumentDraft(event.target.value);
-                          updateSelectedEvolutionDraft({ argument: event.target.value });
-                        }}
-                        type="number"
-                        value={evolutionArgumentDraft}
-                      />
-                    )}
-                  </div>
-                  <div className="path-field">
-                    <FieldLabel
-                      help={t('fieldHelp.catalog.pokemon.evolutionTargetSpecies')}
-                      htmlFor="pokemon-evolution-species"
-                      label={translateLiteral('Species')}
-                    />
-                    {pokemonSpeciesOptions.length > 0 ? (
-                      <SearchableOptionInput
-                        wrapSelectedValue
-                        ariaLabel={translateLiteral('Species')}
-                        disabled={!canEditEvolutionFields}
-                        id="pokemon-evolution-species"
-                        onChange={handleSelectedEvolutionSpeciesChange}
-                        options={addCurrentPokemonFieldOption(
-                          pokemonSpeciesOptions,
-                          evolutionSpeciesDraft,
-                          'Species',
-                          pokemonSpeciesLabels
-                        )}
-                        value={evolutionSpeciesDraft}
-                      />
-                    ) : (
-                      <input
-                        disabled={!canEditEvolutionFields}
-                        id="pokemon-evolution-species"
-                        max={65535}
-                        min={0}
-                        onChange={(event) =>
-                          handleSelectedEvolutionSpeciesChange(event.target.value)
-                        }
-                        type="number"
-                        value={evolutionSpeciesDraft}
-                      />
-                    )}
-                  </div>
-                  <div className="path-field">
-                    <FieldLabel
-                      help={t('fieldHelp.catalog.pokemon.evolutionTargetForm')}
-                      htmlFor="pokemon-evolution-form"
-                      label={translateLiteral('Form')}
-                    />
-                    <SearchableOptionInput
-                      wrapSelectedValue
-                      ariaLabel={translateLiteral('Form')}
-                      disabled={!canEditEvolutionFields}
-                      id="pokemon-evolution-form"
-                      onChange={(value) => {
-                        setEvolutionFormDraft(value);
-                        updateSelectedEvolutionDraft({ form: value });
-                      }}
-                      options={selectedEvolutionFormOptions}
-                      value={evolutionFormDraft}
-                    />
-                  </div>
-                  <div className="path-field">
-                    <FieldLabel
-                      help={`${t('fieldHelp.catalog.pokemon.evolutionLevel')}${
-                        selectedEvolutionUsesLevel
-                          ? ''
-                          : ` ${t('za.pokemon.evolutions.levelIgnoredHelp')}`
-                      }`}
-                      htmlFor="pokemon-evolution-level"
-                      label={
-                        selectedEvolutionUsesLevel
-                          ? translateLiteral('Level')
-                          : t('za.pokemon.evolutions.levelNotUsed')
-                      }
-                    />
-                    <input
-                      disabled={!canEditEvolutionFields || !selectedEvolutionUsesLevel}
-                      id="pokemon-evolution-level"
-                      max={evolutionMaximumLevel}
-                      min={0}
-                      onChange={(event) => {
-                        setEvolutionLevelDraft(event.target.value);
-                        updateSelectedEvolutionDraft({ level: event.target.value });
-                      }}
-                      title={
-                        selectedEvolutionUsesLevel
-                          ? undefined
-                          : t('za.pokemon.evolutions.levelIgnoredHelp')
-                      }
-                      type="number"
-                      value={evolutionLevelDraft}
-                    />
-                  </div>
-                  <div className="learnset-button-row">
-                    <button
-                      aria-busy={isPokemonUpdating || undefined}
-                      className="primary-button"
-                      disabled={!canSaveSelectedEvolution}
-                      onClick={() => void saveSelectedEvolution()}
-                      title="Save Changes"
-                      type="button"
-                    >
-                      <BusyActionContent
-                        busyLabel="Saving"
-                        icon={<Save aria-hidden="true" size={16} />}
-                        isBusy={isPokemonUpdating}
-                        label="Save Changes"
-                      />
-                    </button>
-                    <span
-                      aria-live="polite"
-                      className={`draft-action-summary evolution-draft-status ${
-                        selectedEvolutionDraftStatus === 'Invalid'
-                          ? 'editable-field-error'
-                          : ''
-                      }`}
-                    >
-                      {selectedEvolutionDraftStatus}
-                    </span>
-                    <button
-                      aria-label="Move evolution row up"
-                      className="secondary-button icon-button"
-                      disabled={!canModifyEvolutionStructure || previousEvolutionSlot === null}
-                      onClick={() => moveEvolutionRow(-1)}
-                      title="Move evolution row up"
-                      type="button"
-                    >
-                      <ArrowUp aria-hidden="true" size={16} />
-                    </button>
-                    <button
-                      aria-label="Move evolution row down"
-                      className="secondary-button icon-button"
-                      disabled={
-                        !canModifyEvolutionStructure || nextEvolutionSlot === null
-                      }
-                      onClick={() => moveEvolutionRow(1)}
-                      title="Move evolution row down"
-                      type="button"
-                    >
-                      <ArrowDown aria-hidden="true" size={16} />
-                    </button>
-                    <button
-                      aria-label="Remove evolution row"
-                      className="secondary-button icon-button danger-icon-button"
-                      disabled={!canModifyEvolutionStructure}
-                      onClick={() => {
-                        if (!canModifyEvolutionStructure) return;
-                        setEvolutionDraftsByPokemonId(current => {
-                          const drafts = { ...(current[pokemon.personalId] ?? {}) };
-                          if (drafts[selectedEvolution.slot]?.action === 'add') delete drafts[selectedEvolution.slot];
-                          else drafts[selectedEvolution.slot] = { ...createPokemonEvolutionDraftFields(selectedEvolution), action: 'remove' };
-                          return replaceEvolutionDraftRecord(current, pokemon.personalId, orderEvolutionDraftRows(sourceEvolutionRows, drafts,
-                            orderedEvolutions.filter(row => row.slot !== selectedEvolution.slot).map(row => row.slot)));
-                        });
-                      }}
-                      title="Remove evolution row"
-                      type="button"
-                    >
-                      <Trash2 aria-hidden="true" size={16} />
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="learnset-edit-grid evolution-edit-grid">
-                <div className="path-field">
-                  <FieldLabel
-                    help={t('fieldHelp.catalog.pokemon.evolutionMethod')}
-                    htmlFor="pokemon-new-evolution-method"
-                    label={translateLiteral('New method')}
-                  />
-                  <SearchableOptionInput
-                    wrapSelectedValue
-                    ariaLabel={translateLiteral('New method')}
-                    disabled={!canEditEvolution}
-                    id="pokemon-new-evolution-method"
-                    onChange={(nextMethod) => {
-                      const nextOption = findEvolutionMethodOption(
-                        newEvolutionMethodOptions,
-                        nextMethod
-                      );
-                      setNewEvolutionMethodDraft(nextMethod);
-                      setNewEvolutionArgumentDraft(getDefaultEvolutionArgumentDraft(nextOption));
-                      if (nextOption?.usesLevel === false) {
-                        setNewEvolutionLevelDraft('0');
-                      }
-                    }}
-                    options={newEvolutionMethodOptions}
-                    value={newEvolutionMethodDraft}
-                  />
-                </div>
-                <div className="path-field">
-                  <FieldLabel
-                    help={t('fieldHelp.catalog.pokemon.evolutionArgument')}
-                    htmlFor="pokemon-new-evolution-argument"
-                    label={translateLiteral(
-                      newEvolutionMethodOption?.argumentLabel ?? 'New argument'
-                    )}
-                  />
-                  {usesEvolutionArgumentSelector(newEvolutionMethodOption) &&
-                  newEvolutionArgumentOptions.length > 0 ? (
-                    <SearchableOptionInput
-                      wrapSelectedValue
-                      ariaLabel={translateLiteral(
-                        newEvolutionMethodOption?.argumentLabel ?? 'New argument'
-                      )}
-                      disabled={!canEditEvolution}
-                      id="pokemon-new-evolution-argument"
-                      localizeOptions={!evolutionArgumentUsesGameText(newEvolutionMethodOption?.argumentKind)}
-                      onChange={setNewEvolutionArgumentDraft}
-                      options={newEvolutionArgumentOptions}
-                      value={newEvolutionArgumentDraft}
-                    />
-                  ) : (
-                    <input
-                      disabled={
-                        !canEditEvolution ||
-                        !usesEvolutionArgumentNumberInput(newEvolutionMethodOption)
-                      }
-                      id="pokemon-new-evolution-argument"
-                      max={65535}
-                      min={0}
-                      onChange={(event) => setNewEvolutionArgumentDraft(event.target.value)}
-                      type="number"
-                      value={newEvolutionArgumentDraft}
-                    />
-                  )}
-                </div>
-                <div className="path-field">
-                  <FieldLabel
-                    help={t('fieldHelp.catalog.pokemon.evolutionTargetSpecies')}
-                    htmlFor="pokemon-new-evolution-species"
-                    label={translateLiteral('New species')}
-                  />
-                  {pokemonSpeciesOptions.length > 0 ? (
-                    <SearchableOptionInput
-                      wrapSelectedValue
-                      ariaLabel={translateLiteral('New species')}
-                      disabled={!canEditEvolution}
-                      id="pokemon-new-evolution-species"
-                      onChange={handleNewEvolutionSpeciesChange}
-                      options={addCurrentPokemonFieldOption(
-                        pokemonSpeciesOptions,
-                        newEvolutionSpeciesDraft,
-                        'Species',
-                        pokemonSpeciesLabels
-                      )}
-                      value={newEvolutionSpeciesDraft}
-                    />
-                  ) : (
-                    <input
-                      disabled={!canEditEvolution}
-                      id="pokemon-new-evolution-species"
-                      max={65535}
-                      min={0}
-                      onChange={(event) =>
-                        handleNewEvolutionSpeciesChange(event.target.value)
-                      }
-                      type="number"
-                      value={newEvolutionSpeciesDraft}
-                    />
-                  )}
-                </div>
-                <div className="path-field">
-                  <FieldLabel
-                    help={t('fieldHelp.catalog.pokemon.evolutionTargetForm')}
-                    htmlFor="pokemon-new-evolution-form"
-                    label={translateLiteral('New form')}
-                  />
-                  <SearchableOptionInput
-                    wrapSelectedValue
-                    ariaLabel={translateLiteral('New form')}
-                    disabled={!canEditEvolution}
-                    id="pokemon-new-evolution-form"
-                    onChange={setNewEvolutionFormDraft}
-                    options={newEvolutionFormOptions}
-                    value={newEvolutionFormDraft}
-                  />
-                </div>
-                <div className="path-field">
-                  <FieldLabel
-                    help={`${t('fieldHelp.catalog.pokemon.evolutionLevel')}${
-                      newEvolutionUsesLevel
-                        ? ''
-                        : ` ${t('za.pokemon.evolutions.levelIgnoredHelp')}`
-                    }`}
-                    htmlFor="pokemon-new-evolution-level"
-                    label={
-                      newEvolutionUsesLevel
-                        ? translateLiteral('New level')
-                        : t('za.pokemon.evolutions.levelNotUsed')
-                    }
-                  />
-                  <input
-                    disabled={!canEditEvolution || !newEvolutionUsesLevel}
-                    id="pokemon-new-evolution-level"
-                    max={evolutionMaximumLevel}
-                    min={0}
-                    onChange={(event) => setNewEvolutionLevelDraft(event.target.value)}
-                    title={
-                      newEvolutionUsesLevel
-                        ? undefined
-                        : t('za.pokemon.evolutions.levelIgnoredHelp')
-                    }
-                    type="number"
-                    value={newEvolutionLevelDraft}
-                  />
-                </div>
-                <button
-                  aria-label="Add evolution row"
-                  className="secondary-button learnset-add-button"
-                  disabled={!canAddEvolution}
-                  onClick={() => {
-                    if (!canAddEvolution) return;
-                    const slot = Math.max(-1, ...sourceEvolutionRows.map(row => row.slot), ...Object.keys(evolutionDraftsBySlot).map(Number)) + 1;
-                    setEvolutionDraftsByPokemonId(current => {
-                      const drafts = { ...(current[pokemon.personalId] ?? {}), [slot]: { ...newEvolutionCreationDraft, action: 'add' as const } };
-                      return replaceEvolutionDraftRecord(current, pokemon.personalId, orderEvolutionDraftRows(sourceEvolutionRows, drafts,
-                        [...orderedEvolutions.map(row => row.slot), slot]));
-                    });
-                    onSelectPokemonEvolution(slot);
-                    setNewEvolutionDraftsByPokemonId(current => {
-                      const next = { ...current }; delete next[pokemon.personalId]; return next;
-                    });
-                  }}
-                  type="button"
-                >
-                  <Plus aria-hidden="true" size={16} />
-                  <span>Add Row</span>
-                </button>
-              </div>
+          <div className={`inspector-block ${editorFamily}-pokemon-evolutions-block pokemon-detail-panel`}>
+            <div className="pokemon-detail-heading">
+              <h4>{translateLiteral('Evolutions')}</h4>
+              <button
+                aria-controls={openEvolution === 'new' ? newEvolutionEditorId : undefined}
+                aria-expanded={openEvolution === 'new'}
+                className="secondary-button"
+                disabled={!canEditEvolution || isPokemonUpdating || isEvolutionStagePending}
+                onClick={() => setEvolutionDisclosure(openEvolution === 'new' ? null : { personalId: pokemon.personalId, row: 'new' })}
+                type="button"
+              >
+                <Plus aria-hidden="true" size={16} />
+                {translateLiteral('Add Row')}
+              </button>
             </div>
+            {expandedNewEvolutionEditor}
+            {orderedEvolutions.length > 0 ? (
+              <ul className="evolution-record-list">
+                {orderedEvolutions.map((evolution, index) => {
+                  const draft = evolutionDraftsBySlot[evolution.slot];
+                  const method = parseOptionalInteger(draft?.method ?? '') ?? evolution.method;
+                  const species = parseOptionalInteger(draft?.species ?? '') ?? evolution.species;
+                  const form = parseOptionalInteger(draft?.form ?? '') ?? evolution.form;
+                  const level = parseOptionalInteger(draft?.level ?? '') ?? evolution.level;
+                  const argument = parseOptionalInteger(draft?.argument ?? '') ?? evolution.argument;
+                  const methodOption = evolutionMethodOptions.find(option => option.value === method) ?? null;
+                  const methodLabel = methodOption?.label ?? formatEvolutionMethodSummary(evolution);
+                  const speciesLabel = formatReferenceLabel(pokemonSpeciesLabels, species, 'Species');
+                  const formLabel = formatEvolutionFormReference(pokemonSpeciesLabels, species, form, editorFamily, pokemonRecords);
+                  const spriteName = getPokemonSpriteNameForSpecies(pokemonRecords, species, form, editorFamily, speciesLabel);
+                  const argumentValue = methodOption?.argumentOptions.find(option => option.value === argument)?.label
+                    || (evolution.method === method && evolution.argument === argument ? evolution.argumentValue : '') || String(argument);
+                  const argumentLabel = methodOption?.argumentLabel ?? evolution.argumentLabel;
+                  const usesLevel = methodOption?.usesLevel ?? true;
+                  const usesArgument = methodOption ? usesSeparateEvolutionArgument(methodOption)
+                    : evolution.argumentKind !== 'level' && evolution.argumentKind !== 'none';
+                  const condition = [
+                    usesLevel && level > 0 ? t('pokemon.evolutionLevelSummary', { level }) : null,
+                    usesArgument ? `${translateLiteral(argumentLabel)} · ${argumentValue}` : null
+                  ].filter(Boolean).join(' / ');
+                  const expanded = openEvolution === evolution.slot;
+
+                  return (
+                    <li key={evolution.slot}>
+                      <button
+                        aria-controls={expanded ? evolutionEditorId : undefined}
+                        aria-expanded={expanded}
+                        className="evolution-record-row"
+                        onClick={() => {
+                          onSelectPokemonEvolution(evolution.slot);
+                          setEvolutionDisclosure(expanded ? null : { personalId: pokemon.personalId, row: evolution.slot });
+                        }}
+                        type="button"
+                      >
+                        <span className="evolution-record-slot">
+                          <PokemonSprite className="pokemon-row-sprite" name={getReferenceSpriteName(spriteName)} preferStatic />
+                          #{index + 1}
+                        </span>
+                        <span className="evolution-record-method" data-localization-ignore="true">{methodLabel}</span>
+                        <strong className="evolution-record-target" data-localization-ignore="true">{speciesLabel}</strong>
+                        <span className="evolution-record-form" data-localization-ignore="true">{formLabel}</span>
+                        <span className="evolution-record-condition" data-localization-ignore="true">{condition}</span>
+                        <ChevronDown className="evolution-record-chevron" size={15} aria-hidden="true" />
+                      </button>
+                      {expanded ? expandedEvolutionEditor : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="empty-copy">{translateLiteral('No evolution entries.')}</p>
+            )}
           </div>
           </EditorWorkspaceSection>
         </>
@@ -28236,6 +28215,7 @@ function MovesSection({
     [filteredMoves, moves, selectedMoveId]
   );
   const canEditMoves = workflow?.summary.availability === 'available';
+  const [flagRequest, setFlagRequest] = useState<{ sectionId: string }>();
   const pendingMoveIds = useMemo(() => getPendingMoveIds(editSession), [editSession]);
   const usesRuntimeMoveData = moves.some((move) => move.hasRuntimeData);
   const selectedRuntimeVariant = selectedMove
@@ -28246,44 +28226,42 @@ function MovesSection({
     : null;
 
   const browserControls = (
-        <div className="items-toolbar moves-toolbar">
-          <label className="search-box items-search">
-            <Search aria-hidden="true" size={18} />
-            <input
-              aria-label="Search moves"
-              disabled={!workflow}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search moves"
-              type="search"
-              value={searchText}
-            />
-          </label>
-          <Metric
-            label="Loaded records"
-            value={workflow ? workflow.stats.totalMoveCount.toString() : '0'}
-          />
-          <Metric
-            label="Enabled"
-            value={workflow ? workflow.stats.enabledMoveCount.toString() : '0'}
-          />
-          <Metric
-            label="Active flags"
-            value={workflow ? workflow.stats.activeFlagCount.toString() : '0'}
-          />
-        </div>
+    <div className="items-toolbar moves-toolbar">
+      <label className="search-box items-search">
+        <Search aria-hidden="true" size={18} />
+        <input
+          aria-label="Search moves"
+          disabled={!workflow}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search moves"
+          type="search"
+          value={searchText}
+        />
+      </label>
+      <Metric
+        label="Loaded records"
+        value={workflow ? workflow.stats.totalMoveCount.toString() : '0'}
+      />
+      <Metric
+        label="Enabled"
+        value={workflow ? workflow.stats.enabledMoveCount.toString() : '0'}
+      />
+      <Metric
+        label="Active flags"
+        value={workflow ? workflow.stats.activeFlagCount.toString() : '0'}
+      />
+    </div>
   );
 
-  const editorHeader = <>
-        {workflow ? (
-          <EditorSessionBar
-            canEdit={canEditMoves && selectedMove !== null}
-            isEditing={editSession !== null}
-            isStarting={isEditStarting}
-            label="Moves"
-            onStart={onStartEditSession}
-          />
-        ) : null}
-  </>;
+  const editorHeader = workflow ? (
+    <EditorSessionBar
+      canEdit={canEditMoves && selectedMove !== null}
+      isEditing={editSession !== null}
+      isStarting={isEditStarting}
+      label="Moves"
+      onStart={onStartEditSession}
+    />
+  ) : null;
 
   return (
     <>
@@ -28293,7 +28271,7 @@ function MovesSection({
           <h2 id="moves-heading">Moves</h2>
         </div>
         {workflow ? (
-          <SelectedMovePanel browserControls={browserControls} editorHeader={editorHeader} browser={
+          <SelectedMovePanel flagRequest={flagRequest} browserControls={browserControls} editorHeader={editorHeader} browser={
             <div
               aria-colcount={8}
               aria-label="Moves"
@@ -28309,9 +28287,7 @@ function MovesSection({
                 <span role="columnheader">Power</span>
                 <span role="columnheader">Acc</span>
                 <span role="columnheader">{usesRuntimeMoveData ? 'Cooldown' : 'PP'}</span>
-                <span role="columnheader">
-                  {usesRuntimeMoveData ? t('moves.runtimeVariant.label') : 'Flags'}
-                </span>
+                <span role="columnheader">Flags</span>
               </div>
               <VirtualTableBody
                 getKey={(move) => move.moveId}
@@ -28327,15 +28303,20 @@ function MovesSection({
                   const runtimeView = move.hasRuntimeData
                     ? getMoveRuntimeView(move, runtimeVariant)
                     : null;
-                  const runtimeVariantCount = move.hasRuntimeData
-                    ? getMoveRuntimeVariants(move).length
-                    : 0;
+                  const flagCount = move.hasRuntimeData
+                    ? workflow.editableFields.filter(field =>
+                        field.field.startsWith('battle.' + runtimeVariant + '.') &&
+                        getMoveEditableFieldGroup(field) === 'Runtime Flags' &&
+                        getEditableMoveFieldValue(move, field.field) === 1
+                      ).length
+                    : move.flags.filter(flag => flag.enabled).length;
 
                   return (
                     <InteractiveTableRow
                       className={`moves-row ${isSelected ? 'moves-row-selected' : ''} ${
                         pendingMoveIds.has(move.moveId) ? 'moves-row-pending' : ''
                       }`}
+                      aria-selected={isSelected}
                       onClick={() => onSelectMove(move.moveId)}
                       role="row"
                     >
@@ -28375,17 +28356,10 @@ function MovesSection({
                           : move.pp}
                       </span>
                       <span role="cell">
-                        {move.hasRuntimeData && runtimeVariant !== null
-                          ? t(
-                              `moves.list.runtimeSummary.${isSelected ? 'selected' : 'available'}.${
-                                runtimeVariantCount === 1 ? 'one' : 'other'
-                              }`,
-                              {
-                                count: runtimeVariantCount,
-                                label: formatLocalizedMoveRuntimeVariantLabel(runtimeVariant, t)
-                              }
-                            )
-                          : formatMoveActiveFlags(move)}
+                        <MoveFlagCount count={flagCount} name={move.name} onOpen={() => {
+                          onSelectMove(move.moveId);
+                          setFlagRequest({ sectionId: 'flags' });
+                        }} />
                       </span>
                     </InteractiveTableRow>
                   );
@@ -28524,6 +28498,14 @@ function getLocalizedMoveEditableFieldHelp(
   };
   const key = keyByMember[getMoveFieldMember(field.field)];
   return key ? t(key) : undefined;
+}
+
+function getMoveFlagGroup(field: string) {
+  const name = field.split('.').at(-1)!.toLowerCase();
+  if (/contact|punch|sound|dance|powder|bite|bullet|slicing|wind/.test(name)) return 'Flags: Move properties';
+  if (/protect|reflect|snatch|substitute|floating|effectiveness|guard/.test(name)) return 'Flags: Protection and immunity';
+  if (/metronome|mirr|sleeptalk|assist|copycat|mimic|instruct|encore|mefirst/.test(name)) return 'Flags: Move interactions';
+  return 'Flags: Battle behavior';
 }
 
 function formatLocalizedMoveFieldGroup(
@@ -29034,6 +29016,7 @@ function SelectedMovePanel({
   browser,
   browserControls,
   editorHeader,
+  flagRequest,
   baselineValues,
   canEditMoves,
   editSession,
@@ -29054,6 +29037,7 @@ function SelectedMovePanel({
   browser: ReactNode;
   browserControls: ReactNode;
   editorHeader: ReactNode;
+  flagRequest?: { sectionId: string };
   baselineValues: Record<string, number | null> | null;
   canEditMoves: boolean;
   editSession: EditSession | null;
@@ -29252,7 +29236,10 @@ function SelectedMovePanel({
   const moveFieldGroups = useMemo(
     () =>
       orderMoveEditableFieldGroups(
-        groupNumericEditableFields(moveFields, getMoveEditableFieldGroup)
+        groupNumericEditableFields(moveFields.filter(field => field.field !== 'canUseMove'), field => {
+          const group = getMoveEditableFieldGroup(field);
+          return group.endsWith('Flags') ? getMoveFlagGroup(field.field) : group;
+        })
       ),
     [moveFields]
   );
@@ -29390,17 +29377,6 @@ function SelectedMovePanel({
   const nextMoveDraftTarget = nextMoveDraftKey === null
     ? null
     : moves.find((candidate) => candidate.moveId.toString() === nextMoveDraftKey) ?? null;
-  const activeFlags = move?.flags.filter((flag) => flag.enabled) ?? [];
-  const qualityField = moveFields.find((field) => field.field === 'quality');
-  const mappedQualityLabel = move
-    ? (qualityField?.options.find((option) => option.value === move.quality)?.label ?? null)
-    : null;
-  const visibleStatChanges =
-    move?.statChanges.filter(
-      (statChange) =>
-        statChange.stat > 0 ||
-        (statChange.stat === 0 && (statChange.stage !== 0 || statChange.percent !== 0))
-    ) ?? [];
   const canSaveMoveDrafts =
     move !== null &&
     editSession !== null &&
@@ -29425,787 +29401,502 @@ function SelectedMovePanel({
     ? formatMoveRuntimeRowStatus(selectedRuntimeView, t)
     : null;
 
-  return (
-    <SectionedEditorWorkspace sessionKey={`${ordinaryDraftProject?.projectId ?? 'project'}:${ordinaryDraftProject?.game ?? 'game'}:moves`}
-      initialSection="moveData" pinnedBrowser browserVisibleRows={4} browser={browser}
-      browserControls={browserControls} sessionBar={editorHeader} compactFields>
-      <EditorWorkspaceHeader>
-      <PublishedLocalEditorValidationDiagnostics
-        domain="workflow.moves"
-        issues={
-          move
-            ? [
-                ...moveDraftSummary.invalidFields,
-                ...moveRelationalValidationIssues.map((issue) => ({
-                  field: issue.fields.join(','),
-                  message: issue.message
-                })),
-                ...moveDecimalValidationIssues
-              ]
-            : []
+  const renderMoveField = (move: MoveRecord, field: NumericEditableField): MoveFieldControl => {
+    const currentValue = getEditableMoveFieldValue(move, field.field);
+    const draftValue = moveDrafts[field.field] ?? '';
+    const draftState = getTrainerFieldDraftState(
+      draftValue,
+      currentValue,
+      field,
+      moveDraftContext
+    );
+    const relationalIssue = moveRelationalValidationIssues.find((issue) =>
+      issue.fields.includes(field.field)
+    );
+    const decimalOptionIssue = moveDecimalValidationIssues.find(
+      (issue) => issue.field === field.field
+    )?.message ?? null;
+    const effectiveDraftState = decimalOptionIssue || relationalIssue
+      ? {
+          ...draftState,
+          error: decimalOptionIssue ?? relationalIssue?.message ?? null,
+          isValid: false
         }
+      : draftState;
+
+    const playerDamageAttackId = parseMovePlayerDamageField(field.field);
+    const playerDamageRow = playerDamageAttackId === null
+      ? null
+      : move.playerDamageRows.find(
+          (candidate) => candidate.attackId === playerDamageAttackId
+        ) ?? null;
+    const playerDamageDescriptorId = playerDamageRow === null
+      ? undefined
+      : `move-player-damage-${move.moveId}-${playerDamageRow.attackId}-descriptor`;
+    const playerDamageDisabledReason = playerDamageRow?.invocations.length === 0
+      ? t('moves.playerDamage.disabled.noInvoker', {
+          attackId: playerDamageRow.attackId
+        })
+      : undefined;
+    const fieldControl = (
+      <GiftPokemonDraftField
+        ariaDescribedBy={playerDamageDescriptorId}
+        currentValue={currentValue}
+        checkbox={field.valueKind === 'boolean' && field.minimumValue === 0 && field.maximumValue === 1 &&
+          field.options.every(option => option.value === 0 || option.value === 1)}
+        disabled={
+          !canEditMoves ||
+          editSession === null ||
+          playerDamageDisabledReason !== undefined
+        }
+        disabledReason={playerDamageDisabledReason}
+        draftState={effectiveDraftState}
+        draftValue={draftValue}
+        field={field}
+        helpDomain="moves"
+        helpGame={move.hasRuntimeData || ordinaryDraftProject?.game === 'za' ? 'za'
+          : ordinaryDraftProject?.game === 'scarlet' || ordinaryDraftProject?.game === 'violet' ? 'sv' : 'swsh'}
+        helpText={
+          playerDamageAttackId === null
+            ? getLocalizedMoveEditableFieldHelp(field, t, move.hasRuntimeData)
+            : t('moves.playerDamage.fieldHelp', {
+                attackId: playerDamageAttackId,
+                maximum: field.maximumValue ?? 999,
+                minimum: field.minimumValue ?? 0
+              })
+        }
+        idPrefix="move-field"
+        wrapSelectedValue
+        labelText={
+          playerDamageAttackId === null
+            ? formatLocalizedMoveEditableFieldLabel(field, t, move.hasRuntimeData)
+            : t('moves.playerDamage.fieldLabel', {
+                attackId: playerDamageAttackId
+              })
+        }
+        onChange={(value) => {
+          setMoveDraftsByMoveId((currentDrafts) => {
+            const recordKey = move.moveId.toString();
+            const nextSparseDrafts = {
+              ...(currentDrafts[recordKey] ?? {})
+            };
+            const defaultValue = (currentValue ?? '').toString();
+            if (value === defaultValue) {
+              delete nextSparseDrafts[field.field];
+            } else {
+              nextSparseDrafts[field.field] = value;
+            }
+
+            const nextRecords = { ...currentDrafts };
+            if (Object.keys(nextSparseDrafts).length === 0) {
+              delete nextRecords[recordKey];
+            } else {
+              nextRecords[recordKey] = nextSparseDrafts;
+            }
+            return nextRecords;
+          });
+        }}
+        preservedValue={baselineValues?.[field.field] ?? null}
       />
-      {editSession && !move ? (
-        <EmptySelectionEditorSessionActions
+    );
+    return {
+      id: field.field,
+      changed: effectiveDraftState.isChanged,
+      invalid: !effectiveDraftState.isValid,
+      input: playerDamageRow && playerDamageDescriptorId ? (
+        <div className="move-player-damage-control">
+          {fieldControl}
+          <MovePlayerDamageDescriptor id={playerDamageDescriptorId} row={playerDamageRow}
+            totalRows={move.playerDamageRows.length} />
+        </div>
+      ) : fieldControl
+    };
+  };
+
+  const availability = move
+    ? t(move.canUseMove ? 'moves.inspector.catalogEnabled' : 'moves.inspector.catalogDisabled')
+    : undefined;
+  const detailsFields = move ? moveFields.filter(field => field.field === 'canUseMove').map(field => renderMoveField(move, field)) : [];
+  const core: MoveFieldGroup[] = [];
+  const effects: MoveFieldGroup[] = [];
+  const advanced: MoveFieldGroup[] = [];
+  const flags: MoveFieldGroup[] = [];
+  if (move) {
+    for (const [groupIndex, group] of moveFieldGroups.entries()) {
+      const isTeraBlastGroup = group.group === 'Tera Blast';
+      const isPlayerDamageGroup = group.group === 'Boss Player Damage';
+      const isConventionalEffectsGroup = group.group === 'Conventional Effects';
+      const isRuntimeBehaviorGroup = group.group === 'Runtime Behavior';
+      const isRuntimeEffectsGroup = group.group === 'Runtime Effects';
+      const isRuntimeStatChangesGroup = group.group === 'Runtime Stat Changes';
+      const supportsSwShAllStats =
+        (ordinaryDraftProject?.game === 'sword' || ordinaryDraftProject?.game === 'shield') &&
+        group.group === 'Stat Changes' &&
+        group.fields.some((field) => /^stat[123]$/.test(field.field) &&
+          field.options.some((option) => option.value === 10));
+      const isRuntimeBattleGroup = group.fields.every((field) =>
+        field.field.startsWith('battle.')
+      );
+      const isAdvancedTimingGroup = group.fields.some((field) => {
+        const timingField = parseMoveTimingField(field.field);
+        return timingField !== null && timingField.occurrence !== null;
+      });
+      const isFirstAdvancedTimingGroup =
+        isAdvancedTimingGroup &&
+        !moveFieldGroups
+          .slice(0, groupIndex)
+          .some((candidate) =>
+            candidate.fields.some((field) => {
+              const timingField = parseMoveTimingField(field.field);
+              return timingField !== null && timingField.occurrence !== null;
+            })
+          );
+      const localizedMoveGroupLabel = isPlayerDamageGroup
+        ? t('moves.playerDamage.groupHeading')
+        : isConventionalEffectsGroup && move.hasRuntimeData
+          ? t('moves.groups.sharedConventionalEffects')
+          : formatLocalizedMoveFieldGroup(group.group, t, translateLiteral);
+      const semanticMoveGroupHelp = isTeraBlastGroup
+        ? t('moves.teraBlast.help')
+        : supportsSwShAllStats
+          ? t('moves.swshStats.help')
+        : isPlayerDamageGroup
+        ? t(
+            move.playerDamageRows.length === 1
+              ? 'moves.playerDamage.groupNote.one'
+              : 'moves.playerDamage.groupNote.other',
+            { count: move.playerDamageRows.length }
+          )
+        : isConventionalEffectsGroup
+          ? t(move.hasRuntimeData ? 'moves.flinch.zaHelp' : 'moves.flinch.help')
+          : isRuntimeBehaviorGroup
+            ? t('moves.runtimeBehavior.help')
+            : isRuntimeEffectsGroup
+              ? t('moves.runtimeEffects.help')
+              : isFirstAdvancedTimingGroup
+                ? t('moves.advancedEditor.help')
+                : null;
+      const runtimeBattleScopeHelp = isRuntimeBattleGroup
+        ? t('moves.runtimeBattle.scopeHelp')
+        : null;
+      const localizedMoveGroupHelp =
+        semanticMoveGroupHelp && runtimeBattleScopeHelp
+          ? `${semanticMoveGroupHelp} ${runtimeBattleScopeHelp}`
+          : semanticMoveGroupHelp ?? runtimeBattleScopeHelp;
+      const flagGroup = group.group.startsWith('Flags: ');
+      const label = flagGroup ? translateLiteral(group.group.slice(7)) : localizedMoveGroupLabel;
+      const layout = group.group.endsWith('Stat Changes') ? 'stats' : flagGroup ? 'flags' : undefined;
+      const notice = <>
+        {isTeraBlastGroup ? (
+          <button type="button" className="secondary-action"
+            disabled={!canEditMoves || editSession === null}
+            onClick={() => setMoveDraftsByMoveId(current => {
+              const drafts = { ...(current[move.moveId.toString()] ?? {}) };
+              for (const [field, value] of Object.entries(teraBlastDefaultFields)) {
+                if (getEditableMoveFieldValue(move, field) === value) delete drafts[field];
+                else drafts[field] = value.toString();
+              }
+              return { ...current, [move.moveId.toString()]: drafts };
+            })}>
+            {t('moves.teraBlast.restore')}
+          </button>
+        ) : null}
+        {isPlayerDamageGroup ? (
+          <>
+            <ScriptedBossMoveControllerAvailability
+              move={move}
+              profiles={scriptedBosses}
+            />
+          </>
+        ) : null}
+        {isRuntimeStatChangesGroup && selectedRuntimeStatRecipient ? (
+          <p className="field-note move-runtime-behavior-note">
+            <strong>{t('moves.statRecipient.label')}:</strong>{' '}
+            {selectedRuntimeStatRecipient.kind === 'user'
+              ? t('moves.statRecipient.user')
+              : selectedRuntimeStatRecipient.kind === 'hit-targets'
+                ? t('moves.statRecipient.hitTargets')
+                : selectedRuntimeStatRecipient.kind === 'move-target'
+                  ? t('moves.statRecipient.moveTarget', {
+                      target: translateLiteral(selectedRuntimeStatRecipient.targetName)
+                    })
+                  : t('moves.statRecipient.scripted')}{' '}
+            {t('moves.statRecipient.help')}
+          </p>
+        ) : null}
+      </>;
+      const destination = flagGroup ? flags
+        : group.group.startsWith('Advanced ') || ['Advanced / Raw', 'Move Data'].includes(group.group) ? advanced
+        : ['Core Stats', 'Targeting', 'Runtime Core', 'Timing'].includes(group.group) ? core : effects;
+      destination.push({ label, layout, notice, help: localizedMoveGroupHelp, fields: group.fields.map(field => renderMoveField(move, field)) });
+    }
+  }
+
+  const sessionActions = editSession && move ? (
+    <EditorSessionBarActions>
+      <button
+        aria-busy={isMoveUpdating || undefined}
+        className="primary-button"
+        disabled={!canSaveMoveDrafts}
+        onClick={async () => {
+          const fieldsBeforeStage = moveDraftPayload.fields;
+          const sourceMutation = await runSessionLocalEditorSourceMutation({
+            binding: moveDraftBinding,
+            didMutate: (didSave) => didSave,
+            mutation: () =>
+              onUpdateMoveFields(
+                move.moveId,
+                moveDraftSummary.changedFields.map((change) => ({
+                  field: change.field,
+                  value: change.value
+                }))
+              ),
+            reduceLatestPayload: (latestPayload) => ({
+              fields: removeMatchingFieldDraftValues(
+                latestPayload.fields,
+                fieldsBeforeStage
+              )
+            })
+          });
+          if (sourceMutation.kind === 'reservation-unavailable') {
+            setMoveSourceMutationError(sessionLocalDraftMutationBusyMessage);
+            return;
+          }
+          setMoveSourceMutationError(null);
+          if (sourceMutation.kind === 'source-mutated') {
+            setMoveDraftsByMoveId((currentDrafts) =>
+              updateSparseFieldDraftRecordAfterStage(
+                currentDrafts,
+                move.moveId,
+                fieldsBeforeStage
+              )
+            );
+          }
+        }}
+        type="button"
+      >
+        <BusyActionContent
+          busyLabel="Staging"
+          icon={<Save aria-hidden="true" size={16} />}
           isBusy={isMoveUpdating}
-          onCancel={() => cancelActiveEditSession(() => setMoveDraftsByMoveId({}))}
-          summary="No move selected."
+          label={t('moves.saveToSession')}
         />
+      </button>
+      {nextMoveDraftTarget ? (
+        <button
+          className="secondary-button"
+          disabled={isMoveUpdating}
+          onClick={() => onSelectMove(nextMoveDraftTarget.moveId)}
+          type="button"
+        >
+          {t('editorDrafts.reviewNext')}
+        </button>
       ) : null}
-      <PublishedInlineEditorError
-        domain="workflow.moves"
-        message={moveSourceMutationError}
-      />
-      </EditorWorkspaceHeader>
-      {move ? <EditorWorkspaceHeader afterBrowser>
-        <EditorRecordHeading name={move.name} id={move.moveId} />
-      </EditorWorkspaceHeader> : null}
+      <button
+        className="danger-button"
+        disabled={isMoveUpdating}
+        onClick={() =>
+          cancelActiveEditSession(() =>
+            setMoveDraftsByMoveId({})
+          )
+        }
+        type="button"
+      >
+        <X aria-hidden="true" size={16} />
+        <span>Cancel</span>
+      </button>
+      <span className="draft-action-summary">
+        {formatDraftSummary(moveDraftSummary)};{' '}
+        {t('editorDrafts.summary.moves', {
+          count: outstandingMoveDraftKeys.length
+        })}
+      </span>
+    </EditorSessionBarActions>
+  ) : null;
 
-      {move ? (
-        <>
-          <EditorWorkspaceSection id="details" label={t('editorSections.details')}>
-          <dl className="item-provenance-list">
-            <div>
-              <dt>Name</dt>
-              <dd>{move.name}</dd>
+  return (
+    <MoveEditorWorkspace
+      sessionKey={`${ordinaryDraftProject?.projectId ?? 'project'}:${ordinaryDraftProject?.game ?? 'game'}:moves`}
+      record={move ? { name: move.name, id: move.moveId } : null}
+      browser={browser} browserControls={browserControls} sessionBar={<>{editorHeader}{sessionActions}</>}
+      catalogStatus={availability} flagRequest={flagRequest}
+      flagNotice={move && !flags.length ? <p className="field-note">{move.hasRuntimeData
+        ? t('moves.inspector.missingBattleRow') : t('moves.noFlags')}</p> : undefined}
+      header={<>
+        <PublishedLocalEditorValidationDiagnostics
+          domain="workflow.moves"
+          issues={
+            move
+              ? [
+                  ...moveDraftSummary.invalidFields,
+                  ...moveRelationalValidationIssues.map((issue) => ({
+                    field: issue.fields.join(','),
+                    message: issue.message
+                  })),
+                  ...moveDecimalValidationIssues
+                ]
+              : []
+          }
+        />
+        {editSession && !move ? (
+          <EmptySelectionEditorSessionActions
+            isBusy={isMoveUpdating}
+            onCancel={() => cancelActiveEditSession(() => setMoveDraftsByMoveId({}))}
+            summary="No move selected."
+          />
+        ) : null}
+        <PublishedInlineEditorError
+          domain="workflow.moves"
+          message={moveSourceMutationError}
+        />
+      </>}
+      recordContext={move ? <>
+        {move.hasRuntimeData ? <div className="move-runtime-controls">
+          {runtimeVariantOptions.length > 0 ? (
+            <div className="path-field editable-field-control">
+              <FieldLabel
+                help={`${t('moves.runtimeVariant.help')} ${t('moves.runtimeVariant.draftRetention')}`}
+                htmlFor="move-runtime-variant"
+                label={t('moves.runtimeVariant.label')}
+              />
+              <SearchableOptionInput
+                ariaLabel={t('moves.runtimeVariant.label')}
+                disabled={false}
+                id="move-runtime-variant"
+                isFiniteCatalog
+                wrapSelectedValue
+                onChange={(value) => onSelectRuntimeVariant(Number(value))}
+                options={runtimeVariantSelectOptions}
+                value={selectedRuntimeVariant?.toString() ?? ''}
+              />
             </div>
-            <div>
-              <dt>Move ID</dt>
-              <dd>{move.moveId}</dd>
-            </div>
-            <div>
-                  <dt>{t('moves.inspector.catalogStatus')}</dt>
-                  <dd>
-                    {t(
-                      move.canUseMove
-                        ? 'moves.inspector.catalogEnabled'
-                        : 'moves.inspector.catalogDisabled'
-                    )}
-                  </dd>
-            </div>
-            {move.hasRuntimeData && selectedRuntimeView ? (
-              <>
-                <div>
-                  <dt>{t('moves.inspector.selectedRuntimeVariant')}</dt>
-                  <dd>
-                    {formatLocalizedMoveRuntimeVariantLabel(selectedRuntimeView.variant, t)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t('moves.inspector.runtimeRowStatus')}</dt>
-                  <dd>{selectedRuntimeRowStatus}</dd>
-                </div>
-                <div>
-                  <dt>{t('moves.inspector.runtimeTypeCategory')}</dt>
-                  <dd>
-                    {selectedRuntimeView.battleRow
-                      ? `${selectedRuntimeView.battleRow.typeName} / ${selectedRuntimeView.battleRow.damageTypeName}`
-                      : t('moves.inspector.missingBattleRow')}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t('moves.inspector.runtimePower')}</dt>
-                  <dd>
-                    {selectedRuntimeView.battleRow
-                      ? selectedRuntimeView.battleRow.power
-                      : t('moves.inspector.missingBattleRow')}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t('moves.inspector.runtimeAccuracy')}</dt>
-                  <dd>
-                    {selectedRuntimeView.timingRow
-                      ? `${selectedRuntimeView.timingRow.hitPercent}%`
-                      : t('moves.inspector.missingTimingRow')}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{t('moves.inspector.runtimeCooldown')}</dt>
-                  <dd>
-                    {selectedRuntimeView.timingRow
-                      ? `${selectedRuntimeView.timingRow.cooldown}s`
-                      : t('moves.inspector.missingTimingRow')}
-                  </dd>
-                </div>
-                {selectedRuntimeView.variant === 2 ? (
-                  <div>
-                    <dt>{t('moves.inspector.playerDamageRows')}</dt>
-                    <dd>
-                      {selectedRuntimeView.playerDamageRows.length > 0
-                        ? t(
-                            selectedRuntimeView.playerDamageRows.length === 1
-                              ? 'moves.inspector.playerDamageRows.one'
-                              : 'moves.inspector.playerDamageRows.other',
-                            { count: selectedRuntimeView.playerDamageRows.length }
-                          )
-                        : t('moves.inspector.playerDamageRows.none')}
-                    </dd>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div>
-                <dt>Type / category</dt>
-                <dd>
-                  {move.typeName} / {move.categoryName}
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt>Description</dt>
-              <dd>{move.description ?? 'No description text.'}</dd>
-            </div>
-            <div>
-              <dt>{t('moves.inspector.catalogSourceFile')}</dt>
-              <dd className="pokemon-source-path" data-localization-ignore="true" title={move.provenance.sourceFile}>{move.provenance.sourceFile}</dd>
-            </div>
-            <div>
-              <dt>{t('moves.inspector.catalogSourceLayer')}</dt>
-              <dd>{formatSourceLayer(move.provenance.sourceLayer)}</dd>
-            </div>
-            <div>
-              <dt>{t('moves.inspector.catalogFileState')}</dt>
-              <dd>{formatFileState(move.provenance.fileState)}</dd>
-            </div>
-            {move.hasRuntimeData ? (
-              <div>
-                <dt>{t('moves.inspector.runtimeDataSources')}</dt>
-                <dd>
-                  {move.runtimeSourceFiles.length > 0
-                    ? move.runtimeSourceFiles.join(', ')
-                    : t('moves.inspector.noRuntimeDataSources')}
-                </dd>
-              </div>
-            ) : null}
-          </dl>
-          </EditorWorkspaceSection>
-
-          <EditorWorkspaceSection id="moveData" label={translateLiteral('Move Data')}
-            modified={moveDraftSummary.changedFields.length > 0 || moveDraftSummary.invalidFields.length > 0 || moveRelationalValidationIssues.length > 0 || moveDecimalValidationIssues.length > 0}
-            invalid={moveDraftSummary.invalidFields.length > 0 || moveRelationalValidationIssues.length > 0 || moveDecimalValidationIssues.length > 0}>
-          <div className="item-edit-form move-edit-form">
-            <div className="editable-field-groups">
-              {move.hasRuntimeData && runtimeVariantOptions.length > 0 ? (
-                <fieldset className="editable-field-group">
-                  <legend className="context-help-heading">
-                    <span>{t('moves.runtimeVariant.heading')}</span>
-                    <ContextHelp label={t('moves.runtimeVariant.heading')}>
-                      {t('moves.runtimeVariant.help')} {t('moves.runtimeVariant.draftRetention')}
-                    </ContextHelp>
-                  </legend>
-                  <div className="path-field editable-field-control">
-                    <FieldLabel
-                      help={`${t('moves.runtimeVariant.help')} ${t('moves.runtimeVariant.draftRetention')}`}
-                      htmlFor="move-runtime-variant"
-                      label={t('moves.runtimeVariant.label')}
-                    />
-                    <SearchableOptionInput
-                      ariaLabel={t('moves.runtimeVariant.label')}
-                      disabled={false}
-                      id="move-runtime-variant"
-                      isFiniteCatalog
-                      onChange={(value) => onSelectRuntimeVariant(Number(value))}
-                      options={runtimeVariantSelectOptions}
-                      value={selectedRuntimeVariant?.toString() ?? ''}
-                    />
-                  </div>
-                </fieldset>
-              ) : null}
-              {selectedRuntimeVariant === 2 ? (
-                <ScriptedBossMoveOwnership move={move} profiles={scriptedBosses} />
-              ) : null}
-              {move.hasRuntimeData && timingProfileOptions.length > 1 ? (
-                <fieldset className="editable-field-group">
-                  <legend className="context-help-heading">
-                    <span>{t('moves.timingProfile.heading')}</span>
-                    <ContextHelp label={t('moves.timingProfile.heading')}>
-                      {t('moves.timingProfile.help')}
-                    </ContextHelp>
-                  </legend>
-                  <div className="path-field editable-field-control">
-                    <FieldLabel
-                      help={t('moves.timingProfile.help')}
-                      htmlFor="move-timing-profile"
-                      label={translateLiteral('Profile')}
-                    />
-                    <SearchableOptionInput
-                      ariaLabel={translateLiteral('Profile')}
-                      disabled={false}
-                      id="move-timing-profile"
-                      isFiniteCatalog
-                      onChange={(value) => {
-                        if (!timingProfileStorageKey) {
-                          return;
-                        }
-
-                        setTimingProfileByMoveVariant((current) => ({
-                          ...current,
-                          [timingProfileStorageKey]: Number(value)
-                        }));
-                      }}
-                      options={timingProfileSelectOptions}
-                      value={selectedTimingProfile?.toString() ?? ''}
-                    />
-                  </div>
-                </fieldset>
-              ) : null}
-              {move.hasRuntimeData && timingRowOptions.length > 1 ? (
-                <fieldset className="editable-field-group">
-                  <legend className="context-help-heading">
-                    <span>{translateLiteral('Timing Row')}</span>
-                    <ContextHelp label={translateLiteral('Timing Row')}>
-                      {t('moves.timingOccurrence.help')}
-                    </ContextHelp>
-                  </legend>
-                  <div className="path-field editable-field-control">
-                    <FieldLabel
-                      help={t('moves.timingOccurrence.help')}
-                      htmlFor="move-timing-occurrence"
-                      label={translateLiteral('Occurrence')}
-                    />
-                    <SearchableOptionInput
-                      ariaLabel={translateLiteral('Occurrence')}
-                      disabled={false}
-                      id="move-timing-occurrence"
-                      isFiniteCatalog
-                      onChange={(value) => {
-                        if (!timingOccurrenceStorageKey) {
-                          return;
-                        }
-
-                        setTimingOccurrenceByProfile((current) => ({
-                          ...current,
-                          [timingOccurrenceStorageKey]: Number(value)
-                        }));
-                      }}
-                      options={timingOccurrenceSelectOptions}
-                      value={selectedTimingOccurrence.toString()}
-                    />
-                  </div>
-                </fieldset>
-              ) : null}
-              <fieldset className="editable-field-group">
-                <legend>Read-only</legend>
-                <div className="editable-field-grid">
-                  <label className="path-field editable-field-control editable-field-disabled">
-                    <span>Move ID</span>
-                    <input disabled readOnly value={move.moveId} />
-                  </label>
-                  <label className="path-field editable-field-control editable-field-disabled">
-                    <span>Version</span>
-                    <input disabled readOnly value={move.version} />
-                  </label>
-                </div>
-              </fieldset>
-              {move.teraBlastBlockedReason ? (
-                <p className="field-note" role="status">{t('moves.teraBlast.unavailable')}</p>
-              ) : null}
-              {moveFieldGroups.map((group, groupIndex) => {
-                const isTeraBlastGroup = group.group === 'Tera Blast';
-                const isFlagsGroup = group.group.endsWith('Flags');
-                const isAdvancedGroup = group.group.startsWith('Advanced ');
-                const isPlayerDamageGroup = group.group === 'Boss Player Damage';
-                const isConventionalEffectsGroup = group.group === 'Conventional Effects';
-                const isRuntimeBehaviorGroup = group.group === 'Runtime Behavior';
-                const isRuntimeEffectsGroup = group.group === 'Runtime Effects';
-                const isRuntimeStatChangesGroup = group.group === 'Runtime Stat Changes';
-                const supportsSwShAllStats =
-                  (ordinaryDraftProject?.game === 'sword' || ordinaryDraftProject?.game === 'shield') &&
-                  group.group === 'Stat Changes' &&
-                  group.fields.some((field) => /^stat[123]$/.test(field.field) &&
-                    field.options.some((option) => option.value === 10));
-                const isRuntimeBattleGroup = group.fields.every((field) =>
-                  field.field.startsWith('battle.')
-                );
-                const isAdvancedTimingGroup = group.fields.some((field) => {
-                  const timingField = parseMoveTimingField(field.field);
-                  return timingField !== null && timingField.occurrence !== null;
-                });
-                const isFirstAdvancedTimingGroup =
-                  isAdvancedTimingGroup &&
-                  !moveFieldGroups
-                    .slice(0, groupIndex)
-                    .some((candidate) =>
-                      candidate.fields.some((field) => {
-                        const timingField = parseMoveTimingField(field.field);
-                        return timingField !== null && timingField.occurrence !== null;
-                      })
-                    );
-                const localizedMoveGroupLabel = isPlayerDamageGroup
-                  ? t('moves.playerDamage.groupHeading')
-                  : isConventionalEffectsGroup && move.hasRuntimeData
-                    ? t('moves.groups.sharedConventionalEffects')
-                    : formatLocalizedMoveFieldGroup(group.group, t, translateLiteral);
-                const semanticMoveGroupHelp = isTeraBlastGroup
-                  ? t('moves.teraBlast.help')
-                  : supportsSwShAllStats
-                    ? t('moves.swshStats.help')
-                  : isPlayerDamageGroup
-                  ? t(
-                      move.playerDamageRows.length === 1
-                        ? 'moves.playerDamage.groupNote.one'
-                        : 'moves.playerDamage.groupNote.other',
-                      { count: move.playerDamageRows.length }
-                    )
-                  : isConventionalEffectsGroup
-                    ? t(move.hasRuntimeData ? 'moves.flinch.zaHelp' : 'moves.flinch.help')
-                    : isRuntimeBehaviorGroup
-                      ? t('moves.runtimeBehavior.help')
-                      : isRuntimeEffectsGroup
-                        ? t('moves.runtimeEffects.help')
-                        : isFirstAdvancedTimingGroup
-                          ? t('moves.advancedEditor.help')
-                          : null;
-                const runtimeBattleScopeHelp = isRuntimeBattleGroup
-                  ? t('moves.runtimeBattle.scopeHelp')
-                  : null;
-                const localizedMoveGroupHelp =
-                  semanticMoveGroupHelp && runtimeBattleScopeHelp
-                    ? `${semanticMoveGroupHelp} ${runtimeBattleScopeHelp}`
-                    : semanticMoveGroupHelp ?? runtimeBattleScopeHelp;
-                return (
-                  <Fragment key={group.group}>
-                    <fieldset
-                      className={`editable-field-group${isFlagsGroup ? ' move-flags-field-group' : ''}${isAdvancedGroup ? ' move-advanced-field-group' : ''}${isPlayerDamageGroup ? ' move-player-damage-field-group' : ''}${isRuntimeEffectsGroup || isRuntimeStatChangesGroup ? ' move-runtime-field-group-wide' : ''}`}
-                    >
-                      <legend className="context-help-heading">
-                        <span>{localizedMoveGroupLabel}</span>
-                        {localizedMoveGroupHelp ? (
-                          <ContextHelp label={localizedMoveGroupLabel}>
-                            {localizedMoveGroupHelp}
-                          </ContextHelp>
-                        ) : null}
-                      </legend>
-                      {isTeraBlastGroup ? (
-                        <button type="button" className="secondary-action"
-                          disabled={!canEditMoves || editSession === null}
-                          onClick={() => setMoveDraftsByMoveId(current => {
-                            const drafts = { ...(current[move.moveId.toString()] ?? {}) };
-                            for (const [field, value] of Object.entries(teraBlastDefaultFields)) {
-                              if (getEditableMoveFieldValue(move, field) === value) delete drafts[field];
-                              else drafts[field] = value.toString();
-                            }
-                            return { ...current, [move.moveId.toString()]: drafts };
-                          })}>
-                          {t('moves.teraBlast.restore')}
-                        </button>
-                      ) : null}
-                      {isPlayerDamageGroup ? (
-                        <>
-                          <ScriptedBossMoveControllerAvailability
-                            move={move}
-                            profiles={scriptedBosses}
-                          />
-                        </>
-                      ) : null}
-                      {isRuntimeStatChangesGroup && selectedRuntimeStatRecipient ? (
-                        <p className="field-note move-runtime-behavior-note">
-                          <strong>{t('moves.statRecipient.label')}:</strong>{' '}
-                          {selectedRuntimeStatRecipient.kind === 'user'
-                            ? t('moves.statRecipient.user')
-                            : selectedRuntimeStatRecipient.kind === 'hit-targets'
-                              ? t('moves.statRecipient.hitTargets')
-                              : selectedRuntimeStatRecipient.kind === 'move-target'
-                                ? t('moves.statRecipient.moveTarget', {
-                                    target: translateLiteral(selectedRuntimeStatRecipient.targetName)
-                                  })
-                                : t('moves.statRecipient.scripted')}{' '}
-                          {t('moves.statRecipient.help')}
-                        </p>
-                      ) : null}
-                      <div
-                        className={`editable-field-grid${isFlagsGroup ? ' move-flags-field-grid' : ''}${isPlayerDamageGroup ? ' move-player-damage-field-grid' : ''}`}
-                      >
-                        {group.fields.map((field) => {
-                        const currentValue = getEditableMoveFieldValue(move, field.field);
-                        const draftValue = moveDrafts[field.field] ?? '';
-                        const draftState = getTrainerFieldDraftState(
-                          draftValue,
-                          currentValue,
-                          field,
-                          moveDraftContext
-                        );
-                        const relationalIssue = moveRelationalValidationIssues.find((issue) =>
-                          issue.fields.includes(field.field)
-                        );
-                        const decimalOptionIssue = moveDecimalValidationIssues.find(
-                          (issue) => issue.field === field.field
-                        )?.message ?? null;
-                        const effectiveDraftState = decimalOptionIssue || relationalIssue
-                          ? {
-                              ...draftState,
-                              error: decimalOptionIssue ?? relationalIssue?.message ?? null,
-                              isValid: false
-                            }
-                          : draftState;
-
-                        const playerDamageAttackId = parseMovePlayerDamageField(field.field);
-                        const playerDamageRow = playerDamageAttackId === null
-                          ? null
-                          : move.playerDamageRows.find(
-                              (candidate) => candidate.attackId === playerDamageAttackId
-                            ) ?? null;
-                        const playerDamageDescriptorId = playerDamageRow === null
-                          ? undefined
-                          : `move-player-damage-${move.moveId}-${playerDamageRow.attackId}-descriptor`;
-                        const playerDamageDisabledReason = playerDamageRow?.invocations.length === 0
-                          ? t('moves.playerDamage.disabled.noInvoker', {
-                              attackId: playerDamageRow.attackId
-                            })
-                          : undefined;
-                        const fieldControl = (
-                          <GiftPokemonDraftField
-                            ariaDescribedBy={playerDamageDescriptorId}
-                            currentValue={currentValue}
-                            disabled={
-                              !canEditMoves ||
-                              editSession === null ||
-                              playerDamageDisabledReason !== undefined
-                            }
-                            disabledReason={playerDamageDisabledReason}
-                            draftState={effectiveDraftState}
-                            draftValue={draftValue}
-                            field={field}
-                            helpDomain="moves"
-                            helpGame="za"
-                            helpText={
-                              playerDamageAttackId === null
-                                ? getLocalizedMoveEditableFieldHelp(field, t, move.hasRuntimeData)
-                                : t('moves.playerDamage.fieldHelp', {
-                                    attackId: playerDamageAttackId,
-                                    maximum: field.maximumValue ?? 999,
-                                    minimum: field.minimumValue ?? 0
-                                  })
-                            }
-                            idPrefix="move-field"
-                            labelText={
-                              playerDamageAttackId === null
-                                ? formatLocalizedMoveEditableFieldLabel(field, t, move.hasRuntimeData)
-                                : t('moves.playerDamage.fieldLabel', {
-                                    attackId: playerDamageAttackId
-                                  })
-                            }
-                            onChange={(value) => {
-                              setMoveDraftsByMoveId((currentDrafts) => {
-                                const recordKey = move.moveId.toString();
-                                const nextSparseDrafts = {
-                                  ...(currentDrafts[recordKey] ?? {})
-                                };
-                                const defaultValue = (currentValue ?? '').toString();
-                                if (value === defaultValue) {
-                                  delete nextSparseDrafts[field.field];
-                                } else {
-                                  nextSparseDrafts[field.field] = value;
-                                }
-
-                                const nextRecords = { ...currentDrafts };
-                                if (Object.keys(nextSparseDrafts).length === 0) {
-                                  delete nextRecords[recordKey];
-                                } else {
-                                  nextRecords[recordKey] = nextSparseDrafts;
-                                }
-                                return nextRecords;
-                              });
-                            }}
-                            preservedValue={baselineValues?.[field.field] ?? null}
-                          />
-                        );
-                        return playerDamageRow ? (
-                          <div className="move-player-damage-control" key={field.field}>
-                            {fieldControl}
-                            <MovePlayerDamageDescriptor
-                              id={playerDamageDescriptorId!}
-                              row={playerDamageRow}
-                              totalRows={move.playerDamageRows.length}
-                            />
-                          </div>
-                        ) : (
-                          <Fragment key={field.field}>{fieldControl}</Fragment>
-                        );
-                        })}
-                      </div>
-                    </fieldset>
-                  </Fragment>
-                );
-              })}
-            </div>
-
-            {editSession ? (
-              <EditorSessionBarActions>
-                <button
-                  aria-busy={isMoveUpdating || undefined}
-                  className="primary-button"
-                  disabled={!canSaveMoveDrafts}
-                  onClick={async () => {
-                    const fieldsBeforeStage = moveDraftPayload.fields;
-                    const sourceMutation = await runSessionLocalEditorSourceMutation({
-                      binding: moveDraftBinding,
-                      didMutate: (didSave) => didSave,
-                      mutation: () =>
-                        onUpdateMoveFields(
-                          move.moveId,
-                          moveDraftSummary.changedFields.map((change) => ({
-                            field: change.field,
-                            value: change.value
-                          }))
-                        ),
-                      reduceLatestPayload: (latestPayload) => ({
-                        fields: removeMatchingFieldDraftValues(
-                          latestPayload.fields,
-                          fieldsBeforeStage
-                        )
-                      })
-                    });
-                    if (sourceMutation.kind === 'reservation-unavailable') {
-                      setMoveSourceMutationError(sessionLocalDraftMutationBusyMessage);
-                      return;
-                    }
-                    setMoveSourceMutationError(null);
-                    if (sourceMutation.kind === 'source-mutated') {
-                      setMoveDraftsByMoveId((currentDrafts) =>
-                        updateSparseFieldDraftRecordAfterStage(
-                          currentDrafts,
-                          move.moveId,
-                          fieldsBeforeStage
-                        )
-                      );
-                    }
-                  }}
-                  type="button"
-                >
-                  <BusyActionContent
-                    busyLabel="Staging"
-                    icon={<Save aria-hidden="true" size={16} />}
-                    isBusy={isMoveUpdating}
-                    label="Stage"
-                  />
-                </button>
-                {nextMoveDraftTarget ? (
-                  <button
-                    className="secondary-button"
-                    disabled={isMoveUpdating}
-                    onClick={() => onSelectMove(nextMoveDraftTarget.moveId)}
-                    type="button"
-                  >
-                    {t('editorDrafts.reviewNext')}
-                  </button>
-                ) : null}
-                <button
-                  className="danger-button"
-                  disabled={isMoveUpdating}
-                  onClick={() =>
-                    cancelActiveEditSession(() =>
-                      setMoveDraftsByMoveId({})
-                    )
-                  }
-                  type="button"
-                >
-                  <X aria-hidden="true" size={16} />
-                  <span>Cancel</span>
-                </button>
-                <span className="draft-action-summary">
-                  {formatDraftSummary(moveDraftSummary)};{' '}
-                  {t('editorDrafts.summary.moves', {
-                    count: outstandingMoveDraftKeys.length
-                  })}
-                </span>
-              </EditorSessionBarActions>
-            ) : null}
-            {onStageMoveVanilla ? (
-              <div className="za-encounter-revert-action">
-                <button
-                  aria-busy={isMoveUpdating || undefined}
-                  className="danger-button"
-                  disabled={!canRevertSelectedMove}
-                  onClick={async () => {
-                    const fieldsBeforeStage = moveDraftPayload.fields;
-                    const sourceMutation = await runSessionLocalEditorSourceMutation({
-                      binding: moveDraftBinding,
-                      didMutate: (didRestore) => didRestore,
-                      mutation: () => onStageMoveVanilla(move.moveId),
-                      reduceLatestPayload: (latestPayload) => ({
-                        fields: removeMatchingFieldDraftValues(
-                          latestPayload.fields,
-                          fieldsBeforeStage
-                        )
-                      })
-                    });
-                    if (sourceMutation.kind === 'reservation-unavailable') {
-                      setMoveSourceMutationError(sessionLocalDraftMutationBusyMessage);
-                      return;
-                    }
-                    setMoveSourceMutationError(null);
-                    if (sourceMutation.kind === 'source-mutated') {
-                      setMoveDraftsByMoveId((currentDrafts) =>
-                        updateSparseFieldDraftRecordAfterStage(
-                          currentDrafts,
-                          move.moveId,
-                          fieldsBeforeStage
-                        )
-                      );
-                    }
-                  }}
-                  title={moveRevertMessage}
-                  type="button"
-                >
-                  <BusyActionContent
-                    busyLabel={t('za.encounters.reverting')}
-                    icon={<RotateCcw aria-hidden="true" size={16} />}
-                    isBusy={isMoveUpdating}
-                    label={t('za.encounters.revertToVanilla')}
-                  />
-                </button>
-                <small className="editable-field-status">
-                  {moveRevertMessage}
-                </small>
-              </div>
-            ) : null}
-          </div>
-
-          </EditorWorkspaceSection>
-          {!move.hasRuntimeData ? (
-            <EditorWorkspaceSection id="reference" label={translateLiteral('Core Stats')}>
-          <div className="inspector-block">
-            <h4>Core Stats</h4>
-            <dl className="item-provenance-list compact-dl">
-              <div>
-                <dt>Power</dt>
-                <dd>{formatMovePower(move.power)}</dd>
-              </div>
-              <div>
-                <dt>Accuracy</dt>
-                <dd>{translateLiteral(formatMoveAccuracy(move.accuracy))}</dd>
-              </div>
-              <div>
-                <dt>{move.hasRuntimeData ? 'Cooldown' : 'PP'}</dt>
-                <dd>{move.hasRuntimeData ? `${move.timing?.cooldown ?? '-'}s` : move.pp}</dd>
-              </div>
-              <div>
-                <dt>Priority</dt>
-                <dd>{move.priority}</dd>
-              </div>
-              <div>
-                <dt>Crit stage</dt>
-                <dd>{move.critStage}</dd>
-              </div>
-              <div>
-                <dt>Max move</dt>
-                <dd>{move.maxMovePower}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="inspector-block">
-            <h4>Targeting</h4>
-            <dl className="item-provenance-list compact-dl">
-              <div>
-                <dt>Target</dt>
-                <dd>{move.targetName}</dd>
-              </div>
-              <div>
-                <dt>{translateLiteral('Hits')}</dt>
-                <dd>{translateLiteral(formatMoveHitRange(move.hitMin, move.hitMax))}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="inspector-block">
-            <h4>Secondary Effects</h4>
-            <dl className="item-provenance-list compact-dl">
-              <div>
-                <dt>Inflict</dt>
-                <dd>{move.inflictName}</dd>
-              </div>
-              <div>
-                <dt>{translateLiteral('Inflict chance')}</dt>
-                <dd>
-                  {translateLiteral(
-                    formatMoveEffectChance(move.inflictPercent, move.inflict !== 0)
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt>Inflict duration</dt>
-                <dd>{formatMoveInflictDuration(move.rawInflictCount)}</dd>
-              </div>
-              <div>
-                <dt>{translateLiteral('Inflicted-effect turns')}</dt>
-                <dd>
-                  {translateLiteral(formatMoveInflictedEffectTurns(move.turnMin, move.turnMax))}
-                </dd>
-              </div>
-              {mappedQualityLabel ? (
-                <div>
-                  <dt>{translateLiteral('Effect quality')}</dt>
-                  <dd>{translateLiteral(mappedQualityLabel)}</dd>
-                </div>
-              ) : null}
-              <div>
-                <dt>Flinch chance</dt>
-                <dd>{move.flinch}%</dd>
-              </div>
-              <div>
-                <dt>{translateLiteral('Drain (+) / recoil (-)')}</dt>
-                <dd>{translateLiteral(formatMoveRecoilValue(move.recoil))}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="inspector-block">
-            <h4>Stat Changes</h4>
-            {visibleStatChanges.length > 0 ? (
-              <ul className="inspector-list">
-                {visibleStatChanges.map((statChange) => (
-                  <li key={statChange.slot}>
-                    {statChange.statName}: {statChange.stage} stage,{' '}
-                    {translateLiteral(formatMoveEffectChance(statChange.percent, true))}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="empty-copy">No stat change effects.</p>
-            )}
-          </div>
-
-          <div className="inspector-block">
-            <h4>{translateLiteral('Advanced / Raw')}</h4>
-            <dl className="item-provenance-list compact-dl">
-              {!mappedQualityLabel ? (
-                <div>
-                  <dt>{translateLiteral('Quality (raw)')}</dt>
-                  <dd>{move.quality}</dd>
-                </div>
-              ) : null}
-              <div>
-                <dt>Effect sequence ID</dt>
-                <dd>{move.effectSequence}</dd>
-              </div>
-              <div>
-                <dt>{translateLiteral('HP recovery / cost (raw)')}</dt>
-                <dd>{translateLiteral(formatMoveHealingValue(move.rawHealing))}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="inspector-block">
-            <h4>Active Flags</h4>
-            {activeFlags.length > 0 ? (
-              <ul className="inspector-list">
-                {activeFlags.map((flag) => (
-                  <li key={flag.field}>{flag.label}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="empty-copy">No active flags.</p>
-            )}
-          </div>
-            </EditorWorkspaceSection>
           ) : null}
-        </>
-      ) : (
-        <p className="empty-copy">No move selected.</p>
-      )}
-    </SectionedEditorWorkspace>
+          {timingProfileOptions.length > 1 ? (
+            <div className="path-field editable-field-control">
+              <FieldLabel
+                help={t('moves.timingProfile.help')}
+                htmlFor="move-timing-profile"
+                label={translateLiteral('Profile')}
+              />
+              <SearchableOptionInput
+                ariaLabel={translateLiteral('Profile')}
+                disabled={false}
+                id="move-timing-profile"
+                isFiniteCatalog
+                wrapSelectedValue
+                onChange={(value) => {
+                  if (!timingProfileStorageKey) {
+                    return;
+                  }
+                  setTimingProfileByMoveVariant((current) => ({
+                    ...current,
+                    [timingProfileStorageKey]: Number(value)
+                  }));
+                }}
+                options={timingProfileSelectOptions}
+                value={selectedTimingProfile?.toString() ?? ''}
+              />
+            </div>
+          ) : null}
+          {timingRowOptions.length > 1 ? (
+            <div className="path-field editable-field-control">
+              <FieldLabel
+                help={t('moves.timingOccurrence.help')}
+                htmlFor="move-timing-occurrence"
+                label={translateLiteral('Occurrence')}
+              />
+              <SearchableOptionInput
+                ariaLabel={translateLiteral('Occurrence')}
+                disabled={false}
+                id="move-timing-occurrence"
+                isFiniteCatalog
+                wrapSelectedValue
+                onChange={(value) => {
+                  if (!timingOccurrenceStorageKey) {
+                    return;
+                  }
+                  setTimingOccurrenceByProfile((current) => ({
+                    ...current,
+                    [timingOccurrenceStorageKey]: Number(value)
+                  }));
+                }}
+                options={timingOccurrenceSelectOptions}
+                value={selectedTimingOccurrence.toString()}
+              />
+            </div>
+          ) : null}
+        </div> : null}
+        {move.teraBlastBlockedReason ? <p className="field-note" role="status">{t('moves.teraBlast.unavailable')}</p> : null}
+      </> : null}
+      details={move ? <MoveDetails
+        id={move.moveId} version={move.version} description={move.description}
+        sourceFile={move.provenance.sourcePath ?? move.provenance.sourceFile}
+        sourceLayer={formatSourceLayer(move.provenance.sourceLayer)}
+        fileState={formatFileState(move.provenance.fileState)}
+        runtimeFiles={move.runtimeSourceFiles} controls={detailsFields}
+        actions={<>
+          {selectedRuntimeVariant === 2 ? (
+            <ScriptedBossMoveOwnership move={move} profiles={scriptedBosses} />
+          ) : null}
+          {onStageMoveVanilla ? (
+            <div className="za-encounter-revert-action">
+              <button
+                aria-busy={isMoveUpdating || undefined}
+                className="danger-button"
+                disabled={!canRevertSelectedMove}
+                onClick={async () => {
+                  const fieldsBeforeStage = moveDraftPayload.fields;
+                  const sourceMutation = await runSessionLocalEditorSourceMutation({
+                    binding: moveDraftBinding,
+                    didMutate: (didRestore) => didRestore,
+                    mutation: () => onStageMoveVanilla(move.moveId),
+                    reduceLatestPayload: (latestPayload) => ({
+                      fields: removeMatchingFieldDraftValues(
+                        latestPayload.fields,
+                        fieldsBeforeStage
+                      )
+                    })
+                  });
+                  if (sourceMutation.kind === 'reservation-unavailable') {
+                    setMoveSourceMutationError(sessionLocalDraftMutationBusyMessage);
+                    return;
+                  }
+                  setMoveSourceMutationError(null);
+                  if (sourceMutation.kind === 'source-mutated') {
+                    setMoveDraftsByMoveId((currentDrafts) =>
+                      updateSparseFieldDraftRecordAfterStage(
+                        currentDrafts,
+                        move.moveId,
+                        fieldsBeforeStage
+                      )
+                    );
+                  }
+                }}
+                title={moveRevertMessage}
+                type="button"
+              >
+                <BusyActionContent
+                  busyLabel={t('za.encounters.reverting')}
+                  icon={<RotateCcw aria-hidden="true" size={16} />}
+                  isBusy={isMoveUpdating}
+                  label={t('za.encounters.revertToVanilla')}
+                />
+              </button>
+              <small className="editable-field-status">
+                {moveRevertMessage}
+              </small>
+            </div>
+          ) : null}
+        </>}
+        extra={selectedRuntimeView ? <>
+          <EditorDetailValue label={t('moves.inspector.runtimeRowStatus')}>{selectedRuntimeRowStatus}</EditorDetailValue>
+          {selectedRuntimeView.variant === 2 ? <EditorDetailValue label={t('moves.inspector.playerDamageRows')}>
+            {selectedRuntimeView.playerDamageRows.length}
+          </EditorDetailValue> : null}
+        </> : null}
+      /> : null}
+      detailsFields={detailsFields} core={core} effects={effects} advanced={advanced} flags={flags}
+    />
   );
 }
 
@@ -30381,7 +30072,6 @@ const textCategoryLocalizationKeys: Readonly<
 function TextSection({
   editSession,
   isEditStarting,
-  isPagedResultWindow,
   isTextLoading,
   isTextQueryPending,
   isTextUpdating,
@@ -30401,7 +30091,6 @@ function TextSection({
 }: {
   editSession: EditSession | null;
   isEditStarting: boolean;
-  isPagedResultWindow: boolean;
   isTextLoading: boolean;
   isTextQueryPending: boolean;
   isTextUpdating: boolean;
@@ -30424,6 +30113,7 @@ function TextSection({
   workflow: TextWorkflow | null;
 }) {
   const { t, translateLiteral } = useLocalization();
+  const textTableRef = useRef<HTMLDivElement>(null);
   const entries = useMemo(
     () => overlayPendingTextValues(workflow?.entries ?? [], editSession),
     [editSession, workflow?.entries]
@@ -30469,6 +30159,22 @@ function TextSection({
   const categories = workflow?.categories ?? [];
   const page = workflow?.page ?? null;
   const activeCategoryId = workflow?.selectedCategoryId ?? selectedCategoryId ?? 'all';
+  const previousCategoryRef = useRef(activeCategoryId);
+  useEffect(() => {
+    const changedCategory = previousCategoryRef.current !== activeCategoryId;
+    previousCategoryRef.current = activeCategoryId;
+    const table = textTableRef.current;
+    if (!changedCategory || !table || table.closest('[data-reduced-motion="true"]')) {
+      return;
+    }
+
+    const animation = table.querySelector('.virtual-table-body')?.animate(
+      [{ opacity: 0.65 }, { opacity: 1 }],
+      { duration: 150, easing: 'ease-out' }
+    );
+    return () => animation?.cancel();
+  }, [activeCategoryId]);
+
   const activeCategory = categories.find(
     (category) => category.categoryId === activeCategoryId
   );
@@ -30527,32 +30233,22 @@ function TextSection({
           value={searchText}
         />
       </label>
-      <Metric
-        label={
-          page
-            ? t('text.metrics.pageEntries')
-            : isPagedResultWindow
-              ? 'Loaded results'
-              : 'Loaded entries'
-        }
-        value={
-          workflow
-            ? (page?.returnedEntryCount ?? workflow.stats.totalTextEntryCount).toString()
-            : '0'
-        }
-      />
-      <Metric
-        label={categories.length > 0 ? t('text.metrics.availableFiles') : 'Source files'}
-        value={workflow ? workflow.stats.sourceFileCount.toString() : '0'}
-      />
-      <Metric
-        label="Pending changes"
-        value={(editSession?.pendingEdits.length ?? 0).toString()}
-      />
+      {workflow ? (
+        <dl className="text-browser-counts">
+          <div>
+            <dt>{categories.length > 0 ? t('text.metrics.availableFiles') : 'Source files'}</dt>
+            <dd>{workflow.stats.sourceFileCount}</dd>
+          </div>
+          <div>
+            <dt>Pending changes</dt>
+            <dd>{editSession?.pendingEdits.length ?? 0}</dd>
+          </div>
+        </dl>
+      ) : null}
     </div>
     {workflow && categories.length > 0 ? (
       <nav aria-label={t('text.categories.ariaLabel')} className="text-category-browser">
-        <div className="text-category-tabs">
+        <div className="text-category-grid">
           {categories.map((category) => {
             const localizationKeys = textCategoryLocalizationKeys[category.categoryId];
 
@@ -30580,12 +30276,9 @@ function TextSection({
           })}
         </div>
         {activeCategory ? (
-          <div className="editable-field-label-row text-category-context-help">
-            <strong>{activeCategoryLabel}</strong>
-            <ContextHelp label={activeCategoryLabel}>
-              {`${t('text.categories.help')} ${activeCategoryDescription}`}
-            </ContextHelp>
-          </div>
+          <ContextHelp className="text-category-context-help" label={activeCategoryLabel}>
+            {`${t('text.categories.help')} ${activeCategoryDescription}`}
+          </ContextHelp>
         ) : null}
       </nav>
     ) : null}
@@ -30656,6 +30349,7 @@ function TextSection({
               aria-label={t('text.table.ariaLabel')}
               aria-rowcount={filteredEntries.length + 1}
               className="text-table"
+              ref={textTableRef}
               role="table"
             >
               <div className="text-row text-row-heading" role="row">
@@ -30681,8 +30375,8 @@ function TextSection({
                     <span data-localization-ignore="true" role="cell">
                       {entry.messageKey ?? entry.label}
                     </span>
-                    <span data-localization-ignore="true" role="cell">
-                      {entry.sourceFile}
+                    <span data-localization-ignore="true" role="cell" title={entry.sourceFile}>
+                      {entry.sourceFile.split(/[\\/]/u).at(-1) || entry.sourceFile}
                     </span>
                     <span role="cell">{entry.lineIndex}</span>
                     <span
@@ -31022,7 +30716,7 @@ function SelectedTextPanel({
               <dd data-localization-ignore="true">{entry.label}</dd>
             </div>
             {entry.messageKey ? (
-              <div className="text-source-file-detail">
+              <div className="text-message-key-detail">
                 <dt>{t('text.messageKey')}</dt>
                 <dd data-localization-ignore="true">{entry.messageKey}</dd>
               </div>
@@ -31310,6 +31004,7 @@ type TrainersSectionProps = {
     target: ZaTrainerTextTargetViewModel
   ) => Promise<boolean>;
   ordinaryDraftProject: OrdinaryDraftProjectContext | null;
+  projectPaths: ProjectPaths;
   onCopyTrainerPartyClipboard: (
     input: TrainerPartyClipboardCopyInput
   ) => Promise<RowClipboardActionResult>;
@@ -31365,6 +31060,7 @@ function TrainersSection({
   onCopyTrainerPartyClipboard,
   onPasteTrainerPartyClipboard,
   ordinaryDraftProject,
+  projectPaths,
   onTrainerCategoryChange,
   onSelectTrainer,
   onSelectTrainerPartySlot,
@@ -31378,7 +31074,7 @@ function TrainersSection({
   selectedTrainerPartySlot,
   workflow
 }: TrainersSectionProps) {
-  const { t } = useLocalization();
+  const { formatLocale, t, translateLiteral } = useLocalization();
   // Category tabs are session-owned view state. Keeping them above this
   // conditionally mounted editor prevents quick-link navigation from resetting
   // the user's current Trainer view.
@@ -31598,29 +31294,12 @@ function TrainersSection({
               value={searchText}
             />
           </label>
-          <Metric
-            label="Loaded trainers"
-            value={workflow ? workflow.stats.totalTrainerCount.toString() : '0'}
-          />
-          <Metric
-            label="Party Pokemon"
-            value={workflow ? workflow.stats.totalPokemonCount.toString() : '0'}
-          />
-          <Metric
-            label="Pending changes"
-            value={(editSession?.pendingEdits.length ?? 0).toString()}
-          />
+          <div className="trainer-browser-counts">
+            <span><strong>{(workflow?.stats.totalTrainerCount ?? 0).toLocaleString(formatLocale)}</strong> {translateLiteral('Loaded trainers')}</span>
+            <span><strong>{(workflow?.stats.totalPokemonCount ?? 0).toLocaleString(formatLocale)}</strong> {translateLiteral('Party Pokemon')}</span>
+            <span><strong>{(editSession?.pendingEdits.length ?? 0).toLocaleString(formatLocale)}</strong> {translateLiteral('Pending changes')}</span>
+          </div>
         </div>
-
-        {workflow ? (
-          <EditorSessionBar
-            canEdit={canEditTrainers && selectedTrainer !== null}
-            isEditing={editSession !== null}
-            isStarting={isEditStarting}
-            label="Trainers"
-            onStart={onStartEditSession}
-          />
-        ) : null}
 
             {supportsTrainerCategories ? (
               <div
@@ -31722,12 +31401,22 @@ function TrainersSection({
                 onCopyTrainerPartyClipboard={onCopyTrainerPartyClipboard}
                 onPasteTrainerPartyClipboard={onPasteTrainerPartyClipboard}
                 ordinaryDraftProject={ordinaryDraftProject}
+                projectPaths={projectPaths}
                 onSelectSlot={onSelectTrainerPartySlot}
                 onUpdateTrainerField={onUpdateTrainerField}
                 onUpdateTrainerFields={onUpdateTrainerFields}
                 pokemonWorkflow={pokemonWorkflow}
                 selectedPokemon={selectedPokemon}
                 selectedSlot={selectedTrainerPartySlot}
+                sessionBar={
+                  <EditorSessionBar
+                    canEdit={canEditTrainers && selectedTrainer !== null}
+                    isEditing={editSession !== null}
+                    isStarting={isEditStarting}
+                    label="Trainers"
+                    onStart={onStartEditSession}
+                  />
+                }
                 trainer={selectedTrainer}
                 trainerRecords={trainers}
                 zaClassPairOptions={workflow.zaClassPairOptions}
@@ -31856,12 +31545,14 @@ function SelectedTrainerPanel({
   onCopyTrainerPartyClipboard,
   onPasteTrainerPartyClipboard,
   ordinaryDraftProject,
+  projectPaths,
   onSelectSlot,
   onUpdateTrainerField,
   onUpdateTrainerFields,
   pokemonWorkflow,
   selectedPokemon,
   selectedSlot,
+  sessionBar,
   trainer,
   trainerRecords,
   zaClassPairOptions
@@ -31885,6 +31576,7 @@ function SelectedTrainerPanel({
     input: TrainerPartyClipboardPasteInput
   ) => Promise<RowClipboardPasteActionResult>;
   ordinaryDraftProject: OrdinaryDraftProjectContext | null;
+  projectPaths: ProjectPaths;
   onSelectSlot: (slot: number | null) => void;
   onUpdateTrainerField: (
     trainerId: number,
@@ -31896,6 +31588,7 @@ function SelectedTrainerPanel({
   pokemonWorkflow: PokemonWorkflow | null;
   selectedPokemon: TrainerPokemonRecord | null;
   selectedSlot: number | null;
+  sessionBar: ReactNode;
   trainer: TrainerRecord | null;
   trainerRecords: TrainerRecord[];
   zaClassPairOptions: TrainersWorkflow['zaClassPairOptions'];
@@ -32107,7 +31800,7 @@ function SelectedTrainerPanel({
       return {
         ...context,
         abilityOptions: referencePokemon
-          ? createTrainerPokemonAbilityOptions(referencePokemon)
+          ? createTrainerPokemonAbilityOptions(referencePokemon, editorFamily)
           : usesCurrentIdentity
             ? selectedPokemon.abilityOptions
             : [],
@@ -32212,12 +31905,27 @@ function SelectedTrainerPanel({
   const aiFlagsMaskLabel = trainer
     ? `0x${projectedAiFlags.toString(16).padStart(4, '0').toLocaleUpperCase()}`
     : '0x0000';
+  const aiFlagGroups = new Map<string, TrainerRecord['aiFlagStates']>();
+  for (const flag of trainer?.aiFlagStates ?? []) {
+    const group = getTrainerAiFlagGroup(editorFamily, flag.bit);
+    const flags = aiFlagGroups.get(group);
+    if (flags) {
+      flags.push(flag);
+    } else {
+      aiFlagGroups.set(group, [flag]);
+    }
+  }
   const showTerastallizationDetails =
     isScarletVioletProject &&
     contextualTrainerFields.some((field) => field.field === trainerCanTerastallizeFieldName);
   const trainerFieldGroups = useMemo(
-    () => groupTrainerEditableFields(contextualTrainerFields, getTrainerDataFieldGroup),
-    [contextualTrainerFields]
+    () => groupTrainerEditableFields(
+      contextualTrainerFields.filter((field) =>
+        editorFamily !== 'swsh' || (field.field !== giftFieldName && field.field !== healFieldName)
+      ),
+      getTrainerDataFieldGroup
+    ),
+    [contextualTrainerFields, editorFamily]
   );
   const pokemonFieldGroups = useMemo(
     () =>
@@ -32921,6 +32629,184 @@ function SelectedTrainerPanel({
       setTrainerIdentityDiscardEpoch((currentEpoch) => currentEpoch + 1);
     });
 
+  const renderPartyField = (
+    selectedPokemon: TrainerPokemonRecord,
+    field: TrainerEditableField,
+    compactStat = false
+  ) => {
+    const currentValue = getEditablePokemonFieldValue(
+      selectedPokemon,
+      field.field
+    );
+    const draftValue = pokemonDrafts[field.field] ?? '';
+    const draftState = getTrainerFieldDraftState(
+      draftValue,
+      currentValue,
+      field
+    );
+    const isDynamaxDependentField = dynamaxDependentFieldNames.includes(
+      field.field as (typeof dynamaxDependentFieldNames)[number]
+    );
+    const selectedPokemonSlotIsEmpty =
+      projectedSelectedPokemonSpeciesId === 0;
+    const disabledReason =
+      selectedPokemonBlockedByPreviousSlot
+        ? 'Fill the previous party slot first.'
+        : selectedPokemonSlotIsEmpty && field.field !== speciesIdFieldName
+        ? 'Set species before editing this slot.'
+        : isSelectedZaTrainerMeowsticDynamic &&
+            field.field === formFieldName
+          ? t(
+              'za.trainers.meowstic.formRuntimeSelected'
+            )
+          : isDynamaxDependentField && !selectedPokemonCanDynamax
+            ? 'Set Can Dynamax to Yes to edit this field.'
+            : undefined;
+
+    return (
+      <TrainerDraftField
+        compactStat={compactStat}
+        currentValue={currentValue}
+        disabled={
+          disabledReason !== undefined ||
+          !canEditTrainers ||
+          editSession === null ||
+          isSelectedPartySlotPasteTarget
+        }
+        disabledReason={disabledReason}
+        draftState={draftState}
+        draftValue={draftValue}
+        field={field}
+        formOptionContext={selectedPokemonFormOptionContext}
+        helpDomain="trainers"
+        helpGame={editorFamily}
+        key={field.field}
+        onChange={(value) => {
+          if (!selectedPokemonDraftKey) {
+            return;
+          }
+
+          const nextDrafts = {
+            ...pokemonDrafts,
+            [field.field]: value
+          };
+          if (field.field === speciesIdFieldName) {
+            const speciesField = defaultContextualPokemonFields.find(
+              (candidate) => candidate.field === speciesIdFieldName
+            );
+            const formField = defaultContextualPokemonFields.find(
+              (candidate) => candidate.field === formFieldName
+            );
+            const previousSpeciesId =
+              parseEditableIntegerDraft(
+                pokemonDrafts[speciesIdFieldName] ??
+                  selectedPokemon.speciesId.toString(),
+                speciesField?.options
+              );
+            const targetSpeciesId = parseEditableIntegerDraft(
+              value,
+              speciesField?.options
+            );
+            const previousForm =
+              parseOptionalInteger(
+                pokemonDrafts[formFieldName] ??
+                  selectedPokemon.form.toString()
+              ) ?? selectedPokemon.form;
+
+            if (targetSpeciesId === 0) {
+              for (const dependentField of defaultContextualPokemonFields) {
+                if (dependentField.field !== speciesIdFieldName) {
+                  nextDrafts[dependentField.field] =
+                    pokemonDraftDefaults[dependentField.field] ?? '';
+                }
+              }
+            } else if (
+              formField &&
+              targetSpeciesId !== null &&
+              targetSpeciesId !== previousSpeciesId
+            ) {
+              const resolvedForm = resolveSpeciesChangeForm({
+                gameFamily: editorFamily,
+                pokemonRecords: pokemonWorkflow?.pokemon,
+                previousForm,
+                sourceForm: selectedPokemon.form,
+                sourceSpeciesId: selectedPokemon.speciesId,
+                speciesField,
+                targetSpeciesId
+              });
+              if (resolvedForm !== null) {
+                nextDrafts[formFieldName] = resolvedForm.toString();
+              }
+            }
+          }
+          if (
+            editorFamily === 'za' &&
+            (field.field === speciesIdFieldName ||
+              field.field === genderFieldName)
+          ) {
+            const nextSpeciesId =
+              parseOptionalInteger(
+                nextDrafts[speciesIdFieldName] ??
+                  selectedPokemon.speciesId.toString()
+              ) ?? selectedPokemon.speciesId;
+            const nextGender =
+              parseOptionalInteger(
+                nextDrafts[genderFieldName] ??
+                  selectedPokemon.gender.toString()
+              ) ?? selectedPokemon.gender;
+            const nextForm =
+              parseOptionalInteger(
+                nextDrafts[formFieldName] ??
+                  selectedPokemon.form.toString()
+              ) ?? selectedPokemon.form;
+
+            if (nextSpeciesId === zaMeowsticSpeciesId) {
+              if (nextGender === 0) {
+                nextDrafts[formFieldName] = '0';
+              } else if (nextGender === 1 || nextGender === 2) {
+                nextDrafts[formFieldName] =
+                  resolveZaTrainerMeowsticFormForGender(
+                    nextGender,
+                    nextForm
+                  ).toString();
+              }
+            }
+          }
+          if (field.field === canDynamaxFieldName && value === '0') {
+            for (const dependentField of dynamaxDependentFieldNames) {
+              nextDrafts[dependentField] =
+                pokemonDraftDefaults[dependentField] ?? '';
+            }
+          }
+          setPokemonDraftsByTrainerSlot((currentDrafts) =>
+            setFieldDraftRecord(
+              currentDrafts,
+              selectedPokemonDraftKey,
+              canonicalizeTrainerPartySlotDrafts(
+                nextDrafts,
+                pokemonDraftDefaults,
+                selectedPokemon.speciesId
+              ),
+              pokemonDraftDefaults
+            )
+          );
+        }}
+      />
+    );
+  };
+
+  const renderPartyGroup = (group: (typeof pokemonFieldGroups)[number], pokemon: TrainerPokemonRecord) => (
+    <fieldset className="editable-field-group" key={group.group}>
+      <legend>{translateLiteral(group.group)}</legend>
+      <div className="editable-field-grid">
+        {group.fields.map((field) => renderPartyField(pokemon, field))}
+      </div>
+      {editorFamily === 'za' && group.group === 'Moves' ? (
+        <p className="field-note">{t('za.trainers.moves.unspecifiedHelp')}</p>
+      ) : null}
+    </fieldset>
+  );
+
   return (
     <>
       <PublishedLocalEditorValidationDiagnostics
@@ -32979,7 +32865,7 @@ function SelectedTrainerPanel({
         initialSection="aiFlags"
         browser={browser}
         browserControls={browserControls}
-        pinnedBrowser
+        sessionBar={sessionBar}
         compactFields
         browserVisibleRows={4}
         onActiveSectionChange={handleTrainerSectionChange}
@@ -32994,60 +32880,7 @@ function SelectedTrainerPanel({
         <EditorRecordHeading name={trainer.name} id={trainer.trainerId} />
       </EditorWorkspaceHeader> : null}
       {trainer ? <EditorWorkspaceSection id="details" label={t('editorSections.details')}>
-      <div className="trainer-selection-details">
-      {trainer ? (
-        <>
-          <dl className="item-provenance-list">
-            <div>
-              <dt>Name</dt>
-              <dd data-localization-ignore="true">{trainer.name}</dd>
-            </div>
-            <div>
-              <dt>Data file</dt>
-              <dd title={trainer.provenance.sourceFile}>{trainer.provenance.sourceFile}</dd>
-            </div>
-            <div>
-              <dt>Party file</dt>
-              <dd title={trainer.provenance.teamSourceFile}>{trainer.provenance.teamSourceFile}</dd>
-            </div>
-            <div>
-              <dt>Class file</dt>
-              <dd title={trainer.provenance.classSourceFile ?? 'Not loaded'}>{trainer.provenance.classSourceFile ?? 'Not loaded'}</dd>
-            </div>
-            <div>
-              <dt>Class ball scope</dt>
-              <dd title={trainer.classBallScope}>{trainer.classBallScope}</dd>
-            </div>
-            {showTerastallizationDetails ? (
-              <>
-                <div>
-                  <dt>Can Terastallize</dt>
-                  <dd>{trainer.canTerastallize === true ? 'Yes' : 'No'}</dd>
-                </div>
-                <div>
-                  <dt>Tera behavior</dt>
-                  <dd>{trainer.teraTarget ?? 'Disabled'}</dd>
-                </div>
-              </>
-            ) : null}
-            <div>
-              <dt>Data layer</dt>
-              <dd>{formatSourceLayer(trainer.provenance.sourceLayer)}</dd>
-            </div>
-            <div>
-              <dt>Party layer</dt>
-              <dd>{formatSourceLayer(trainer.provenance.teamSourceLayer)}</dd>
-            </div>
-            <div>
-              <dt>Class layer</dt>
-              <dd>
-                {trainer.provenance.classSourceLayer
-                  ? formatSourceLayer(trainer.provenance.classSourceLayer)
-                  : 'Not loaded'}
-              </dd>
-            </div>
-          </dl>
-
+          <TrainerSourceRows paths={projectPaths} provenance={trainer.provenance} />
           {editorFamily === 'za' && trainer.zaSharedRivalRoster === true ? (
             <section
               aria-labelledby="za-shared-rival-roster-heading"
@@ -33086,242 +32919,242 @@ function SelectedTrainerPanel({
               </div>
             </section>
           ) : null}
-
-          {editorFamily === 'za' && onNavigateZaTrainerTextTarget ? (
-            <ZaTrainerIdentityActions
-              canEditChanges={
-                canEditTrainers && editSession !== null
-              }
-              canStageChanges={
-                canEditTrainers && editSession !== null
-              }
-              classPairOptions={zaClassPairOptions}
-              discardEpoch={trainerIdentityDiscardEpoch}
-              isUpdating={isTrainerUpdating}
-              onDraftKeysChange={setTrainerIdentityDraftKeys}
-              onNavigateTextTarget={onNavigateZaTrainerTextTarget}
-              onStageClassPair={(pairId) =>
-                runSelectedTrainerSourceMutation(() =>
-                  onUpdateTrainerField(trainer.trainerId, null, 'classPair', pairId)
-                )
-              }
-              trainer={{
-                canReassignClass: trainer.zaCanReassignClass === true,
-                classPairId: trainer.zaClassPairId,
-                classReassignmentBlockedReason:
-                  trainer.zaClassReassignmentBlockedReason,
-                classTextTarget: trainer.zaClassTextTarget,
-                name: trainer.name,
-                nameTextTarget: trainer.zaNameTextTarget,
-                trainerId: trainer.trainerId,
-                trainerClass: trainer.trainerClass
-              }}
-            />
-          ) : null}
-
-        </>
-      ) : null}
-      </div>
       </EditorWorkspaceSection> : null}
-      {bulkActions ? <EditorWorkspaceSection id="bulk" label={t('za.trainers.bulk.heading')}>{bulkActions}</EditorWorkspaceSection> : null}
       {trainer ? (
         <>
-          <EditorWorkspaceSection id="aiFlags" label={translateLiteral('AI Flags')}
-            modified={trainerDraftSummary.changedFields.length > 0}
-            invalid={trainerDraftSummary.invalidFields.length > 0}>
-          <div className="trainer-edit-form">
+          <EditorWorkspaceSection
+            id="battleSetup"
+            label={t('trainers.layout.battleSetup')}
+            modified={trainerDraftSummary.changedFields.some((field) => field.field !== aiFlagsFieldName)}
+            invalid={trainerDraftSummary.invalidFields.some((field) => field.field !== aiFlagsFieldName)}
+          >
+            <div className="trainer-edit-form">
+              {isTitanPartnerTrainer && trainerDrafts[trainerCanTerastallizeFieldName] === '1' ? (
+                <section className="technical-tool-notice technical-tool-notice-info">
+                  <p>{t('sv.trainers.titanPartner.teraRepair')}</p>
+                  <button
+                    className="secondary-button"
+                    disabled={!canEditTrainers || editSession === null}
+                    onClick={() => setTrainerDraftsByTrainerId((currentDrafts) =>
+                      setFieldDraftRecord(
+                        currentDrafts,
+                        trainer.trainerId,
+                        { ...trainerDrafts, [trainerCanTerastallizeFieldName]: '0' },
+                        trainerDraftDefaults
+                      )
+                    )}
+                    type="button"
+                  >
+                    {t('sv.trainers.titanPartner.teraDisable')}
+                  </button>
+                </section>
+              ) : null}
+              <div className="editable-field-groups">
+                {trainerFieldGroups.map((group) => (
+                  <fieldset className="editable-field-group" key={group.group}>
+                    <legend>{group.group}</legend>
+                    <div className="editable-field-grid">
+                      {group.fields.map((field) => {
+                        const currentValue = getEditableTrainerFieldValue(trainer, field.field);
+                        const draftValue = trainerDrafts[field.field] ?? '';
+                        const draftState = getTrainerFieldDraftState(draftValue, currentValue, field);
+                        const isFieldBlocked =
+                          field.field === classBallIdFieldName && !trainer.canEditClassBall;
+                        const disabledReason =
+                          isTitanPartnerTrainer && field.field === trainerCanTerastallizeFieldName
+                            ? t('sv.trainers.titanPartner.teraLocked')
+                            : isFieldBlocked
+                            ? 'Class ball is locked for this trainer class.'
+                            : undefined;
+
+                        return (
+                          <TrainerDraftField
+                            currentValue={currentValue}
+                            disabled={
+                              disabledReason !== undefined ||
+                              !canEditTrainers ||
+                              editSession === null
+                            }
+                            disabledReason={disabledReason}
+                            draftState={draftState}
+                            draftValue={draftValue}
+                            field={field}
+                            helpDomain="trainers"
+                            helpGame={editorFamily}
+                            note={field.field === classBallIdFieldName ? trainer.classBallScope : undefined}
+                            key={field.field}
+                            onChange={(value) => {
+                              const nextDrafts = {
+                                ...trainerDrafts,
+                                [field.field]: value
+                              };
+                              setTrainerDraftsByTrainerId((currentDrafts) =>
+                                setFieldDraftRecord(
+                                  currentDrafts,
+                                  trainer.trainerId,
+                                  nextDrafts,
+                                  trainerDraftDefaults
+                                )
+                              );
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
+              {showTerastallizationDetails ? (
+                <dl className="trainer-header-values">
+                  <EditorDetailValue label={translateLiteral('Can Terastallize')}>{translateLiteral(trainer.canTerastallize === true ? 'Yes' : 'No')}</EditorDetailValue>
+                  <EditorDetailValue label={translateLiteral('Tera behavior')}>{trainer.teraTarget ?? translateLiteral('Disabled')}</EditorDetailValue>
+                </dl>
+              ) : null}
+              {editorFamily === 'za' && onNavigateZaTrainerTextTarget ? (
+                <ZaTrainerIdentityActions
+                  canEditChanges={
+                    canEditTrainers && editSession !== null
+                  }
+                  canStageChanges={
+                    canEditTrainers && editSession !== null
+                  }
+                  classPairOptions={zaClassPairOptions}
+                  discardEpoch={trainerIdentityDiscardEpoch}
+                  isUpdating={isTrainerUpdating}
+                  onDraftKeysChange={setTrainerIdentityDraftKeys}
+                  onNavigateTextTarget={onNavigateZaTrainerTextTarget}
+                  onStageClassPair={(pairId) =>
+                    runSelectedTrainerSourceMutation(() =>
+                      onUpdateTrainerField(trainer.trainerId, null, 'classPair', pairId)
+                    )
+                  }
+                  trainer={{
+                    canReassignClass: trainer.zaCanReassignClass === true,
+                    classPairId: trainer.zaClassPairId,
+                    classReassignmentBlockedReason:
+                      trainer.zaClassReassignmentBlockedReason,
+                    classTextTarget: trainer.zaClassTextTarget,
+                    name: trainer.name,
+                    nameTextTarget: trainer.zaNameTextTarget,
+                    trainerId: trainer.trainerId,
+                    trainerClass: trainer.trainerClass
+                  }}
+                />
+              ) : null}
+              {editorFamily === 'swsh' ? (
+                <details className="trainer-disclosure">
+                  <summary>{t('trainers.layout.rawHeader')}</summary>
+                  <dl className="trainer-header-values">
+                    <EditorDetailValue label={translateLiteral('Unknown header flag')}>{translateLiteral(trainer.heal ? 'Yes' : 'No')}</EditorDetailValue>
+                    <EditorDetailValue label={translateLiteral('Unknown header value')}>{trainer.gift}</EditorDetailValue>
+                  </dl>
+                </details>
+              ) : null}
+            </div>
+          </EditorWorkspaceSection>
+          <EditorWorkspaceSection
+            id="aiFlags"
+            label={translateLiteral('AI Flags')}
+            summary={<code className="trainer-ai-mask">{aiFlagsMaskLabel}</code>}
+            modified={aiFlagsDraftState?.isChanged}
+            invalid={aiFlagsDraftState?.isValid === false}
+          >
             {trainer.aiFlagStates.length > 0 ? (
               <div className="trainer-ai-flags-panel">
-                <div className="trainer-ai-flags-header">
-                  <div className="editable-field-label-row">
-                    <strong>{translateLiteral('AI Flags')}</strong>
-                    <ContextHelp label={translateLiteral('AI Flags')}>
-                      {t('fieldHelp.catalog.trainer.ai')}
-                    </ContextHelp>
-                  </div>
-                  <span>{aiFlagsMaskLabel}</span>
+                <div className="editable-field-label-row">
+                  <ContextHelp label={translateLiteral('AI Flags')}>
+                    {t('fieldHelp.catalog.trainer.ai')}
+                  </ContextHelp>
                 </div>
-                <div className="trainer-ai-flags-grid">
-                  {trainer.aiFlagStates.map((flag) => {
-                    const isReserved = flag.label.toLocaleLowerCase().startsWith('unused');
-                    const flagInputId = `trainer-${trainer.trainerId}-ai-flag-${flag.bit}`;
-                    const localizedFlagLabel = translateLiteral(flag.label);
-                    const localizedFlagHelp = isReserved
-                      ? `${translateLiteral('Reserved for later research.')} ${translateLiteral(
-                          'Reserved and locked.'
-                        )}`
-                      : translateLiteral(flag.description);
+                <div className="trainer-ai-groups">
+                  {Array.from(aiFlagGroups, ([group, flags]) => (
+                    <fieldset className="editable-field-group" key={group}>
+                      <legend>{t(group)}</legend>
+                      <div className="trainer-ai-flags-grid">
+                        {flags.map((flag) => {
+                          const isReserved = flag.label.toLocaleLowerCase().startsWith('unused');
+                          const flagInputId = `trainer-${trainer.trainerId}-ai-flag-${flag.bit}`;
+                          const localizedFlagLabel = translateLiteral(flag.label);
+                          const localizedFlagHelp = isReserved
+                            ? `${translateLiteral('Reserved for later research.')} ${translateLiteral(
+                                'Reserved and locked.'
+                              )}`
+                            : translateLiteral(flag.description);
 
-                    return (
-                      <div
-                        className={`trainer-ai-flag ${
-                          isReserved ? 'trainer-ai-flag-disabled' : ''
-                        }`}
-                        key={flag.bit}
-                      >
-                        <input
-                          checked={trainerAiFlagEnabled(editorFamily, projectedAiFlags, flag.mask)}
-                          className="km-choice-control"
-                          disabled={!canToggleAiFlags || isReserved}
-                          id={flagInputId}
-                          onChange={(event) => {
-                            const nextValue = toggleTrainerAiFlag(
-                              editorFamily, projectedAiFlags, flag.mask, event.target.checked
-                            );
-                            setTrainerDraftsByTrainerId((currentDrafts) =>
-                              setFieldDraftRecord(
-                                currentDrafts,
-                                trainer.trainerId,
-                                {
-                                  ...trainerDrafts,
-                                  [aiFlagsFieldName]: nextValue.toString()
-                                },
-                                trainerDraftDefaults
-                              )
-                            );
-                          }}
-                          type="checkbox"
-                        />
-                        <div className="trainer-ai-flag-copy">
-                          <FieldLabel
-                            help={localizedFlagHelp}
-                            htmlFor={flagInputId}
-                            label={localizedFlagLabel}
-                          />
-                          {isReserved ? (
-                            <small>{translateLiteral('Reserved and locked.')}</small>
-                          ) : null}
-                        </div>
+                          return (
+                            <div
+                              className={`trainer-ai-flag ${
+                                isReserved ? 'trainer-ai-flag-disabled' : ''
+                              }`}
+                              key={flag.bit}
+                            >
+                              <input
+                                checked={trainerAiFlagEnabled(editorFamily, projectedAiFlags, flag.mask)}
+                                className="km-choice-control"
+                                disabled={!canToggleAiFlags || isReserved}
+                                id={flagInputId}
+                                onChange={(event) => {
+                                  const nextValue = toggleTrainerAiFlag(
+                                    editorFamily, projectedAiFlags, flag.mask, event.target.checked
+                                  );
+                                  setTrainerDraftsByTrainerId((currentDrafts) =>
+                                    setFieldDraftRecord(
+                                      currentDrafts,
+                                      trainer.trainerId,
+                                      {
+                                        ...trainerDrafts,
+                                        [aiFlagsFieldName]: nextValue.toString()
+                                      },
+                                      trainerDraftDefaults
+                                    )
+                                  );
+                                }}
+                                type="checkbox"
+                              />
+                              <div className="trainer-ai-flag-copy">
+                                <FieldLabel
+                                  help={localizedFlagHelp}
+                                  htmlFor={flagInputId}
+                                  label={localizedFlagLabel}
+                                />
+                                {isReserved ? (
+                                  <small>{translateLiteral('Reserved and locked.')}</small>
+                                ) : null}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </fieldset>
+                  ))}
                 </div>
               </div>
             ) : null}
-
-            {isTitanPartnerTrainer && trainerDrafts[trainerCanTerastallizeFieldName] === '1' ? (
-              <section className="technical-tool-notice technical-tool-notice-info">
-                <p>{t('sv.trainers.titanPartner.teraRepair')}</p>
-                <button
-                  className="secondary-button"
-                  disabled={!canEditTrainers || editSession === null}
-                  onClick={() => setTrainerDraftsByTrainerId((currentDrafts) =>
-                    setFieldDraftRecord(
-                      currentDrafts,
-                      trainer.trainerId,
-                      { ...trainerDrafts, [trainerCanTerastallizeFieldName]: '0' },
-                      trainerDraftDefaults
-                    )
-                  )}
-                  type="button"
-                >
-                  {t('sv.trainers.titanPartner.teraDisable')}
-                </button>
-              </section>
+            {bulkActions ? (
+              <details className="trainer-disclosure">
+                <summary>{t('za.trainers.bulk.heading')}</summary>
+                {bulkActions}
+              </details>
             ) : null}
-            <div className="editable-field-groups">
-              {trainerFieldGroups.map((group) => (
-                <fieldset className="editable-field-group" key={group.group}>
-                  <legend>{group.group}</legend>
-                  <div className="editable-field-grid">
-                    {group.fields.map((field) => {
-                      const currentValue = getEditableTrainerFieldValue(trainer, field.field);
-                      const draftValue = trainerDrafts[field.field] ?? '';
-                      const draftState = getTrainerFieldDraftState(draftValue, currentValue, field);
-                      const isFieldBlocked =
-                        field.field === classBallIdFieldName && !trainer.canEditClassBall;
-                      const disabledReason =
-                        isTitanPartnerTrainer && field.field === trainerCanTerastallizeFieldName
-                          ? t('sv.trainers.titanPartner.teraLocked')
-                          : editorFamily === 'swsh' && field.field === giftFieldName
-                          ? 'This unknown trainer header value is preserved as raw read-only data.'
-                          : editorFamily === 'swsh' && field.field === healFieldName
-                            ? 'This unknown trainer header flag is preserved as raw read-only data.'
-                          : isFieldBlocked
-                          ? 'Class ball is locked for this trainer class.'
-                          : undefined;
-
-                      return (
-                        <TrainerDraftField
-                          currentValue={currentValue}
-                          disabled={
-                            disabledReason !== undefined ||
-                            !canEditTrainers ||
-                            editSession === null
-                          }
-                          disabledReason={disabledReason}
-                          draftState={draftState}
-                          draftValue={draftValue}
-                          field={field}
-                          helpDomain="trainers"
-                          helpGame={editorFamily}
-                          key={field.field}
-                          onChange={(value) => {
-                            const nextDrafts = {
-                              ...trainerDrafts,
-                              [field.field]: value
-                            };
-                            setTrainerDraftsByTrainerId((currentDrafts) =>
-                              setFieldDraftRecord(
-                                currentDrafts,
-                                trainer.trainerId,
-                                nextDrafts,
-                                trainerDraftDefaults
-                              )
-                            );
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              ))}
-            </div>
-          </div>
           </EditorWorkspaceSection>
           <EditorWorkspaceSection id="party" label={translateLiteral('Party')}
             modified={trainerStagePlan.updates.some(update => update.trainerId === trainer.trainerId && update.slot !== null)}
             invalid={trainerStagePlan.invalidFields.some(issue => issue.field.startsWith(`trainer:${trainer.trainerId}:`) && issue.field.split(':').length > 3)}>
           <div className="trainer-edit-form">
             <div className="trainer-party-header">
-              <strong>Party</strong>
-              <div
-                aria-live="polite"
-                className="trainer-party-clipboard-status"
-                role="status"
-              >
-                <span
-                  className={
-                    partySlotClipboardCopiedLabel
-                      ? 'trainer-party-clipboard-source is-copied'
-                      : 'trainer-party-clipboard-source'
-                  }
-                >
-                  {partySlotClipboardCopiedLabel ??
-                    t('trainers.partyClipboard.discoveryHint')}
-                </span>
-                {partySlotClipboardFeedback ? (
-                  <small>{partySlotClipboardFeedback}</small>
+              <ContextHelp label={translateLiteral('Party')}>
+                {t('trainers.partyClipboard.discoveryHint')}
+              </ContextHelp>
+              <div aria-live="polite" className="trainer-party-clipboard-status" role="status">
+                {partySlotClipboardCopiedLabel ? (
+                  <span className="trainer-party-clipboard-source is-copied">{partySlotClipboardCopiedLabel}</span>
                 ) : null}
+                {partySlotClipboardFeedback ? <small>{partySlotClipboardFeedback}</small> : null}
               </div>
-              <button
-                aria-busy={isTrainerUpdating || undefined}
-                className="primary-button compact-button trainer-max-iv-button"
-                disabled={!canMaxTrainerIvs}
-                onClick={stageTrainerMaxIvs}
-                type="button"
-              >
-                <BusyActionContent
-                  busyLabel="Staging"
-                  icon={<Sparkles aria-hidden="true" size={14} />}
-                  isBusy={isTrainerUpdating}
-                  label="MAX IV"
-                />
-              </button>
             </div>
 
             {trainer.team.length > 0 ? (
-              <div className="trainer-party-card-grid" aria-label="Trainer party Pokemon">
+              <div className="trainer-party-card-grid trainer-party-roster" aria-label="Trainer party Pokemon">
                 {trainer.team.map((pokemon) => {
                   const cardDrafts =
                     canonicalPokemonDraftsByTrainerSlot[
@@ -33380,7 +33213,7 @@ function SelectedTrainerPanel({
                       trainer: trainer.name
                     }),
                     isEmptySlot
-                      ? `${slotLabel}: None`
+                      ? translateLiteral('Empty slot')
                       : `${pokemonLabel}, Lv. ${projectedPokemon.level}`,
                     isEmptySlot ? null : projectedHeldItemLabel,
                     hasCardDrafts ? translateLiteral('Draft') : null
@@ -33399,6 +33232,7 @@ function SelectedTrainerPanel({
                       aria-expanded={isContextMenuTarget}
                       aria-haspopup="menu"
                       aria-label={partyCardAccessibleLabel}
+                      data-empty={isEmptySlot || undefined}
                       data-km-source-site="trainer-party-slot-menu-trigger"
                       aria-keyshortcuts="Control+C Control+V Meta+C Meta+V Shift+F10"
                       aria-pressed={selectedSlot === pokemon.slot}
@@ -33457,7 +33291,7 @@ function SelectedTrainerPanel({
                         {isEmptySlot ? slotLabel : pokemonLabel}
                       </strong>
                       <span>
-                        {isEmptySlot ? 'None' : `Lv. ${projectedPokemon.level}`}
+                        {isEmptySlot ? translateLiteral('Empty slot') : `Lv. ${projectedPokemon.level}`}
                         {hasCardDrafts ? ` (${translateLiteral('Draft')})` : ''}
                       </span>
                       {projectedHeldItemId > 0 ? (
@@ -33512,206 +33346,82 @@ function SelectedTrainerPanel({
                     </div>
                   </section>
                 ) : null}
-                <div className="editable-field-groups">
-                  {pokemonFieldGroups.map((group) => (
-                    <fieldset className="editable-field-group" key={group.group}>
-                      <legend>
-                        <span className="editable-field-group-legend-content">
-                          <span>{group.group}</span>
-                          {editorFamily === 'za' && group.group === 'Stats - EVs' ? (
-                            <PokemonStatTotal
-                              drafts={pokemonDrafts}
-                              fields={group.fields}
-                              getValue={(fieldName) =>
-                                getEditablePokemonFieldValue(selectedPokemon, fieldName)
-                              }
-                              kind="ev"
-                            />
-                          ) : editorFamily === 'za' && group.group === 'Stats - IVs' ? (
-                            <PokemonStatTotal
-                              drafts={pokemonDrafts}
-                              fields={group.fields}
-                              getValue={(fieldName) =>
-                                getEditablePokemonFieldValue(selectedPokemon, fieldName)
-                              }
-                              kind="iv"
-                            />
-                          ) : null}
-                        </span>
-                      </legend>
-                      <div className="editable-field-grid">
-                        {group.fields.map((field) => {
-                          const currentValue = getEditablePokemonFieldValue(
-                            selectedPokemon,
-                            field.field
-                          );
-                          const draftValue = pokemonDrafts[field.field] ?? '';
-                          const draftState = getTrainerFieldDraftState(
-                            draftValue,
-                            currentValue,
-                            field
-                          );
-                          const isDynamaxDependentField = dynamaxDependentFieldNames.includes(
-                            field.field as (typeof dynamaxDependentFieldNames)[number]
-                          );
-                          const selectedPokemonSlotIsEmpty =
-                            projectedSelectedPokemonSpeciesId === 0;
-                          const disabledReason =
-                            selectedPokemonBlockedByPreviousSlot
-                              ? 'Fill the previous party slot first.'
-                              : selectedPokemonSlotIsEmpty && field.field !== speciesIdFieldName
-                              ? 'Set species before editing this slot.'
-                              : isSelectedZaTrainerMeowsticDynamic &&
-                                  field.field === formFieldName
-                                ? t(
-                                    'za.trainers.meowstic.formRuntimeSelected'
-                                  )
-                                : isDynamaxDependentField && !selectedPokemonCanDynamax
-                                  ? 'Set Can Dynamax to Yes to edit this field.'
-                                  : undefined;
-
+                <div className="trainer-member-layout">
+                  <div className="trainer-member-section">
+                    {pokemonFieldGroups.filter(({ group }) => group === 'Pokemon' || group === 'Moves')
+                      .map((group) => renderPartyGroup(group, selectedPokemon))}
+                  </div>
+                  {pokemonFieldGroups.filter(({ group }) => group === 'Traits')
+                    .map((group) => renderPartyGroup(group, selectedPokemon))}
+                  <fieldset className="editable-field-group trainer-member-stats">
+                    <legend>{translateLiteral('Stats')}</legend>
+                    <div className="trainer-member-stat-actions">
+                      <span>{t('trainers.layout.maxIvsScope')}</span>
+                      <button
+                        aria-busy={isTrainerUpdating || undefined}
+                        className="primary-button compact-button trainer-max-iv-button"
+                        disabled={!canMaxTrainerIvs}
+                        onClick={stageTrainerMaxIvs}
+                        type="button"
+                      >
+                        <BusyActionContent
+                          busyLabel="Staging"
+                          icon={<Sparkles aria-hidden="true" size={14} />}
+                          isBusy={isTrainerUpdating}
+                          label="MAX IV"
+                        />
+                      </button>
+                    </div>
+                    {selectedPokemonBlockedByPreviousSlot || projectedSelectedPokemonSpeciesId === 0 ? (
+                      <p className="field-note">{translateLiteral(selectedPokemonBlockedByPreviousSlot
+                        ? 'Fill the previous party slot first.'
+                        : 'Set species before editing this slot.')}</p>
+                    ) : null}
+                    <table aria-label={translateLiteral('Stats')} className="trainer-stat-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">{translateLiteral('Stat')}</th>
+                          <th scope="col">IV</th>
+                          <th scope="col">EV</th>
+                          <th scope="col">{t('trainers.layout.projected')}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {trainerProjectedStatRows.map(({ key, label }, index) => {
+                          const ivName = ivFieldNames[index]!;
+                          const evName = evFieldNames[index]!;
+                          const ivField = contextualPokemonFields.find((field) => field.field === ivName);
+                          const evField = contextualPokemonFields.find((field) => field.field === evName);
                           return (
-                            <TrainerDraftField
-                              currentValue={currentValue}
-                              disabled={
-                                disabledReason !== undefined ||
-                                !canEditTrainers ||
-                                editSession === null ||
-                                isSelectedPartySlotPasteTarget
-                              }
-                              disabledReason={disabledReason}
-                              draftState={draftState}
-                              draftValue={draftValue}
-                              field={field}
-                                formOptionContext={selectedPokemonFormOptionContext}
-                                helpDomain="trainers"
-                                helpGame={editorFamily}
-                                key={field.field}
-                              labelAdornment={getNatureStatAdornment(
-                                field.field,
-                                pokemonNatureEffects
-                              )}
-                              onChange={(value) => {
-                                if (!selectedPokemonDraftKey) {
-                                  return;
-                                }
-
-                                const nextDrafts = {
-                                  ...pokemonDrafts,
-                                  [field.field]: value
-                                };
-                                if (field.field === speciesIdFieldName) {
-                                  const speciesField = defaultContextualPokemonFields.find(
-                                    (candidate) => candidate.field === speciesIdFieldName
-                                  );
-                                  const formField = defaultContextualPokemonFields.find(
-                                    (candidate) => candidate.field === formFieldName
-                                  );
-                                  const previousSpeciesId =
-                                    parseEditableIntegerDraft(
-                                      pokemonDrafts[speciesIdFieldName] ??
-                                        selectedPokemon.speciesId.toString(),
-                                      speciesField?.options
-                                    );
-                                  const targetSpeciesId = parseEditableIntegerDraft(
-                                    value,
-                                    speciesField?.options
-                                  );
-                                  const previousForm =
-                                    parseOptionalInteger(
-                                      pokemonDrafts[formFieldName] ??
-                                        selectedPokemon.form.toString()
-                                    ) ?? selectedPokemon.form;
-
-                                  if (targetSpeciesId === 0) {
-                                    for (const dependentField of defaultContextualPokemonFields) {
-                                      if (dependentField.field !== speciesIdFieldName) {
-                                        nextDrafts[dependentField.field] =
-                                          pokemonDraftDefaults[dependentField.field] ?? '';
-                                      }
-                                    }
-                                  } else if (
-                                    formField &&
-                                    targetSpeciesId !== null &&
-                                    targetSpeciesId !== previousSpeciesId
-                                  ) {
-                                    const resolvedForm = resolveSpeciesChangeForm({
-                                      gameFamily: editorFamily,
-                                      pokemonRecords: pokemonWorkflow?.pokemon,
-                                      previousForm,
-                                      sourceForm: selectedPokemon.form,
-                                      sourceSpeciesId: selectedPokemon.speciesId,
-                                      speciesField,
-                                      targetSpeciesId
-                                    });
-                                    if (resolvedForm !== null) {
-                                      nextDrafts[formFieldName] = resolvedForm.toString();
-                                    }
-                                  }
-                                }
-                                if (
-                                  editorFamily === 'za' &&
-                                  (field.field === speciesIdFieldName ||
-                                    field.field === genderFieldName)
-                                ) {
-                                  const nextSpeciesId =
-                                    parseOptionalInteger(
-                                      nextDrafts[speciesIdFieldName] ??
-                                        selectedPokemon.speciesId.toString()
-                                    ) ?? selectedPokemon.speciesId;
-                                  const nextGender =
-                                    parseOptionalInteger(
-                                      nextDrafts[genderFieldName] ??
-                                        selectedPokemon.gender.toString()
-                                    ) ?? selectedPokemon.gender;
-                                  const nextForm =
-                                    parseOptionalInteger(
-                                      nextDrafts[formFieldName] ??
-                                        selectedPokemon.form.toString()
-                                    ) ?? selectedPokemon.form;
-
-                                  if (nextSpeciesId === zaMeowsticSpeciesId) {
-                                    if (nextGender === 0) {
-                                      nextDrafts[formFieldName] = '0';
-                                    } else if (nextGender === 1 || nextGender === 2) {
-                                      nextDrafts[formFieldName] =
-                                        resolveZaTrainerMeowsticFormForGender(
-                                          nextGender,
-                                          nextForm
-                                        ).toString();
-                                    }
-                                  }
-                                }
-                                if (field.field === canDynamaxFieldName && value === '0') {
-                                  for (const dependentField of dynamaxDependentFieldNames) {
-                                    nextDrafts[dependentField] =
-                                      pokemonDraftDefaults[dependentField] ?? '';
-                                  }
-                                }
-                                setPokemonDraftsByTrainerSlot((currentDrafts) =>
-                                  setFieldDraftRecord(
-                                    currentDrafts,
-                                    selectedPokemonDraftKey,
-                                    canonicalizeTrainerPartySlotDrafts(
-                                      nextDrafts,
-                                      pokemonDraftDefaults,
-                                      selectedPokemon.speciesId
-                                    ),
-                                    pokemonDraftDefaults
-                                  )
-                                );
-                              }}
-                            />
+                            <tr key={key}>
+                              <th scope="row">
+                                {translateLiteral(label)} {getNatureStatAdornment(ivName, pokemonNatureEffects)}
+                              </th>
+                              <td>{ivField ? renderPartyField(selectedPokemon, ivField, true) : '–'}</td>
+                              <td>{evField ? renderPartyField(selectedPokemon, evField, true) : '–'}</td>
+                              <td className="trainer-projected-value">
+                                {projectedPokemonStats?.stats[key] ?? '–'}
+                              </td>
+                            </tr>
                           );
                         })}
-                      </div>
-                      {editorFamily === 'za' && group.group === 'Moves' ? (
-                        <p className="field-note">{t('za.trainers.moves.unspecifiedHelp')}</p>
-                      ) : null}
-                    </fieldset>
-                  ))}
+                      </tbody>
+                    </table>
+                    <div className="trainer-stat-totals">
+                      {pokemonFieldGroups.filter(({ group }) =>
+                        editorFamily === 'za' && (group === 'Stats - EVs' || group === 'Stats - IVs')
+                      ).map(({ group, fields }) => (
+                        <PokemonStatTotal
+                          drafts={pokemonDrafts}
+                          fields={fields}
+                          getValue={(fieldName) => getEditablePokemonFieldValue(selectedPokemon, fieldName)}
+                          key={group}
+                          kind={group === 'Stats - EVs' ? 'ev' : 'iv'}
+                        />
+                      ))}
+                    </div>
+                  </fieldset>
                 </div>
-                <TrainerPokemonProjectedStatsPanel projectedStats={projectedPokemonStats} />
               </div>
             ) : (
               <p className="empty-copy">No party Pokemon selected.</p>
@@ -33739,6 +33449,57 @@ function SelectedTrainerPanel({
         />
       ) : null}
     </>
+  );
+}
+
+function TrainerSourceRows({
+  paths,
+  provenance
+}: {
+  paths: ProjectPaths;
+  provenance: TrainerRecord['provenance'];
+}) {
+  const { t, translateLiteral } = useLocalization();
+  const sources = [
+    {
+      label: 'Trainer data',
+      path: provenance.sourceFile,
+      layer: provenance.sourceLayer,
+      storagePath: provenance.sourceStoragePath
+    },
+    {
+      label: 'Trainer class',
+      path: provenance.classSourceFile,
+      layer: provenance.classSourceLayer,
+      emptyLabel: t('trainers.layout.noClassSource')
+    },
+    {
+      label: 'Party',
+      path: provenance.teamSourceFile,
+      layer: provenance.teamSourceLayer,
+      storagePath: provenance.teamStoragePath
+    }
+  ];
+
+  return (
+    <dl className="trainer-source-rows">
+      {sources.map(({ label, layer, path, storagePath, emptyLabel }) => {
+        const baseRomFs = layer === 'base' && path?.startsWith('romfs/');
+        const root = baseRomFs ? paths.baseRomFsPath : layer === 'layered' ? paths.outputRootPath : null;
+        const fullPath = storagePath ?? (root && path
+          ? root.replace(/[\\/]+$/, '') + '/' + (baseRomFs ? path.slice('romfs/'.length) : path)
+          : path);
+        return (
+          <div className="trainer-source-row" key={label}>
+            <dt>{translateLiteral(label)}</dt>
+            <dd className="trainer-source-layer">
+              {layer ? translateLiteral(formatSourceLayer(layer)) : emptyLabel ?? translateLiteral('Not loaded')}
+            </dd>
+            {fullPath ? <dd><code data-localization-ignore="true">{fullPath}</code></dd> : null}
+          </div>
+        );
+      })}
+    </dl>
   );
 }
 
@@ -33884,35 +33645,6 @@ type ProjectedTrainerPokemonStats = {
   stats: TrainerPokemonRecord['evs'];
 };
 
-function TrainerPokemonProjectedStatsPanel({
-  projectedStats
-}: {
-  projectedStats: ProjectedTrainerPokemonStats | null;
-}) {
-  const { translateLiteral } = useLocalization();
-
-  if (!projectedStats) {
-    return null;
-  }
-
-  return (
-    <section aria-label="Projected stats" className="trainer-projected-stats-panel">
-      <div className="trainer-projected-stats-header">
-        <strong>{translateLiteral('Projected Stats')}</strong>
-      </div>
-      <dl className="trainer-projected-stats-grid">
-        {trainerProjectedStatRows.map((row) => (
-          <div className="trainer-projected-stat" key={row.key}>
-            <dt>{translateLiteral(row.label)}</dt>
-            <dd aria-label={`${row.label} projected stat`}>
-              {projectedStats.stats[row.key]}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  );
-}
 type DynamaxAdventureEditableFieldName = DynamaxAdventureEditableField['field'];
 type DynamaxAdventureEntryChangeGroup = {
   entryIndex: number;
@@ -33939,6 +33671,7 @@ type NumericEditableField = {
 };
 
 function TrainerDraftField({
+  compactStat = false,
   currentValue,
   disabled,
   disabledReason,
@@ -33951,8 +33684,10 @@ function TrainerDraftField({
   helpGame,
   idPrefix = 'trainer-field',
   labelAdornment,
+  note,
   onChange
 }: {
+  compactStat?: boolean;
   currentValue: number | null;
   disabled: boolean;
   disabledReason?: string;
@@ -33965,6 +33700,7 @@ function TrainerDraftField({
   helpGame?: FieldHelpGame;
   idPrefix?: string;
   labelAdornment?: ReactNode;
+  note?: string;
   onChange: (value: string) => void;
 }) {
   const inputId = `${idPrefix}-${field.field}`;
@@ -33978,7 +33714,9 @@ function TrainerDraftField({
   );
   const effectiveDisabledReason = disabledReason ?? formDisabledReason ?? undefined;
   const effectiveDisabled = disabled || Boolean(effectiveDisabledReason);
-  const statusText = draftState.error ?? (draftState.isChanged ? 'Changed' : null);
+  const statusText = compactStat
+    ? draftState.error
+    : effectiveDisabledReason ?? draftState.error ?? (draftState.isChanged ? 'Changed' : null);
   const { t, translateLiteral } = useLocalization();
   const localizedFieldLabel = translateLiteral(field.label);
   const localizedFieldHelpText = translateLiteral(
@@ -34007,12 +33745,12 @@ function TrainerDraftField({
         effectiveDisabledReason ? 'editable-field-disabled' : ''
       }`}
     >
-      <FieldLabel
+      {!compactStat ? <FieldLabel
         adornment={labelAdornment}
         help={localizedFieldHelpText}
         htmlFor={inputId}
         label={localizedFieldLabel}
-      />
+      /> : null}
       {field.valueKind === 'boolean' ? (
         <SearchableOptionInput
           ariaLabel={localizedFieldLabel}
@@ -34028,7 +33766,7 @@ function TrainerDraftField({
         />
       ) : options.length > 0 ? (
         <SearchableOptionInput
-          ariaLabel={field.label}
+          ariaLabel={localizedFieldLabel}
           data-km-source-site="trainer-draft-field-option"
           wrapSelectedValue
           disabled={effectiveDisabled}
@@ -34041,6 +33779,8 @@ function TrainerDraftField({
       ) : (
         <HoverTooltip content={localizedFieldHoverText}>
           <input
+            aria-describedby={statusText ? inputId + '-status' : undefined}
+            aria-invalid={!draftState.isValid || undefined}
             aria-label={localizedFieldLabel}
             disabled={effectiveDisabled}
             id={inputId}
@@ -34052,10 +33792,12 @@ function TrainerDraftField({
           />
         </HoverTooltip>
       )}
-      {effectiveDisabledReason ? (
-        <small className="editable-field-status">{translateLiteral(effectiveDisabledReason)}</small>
-      ) : statusText ? (
-        <small className={draftState.error ? 'editable-field-error' : 'editable-field-status'}>
+      {note ? <small className="editable-field-status">{translateLiteral(note)}</small> : null}
+      {statusText ? (
+        <small
+          className={statusText === draftState.error ? 'editable-field-error' : 'editable-field-status'}
+          id={inputId + '-status'}
+        >
           {translateLiteral(statusText)}
         </small>
       ) : null}
@@ -34182,7 +33924,7 @@ function createContextualTrainerPokemonFields(
   const formOptionContext = {
     ...context,
     abilityOptions: referencePokemon
-      ? createTrainerPokemonAbilityOptions(referencePokemon)
+      ? createTrainerPokemonAbilityOptions(referencePokemon, editorFamily)
       : usesCurrentIdentity
         ? pokemon.abilityOptions
         : [],
@@ -37905,53 +37647,6 @@ function groupNumericEditableFields<TField extends NumericEditableField>(
   return groups;
 }
 
-function getItemEditableFieldGroup(field: ItemEditableField & { group?: string }) {
-  const fieldName = field.field.toLocaleLowerCase();
-
-  if (field.group) {
-    return field.group;
-  }
-
-  if (
-    field.field === itemMachineMoveIdFieldName ||
-    field.field === itemTechnicalMachineNumberFieldName
-  ) {
-    return 'Technical Machine';
-  }
-
-  if (
-    field.field === 'buyPrice' ||
-    field.field === 'sellPrice' ||
-    field.field === 'wattsPrice' ||
-    field.field === 'alternatePrice'
-  ) {
-    return 'Prices';
-  }
-
-  if (
-    field.field === 'pouch' ||
-    fieldName.includes('sort') ||
-    fieldName.includes('category')
-  ) {
-    return 'Identity and Inventory';
-  }
-
-  if (field.valueKind === 'boolean') {
-    return 'Use Flags';
-  }
-
-  if (
-    fieldName.includes('heal') ||
-    fieldName.startsWith('ev') ||
-    fieldName.includes('friendship') ||
-    fieldName.includes('pp')
-  ) {
-    return 'Use Effects';
-  }
-
-  return 'Item Data';
-}
-
 function toNumericEditableField(field: MoveEditableField): NumericEditableField {
   return {
     field: field.field,
@@ -38028,6 +37723,7 @@ function orderMoveEditableFieldGroups<TField extends NumericEditableField>(
 function getEncounterEditableFieldGroup(field: NumericEditableField) {
   if (
     field.field === raidBattleSpeciesFieldName ||
+    field.field === encounterSpeciesFieldName ||
     field.field === encounterFormFieldName ||
     field.field === heldItemIdFieldName
   ) {
@@ -38475,6 +38171,7 @@ function CustomGiftPokemonFields({ pokemon, fields, drafts: localDrafts, disable
 
 function GiftPokemonDraftField({
   ariaDescribedBy,
+  checkbox,
   currentValue,
   disabled,
   disabledReason,
@@ -38488,9 +38185,11 @@ function GiftPokemonDraftField({
   idPrefix = 'pokemon-instance',
   labelText,
   onChange,
-  preservedValue
+  preservedValue,
+  wrapSelectedValue
 }: {
   ariaDescribedBy?: string;
+  checkbox?: boolean;
   currentValue: number | null;
   disabled: boolean;
   disabledReason?: string;
@@ -38505,6 +38204,7 @@ function GiftPokemonDraftField({
   labelText?: string;
   onChange: (value: string) => void;
   preservedValue?: number | null;
+  wrapSelectedValue?: boolean;
 }) {
   const inputId = `${idPrefix}-${field.field}`;
   const { contextualFormOptionContext, options } =
@@ -38555,7 +38255,18 @@ function GiftPokemonDraftField({
       }`}
     >
       <FieldLabel help={localizedFieldHelpText} htmlFor={inputId} label={localizedFieldLabel} />
-      {field.valueKind === 'boolean' ? (
+      {field.valueKind === 'boolean' && checkbox ? (
+        <input
+          id={inputId}
+          type="checkbox"
+          className="km-choice-control"
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={!draftState.isValid || undefined}
+          disabled={effectiveDisabled}
+          checked={draftValue === '1'}
+          onChange={event => onChange(event.target.checked ? '1' : '0')}
+        />
+      ) : field.valueKind === 'boolean' ? (
         <SearchableOptionInput
           ariaDescribedBy={ariaDescribedBy}
           ariaLabel={localizedFieldLabel}
@@ -38565,6 +38276,7 @@ function GiftPokemonDraftField({
           isFiniteCatalog
           onChange={onChange}
           options={searchableBooleanOptions}
+          wrapSelectedValue={wrapSelectedValue}
           tooltipContent={localizedFieldHoverText}
           value={draftValue === '1' ? '1' : '0'}
         />
@@ -38582,6 +38294,7 @@ function GiftPokemonDraftField({
             field.label
           )}
           value={draftValue}
+          wrapSelectedValue={wrapSelectedValue}
         />
       ) : (
         <HoverTooltip content={localizedFieldHoverText}>
@@ -45341,7 +45054,10 @@ function getProjectedEncounterSlot(
     form,
     levelMin: read(encounterLevelMinFieldName, slot.levelMin),
     levelMax: read(encounterLevelMaxFieldName, slot.levelMax),
-    weight: read(editorFamily === 'swsh' ? encounterProbabilityFieldName : zaEncounterWeightFieldName, slot.weight)
+    weight: read(editorFamily === 'za' ? zaEncounterWeightFieldName : encounterProbabilityFieldName, slot.weight),
+    alphaChancePercent: typeof slot.alphaChancePercent === 'number' && !isZaGuaranteedAlphaSlot(slot)
+      ? read(zaEncounterAlphaChanceFieldName, slot.alphaChancePercent)
+      : slot.alphaChancePercent
   };
 }
 
@@ -45479,6 +45195,7 @@ function SelectedEncounterPanel({
     : null;
   const isVerifiedZaScriptedBoss = isZaScriptedBossTable && scriptedBossProfile !== null;
   const isSwShEncounterTable = table !== null && !isSvEncounterTable && !isZaEncounterTable;
+  const getSlotNumber = (slot: EncounterSlotRecord) => isSwShEncounterTable ? slot.slot : slot.slot + 1;
   const defaultEncounterFields = useMemo(
     () =>
       editableFields
@@ -45833,6 +45550,29 @@ function SelectedEncounterPanel({
     () => groupNumericEditableFields(encounterFields, getEncounterEditableFieldGroup),
     [encounterFields]
   );
+  const encounterFieldSections = isZaEncounterTable
+    ? [
+        {
+          key: 'shared',
+          heading: t('za.encounters.sharedRecordHeading'),
+          help: t(isVerifiedZaScriptedBoss
+            ? 'za.encounters.bossActions.sharedRecordHelp'
+            : 'za.encounters.sharedRecordHelp'),
+          groups: encounterFieldGroups.filter(({ group }) => group !== 'Spawner Slot' && group !== 'Spawner Population')
+        },
+        {
+          key: 'slot',
+          heading: t('za.spawnSettings.slotGroup'),
+          help: t('za.encounters.selectedPlacementHelp'),
+          groups: encounterFieldGroups.filter(({ group }) => group === 'Spawner Slot')
+        },
+        {
+          key: 'population',
+          heading: t('za.spawnSettings.populationGroup'),
+          groups: encounterFieldGroups.filter(({ group }) => group === 'Spawner Population')
+        }
+      ].filter(({ groups }) => groups.length > 0)
+    : [{ key: 'encounter', heading: undefined, help: undefined, groups: encounterFieldGroups }];
   const scriptedBossActionEditorEntries = useMemo(() => {
     if (
       !scriptedBossProfile ||
@@ -46401,31 +46141,39 @@ function SelectedEncounterPanel({
   const zaPhaseConditionDisplay =
     isZaEncounterTable ? formatZaPhaseConditions(table?.phaseConditions, t) : null;
   const displayedEncounterSlots = table?.slots ?? [];
-  const getEncounterClipboardValues = (slot: EncounterSlotRecord) => {
-    if (!table) {
-      return {};
-    }
-    if (encounterSlot?.slot === slot.slot) {
+  const getEncounterDraftValues = useCallback((targetTableId: string, slot: EncounterSlotRecord) => {
+    if (table?.tableId === targetTableId && encounterSlot?.slot === slot.slot) {
       return selectedPlacementDrafts;
     }
-    const sharedKey =
-      editorFamily === 'za'
-        ? getZaEncounterGroupKey(table.tableId, slot)
-        : `${table.tableId}:${slot.slot}`;
-    const slotKey = `${table.tableId}:${slot.slot}`;
+    const slotKey = `${targetTableId}:${slot.slot}`;
+    const sharedKey = editorFamily === 'za' ? getZaEncounterGroupKey(targetTableId, slot) : slotKey;
     const levelKey =
-      editorFamily === 'swsh' ? table.tableId : editorFamily === 'za' ? sharedKey : null;
+      editorFamily === 'swsh' ? targetTableId : editorFamily === 'za' ? sharedKey : null;
     return {
-      ...(draftsBySlotKey[sharedKey] ?? {}),
-      ...(levelKey ? levelDraftsByScopeKey[levelKey] ?? {} : {}),
-      ...(editorFamily === 'za' ? zaSlotDraftsBySlotKey[slotKey] ?? {} : {}),
-      ...(editorFamily === 'za' ? zaAppearanceDraftsByTableId[table.tableId] ?? {} : {})
+      ...draftsBySlotKey[sharedKey],
+      ...(levelKey ? levelDraftsByScopeKey[levelKey] : undefined),
+      ...(editorFamily === 'za' ? zaSlotDraftsBySlotKey[slotKey] : undefined),
+      ...(editorFamily === 'za' ? zaAppearanceDraftsByTableId[targetTableId] : undefined)
     };
-  };
-  const encounterSlotPreviews = new Map(displayedEncounterSlots.map(slot => [
+  }, [
+    draftsBySlotKey, editorFamily, encounterSlot?.slot, levelDraftsByScopeKey,
+    selectedPlacementDrafts, table?.tableId, zaAppearanceDraftsByTableId, zaSlotDraftsBySlotKey
+  ]);
+  const projectLinkedEncounterSlot = useCallback(
+    (targetTable: EncounterTableRecord, slot: EncounterSlotRecord) => {
+      const values = getEncounterDraftValues(targetTable.tableId, slot);
+      return Object.keys(values).length > 0
+        ? getProjectedEncounterSlot(slot, editableFields, values, pokemonWorkflow, editorFamily)
+        : slot;
+    },
+    [editableFields, editorFamily, getEncounterDraftValues, pokemonWorkflow]
+  );
+  const encounterSlotPreviews = new Map(table ? displayedEncounterSlots.map((slot) => [
     slot.slot,
-    getProjectedEncounterSlot(slot, editableFields, getEncounterClipboardValues(slot), pokemonWorkflow, editorFamily)
-  ]));
+    getProjectedEncounterSlot(
+      slot, editableFields, getEncounterDraftValues(table.tableId, slot), pokemonWorkflow, editorFamily
+    )
+  ]) : []);
   const getEncounterSlotPreview = (slot: EncounterSlotRecord) => encounterSlotPreviews.get(slot.slot) ?? slot;
   const encounterWeightTotal = [...encounterSlotPreviews.values()].reduce((total, slot) => total + slot.weight, 0);
   const encounterClipboardDisabledReason = (
@@ -46469,14 +46217,14 @@ function SelectedEncounterPanel({
       const result = await onCopyEncounterSlot({
         slot: target.slot,
         tableId: table.tableId,
-        values: getEncounterClipboardValues(target.slot)
+        values: getEncounterDraftValues(table.tableId, target.slot)
       });
       if (result.kind === 'failure') {
         setEncounterClipboardFeedback({ isError: true, message: t(result.feedbackKey) });
         return;
       }
       const targetLabel = t('rowClipboard.encounter.target', {
-        slot: target.slot.slot + 1,
+        slot: getSlotNumber(target.slot),
         table: table.tableLabel ?? table.location
       });
       setEncounterClipboardSourceLabel(targetLabel);
@@ -46615,7 +46363,7 @@ function SelectedEncounterPanel({
         message: t('rowClipboard.feedback.pasteSuccess', {
           count: 1,
           target: t('rowClipboard.encounter.target', {
-            slot: targetSlot + 1,
+            slot: getSlotNumber(target.slot),
             table: table.tableLabel ?? table.location
           })
         })
@@ -46691,7 +46439,7 @@ function SelectedEncounterPanel({
   }, [zaEncounterAppearanceDraftDefaults, zaEncounterAppearanceDraftKey]);
 
   return (
-    <aside aria-label="Selected encounter provenance" className="encounter-inspector">
+    <aside aria-label="Selected encounter provenance" className="encounter-inspector wild-encounter-editor">
       <PublishedLocalEditorValidationDiagnostics
         domain="workflow.encounters"
         issues={encounterStagePlan.invalidFields}
@@ -46748,65 +46496,73 @@ function SelectedEncounterPanel({
       ) : null}
       <div className="panel-heading">
         <ShieldCheck aria-hidden="true" size={18} />
-        <h3>Selected Encounter</h3>
+        <h3>{table
+          ? isZaEncounterTable && isZaBossEncounterTable(table)
+            ? formatZaEncounterBrowserLocation(table, null)
+            : table.location
+          : translateLiteral('Selected Encounter')}</h3>
       </div>
 
       {table ? (
         <>
-          <dl className="item-provenance-list">
-            <div>
-              <dt>Location</dt>
-              <dd>
-                {isZaEncounterTable && isZaBossEncounterTable(table)
-                  ? formatZaEncounterBrowserLocation(table, null)
-                  : table.location}
-              </dd>
-            </div>
-            {isZaEncounterTable && table.locationDetails ? (
+          <details className="wild-encounter-disclosure">
+            <summary>{translateLiteral('Source')}</summary>
+            <dl className="item-provenance-list">
               <div>
-                <dt>Mission</dt>
-                <dd>{table.locationDetails}</dd>
+                <dt>Location</dt>
+                <dd>
+                  {isZaEncounterTable && isZaBossEncounterTable(table)
+                    ? formatZaEncounterBrowserLocation(table, null)
+                    : table.location}
+                </dd>
               </div>
-            ) : null}
-            {!svEncounterFacets ? (
+              {isZaEncounterTable && table.locationDetails ? (
+                <div>
+                  <dt>Mission</dt>
+                  <dd>{table.locationDetails}</dd>
+                </div>
+              ) : null}
+              {!svEncounterFacets ? (
+                <div>
+                  <dt>{isZaEncounterTable ? 'Spawner' : 'Table'}</dt>
+                  <dd>{isZaEncounterTable ? table.tableLabel ?? table.tableId : table.tableId}</dd>
+                </div>
+              ) : null}
+              {isZaEncounterTable && table.locationKey ? (
+                <div>
+                  <dt>Group</dt>
+                  <dd>{getZaEncounterZoneFamily(table).label}</dd>
+                </div>
+              ) : null}
+              {isZaEncounterTable && table.isPostgame === true ? (
+                <div>
+                  <dt>{t('za.encounters.availabilityLabel')}</dt>
+                  <dd>{t('za.encounters.availability.postgame')}</dd>
+                </div>
+              ) : null}
               <div>
-                <dt>{isZaEncounterTable ? 'Spawner' : 'Table'}</dt>
-                <dd>{isZaEncounterTable ? table.tableLabel ?? table.tableId : table.tableId}</dd>
+                <dt>Archive member</dt>
+                <dd>{table.archiveMember}</dd>
               </div>
-            ) : null}
-            {isZaEncounterTable && table.locationKey ? (
               <div>
-                <dt>Group</dt>
-                <dd>{getZaEncounterZoneFamily(table).label}</dd>
+                <dt>Source file</dt>
+                <dd>{table.provenance.sourceFile}</dd>
               </div>
-            ) : null}
-            {isZaEncounterTable && table.isPostgame === true ? (
               <div>
-                <dt>{t('za.encounters.availabilityLabel')}</dt>
-                <dd>{t('za.encounters.availability.postgame')}</dd>
+                <dt>Layer</dt>
+                <dd>{formatSourceLayer(table.provenance.sourceLayer)}</dd>
               </div>
-            ) : null}
-            <div>
-              <dt>Archive member</dt>
-              <dd>{table.archiveMember}</dd>
-            </div>
-            <div>
-              <dt>Source file</dt>
-              <dd>{table.provenance.sourceFile}</dd>
-            </div>
-            <div>
-              <dt>Layer</dt>
-              <dd>{formatSourceLayer(table.provenance.sourceLayer)}</dd>
-            </div>
-            <div>
-              <dt>File state</dt>
-              <dd>{formatFileState(table.provenance.fileState)}</dd>
-            </div>
-          </dl>
+              <div>
+                <dt>File state</dt>
+                <dd>{formatFileState(table.provenance.fileState)}</dd>
+              </div>
+            </dl>
+          </details>
 
           {isSvEncounterTable ? (
             <SvEncounterConditionBrowser
               onSelectTable={onSelectTable}
+              selectedRowWeight={encounterWeightTotal}
               table={table}
               tables={tables}
             />
@@ -46818,6 +46574,7 @@ function SelectedEncounterPanel({
                 onSelectTable(tableId);
               }}
               pendingRecordIds={getPendingEncounterRecordIds(editSession)}
+              projectSlot={projectLinkedEncounterSlot}
               selectedSlot={selectedSlot}
               table={table}
               tables={tables}
@@ -46932,1036 +46689,1043 @@ function SelectedEncounterPanel({
               </div>
             ) : null}
 
-            <div className="encounter-slot-header">
-              <strong>Slots</strong>
-              <span
-                className={
-                  isSvEncounterTable || isZaEncounterTable || encounterWeightTotal === 100
-                    ? `encounter-total-status ${
-                        isZaEncounterTable ? 'encounter-total-relative' : ''
-                      }`
-                    : 'encounter-total-status encounter-total-warning'
-                }
-              >
-                {isSvEncounterTable
-                  ? `Total lot weight: ${encounterWeightTotal}`
-                  : isZaEncounterTable
-                    ? t('za.spawnSettings.listedWeightTotal', {
-                        total: encounterWeightTotal
-                      })
-                    : `Total chance: ${encounterWeightTotal}%`}
-              </span>
-            </div>
-            <p className="field-note">{t('rowClipboard.discoveryHint')}</p>
-
-            {encounterSlot ? (
-              <>
-                <div className="encounter-slot-tabs" aria-label="Encounter slot list">
-                  {displayedEncounterSlots.map((slot) => {
-                    const preview = encounterSlotPreviews.get(slot.slot)!;
-                    const slotLabel = isZaEncounterTable && preview.isAlpha
-                      ? `${preview.species} Alpha`
-                      : preview.species;
-                    const slotBadge = formatEncounterSlotBadge(preview, {
-                      isScarletViolet: isSvEncounterTable,
-                      isPokemonLegendsZA: isZaEncounterTable
-                    });
-                    const slotCompletionStatus =
-                      isZaEncounterTable &&
-                      typeof slot.contributesToWildZoneCompletion === 'boolean'
-                        ? t(
-                            getZaWildZoneCompletionStatusKey(
-                              slot.contributesToWildZoneCompletion
-                                ? 'contributing'
-                                : 'excluded'
-                            )
-                          )
-                        : null;
-                    const slotSummary = isZaEncounterTable
-                      ? encounterWeightTotal > 0
-                        ? t('za.spawnSettings.slotSummaryWithShare', {
-                            levelMax: preview.levelMax,
-                            levelMin: preview.levelMin,
-                            share:
-                              formatEncounterSharePercent(
-                                preview.weight,
-                                encounterWeightTotal,
-                                formatLocale
-                              ) ?? '',
-                            weight: preview.weight
+            <div className="wild-encounter-workspace">
+              <section className="wild-encounter-list" aria-label={translateLiteral('Encounter slots')}>
+                <div className="encounter-slot-header wild-encounter-slot-header">
+                  <div className="editable-field-label-row">
+                    <strong>{translateLiteral('Slots')}</strong>
+                    <ContextHelp label={translateLiteral('Encounter slots')}>
+                      {t('rowClipboard.discoveryHint')}
+                    </ContextHelp>
+                  </div>
+                  <span
+                    className={
+                      isSvEncounterTable || isZaEncounterTable || encounterWeightTotal === 100
+                        ? `encounter-total-status ${
+                            isZaEncounterTable ? 'encounter-total-relative' : ''
+                          }`
+                        : 'encounter-total-status encounter-total-warning'
+                    }
+                  >
+                    {isSvEncounterTable
+                      ? `Total lot weight: ${encounterWeightTotal}`
+                      : isZaEncounterTable
+                        ? t('za.spawnSettings.listedWeightTotal', {
+                            total: encounterWeightTotal
                           })
-                        : t('za.spawnSettings.slotSummary', {
-                            levelMax: preview.levelMax,
-                            levelMin: preview.levelMin,
-                            weight: preview.weight
-                          })
-                      : formatEncounterSlotWeightSummary(
-                          preview,
-                          encounterWeightTotal,
-                          isSvEncounterTable,
-                          formatLocale
-                        );
-                    const encounterSlotAccessibleLabel = [
-                      t('rowClipboard.encounter.target', {
-                        slot: slot.slot + 1,
-                        table: table.tableLabel ?? table.location
-                      }),
-                      slotBadge,
-                      slotLabel,
-                      slot.isAlpha ? translateLiteral('Alpha') : null,
-                      slotCompletionStatus,
-                      slotSummary
-                    ]
-                      .filter(
-                        (part): part is string =>
-                          typeof part === 'string' && part.length > 0
-                      )
-                      .join('. ');
-
-                    return (
-                      <button
-                        aria-controls={
-                          encounterClipboardMenu?.slot.slot === slot.slot
-                            ? encounterSlotContextMenuId
-                            : undefined
-                        }
-                        aria-expanded={encounterClipboardMenu?.slot.slot === slot.slot}
-                        aria-haspopup="menu"
-                        aria-label={encounterSlotAccessibleLabel}
-                        data-km-source-site="encounter-slot-menu-trigger"
-                        aria-keyshortcuts="Control+C Control+V Meta+C Meta+V Shift+F10"
-                        aria-pressed={slot.slot === selectedSlot}
-                        className="slot-tab-button"
-                        key={slot.slot}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          onSelectSlot(slot.slot);
-                          setEncounterClipboardMenu({
-                            left: event.clientX,
-                            slot,
-                            top: event.clientY,
-                            triggerElement: event.currentTarget
-                          });
-                        }}
-                        onKeyDown={(event) => {
-                          if (handleRowClipboardShortcut(event,
-                            () => void handleCopyEncounterClipboardSlot({ slot, left: 0, top: 0, triggerElement: event.currentTarget }),
-                            () => void handlePasteEncounterClipboardSlot({ slot, left: 0, top: 0, triggerElement: event.currentTarget }))) return;
-                          if (!(event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
-                            return;
-                          }
-                          event.preventDefault();
-                          event.stopPropagation();
-                          onSelectSlot(slot.slot);
-                          const bounds = event.currentTarget.getBoundingClientRect();
-                          setEncounterClipboardMenu({
-                            left: bounds.left + Math.min(32, bounds.width / 2),
-                            slot,
-                            top: bounds.top + Math.min(32, bounds.height / 2),
-                            triggerElement: event.currentTarget
-                          });
-                        }}
-                        onClick={() => onSelectSlot(slot.slot)}
-                        type="button"
-                      >
-                        <PokemonSprite className="slot-tab-sprite" editorFamily={editorFamily} form={preview.form}
-                          speciesId={preview.speciesId} spriteName={preview.spriteName} name={preview.species} preferStatic />
-                        <strong>{slotBadge}</strong>
-                        <span className="encounter-slot-name" title={slotLabel}>{slotLabel}</span>
-                        {isZaEncounterTable &&
-                        (slot.isAlpha ||
-                          typeof slot.contributesToWildZoneCompletion === 'boolean') ? (
-                          <div className="slot-tab-pills">
-                            {slot.isAlpha ? <span className="slot-tab-pill">Alpha</span> : null}
-                            {typeof slot.contributesToWildZoneCompletion === 'boolean' ? (
-                              <span
-                                className={`slot-tab-pill za-wild-zone-completion-status za-wild-zone-completion-status-${
+                        : `Total chance: ${encounterWeightTotal}%`}
+                  </span>
+                </div>
+                {encounterSlot ? (
+                  <>
+                    <div
+                      className="wild-encounter-slot-table"
+                      role="group"
+                      aria-label="Encounter slot list"
+                    >
+                      <div className="wild-encounter-slot-columns" aria-hidden="true">
+                        <span>#</span>
+                        <span className="wild-encounter-pokemon-column">{translateLiteral('Pokemon')}</span>
+                        <span>{translateLiteral('Levels')}</span>
+                        <span>{isSvEncounterTable ? translateLiteral('Lot weight') : isZaEncounterTable
+                          ? t('za.spawnSettings.weightLabel') : translateLiteral('Chance')}</span>
+                      </div>
+                      {displayedEncounterSlots.map((slot) => {
+                        const preview = encounterSlotPreviews.get(slot.slot)!;
+                        const slotLabel = isZaEncounterTable && preview.isAlpha
+                          ? `${preview.species} Alpha`
+                          : preview.species;
+                        const slotBadge = formatEncounterSlotBadge(preview, {
+                          isScarletViolet: isSvEncounterTable,
+                          isPokemonLegendsZA: isZaEncounterTable
+                        });
+                        const slotCompletionStatus =
+                          isZaEncounterTable &&
+                          typeof slot.contributesToWildZoneCompletion === 'boolean'
+                            ? t(
+                                getZaWildZoneCompletionStatusKey(
                                   slot.contributesToWildZoneCompletion
                                     ? 'contributing'
                                     : 'excluded'
-                                }`}
-                              >
-                                {slotCompletionStatus}
-                              </span>
-                            ) : null}
-                          </div>
-                        ) : null}
-                        <small>{slotSummary}</small>
-                      </button>
-                    );
-                  })}
-                </div>
-                {encounterClipboardFeedback ? (
-                  <p
-                    className={
-                      encounterClipboardFeedback.isError
-                        ? 'editable-field-error'
-                        : 'editable-field-status'
-                    }
-                    role={encounterClipboardFeedback.isError ? 'alert' : 'status'}
-                  >
-                    {encounterClipboardFeedback.message}
-                  </p>
-                ) : null}
-                {encounterClipboardMenu && table ? (
-                  <TrainerPartySlotContextMenu
-                    copyActionLabel={t('rowClipboard.menu.copyAction')}
-                    copyDisabledReason={encounterClipboardDisabledReason(
-                      encounterClipboardMenu.slot,
-                      'copy'
-                    )}
-                    id={encounterSlotContextMenuId}
-                    left={encounterClipboardMenu.left}
-                    menuLabel={t('rowClipboard.menu.label', {
-                      target: t('rowClipboard.encounter.target', {
-                        slot: encounterClipboardMenu.slot.slot + 1,
-                        table: table.tableLabel ?? table.location
-                      })
-                    })}
-                    noSourceSummaryLabel={t('rowClipboard.menu.noSource')}
-                    onClose={() => setEncounterClipboardMenu(null)}
-                    onCopy={() => void handleCopyEncounterClipboardSlot()}
-                    onPaste={() => void handlePasteEncounterClipboardSlot()}
-                    pasteActionLabel={t('rowClipboard.menu.pasteAction')}
-                    pasteDisabledReason={encounterClipboardDisabledReason(
-                      encounterClipboardMenu.slot,
-                      'paste'
-                    )}
-                    sourceLabel={encounterClipboardSourceLabel ?? undefined}
-                    targetLabel={t('rowClipboard.encounter.target', {
-                      slot: encounterClipboardMenu.slot.slot + 1,
-                      table: table.tableLabel ?? table.location
-                    })}
-                    top={encounterClipboardMenu.top}
-                    triggerElement={encounterClipboardMenu.triggerElement}
-                  />
-                ) : null}
-                {isSvEncounterTable && displayedEncounterSlots.length === 1 ? (
-                  <p className="empty-copy sv-encounter-slot-note">
-                    This exact S/V condition row has one slot. Use the condition browser above to
-                    inspect adjacent rows for this location.
-                  </p>
-                ) : null}
-
-                <dl className="encounter-slot-detail">
-                  {!isZaEncounterTable ? (
-                    <div>
-                      <dt>Species</dt>
-                      <dd>
-                        {getEncounterSlotPreview(encounterSlot).species}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {isZaEncounterTable ? (
-                    <div>
-                      <dt>Encounter type</dt>
-                      <dd>{encounterSlot.encounterKind ?? (encounterSlot.isAlpha ? 'Alpha' : 'Wild')}</dd>
-                    </div>
-                  ) : null}
-                  {isZaEncounterTable && encounterSlot.encounterDataId ? (
-                    <div>
-                      <dt>Encounter data</dt>
-                      <dd>{encounterSlot.encounterDataId}</dd>
-                    </div>
-                  ) : null}
-                  {zaPhaseConditionDisplay ? (
-                    <div>
-                      <dt>{t('za.encounters.phaseConditionsLabel')}</dt>
-                      <dd>{zaPhaseConditionDisplay}</dd>
-                    </div>
-                  ) : null}
-                  {!isZaEncounterTable ? (
-                    <div>
-                      <dt>Levels</dt>
-                      <dd>
-                        {getEncounterSlotPreview(encounterSlot).levelMin}-{getEncounterSlotPreview(encounterSlot).levelMax}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {!isZaEncounterTable ? (
-                    <div>
-                      <dt>{isSvEncounterTable ? 'Lot weight' : 'Probability'}</dt>
-                      <dd>{getEncounterSlotPreview(encounterSlot).weight}</dd>
-                    </div>
-                  ) : null}
-                  {isZaEncounterTable &&
-                  typeof encounterSlot.appearanceObjectCount === 'number' ? (
-                    <div>
-                      <dt>{t('za.spawnSettings.appearanceObjectsLabel')}</dt>
-                      <dd>{encounterSlot.appearanceObjectCount}</dd>
-                    </div>
-                  ) : null}
-                  {isSvEncounterTable || isZaEncounterTable ? (
-                    <div>
-                      <dt className="editable-field-label-row">
-                        <span>
-                          {isZaEncounterTable
-                            ? t('za.spawnSettings.listedShareLabel')
-                            : translateLiteral('Share in row')}
-                        </span>
-                        <ContextHelp
-                          label={
-                            isZaEncounterTable
-                              ? t('za.spawnSettings.listedShareLabel')
-                              : translateLiteral('Share in row')
-                          }
-                        >
-                          {isZaEncounterTable
-                            ? t('za.spawnSettings.listedShareHelp')
-                            : translateLiteral(
-                                'Calculated from this slot\'s lot weight divided by the selected condition row\'s total lot weight.'
-                              )}
-                        </ContextHelp>
-                      </dt>
-                      <dd>
-                        {isZaEncounterTable
-                          ? formatEncounterSharePercent(
-                              getEncounterSlotPreview(encounterSlot).weight,
+                                )
+                              )
+                            : null;
+                        const slotSummary = isZaEncounterTable
+                          ? encounterWeightTotal > 0
+                            ? t('za.spawnSettings.slotSummaryWithShare', {
+                                levelMax: preview.levelMax,
+                                levelMin: preview.levelMin,
+                                share:
+                                  formatEncounterSharePercent(
+                                    preview.weight,
+                                    encounterWeightTotal,
+                                    formatLocale
+                                  ) ?? '',
+                                weight: preview.weight
+                              })
+                            : t('za.spawnSettings.slotSummary', {
+                                levelMax: preview.levelMax,
+                                levelMin: preview.levelMin,
+                                weight: preview.weight
+                              })
+                          : formatEncounterSlotWeightSummary(
+                              preview,
                               encounterWeightTotal,
+                              isSvEncounterTable,
                               formatLocale
-                            ) ?? t('za.spawnSettings.unavailable')
-                          : formatEncounterLotShare(
-                              getEncounterSlotPreview(encounterSlot).weight,
-                              encounterWeightTotal,
-                              formatLocale
-                            )}
-                      </dd>
-                    </div>
-                  ) : null}
-                  {isSvEncounterTable ? (
-                    <div>
-                      <dt className="editable-field-label-row">
-                        <span>{translateLiteral('S/V Conditions')}</span>
-                        <ContextHelp label={translateLiteral('S/V Conditions')}>
-                          {translateLiteral(
-                            'Biome weights, height range, linked group spawn metadata, voice class, and outbreak weight from the S/V encounter row.'
-                          )}
-                        </ContextHelp>
-                      </dt>
-                      <dd>{encounterSlot.weather}</dd>
-                    </div>
-                  ) : null}
-                  {isZaEncounterTable &&
-                  typeof encounterSlot.contributesToWildZoneCompletion === 'boolean' ? (
-                    <div>
-                      <dt>{t('za.wildZoneCompletion.detailLabel')}</dt>
-                      <dd>
-                        {t(
-                          getZaWildZoneCompletionStatusKey(
-                            encounterSlot.contributesToWildZoneCompletion
-                              ? 'contributing'
-                              : 'excluded'
+                            );
+                        const encounterSlotAccessibleLabel = [
+                          t('rowClipboard.encounter.target', {
+                            slot: getSlotNumber(slot),
+                            table: table.tableLabel ?? table.location
+                          }),
+                          slotBadge,
+                          slotLabel,
+                          slot.isAlpha ? translateLiteral('Alpha') : null,
+                          slotCompletionStatus,
+                          slotSummary
+                        ]
+                          .filter(
+                            (part): part is string =>
+                              typeof part === 'string' && part.length > 0
                           )
-                        )}
-                      </dd>
-                    </div>
-                  ) : null}
-                </dl>
+                          .join('. ');
 
-                {isZaEncounterTable ? (
-                  <div className="za-encounter-ownership-summary">
-                    <span>
-                      <strong>{t('za.encounters.sharedRecordHeading')}</strong>
-                      {t(
-                        isVerifiedZaScriptedBoss
-                          ? 'za.encounters.bossActions.sharedRecordHelp'
-                          : 'za.encounters.sharedRecordHelp'
-                      )}
-                    </span>
-                    <span>
-                      <strong>{t('za.encounters.selectedPlacementHeading')}</strong>
-                      {t('za.encounters.selectedPlacementHelp')}
-                    </span>
+                        return (
+                          <button
+                            aria-controls={
+                              encounterClipboardMenu?.slot.slot === slot.slot
+                                ? encounterSlotContextMenuId
+                                : undefined
+                            }
+                            aria-expanded={encounterClipboardMenu?.slot.slot === slot.slot}
+                            aria-haspopup="menu"
+                            aria-label={encounterSlotAccessibleLabel}
+                            data-km-source-site="encounter-slot-menu-trigger"
+                            aria-keyshortcuts="Control+C Control+V Meta+C Meta+V Shift+F10"
+                            aria-pressed={slot.slot === selectedSlot}
+                            className="wild-encounter-slot-row"
+                            key={slot.slot}
+                            onContextMenu={(event) => {
+                              event.preventDefault();
+                              onSelectSlot(slot.slot);
+                              setEncounterClipboardMenu({
+                                left: event.clientX,
+                                slot,
+                                top: event.clientY,
+                                triggerElement: event.currentTarget
+                              });
+                            }}
+                            onKeyDown={(event) => {
+                              if (handleRowClipboardShortcut(event,
+                                () => void handleCopyEncounterClipboardSlot({ slot, left: 0, top: 0, triggerElement: event.currentTarget }),
+                                () => void handlePasteEncounterClipboardSlot({ slot, left: 0, top: 0, triggerElement: event.currentTarget }))) return;
+                              if (!(event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))) {
+                                return;
+                              }
+                              event.preventDefault();
+                              event.stopPropagation();
+                              onSelectSlot(slot.slot);
+                              const bounds = event.currentTarget.getBoundingClientRect();
+                              setEncounterClipboardMenu({
+                                left: bounds.left + Math.min(32, bounds.width / 2),
+                                slot,
+                                top: bounds.top + Math.min(32, bounds.height / 2),
+                                triggerElement: event.currentTarget
+                              });
+                            }}
+                            onClick={() => onSelectSlot(slot.slot)}
+                            type="button"
+                          >
+                            <span className="wild-encounter-slot-number">{getSlotNumber(slot)}</span>
+                            <PokemonSprite className="wild-encounter-slot-sprite" editorFamily={editorFamily} form={preview.form}
+                              speciesId={preview.speciesId} spriteName={preview.spriteName} name={preview.species} preferStatic />
+                            <span className="wild-encounter-slot-species">
+                              <strong>{slotLabel}</strong>
+                              {slotCompletionStatus ? (
+                                <small className={`za-wild-zone-completion-status za-wild-zone-completion-status-${
+                                  slot.contributesToWildZoneCompletion ? 'contributing' : 'excluded'
+                                }`}>{slotCompletionStatus}</small>
+                              ) : null}
+                            </span>
+                            <span className="wild-encounter-slot-levels">
+                              {preview.levelMin === preview.levelMax ? preview.levelMin : `${preview.levelMin}–${preview.levelMax}`}
+                            </span>
+                            <span className="wild-encounter-slot-weight">
+                              {isSvEncounterTable || isZaEncounterTable ? (
+                                <>
+                                  <strong>{preview.weight}</strong>
+                                  <small>{formatEncounterSharePercent(preview.weight, encounterWeightTotal, formatLocale)}</small>
+                                </>
+                              ) : `${preview.weight}%`}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {encounterClipboardFeedback ? (
+                      <p
+                        className={
+                          encounterClipboardFeedback.isError
+                            ? 'editable-field-error'
+                            : 'editable-field-status'
+                        }
+                        role={encounterClipboardFeedback.isError ? 'alert' : 'status'}
+                      >
+                        {encounterClipboardFeedback.message}
+                      </p>
+                    ) : null}
+                    {encounterClipboardMenu && table ? (
+                      <TrainerPartySlotContextMenu
+                        copyActionLabel={t('rowClipboard.menu.copyAction')}
+                        copyDisabledReason={encounterClipboardDisabledReason(
+                          encounterClipboardMenu.slot,
+                          'copy'
+                        )}
+                        id={encounterSlotContextMenuId}
+                        left={encounterClipboardMenu.left}
+                        menuLabel={t('rowClipboard.menu.label', {
+                          target: t('rowClipboard.encounter.target', {
+                            slot: getSlotNumber(encounterClipboardMenu.slot),
+                            table: table.tableLabel ?? table.location
+                          })
+                        })}
+                        noSourceSummaryLabel={t('rowClipboard.menu.noSource')}
+                        onClose={() => setEncounterClipboardMenu(null)}
+                        onCopy={() => void handleCopyEncounterClipboardSlot()}
+                        onPaste={() => void handlePasteEncounterClipboardSlot()}
+                        pasteActionLabel={t('rowClipboard.menu.pasteAction')}
+                        pasteDisabledReason={encounterClipboardDisabledReason(
+                          encounterClipboardMenu.slot,
+                          'paste'
+                        )}
+                        sourceLabel={encounterClipboardSourceLabel ?? undefined}
+                        targetLabel={t('rowClipboard.encounter.target', {
+                          slot: getSlotNumber(encounterClipboardMenu.slot),
+                          table: table.tableLabel ?? table.location
+                        })}
+                        top={encounterClipboardMenu.top}
+                        triggerElement={encounterClipboardMenu.triggerElement}
+                      />
+                    ) : null}
+                  </>
+                ) : <p className="empty-copy">{translateLiteral('No encounter slots')}</p>}
+              </section>
+
+              <WildEncounterSlotInspector>
+                  {encounterSlot ? (
+                    <>
+                      <div className="wild-encounter-selected-heading">
+                        <span>{translateLiteral('Slot')} {getSlotNumber(encounterSlot)}</span>
+                        <h4>{getEncounterSlotPreview(encounterSlot).species}</h4>
+                      </div>
+                      {isSvEncounterTable || isZaEncounterTable ? (
+                        <dl className="encounter-slot-detail">
+                          {isZaEncounterTable ? (
+                            <div>
+                              <dt>Encounter type</dt>
+                              <dd>{encounterSlot.encounterKind ?? (encounterSlot.isAlpha ? 'Alpha' : 'Wild')}</dd>
+                            </div>
+                          ) : null}
+                          {isZaEncounterTable && encounterSlot.encounterDataId ? (
+                            <div>
+                              <dt>Encounter data</dt>
+                              <dd>{encounterSlot.encounterDataId}</dd>
+                            </div>
+                          ) : null}
+                          {zaPhaseConditionDisplay ? (
+                            <div>
+                              <dt>{t('za.encounters.phaseConditionsLabel')}</dt>
+                              <dd>{zaPhaseConditionDisplay}</dd>
+                            </div>
+                          ) : null}
+                          {isZaEncounterTable ? (
+                            <div>
+                              <dt>{t('za.alphaSettings.chanceLabel')}</dt>
+                              <dd>{formatZaAlphaChance(getEncounterSlotPreview(encounterSlot), t) ?? t('za.alphaSettings.unavailable')}</dd>
+                            </div>
+                          ) : null}
+                          {isZaEncounterTable &&
+                          typeof encounterSlot.appearanceObjectCount === 'number' ? (
+                            <div>
+                              <dt>{t('za.spawnSettings.appearanceObjectsLabel')}</dt>
+                              <dd>{encounterSlot.appearanceObjectCount}</dd>
+                            </div>
+                          ) : null}
+                          <div>
+                              <dt className="editable-field-label-row">
+                                <span>
+                                  {isZaEncounterTable
+                                    ? t('za.spawnSettings.listedShareLabel')
+                                    : translateLiteral('Share in row')}
+                                </span>
+                                <ContextHelp
+                                  label={
+                                    isZaEncounterTable
+                                      ? t('za.spawnSettings.listedShareLabel')
+                                      : translateLiteral('Share in row')
+                                  }
+                                >
+                                  {isZaEncounterTable
+                                    ? t('za.spawnSettings.listedShareHelp')
+                                    : translateLiteral(
+                                        'Calculated from this slot\'s lot weight divided by the selected condition row\'s total lot weight.'
+                                      )}
+                                </ContextHelp>
+                              </dt>
+                              <dd>
+                                {isZaEncounterTable
+                                  ? formatEncounterSharePercent(
+                                      getEncounterSlotPreview(encounterSlot).weight,
+                                      encounterWeightTotal,
+                                      formatLocale
+                                    ) ?? t('za.spawnSettings.unavailable')
+                                  : formatEncounterLotShare(
+                                      getEncounterSlotPreview(encounterSlot).weight,
+                                      encounterWeightTotal,
+                                      formatLocale
+                                    )}
+                              </dd>
+                          </div>
+                          {isSvEncounterTable ? (
+                            <div>
+                              <dt className="editable-field-label-row">
+                                <span>{translateLiteral('S/V Conditions')}</span>
+                                <ContextHelp label={translateLiteral('S/V Conditions')}>
+                                  {translateLiteral(
+                                    'Biome weights, height range, linked group spawn metadata, voice class, and outbreak weight from the S/V encounter row.'
+                                  )}
+                                </ContextHelp>
+                              </dt>
+                              <dd>{encounterSlot.weather}</dd>
+                            </div>
+                          ) : null}
+                          {isZaEncounterTable &&
+                          typeof encounterSlot.contributesToWildZoneCompletion === 'boolean' ? (
+                            <div>
+                              <dt>{t('za.wildZoneCompletion.detailLabel')}</dt>
+                              <dd>
+                                {t(
+                                  getZaWildZoneCompletionStatusKey(
+                                    encounterSlot.contributesToWildZoneCompletion
+                                      ? 'contributing'
+                                      : 'excluded'
+                                  )
+                                )}
+                              </dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                      ) : null}
+
+                    {isZaEncounterTable && table.playerPartner ? (
+                      <ZaEncounterPlayerPartnerEditor
+                        canEditEncounters={canEditEncounters}
+                        draftsByKey={playerPartnerDraftsByKey}
+                        editSession={editSession}
+                        isEditStarting={isEditStarting}
+                        isEncounterUpdating={isEncounterUpdating}
+                        onDraftsByKeyChange={setPlayerPartnerDraftsByKey}
+                        onStageVanilla={onStageEncounterVanilla}
+                        partner={table.playerPartner}
+                        pokemonWorkflow={pokemonWorkflow}
+                        tableId={table.tableId}
+                      />
+                    ) : null}
+                  </>
+                ) : null}
+
+                <div className="editable-field-groups" hidden={!encounterSlot}>
+                  {encounterSlot ? (
+                    <>
+                      {isZaScriptedBossTable ? (
+                        <fieldset className="editable-field-group za-scripted-boss-field-group">
+                          <legend>{t('za.encounters.bossActions.heading')}</legend>
+                          <ScriptedBossEncounterActions
+                            moveOwnership={scriptedMoveOwnership}
+                            profile={scriptedBossProfile}
+                            profiles={scriptedBosses}
+                            renderActionControl={(action: ScriptedBossAction) => {
+                              if (
+                                scriptedMoveOwnership?.authority === 'shared-primary-controller' ||
+                                action.selectorActionId === null ||
+                                !action.canEdit ||
+                                action.kind !== 'battle-move' ||
+                                action.variant === null
+                              ) {
+                                return null;
+                              }
+
+                              const entry = scriptedBossActionEditorEntries.find(
+                                (candidate) =>
+                                  candidate.action.selectorActionId === action.selectorActionId
+                              );
+                              if (!entry) {
+                                return null;
+                              }
+
+                              const selectorKey = action.selectorActionId.toString();
+                              const draftValue =
+                                scriptedBossDraftsBySelectorId[selectorKey] ??
+                                (action.moveId?.toString() ?? '');
+                              const draftState = getTrainerFieldDraftState(
+                                draftValue,
+                                action.moveId,
+                                entry.field
+                              );
+                              const selectedMoveId = Number.parseInt(draftValue, 10);
+                              const selectedCompatibility = Number.isInteger(selectedMoveId)
+                                ? entry.compatibilityByMoveId.get(selectedMoveId) ??
+                                  (selectedMoveId === action.moveId
+                                    ? {
+                                        reason: action.compatibilityReason,
+                                        state: action.compatibilityState
+                                      }
+                                    : null)
+                                : null;
+
+                              return (
+                                <div className="za-scripted-boss-action-control">
+                                  <TrainerDraftField
+                                    currentValue={action.moveId}
+                                    disabled={
+                                      !action.canEdit ||
+                                      !canEditEncounters ||
+                                      editSession === null
+                                    }
+                                    disabledReason={
+                                      !action.canEdit && action.lockReason
+                                        ? t(
+                                            `za.encounters.bossActions.lockReason.${action.lockReason}`
+                                          )
+                                        : undefined
+                                    }
+                                    draftState={draftState}
+                                    draftValue={draftValue}
+                                    emptyOptionLabel={
+                                      action.moveId === null
+                                        ? t('za.encounters.bossActions.invalidSelection')
+                                        : undefined
+                                    }
+                                    field={{
+                                      ...entry.field,
+                                      label: t('za.encounters.bossActions.replacementLabel')
+                                    }}
+                                    helpDomain="encounters"
+                                    helpGame="za"
+                                    idPrefix={`boss-action-${action.selectorActionId}`}
+                                    onChange={(value) =>
+                                      setScriptedBossDraftsBySelectorId((currentDrafts) => {
+                                        if (value.trim() === (action.moveId?.toString() ?? '')) {
+                                          return Object.fromEntries(
+                                            Object.entries(currentDrafts).filter(
+                                              ([candidateSelectorId]) =>
+                                                candidateSelectorId !== selectorKey
+                                            )
+                                          );
+                                        }
+
+                                        return { ...currentDrafts, [selectorKey]: value };
+                                      })
+                                    }
+                                  />
+                                  {selectedCompatibility ? (
+                                    <div
+                                      className={`za-scripted-boss-selection-compatibility is-${selectedCompatibility.state}`}
+                                      role="note"
+                                    >
+                                      <strong>
+                                        {t(
+                                          `za.encounters.bossActions.compatibility.${selectedCompatibility.state}.label`
+                                        )}
+                                      </strong>
+                                      <span>
+                                        {t(
+                                          selectedCompatibility.reason
+                                            ? `za.encounters.bossActions.compatibility.reason.${selectedCompatibility.reason}`
+                                            : `za.encounters.bossActions.compatibility.${selectedCompatibility.state}.help`
+                                        )}
+                                      </span>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              );
+                            }}
+                          />
+                        </fieldset>
+                      ) : null}
+                      {encounterFieldSections.map(({ key, heading, help, groups }) => (
+                        <section className="wild-encounter-field-section" key={key} aria-label={heading}>
+                          {heading && key === 'shared' ? (
+                            <div className="editable-field-label-row wild-encounter-scope-heading">
+                              <h5>{heading}</h5>
+                              {help ? <ContextHelp label={heading}>{help}</ContextHelp> : null}
+                            </div>
+                          ) : null}
+                          <div className="wild-encounter-field-grid">
+                            {groups.map((group) => (
+                              <fieldset
+                                className={`editable-field-group ${
+                                  isZaEncounterTable &&
+                                  (group.group === 'IVs' ||
+                                    group.group === 'Moves' ||
+                                    group.group === 'Strength Multipliers')
+                                    ? 'za-encounter-field-group-wide'
+                                    : ''
+                                }`}
+                                key={group.group}
+                              >
+                                <legend>
+                                  {group.group === 'Spawner Slot'
+                                    ? isZaEncounterTable ? t('za.spawnSettings.slotGroup') : translateLiteral('Lot weight')
+                                    : group.group === 'Spawner Population'
+                                      ? t('za.spawnSettings.populationGroup')
+                                      : group.group === 'Strength Multipliers'
+                                        ? t('za.encounters.strengthen.heading')
+                                      : translateLiteral(group.group)}
+                                  {key === 'slot' && heading && help ? <ContextHelp label={heading}>{help}</ContextHelp> : null}
+                                </legend>
+                                <div className="editable-field-grid">
+                                  {group.fields.map((field) => {
+                                    const currentValue = getEditableEncounterFieldValue(
+                                      encounterSlot,
+                                      field.field
+                                    );
+                                    const draftValue = selectedPlacementDrafts[field.field] ?? '';
+                                    const draftState = getTrainerFieldDraftState(
+                                      draftValue,
+                                      currentValue,
+                                      field
+                                    );
+
+                                    return (
+                                      <TrainerDraftField
+                                        currentValue={currentValue}
+                                        disabled={
+                                          !canEditEncounters ||
+                                          editSession === null ||
+                                          pendingEncounterPasteTargetTableId === table.tableId
+                                        }
+                                        disabledReason={
+                                          field.field === zaEncounterAlphaChanceFieldName
+                                            ? alphaChanceDisabledReason
+                                            : field.field === zaEncounterAlphaLevelBonusFieldName
+                                              ? alphaLevelBonusDisabledReason
+                                              : field.field === zaEncounterWeightFieldName
+                                                ? weightDisabledReason
+                                                : field.field === zaEncounterSlotMaxCountFieldName
+                                                  ? slotMaxCountDisabledReason
+                                                  : zaEncounterAppearanceFieldNames.has(field.field)
+                                                    ? appearanceCountDisabledReason
+                                                    : editorFamily === 'za'
+                                                      ? getPokemonInstanceIvStatDisabledReason(
+                                                          field.field,
+                                                          encounterFields,
+                                                          selectedPlacementDrafts
+                                                        ) ?? undefined
+                                                      : undefined
+                                        }
+                                        draftState={draftState}
+                                        draftValue={draftValue}
+                                        field={field}
+                                        formOptionContext={encounterFormOptionContext}
+                                        helpDomain="encounters"
+                                        helpGame={editorFamily}
+                                        idPrefix="encounter-field"
+                                        key={field.field}
+                                        onChange={(value) => {
+                                          if (!encounterDraftKey) {
+                                            return;
+                                          }
+
+                                          if (
+                                            encounterLevelDraftKey &&
+                                            encounterLevelFieldNames.includes(field.field)
+                                          ) {
+                                            const currentLevelDrafts =
+                                              levelDraftsByScopeKey[encounterLevelDraftKey] ??
+                                              encounterLevelDraftDefaults;
+                                            setLevelDraftsByScopeKey((currentDrafts) =>
+                                              setFieldDraftRecord(
+                                                currentDrafts,
+                                                encounterLevelDraftKey,
+                                                { ...currentLevelDrafts, [field.field]: value },
+                                                encounterLevelDraftDefaults
+                                              )
+                                            );
+                                            return;
+                                          }
+
+                                          if (
+                                            zaEncounterSlotDraftKey &&
+                                            zaEncounterSlotSpecificFieldNames.has(field.field)
+                                          ) {
+                                            setZaSlotDraftsBySlotKey((currentDrafts) =>
+                                              setFieldDraftRecord(
+                                                currentDrafts,
+                                                zaEncounterSlotDraftKey,
+                                                { ...zaSlotDrafts, [field.field]: value },
+                                                zaEncounterSlotDraftDefaults
+                                              )
+                                            );
+                                            return;
+                                          }
+
+                                          if (
+                                            zaEncounterAppearanceDraftKey &&
+                                            zaEncounterAppearanceFieldNames.has(field.field)
+                                          ) {
+                                            setZaAppearanceDraftsByTableId((currentDrafts) =>
+                                              setFieldDraftRecord(
+                                                currentDrafts,
+                                                zaEncounterAppearanceDraftKey,
+                                                { ...zaAppearanceDrafts, [field.field]: value },
+                                                zaEncounterAppearanceDraftDefaults
+                                              )
+                                            );
+                                            return;
+                                          }
+
+                                          const nextSlotDrafts = {
+                                            ...slotDrafts,
+                                            [field.field]: value
+                                          };
+                                          if (field.field === encounterSpeciesFieldName) {
+                                            const speciesField = defaultEncounterFields.find(
+                                              (candidate) =>
+                                                candidate.field === encounterSpeciesFieldName
+                                            );
+                                            const formField = defaultEncounterFields.find(
+                                              (candidate) => candidate.field === encounterFormFieldName
+                                            );
+                                            const previousSpeciesId =
+                                              parseEditableIntegerDraft(
+                                                slotDrafts[encounterSpeciesFieldName] ??
+                                                  encounterSlot.speciesId.toString(),
+                                                speciesField?.options
+                                              );
+                                            const targetSpeciesId = parseEditableIntegerDraft(
+                                              value,
+                                              speciesField?.options
+                                            );
+                                            const previousForm =
+                                              parseOptionalInteger(
+                                                slotDrafts[encounterFormFieldName] ??
+                                                  encounterSlot.form.toString()
+                                              ) ?? encounterSlot.form;
+
+                                            if (
+                                              formField &&
+                                              targetSpeciesId !== null &&
+                                              targetSpeciesId !== previousSpeciesId
+                                            ) {
+                                              const resolvedForm = resolveSpeciesChangeForm({
+                                                gameFamily: editorFamily,
+                                                pokemonRecords: pokemonWorkflow?.pokemon,
+                                                previousForm,
+                                                sourceForm: encounterSlot.form,
+                                                sourceSpeciesId: encounterSlot.speciesId,
+                                                speciesField,
+                                                targetSpeciesId
+                                              });
+                                              if (resolvedForm !== null) {
+                                                nextSlotDrafts[encounterFormFieldName] =
+                                                  resolvedForm.toString();
+                                              }
+                                            }
+                                          }
+
+                                          setDraftsBySlotKey((currentDrafts) =>
+                                            setFieldDraftRecord(
+                                              currentDrafts,
+                                              encounterDraftKey,
+                                              nextSlotDrafts,
+                                              encounterSlotDraftDefaults
+                                            )
+                                          );
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                                {group.group === 'Spawner Slot' && isZaEncounterTable ? (
+                                  <div className="field-group-action-row za-spawner-field-note">
+                                    <small className="editable-field-status">
+                                      {t('za.spawnSettings.slotHelp')}
+                                    </small>
+                                  </div>
+                                ) : null}
+                                {group.group === 'Spawner Population' && isZaEncounterTable ? (
+                                  <div className="field-group-action-row za-spawner-field-note">
+                                    <small className="editable-field-status">
+                                      {encounterSlot &&
+                                      (encounterSlot.appearanceObjectCount ?? 0) > 1
+                                        ? t('za.spawnSettings.populationHelp.many', {
+                                            count: encounterSlot.appearanceObjectCount ?? 0
+                                          })
+                                        : t('za.spawnSettings.populationHelp.one')}
+                                    </small>
+                                    {hasInvalidZaAppearanceCountPair ? (
+                                      <small className="editable-field-error">
+                                        {t('za.spawnSettings.minExceedsMaxError')}
+                                      </small>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                                {group.group === 'Levels' ? (
+                                  <div className="field-group-action-row">
+                                    {isSwShEncounterTable ? (
+                                      <small className="editable-field-status">
+                                        Levels are stored per encounter condition. Stage edits for this
+                                        condition, or apply them to every available condition below.
+                                      </small>
+                                    ) : null}
+                                    {hasInvalidEncounterLevelPair ? (
+                                      <small className="editable-field-error">
+                                        Minimum level cannot be higher than maximum level.
+                                      </small>
+                                    ) : null}
+                                    {isSwShEncounterTable || isZaEncounterTable ? (
+                                      <button
+                                        aria-busy={isEncounterUpdating || undefined}
+                                        className="secondary-button"
+                                        disabled={!canApplyEncounterLevelsToScope}
+                                        onClick={async () => {
+                                        if (!table || !encounterSlot || !encounterDraftKey) {
+                                          return;
+                                        }
+
+                                        const submittedLevelDrafts = Object.fromEntries(
+                                          [...encounterLevelScopeDraftKeys].flatMap((scopeKey) => {
+                                            const submittedDraft = levelDraftsByScopeKey[scopeKey];
+                                            return submittedDraft
+                                              ? [[scopeKey, { ...submittedDraft }] as const]
+                                              : [];
+                                          })
+                                        );
+                                        const submittedSlotLevelFields = Object.fromEntries(
+                                          encounterLevelFieldNames.flatMap((field) =>
+                                            Object.prototype.hasOwnProperty.call(slotDrafts, field)
+                                              ? [[field, slotDrafts[field]!] as const]
+                                              : []
+                                          )
+                                        );
+                                        const didSave =
+                                          isSwShEncounterTable || isZaEncounterTable
+                                            ? await onUpdateEncounterSlotUpdates(
+                                                encounterLevelScopeUpdates
+                                              )
+                                            : await onUpdateEncounterSlotFields(
+                                                table.tableId,
+                                                encounterSlot.slot,
+                                                encounterLevelChanges
+                                              );
+                                        if (didSave) {
+                                          if (encounterLevelDraftKey) {
+                                            setLevelDraftsByScopeKey((currentDrafts) => {
+                                              let nextDrafts = currentDrafts;
+                                              for (const [scopeKey, submittedDraft] of Object.entries(
+                                                submittedLevelDrafts
+                                              )) {
+                                                nextDrafts = clearSubmittedKeyedEditorDraft(
+                                                  nextDrafts,
+                                                  scopeKey,
+                                                  submittedDraft,
+                                                  areFieldDraftsEqual
+                                                );
+                                              }
+                                              return nextDrafts;
+                                            });
+                                          } else {
+                                            setDraftsBySlotKey((currentDrafts) =>
+                                              updateSparseFieldDraftRecordAfterStage(
+                                                currentDrafts,
+                                                encounterDraftKey,
+                                                submittedSlotLevelFields
+                                              )
+                                            );
+                                          }
+                                        }
+                                        }}
+                                        title={
+                                          isSwShEncounterTable
+                                            ? 'Apply these level changes to every available condition in the current encounter table.'
+                                            : "Apply this slot's level changes to every editable table in the current zone."
+                                        }
+                                        type="button"
+                                      >
+                                        <BusyActionContent
+                                          busyLabel="Applying"
+                                          icon={null}
+                                          isBusy={isEncounterUpdating}
+                                          label={
+                                            isSwShEncounterTable
+                                              ? 'Apply to All Conditions'
+                                              : 'Apply to Entire Zone'
+                                          }
+                                        />
+                                      </button>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                                {group.group === 'Moves' && isZaEncounterTable ? (
+                                  <div className="field-group-action-row za-spawner-field-note">
+                                    <small className="editable-field-status">
+                                      {encounterSlot.hasExplicitMoves
+                                        ? t('za.encounters.movesExplicitHelp')
+                                        : t('za.encounters.movesAutomaticHelp')}
+                                    </small>
+                                  </div>
+                                ) : null}
+                                {group.group === 'IVs' && isZaEncounterTable ? (
+                                  <div className="field-group-action-row za-spawner-field-note">
+                                    <small className="editable-field-status">
+                                      {t('za.encounters.ivHelp')}
+                                    </small>
+                                  </div>
+                                ) : null}
+                                {group.group === 'Strength Multipliers' && isZaEncounterTable ? (
+                                  <div className="field-group-action-row za-spawner-field-note">
+                                    <small className="editable-field-status">
+                                      {t('za.encounters.strengthen.help')}
+                                    </small>
+                                  </div>
+                                ) : null}
+                                {group.group === 'Shared Alpha Settings' &&
+                                isZaEncounterTable &&
+                                (zaAlphaChanceDisplay ||
+                                  zaAlphaLevelBonusDisplay ||
+                                  zaAlphaLevelRangeDisplay) ? (
+                                  <div className="field-group-action-row za-spawner-field-note">
+                                    {zaAlphaChanceDisplay ? (
+                                      <small className="editable-field-status">
+                                        {t('za.alphaSettings.chanceLabel')}: {zaAlphaChanceDisplay}
+                                      </small>
+                                    ) : null}
+                                    {zaAlphaLevelBonusDisplay ? (
+                                      <small className="editable-field-status">
+                                        {t('za.alphaSettings.levelBonusLabel')}: {zaAlphaLevelBonusDisplay}
+                                      </small>
+                                    ) : null}
+                                    {zaAlphaLevelRangeDisplay ? (
+                                      <small className="editable-field-status">
+                                        {t('za.alphaSettings.levelRangeLabel')}: {zaAlphaLevelRangeDisplay}
+                                      </small>
+                                    ) : null}
+                                  </div>
+                                ) : null}
+                              </fieldset>
+                            ))}
+                          </div>
+                        </section>
+                      ))}
+                    </>
+                  ) : null}
+                </div>
+
+                {editorFamily === 'swsh' ? (
+                  <div className="wild-encounter-held-items" hidden={!encounterSlot}>
+                    <WildHeldItems
+                      key={editSession?.sessionId ?? 'viewing'}
+                      workflow={pokemonWorkflow}
+                      chances={heldItemChanceWorkflow}
+                      session={editSession}
+                      speciesId={encounterSlot?.speciesId ?? null}
+                      form={encounterSlot?.form ?? null}
+                      recordId={encounterSlot ? `${table.tableId}#${encounterSlot.slot}` : null}
+                      onDirtyStateChange={setWildHeldItemsDirty}
+                    />
                   </div>
                 ) : null}
 
-                {isZaEncounterTable && table.playerPartner ? (
-                  <ZaEncounterPlayerPartnerEditor
-                    canEditEncounters={canEditEncounters}
-                    draftsByKey={playerPartnerDraftsByKey}
-                    editSession={editSession}
-                    isEditStarting={isEditStarting}
-                    isEncounterUpdating={isEncounterUpdating}
-                    onDraftsByKeyChange={setPlayerPartnerDraftsByKey}
-                    onStageVanilla={onStageEncounterVanilla}
-                    partner={table.playerPartner}
-                    pokemonWorkflow={pokemonWorkflow}
-                    tableId={table.tableId}
-                  />
-                ) : null}
-              </>
-            ) : null}
-
-            <div className="editable-field-groups" hidden={!encounterSlot}>
-              {encounterSlot ? (
-                <>
-                  {isZaScriptedBossTable ? (
-                    <fieldset className="editable-field-group za-scripted-boss-field-group">
-                      <legend>{t('za.encounters.bossActions.heading')}</legend>
-                      <ScriptedBossEncounterActions
-                        moveOwnership={scriptedMoveOwnership}
-                        profile={scriptedBossProfile}
-                        profiles={scriptedBosses}
-                        renderActionControl={(action: ScriptedBossAction) => {
-                          if (
-                            scriptedMoveOwnership?.authority === 'shared-primary-controller' ||
-                            action.selectorActionId === null ||
-                            !action.canEdit ||
-                            action.kind !== 'battle-move' ||
-                            action.variant === null
-                          ) {
-                            return null;
-                          }
-
-                          const entry = scriptedBossActionEditorEntries.find(
-                            (candidate) =>
-                              candidate.action.selectorActionId === action.selectorActionId
-                          );
-                          if (!entry) {
-                            return null;
-                          }
-
-                          const selectorKey = action.selectorActionId.toString();
-                          const draftValue =
-                            scriptedBossDraftsBySelectorId[selectorKey] ??
-                            (action.moveId?.toString() ?? '');
-                          const draftState = getTrainerFieldDraftState(
-                            draftValue,
-                            action.moveId,
-                            entry.field
-                          );
-                          const selectedMoveId = Number.parseInt(draftValue, 10);
-                          const selectedCompatibility = Number.isInteger(selectedMoveId)
-                            ? entry.compatibilityByMoveId.get(selectedMoveId) ??
-                              (selectedMoveId === action.moveId
-                                ? {
-                                    reason: action.compatibilityReason,
-                                    state: action.compatibilityState
-                                  }
-                                : null)
-                            : null;
-
-                          return (
-                            <div className="za-scripted-boss-action-control">
-                              <TrainerDraftField
-                                currentValue={action.moveId}
-                                disabled={
-                                  !action.canEdit ||
-                                  !canEditEncounters ||
-                                  editSession === null
-                                }
-                                disabledReason={
-                                  !action.canEdit && action.lockReason
-                                    ? t(
-                                        `za.encounters.bossActions.lockReason.${action.lockReason}`
-                                      )
-                                    : undefined
-                                }
-                                draftState={draftState}
-                                draftValue={draftValue}
-                                emptyOptionLabel={
-                                  action.moveId === null
-                                    ? t('za.encounters.bossActions.invalidSelection')
-                                    : undefined
-                                }
-                                field={{
-                                  ...entry.field,
-                                  label: t('za.encounters.bossActions.replacementLabel')
-                                }}
-                                helpDomain="encounters"
-                                helpGame="za"
-                                idPrefix={`boss-action-${action.selectorActionId}`}
-                                onChange={(value) =>
-                                  setScriptedBossDraftsBySelectorId((currentDrafts) => {
-                                    if (value.trim() === (action.moveId?.toString() ?? '')) {
-                                      return Object.fromEntries(
-                                        Object.entries(currentDrafts).filter(
-                                          ([candidateSelectorId]) =>
-                                            candidateSelectorId !== selectorKey
-                                        )
-                                      );
-                                    }
-
-                                    return { ...currentDrafts, [selectorKey]: value };
-                                  })
-                                }
-                              />
-                              {selectedCompatibility ? (
-                                <div
-                                  className={`za-scripted-boss-selection-compatibility is-${selectedCompatibility.state}`}
-                                  role="note"
-                                >
-                                  <strong>
-                                    {t(
-                                      `za.encounters.bossActions.compatibility.${selectedCompatibility.state}.label`
-                                    )}
-                                  </strong>
-                                  <span>
-                                    {t(
-                                      selectedCompatibility.reason
-                                        ? `za.encounters.bossActions.compatibility.reason.${selectedCompatibility.reason}`
-                                        : `za.encounters.bossActions.compatibility.${selectedCompatibility.state}.help`
-                                    )}
-                                  </span>
-                                </div>
-                              ) : null}
+                {encounterSlot ? (
+                  <>
+                    {isZaEncounterTable ? (
+                      <details className="wild-encounter-disclosure">
+                        <summary>{translateLiteral('Technical')}</summary>
+                        <section
+                          aria-label={t('za.encounters.advanced.ariaLabel')}
+                          className="za-encounter-advanced-data"
+                        >
+                          <div className="za-encounter-advanced-heading">
+                            <div>
+                              <h4>{t('za.encounters.advanced.heading')}</h4>
+                              <p>{t('za.encounters.advanced.help')}</p>
                             </div>
-                          );
-                        }}
-                      />
-                    </fieldset>
-                  ) : null}
-                  {encounterFieldGroups.map((group) => (
-                    <fieldset
-                      className={`editable-field-group ${
-                        isZaEncounterTable &&
-                        (group.group === 'IVs' ||
-                          group.group === 'Moves' ||
-                          group.group === 'Strength Multipliers')
-                          ? 'za-encounter-field-group-wide'
-                          : ''
-                      }`}
-                      key={group.group}
-                    >
-                      <legend>
-                        {group.group === 'Spawner Slot'
-                          ? t('za.spawnSettings.slotGroup')
-                          : group.group === 'Spawner Population'
-                            ? t('za.spawnSettings.populationGroup')
-                            : group.group === 'Strength Multipliers'
-                              ? t('za.encounters.strengthen.heading')
-                            : translateLiteral(group.group)}
-                      </legend>
-                      <div className="editable-field-grid">
-                        {group.fields.map((field) => {
-                          const currentValue = getEditableEncounterFieldValue(
-                            encounterSlot,
-                            field.field
-                          );
-                          const draftValue = selectedPlacementDrafts[field.field] ?? '';
-                          const draftState = getTrainerFieldDraftState(
-                            draftValue,
-                            currentValue,
-                            field
-                          );
+                            <span>{t('za.encounters.advanced.readOnly')}</span>
+                          </div>
+                          <dl className="za-encounter-advanced-grid">
+                            <div>
+                              <dt>{t('za.encounters.advanced.talentScale')}</dt>
+                              <dd>
+                                {formatOptionalEncounterRawValue(
+                                  encounterSlot.talentScale,
+                                  t('za.encounters.advanced.unavailable')
+                                )}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>{t('za.encounters.advanced.talentVCount')}</dt>
+                              <dd>
+                                {formatOptionalEncounterRawValue(
+                                  encounterSlot.talentVCount,
+                                  t('za.encounters.advanced.unavailable')
+                                )}
+                              </dd>
+                            </div>
+                            {encounterSlot.canEditStrengthenValues !== true ? (
+                              <div>
+                                <dt>{t('za.encounters.advanced.strengthenValues')}</dt>
+                                <dd>
+                                  {encounterSlot.strengthenValueSummary ??
+                                    t('za.encounters.advanced.notPresent')}
+                                </dd>
+                              </div>
+                            ) : null}
+                            {!isZaScriptedBossTable ? (
+                              <div>
+                                <dt>{t('za.encounters.advanced.moveStorage')}</dt>
+                                <dd>
+                                  {encounterSlot.hasExplicitMoves
+                                    ? t('za.encounters.advanced.explicitMoves')
+                                    : t('za.encounters.advanced.automaticMoves')}
+                                </dd>
+                              </div>
+                            ) : null}
+                            <div className="za-encounter-advanced-wide">
+                              <dt>{t('za.encounters.advanced.sharedConditions')}</dt>
+                              <dd>
+                                {formatEncounterReadOnlyList(
+                                  encounterSlot.encounterActivationConditions,
+                                  t('za.encounters.advanced.none')
+                                )}
+                              </dd>
+                            </div>
+                            <div className="za-encounter-advanced-wide">
+                              <dt>{t('za.encounters.advanced.itemDrops')}</dt>
+                              <dd>
+                                {formatEncounterReadOnlyList(
+                                  encounterSlot.itemDropSummaries,
+                                  t('za.encounters.advanced.none')
+                                )}
+                              </dd>
+                            </div>
+                          </dl>
+                        </section>
+                      </details>
+                    ) : null}
+                    {!isSvEncounterTable && !isZaEncounterTable ? (
+                      <div className="draft-action-row">
+                        <button
+                          aria-busy={isEncounterUpdating || undefined}
+                          className="danger-button"
+                          disabled={!canClearEncounterSlot}
+                          onClick={async () => {
+                            if (!table || !encounterSlot || !encounterDraftKey) {
+                              return;
+                            }
 
-                          return (
-                            <TrainerDraftField
-                              currentValue={currentValue}
-                              disabled={
-                                !canEditEncounters ||
-                                editSession === null ||
-                                pendingEncounterPasteTargetTableId === table.tableId
-                              }
-                              disabledReason={
-                                field.field === zaEncounterAlphaChanceFieldName
-                                  ? alphaChanceDisabledReason
-                                  : field.field === zaEncounterAlphaLevelBonusFieldName
-                                    ? alphaLevelBonusDisabledReason
-                                    : field.field === zaEncounterWeightFieldName
-                                      ? weightDisabledReason
-                                      : field.field === zaEncounterSlotMaxCountFieldName
-                                        ? slotMaxCountDisabledReason
-                                        : zaEncounterAppearanceFieldNames.has(field.field)
-                                          ? appearanceCountDisabledReason
-                                          : editorFamily === 'za'
-                                            ? getPokemonInstanceIvStatDisabledReason(
-                                                field.field,
-                                                encounterFields,
-                                                selectedPlacementDrafts
-                                              ) ?? undefined
-                                            : undefined
-                              }
-                              draftState={draftState}
-                              draftValue={draftValue}
-                              field={field}
-                              formOptionContext={encounterFormOptionContext}
-                              helpDomain="encounters"
-                              helpGame={editorFamily}
-                              idPrefix="encounter-field"
-                              key={field.field}
-                              onChange={(value) => {
-                                if (!encounterDraftKey) {
-                                  return;
-                                }
-
-                                if (
-                                  encounterLevelDraftKey &&
-                                  encounterLevelFieldNames.includes(field.field)
-                                ) {
-                                  const currentLevelDrafts =
-                                    levelDraftsByScopeKey[encounterLevelDraftKey] ??
-                                    encounterLevelDraftDefaults;
-                                  setLevelDraftsByScopeKey((currentDrafts) =>
-                                    setFieldDraftRecord(
-                                      currentDrafts,
-                                      encounterLevelDraftKey,
-                                      { ...currentLevelDrafts, [field.field]: value },
-                                      encounterLevelDraftDefaults
-                                    )
-                                  );
-                                  return;
-                                }
-
-                                if (
-                                  zaEncounterSlotDraftKey &&
-                                  zaEncounterSlotSpecificFieldNames.has(field.field)
-                                ) {
-                                  setZaSlotDraftsBySlotKey((currentDrafts) =>
-                                    setFieldDraftRecord(
-                                      currentDrafts,
-                                      zaEncounterSlotDraftKey,
-                                      { ...zaSlotDrafts, [field.field]: value },
-                                      zaEncounterSlotDraftDefaults
-                                    )
-                                  );
-                                  return;
-                                }
-
-                                if (
-                                  zaEncounterAppearanceDraftKey &&
-                                  zaEncounterAppearanceFieldNames.has(field.field)
-                                ) {
-                                  setZaAppearanceDraftsByTableId((currentDrafts) =>
-                                    setFieldDraftRecord(
-                                      currentDrafts,
-                                      zaEncounterAppearanceDraftKey,
-                                      { ...zaAppearanceDrafts, [field.field]: value },
-                                      zaEncounterAppearanceDraftDefaults
-                                    )
-                                  );
-                                  return;
-                                }
-
-                                const nextSlotDrafts = {
-                                  ...slotDrafts,
-                                  [field.field]: value
-                                };
-                                if (field.field === encounterSpeciesFieldName) {
-                                  const speciesField = defaultEncounterFields.find(
-                                    (candidate) =>
-                                      candidate.field === encounterSpeciesFieldName
-                                  );
-                                  const formField = defaultEncounterFields.find(
-                                    (candidate) => candidate.field === encounterFormFieldName
-                                  );
-                                  const previousSpeciesId =
-                                    parseEditableIntegerDraft(
-                                      slotDrafts[encounterSpeciesFieldName] ??
-                                        encounterSlot.speciesId.toString(),
-                                      speciesField?.options
-                                    );
-                                  const targetSpeciesId = parseEditableIntegerDraft(
-                                    value,
-                                    speciesField?.options
-                                  );
-                                  const previousForm =
-                                    parseOptionalInteger(
-                                      slotDrafts[encounterFormFieldName] ??
-                                        encounterSlot.form.toString()
-                                    ) ?? encounterSlot.form;
-
-                                  if (
-                                    formField &&
-                                    targetSpeciesId !== null &&
-                                    targetSpeciesId !== previousSpeciesId
-                                  ) {
-                                    const resolvedForm = resolveSpeciesChangeForm({
-                                      gameFamily: editorFamily,
-                                      pokemonRecords: pokemonWorkflow?.pokemon,
-                                      previousForm,
-                                      sourceForm: encounterSlot.form,
-                                      sourceSpeciesId: encounterSlot.speciesId,
-                                      speciesField,
-                                      targetSpeciesId
-                                    });
-                                    if (resolvedForm !== null) {
-                                      nextSlotDrafts[encounterFormFieldName] =
-                                        resolvedForm.toString();
-                                    }
-                                  }
-                                }
-
-                                setDraftsBySlotKey((currentDrafts) =>
-                                  setFieldDraftRecord(
-                                    currentDrafts,
-                                    encounterDraftKey,
-                                    nextSlotDrafts,
-                                    encounterSlotDraftDefaults
-                                  )
-                                );
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                      {group.group === 'Spawner Slot' && isZaEncounterTable ? (
-                        <div className="field-group-action-row za-spawner-field-note">
-                          <small className="editable-field-status">
-                            {t('za.spawnSettings.slotHelp')}
-                          </small>
-                        </div>
-                      ) : null}
-                      {group.group === 'Spawner Population' && isZaEncounterTable ? (
-                        <div className="field-group-action-row za-spawner-field-note">
-                          <small className="editable-field-status">
-                            {encounterSlot &&
-                            (encounterSlot.appearanceObjectCount ?? 0) > 1
-                              ? t('za.spawnSettings.populationHelp.many', {
-                                  count: encounterSlot.appearanceObjectCount ?? 0
-                                })
-                              : t('za.spawnSettings.populationHelp.one')}
-                          </small>
-                          {hasInvalidZaAppearanceCountPair ? (
-                            <small className="editable-field-error">
-                              {t('za.spawnSettings.minExceedsMaxError')}
-                            </small>
-                          ) : null}
-                        </div>
-                      ) : null}
-                      {group.group === 'Levels' ? (
-                        <div className="field-group-action-row">
-                          {isSwShEncounterTable ? (
-                            <small className="editable-field-status">
-                              Levels are stored per encounter condition. Stage edits for this
-                              condition, or apply them to every available condition below.
-                            </small>
-                          ) : null}
-                          {hasInvalidEncounterLevelPair ? (
-                            <small className="editable-field-error">
-                              Minimum level cannot be higher than maximum level.
-                            </small>
-                          ) : null}
-                          {isSwShEncounterTable || isZaEncounterTable ? (
-                            <button
-                              aria-busy={isEncounterUpdating || undefined}
-                              className="secondary-button"
-                              disabled={!canApplyEncounterLevelsToScope}
-                              onClick={async () => {
-                              if (!table || !encounterSlot || !encounterDraftKey) {
-                                return;
-                              }
-
-                              const submittedLevelDrafts = Object.fromEntries(
-                                [...encounterLevelScopeDraftKeys].flatMap((scopeKey) => {
-                                  const submittedDraft = levelDraftsByScopeKey[scopeKey];
-                                  return submittedDraft
-                                    ? [[scopeKey, { ...submittedDraft }] as const]
-                                    : [];
-                                })
-                              );
-                              const submittedSlotLevelFields = Object.fromEntries(
-                                encounterLevelFieldNames.flatMap((field) =>
-                                  Object.prototype.hasOwnProperty.call(slotDrafts, field)
-                                    ? [[field, slotDrafts[field]!] as const]
-                                    : []
+                            const submittedClearFields = Object.fromEntries(
+                              encounterClearFieldNames.flatMap((field) =>
+                                Object.prototype.hasOwnProperty.call(slotDrafts, field)
+                                  ? [[field, slotDrafts[field]!] as const]
+                                  : []
+                              )
+                            );
+                            const didSave = await onUpdateEncounterSlotFields(
+                              table.tableId,
+                              encounterSlot.slot,
+                              [
+                                { field: encounterSpeciesFieldName, value: '0' },
+                                { field: encounterFormFieldName, value: '0' },
+                                { field: encounterProbabilityFieldName, value: '0' }
+                              ]
+                            );
+                            if (didSave) {
+                              setDraftsBySlotKey((currentDrafts) =>
+                                updateSparseFieldDraftRecordAfterStage(
+                                  currentDrafts,
+                                  encounterDraftKey,
+                                  submittedClearFields
                                 )
                               );
-                              const didSave =
-                                isSwShEncounterTable || isZaEncounterTable
-                                  ? await onUpdateEncounterSlotUpdates(
-                                      encounterLevelScopeUpdates
-                                    )
-                                  : await onUpdateEncounterSlotFields(
-                                      table.tableId,
-                                      encounterSlot.slot,
-                                      encounterLevelChanges
-                                    );
-                              if (didSave) {
-                                if (encounterLevelDraftKey) {
-                                  setLevelDraftsByScopeKey((currentDrafts) => {
-                                    let nextDrafts = currentDrafts;
-                                    for (const [scopeKey, submittedDraft] of Object.entries(
-                                      submittedLevelDrafts
-                                    )) {
-                                      nextDrafts = clearSubmittedKeyedEditorDraft(
-                                        nextDrafts,
-                                        scopeKey,
-                                        submittedDraft,
-                                        areFieldDraftsEqual
-                                      );
-                                    }
-                                    return nextDrafts;
-                                  });
-                                } else {
-                                  setDraftsBySlotKey((currentDrafts) =>
-                                    updateSparseFieldDraftRecordAfterStage(
-                                      currentDrafts,
-                                      encounterDraftKey,
-                                      submittedSlotLevelFields
-                                    )
-                                  );
-                                }
-                              }
-                              }}
-                              title={
-                                isSwShEncounterTable
-                                  ? 'Apply these level changes to every available condition in the current encounter table.'
-                                  : "Apply this slot's level changes to every editable table in the current zone."
-                              }
-                              type="button"
-                            >
-                              <BusyActionContent
-                                busyLabel="Applying"
-                                icon={null}
-                                isBusy={isEncounterUpdating}
-                                label={
-                                  isSwShEncounterTable
-                                    ? 'Apply to All Conditions'
-                                    : 'Apply to Entire Zone'
-                                }
-                              />
-                            </button>
-                          ) : null}
+                            }
+                          }}
+                          title="Set this SwSh encounter slot to Empty at 0% probability."
+                          type="button"
+                        >
+                          <BusyActionContent
+                            busyLabel="Clearing"
+                            icon={<Trash2 aria-hidden="true" size={16} />}
+                            isBusy={isEncounterUpdating}
+                            label="Clear Slot"
+                          />
+                        </button>
+                      </div>
+                    ) : null}
+                    {isZaEncounterTable && zaSpawnerCountWarnings.length > 0 ? (
+                      <div
+                        aria-label={t('za.spawnSettings.warningHeading')}
+                        className="za-spawner-count-warnings"
+                        role="status"
+                      >
+                        <AlertTriangle aria-hidden="true" size={16} />
+                        <div>
+                          <strong>{t('za.spawnSettings.warningHeading')}</strong>
+                          {zaSpawnerCountWarnings.map((warning) => (
+                            <small key={warning}>{warning}</small>
+                          ))}
                         </div>
-                      ) : null}
-                      {group.group === 'Moves' && isZaEncounterTable ? (
-                        <div className="field-group-action-row za-spawner-field-note">
-                          <small className="editable-field-status">
-                            {encounterSlot.hasExplicitMoves
-                              ? t('za.encounters.movesExplicitHelp')
-                              : t('za.encounters.movesAutomaticHelp')}
-                          </small>
-                        </div>
-                      ) : null}
-                      {group.group === 'IVs' && isZaEncounterTable ? (
-                        <div className="field-group-action-row za-spawner-field-note">
-                          <small className="editable-field-status">
-                            {t('za.encounters.ivHelp')}
-                          </small>
-                        </div>
-                      ) : null}
-                      {group.group === 'Strength Multipliers' && isZaEncounterTable ? (
-                        <div className="field-group-action-row za-spawner-field-note">
-                          <small className="editable-field-status">
-                            {t('za.encounters.strengthen.help')}
-                          </small>
-                        </div>
-                      ) : null}
-                      {group.group === 'Shared Alpha Settings' &&
-                      isZaEncounterTable &&
-                      (zaAlphaChanceDisplay ||
-                        zaAlphaLevelBonusDisplay ||
-                        zaAlphaLevelRangeDisplay) ? (
-                        <div className="field-group-action-row za-spawner-field-note">
-                          {zaAlphaChanceDisplay ? (
-                            <small className="editable-field-status">
-                              {t('za.alphaSettings.chanceLabel')}: {zaAlphaChanceDisplay}
-                            </small>
-                          ) : null}
-                          {zaAlphaLevelBonusDisplay ? (
-                            <small className="editable-field-status">
-                              {t('za.alphaSettings.levelBonusLabel')}: {zaAlphaLevelBonusDisplay}
-                            </small>
-                          ) : null}
-                          {zaAlphaLevelRangeDisplay ? (
-                            <small className="editable-field-status">
-                              {t('za.alphaSettings.levelRangeLabel')}: {zaAlphaLevelRangeDisplay}
-                            </small>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </fieldset>
-                  ))}
-                </>
-              ) : null}
-              {editorFamily === 'swsh' ? (
-                <WildHeldItems
-                  key={editSession?.sessionId ?? 'viewing'}
-                  workflow={pokemonWorkflow}
-                  chances={heldItemChanceWorkflow}
-                  session={editSession}
-                  speciesId={encounterSlot?.speciesId ?? null}
-                  form={encounterSlot?.form ?? null}
-                  recordId={encounterSlot ? `${table.tableId}#${encounterSlot.slot}` : null}
-                  onDirtyStateChange={setWildHeldItemsDirty}
-                />
-              ) : null}
-            </div>
+                      </div>
+                    ) : null}
 
-            {encounterSlot ? (
-              <>
-                {isZaEncounterTable ? (
-                  <section
-                    aria-label={t('za.encounters.advanced.ariaLabel')}
-                    className="za-encounter-advanced-data"
-                  >
-                    <div className="za-encounter-advanced-heading">
-                      <div>
-                        <h4>{t('za.encounters.advanced.heading')}</h4>
-                        <p>{t('za.encounters.advanced.help')}</p>
-                      </div>
-                      <span>{t('za.encounters.advanced.readOnly')}</span>
-                    </div>
-                    <dl className="za-encounter-advanced-grid">
-                      <div>
-                        <dt>{t('za.encounters.advanced.talentScale')}</dt>
-                        <dd>
-                          {formatOptionalEncounterRawValue(
-                            encounterSlot.talentScale,
-                            t('za.encounters.advanced.unavailable')
-                          )}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt>{t('za.encounters.advanced.talentVCount')}</dt>
-                        <dd>
-                          {formatOptionalEncounterRawValue(
-                            encounterSlot.talentVCount,
-                            t('za.encounters.advanced.unavailable')
-                          )}
-                        </dd>
-                      </div>
-                      {encounterSlot.canEditStrengthenValues !== true ? (
-                        <div>
-                          <dt>{t('za.encounters.advanced.strengthenValues')}</dt>
-                          <dd>
-                            {encounterSlot.strengthenValueSummary ??
-                              t('za.encounters.advanced.notPresent')}
-                          </dd>
-                        </div>
-                      ) : null}
-                      {!isZaScriptedBossTable ? (
-                        <div>
-                          <dt>{t('za.encounters.advanced.moveStorage')}</dt>
-                          <dd>
-                            {encounterSlot.hasExplicitMoves
-                              ? t('za.encounters.advanced.explicitMoves')
-                              : t('za.encounters.advanced.automaticMoves')}
-                          </dd>
-                        </div>
-                      ) : null}
-                      <div className="za-encounter-advanced-wide">
-                        <dt>{t('za.encounters.advanced.sharedConditions')}</dt>
-                        <dd>
-                          {formatEncounterReadOnlyList(
-                            encounterSlot.encounterActivationConditions,
-                            t('za.encounters.advanced.none')
-                          )}
-                        </dd>
-                      </div>
-                      <div className="za-encounter-advanced-wide">
-                        <dt>{t('za.encounters.advanced.itemDrops')}</dt>
-                        <dd>
-                          {formatEncounterReadOnlyList(
-                            encounterSlot.itemDropSummaries,
-                            t('za.encounters.advanced.none')
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
-                  </section>
-                ) : null}
-                {!isSvEncounterTable && !isZaEncounterTable ? (
-                  <div className="draft-action-row">
+                  </>
+                ) : (
+                  <p className="empty-copy">No encounter slot selected.</p>
+                )}
+
+                {isZaEncounterTable && onStageEncounterVanilla ? (
+                  <div className="za-encounter-revert-action">
                     <button
                       aria-busy={isEncounterUpdating || undefined}
                       className="danger-button"
-                      disabled={!canClearEncounterSlot}
+                      disabled={!canRevertSelectedZaEncounter}
                       onClick={async () => {
-                        if (!table || !encounterSlot || !encounterDraftKey) {
+                        if (!table || !encounterSlot) {
                           return;
                         }
 
-                        const submittedClearFields = Object.fromEntries(
-                          encounterClearFieldNames.flatMap((field) =>
-                            Object.prototype.hasOwnProperty.call(slotDrafts, field)
-                              ? [[field, slotDrafts[field]!] as const]
-                              : []
-                          )
-                        );
-                        const didSave = await onUpdateEncounterSlotFields(
+                        const didSave = await onStageEncounterVanilla(
                           table.tableId,
-                          encounterSlot.slot,
-                          [
-                            { field: encounterSpeciesFieldName, value: '0' },
-                            { field: encounterFormFieldName, value: '0' },
-                            { field: encounterProbabilityFieldName, value: '0' }
-                          ]
+                          encounterSlot.slot
                         );
-                        if (didSave) {
-                          setDraftsBySlotKey((currentDrafts) =>
-                            updateSparseFieldDraftRecordAfterStage(
-                              currentDrafts,
-                              encounterDraftKey,
-                              submittedClearFields
-                            )
-                          );
+                        if (!didSave) {
+                          return;
                         }
                       }}
-                      title="Set this SwSh encounter slot to Empty at 0% probability."
+                      title={selectedEncounterRevertMessage}
                       type="button"
                     >
                       <BusyActionContent
-                        busyLabel="Clearing"
-                        icon={<Trash2 aria-hidden="true" size={16} />}
+                        busyLabel={t('za.encounters.reverting')}
+                        icon={<RotateCcw aria-hidden="true" size={16} />}
                         isBusy={isEncounterUpdating}
-                        label="Clear Slot"
+                        label={t('za.encounters.revertToVanilla')}
                       />
                     </button>
+                    <small
+                      className={
+                        selectedEncounterHasLocalDrafts
+                          ? 'editable-field-error'
+                          : 'editable-field-status'
+                      }
+                    >
+                      {selectedEncounterRevertMessage}
+                    </small>
                   </div>
                 ) : null}
-                {isZaEncounterTable && zaSpawnerCountWarnings.length > 0 ? (
-                  <div
-                    aria-label={t('za.spawnSettings.warningHeading')}
-                    className="za-spawner-count-warnings"
-                    role="status"
-                  >
-                    <AlertTriangle aria-hidden="true" size={16} />
-                    <div>
-                      <strong>{t('za.spawnSettings.warningHeading')}</strong>
-                      {zaSpawnerCountWarnings.map((warning) => (
-                        <small key={warning}>{warning}</small>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-
-              </>
-            ) : (
-              <p className="empty-copy">No encounter slot selected.</p>
-            )}
-
-            {isZaEncounterTable && onStageEncounterVanilla ? (
-              <div className="za-encounter-revert-action">
-                <button
-                  aria-busy={isEncounterUpdating || undefined}
-                  className="danger-button"
-                  disabled={!canRevertSelectedZaEncounter}
-                  onClick={async () => {
-                    if (!table || !encounterSlot) {
-                      return;
-                    }
-
-                    const didSave = await onStageEncounterVanilla(
-                      table.tableId,
-                      encounterSlot.slot
-                    );
-                    if (!didSave) {
-                      return;
-                    }
-                  }}
-                  title={selectedEncounterRevertMessage}
-                  type="button"
-                >
-                  <BusyActionContent
-                    busyLabel={t('za.encounters.reverting')}
-                    icon={<RotateCcw aria-hidden="true" size={16} />}
-                    isBusy={isEncounterUpdating}
-                    label={t('za.encounters.revertToVanilla')}
-                  />
-                </button>
-                <small
-                  className={
-                    selectedEncounterHasLocalDrafts
-                      ? 'editable-field-error'
-                      : 'editable-field-status'
-                  }
-                >
-                  {selectedEncounterRevertMessage}
-                </small>
-              </div>
-            ) : null}
+              </WildEncounterSlotInspector>
+            </div>
           </div>
           {areaCopyRequest ? (
             <EncounterAreaCopyConfirmationModal
@@ -48042,6 +47806,77 @@ function SelectedEncounterPanel({
         <p className="empty-copy">No encounter table selected.</p>
       )}
     </aside>
+  );
+}
+
+function WildEncounterSlotInspector({
+  children
+}: {
+  children: ReactNode;
+}) {
+  const surface = useRef<HTMLElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!surface.current || !content.current) {
+      return;
+    }
+
+    const panel = surface.current;
+    const body = content.current;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let height = body.offsetHeight;
+    let animation: Animation | undefined;
+    let frame = 0;
+
+    const animateHeight = () => {
+      const nextHeight = body.offsetHeight;
+      if (nextHeight === height) {
+        return;
+      }
+
+      const from = animation ? panel.getBoundingClientRect().height : height;
+      height = nextHeight;
+      animation?.cancel();
+
+      if (!reducedMotion.matches) {
+        panel.dataset.transitioning = 'true';
+        animation = panel.animate([{ height: `${from}px` }, { height: `${height}px` }], {
+          duration: 220,
+          easing: 'cubic-bezier(.2,.7,.2,1)'
+        });
+        animation.onfinish = () => {
+          animation = undefined;
+          delete panel.dataset.transitioning;
+        };
+      }
+    };
+    const observer = new ResizeObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(animateHeight);
+    });
+    observer.observe(body);
+
+    const cancelMotion = () => {
+      animation?.cancel();
+      animation = undefined;
+      delete panel.dataset.transitioning;
+    };
+    reducedMotion.addEventListener('change', cancelMotion);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+      cancelMotion();
+      reducedMotion.removeEventListener('change', cancelMotion);
+    };
+  }, []);
+
+  return (
+    <section aria-label="Selected encounter slot" className="wild-encounter-slot-inspector" ref={surface}>
+      <div className="wild-encounter-slot-content" ref={content}>
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -48408,17 +48243,29 @@ function ZaEncounterPlayerPartnerEditor({
 
 function SvEncounterConditionBrowser({
   onSelectTable,
+  selectedRowWeight,
   table,
   tables
 }: {
   onSelectTable: (tableId: string | null) => void;
+  selectedRowWeight: number;
   table: EncounterTableRecord;
   tables: EncounterTableRecord[];
 }) {
-  const conditionRows = useMemo(
-    () => buildSvEncounterConditionRows(table, tables),
-    [table, tables]
-  );
+  const { translateLiteral } = useLocalization();
+  const conditionRows = useMemo(() => {
+    const rows = buildSvEncounterConditionRows(table, tables);
+    const counts = new Map<string, number>();
+    const ordinals = new Map<string, number>();
+    for (const row of rows) {
+      counts.set(row.label, (counts.get(row.label) ?? 0) + 1);
+    }
+    return rows.map((row) => {
+      const ordinal = (ordinals.get(row.label) ?? 0) + 1;
+      ordinals.set(row.label, ordinal);
+      return { ...row, duplicateOrdinal: (counts.get(row.label) ?? 0) > 1 ? ordinal : null };
+    });
+  }, [table, tables]);
   const selectedRow =
     conditionRows.find((row) => row.tableId === table.tableId) ?? conditionRows[0] ?? null;
 
@@ -48434,13 +48281,12 @@ function SvEncounterConditionBrowser({
           {selectedRow.slotCount} {selectedRow.slotCount === 1 ? 'slot' : 'slots'} in the
           selected row
         </span>
-        <span>Lot weights are relative inside the selected row</span>
       </div>
 
       <div className="sv-encounter-condition-table" role="table" aria-label="S/V condition rows">
         <div className="sv-encounter-condition-row sv-encounter-condition-heading" role="row">
           <span role="columnheader">Area</span>
-          <span role="columnheader">Game</span>
+          <span role="columnheader">{translateLiteral('Version')}</span>
           <span role="columnheader">Terrain</span>
           <span role="columnheader">Time</span>
           <span role="columnheader">Biome</span>
@@ -48449,9 +48295,11 @@ function SvEncounterConditionBrowser({
           <span role="columnheader">Total weight</span>
         </div>
         {conditionRows.map((row) => (
-          <HoverTooltip content={row.label} describe={false} detail="full" key={row.tableId}>
+          <HoverTooltip content={`${row.label} · ${row.tableId}`} describe={false} detail="full" key={row.tableId}>
             <InteractiveTableRow
-              aria-label={row.label}
+              aria-label={row.duplicateOrdinal === null
+                ? row.label
+                : `${row.label} · ${translateLiteral('Row')} ${row.duplicateOrdinal}`}
               aria-selected={row.tableId === table.tableId}
               className={`sv-encounter-condition-row ${
                 row.tableId === table.tableId ? 'sv-encounter-condition-row-selected' : ''
@@ -48463,18 +48311,38 @@ function SvEncounterConditionBrowser({
               }}
               role="row"
             >
-              <span role="cell">{row.area}</span>
-              <span role="cell">{row.gameVersion}</span>
-              <span role="cell">{row.terrain}</span>
-              <span role="cell">{row.time}</span>
-              <span role="cell">{row.biome}</span>
-              <span role="cell">{row.flag}</span>
-              <span role="cell">{row.slotCount}</span>
-              <span role="cell">{row.totalWeight}</span>
+              <span role="cell" className="wild-encounter-area-cell">
+                {row.area}
+                {row.duplicateOrdinal !== null ? (
+                  <small className="wild-encounter-condition-ordinal">
+                    {translateLiteral('Row')} {row.duplicateOrdinal}
+                  </small>
+                ) : null}
+              </span>
+              <span role="cell" data-field-label={translateLiteral('Version')}>{row.gameVersion}</span>
+              <span role="cell" data-field-label={translateLiteral('Terrain')}>{row.terrain}</span>
+              <span role="cell" data-field-label={translateLiteral('Time')}>{row.time}</span>
+              <span role="cell" data-field-label={translateLiteral('Biome')}>{row.biome}</span>
+              <span role="cell" data-field-label={translateLiteral('Flag')}>{row.flag}</span>
+              <span role="cell" data-field-label={translateLiteral('Slots')}>{row.slotCount}</span>
+              <span role="cell" data-field-label={translateLiteral('Total weight')}>{row.tableId === table.tableId ? selectedRowWeight : row.totalWeight}</span>
             </InteractiveTableRow>
           </HoverTooltip>
         ))}
       </div>
+      <details className="wild-encounter-disclosure">
+        <summary>{translateLiteral('Condition details')}</summary>
+        <dl className="item-provenance-list">
+          <div>
+            <dt>{translateLiteral('Conditions')}</dt>
+            <dd>{selectedRow.label}</dd>
+          </div>
+          <div>
+            <dt>{translateLiteral('Table')}</dt>
+            <dd>{selectedRow.tableId}</dd>
+          </div>
+        </dl>
+      </details>
     </section>
   );
 }
@@ -48482,12 +48350,14 @@ function SvEncounterConditionBrowser({
 function ZaEncounterGroupBrowser({
   onSelectReference,
   pendingRecordIds,
+  projectSlot,
   selectedSlot,
   table,
   tables
 }: {
   onSelectReference: (tableId: string, slot: number) => void;
   pendingRecordIds: ReadonlySet<string>;
+  projectSlot: (table: EncounterTableRecord, slot: EncounterSlotRecord) => EncounterSlotRecord;
   selectedSlot: number | null;
   table: EncounterTableRecord;
   tables: EncounterTableRecord[];
@@ -48543,6 +48413,16 @@ function ZaEncounterGroupBrowser({
     () => buildZaEncounterGroups(groupingTables, tables),
     [groupingTables, tables]
   );
+  const projectedGroups = useMemo(
+    () => encounterGroups.map((group) => {
+      const placements = group.placements.map(({ table, slot }) => ({
+        table,
+        slot: projectSlot(table, slot)
+      }));
+      return { ...group, placements, slot: placements[0]!.slot };
+    }),
+    [encounterGroups, projectSlot]
+  );
   const displayedTableIds = new Set(displayedRows.map((row) => row.tableId));
   const displayedTables = displayedRows
     .filter(
@@ -48550,7 +48430,7 @@ function ZaEncounterGroupBrowser({
     )
     .map((row) => tableById.get(row.tableId))
     .filter((candidate): candidate is EncounterTableRecord => candidate !== undefined);
-  const visibleEncounterGroups = encounterGroups.filter((group) =>
+  const visibleEncounterGroups = projectedGroups.filter((group) =>
     group.placements.some((placement) => displayedTableIds.has(placement.table.tableId))
   );
   const rowByTableId = new Map(
@@ -48721,167 +48601,173 @@ function ZaEncounterGroupBrowser({
         </div>
       ) : null}
 
-      <div className="za-encounter-group-table" role="table" aria-label="Z-A linked encounters">
-        <div
-          className={`za-encounter-group-row za-encounter-group-heading ${
-            showCompletionRole ? 'za-encounter-group-row-with-completion' : ''
-          }`}
-          role="row"
-        >
-          <span role="columnheader">Pokemon</span>
-          <span role="columnheader">Used by</span>
-          <span role="columnheader">Levels</span>
-          <span role="columnheader">Source</span>
-          {showCompletionRole ? (
-            <span role="columnheader">{t('za.wildZoneCompletion.column')}</span>
-          ) : null}
-        </div>
-        {visibleEncounterGroups.map((group) => {
-          const groupLabel = formatZaEncounterGroupLabel(group);
-          const isSelected = group.key === selectedGroup.key;
-          const isPending = isZaEncounterGroupPending(group, pendingRecordIds);
-          const completionState = getZaWildZoneCompletionState(
-            group.placements.map(({ slot }) => slot)
-          );
-          const completionLabel =
-            completionState === 'notApplicable'
-              ? ''
-              : t(getZaWildZoneCompletionStatusKey(completionState));
-          return (
-            <InteractiveTableRow
-              aria-label={`${t('editorText.encounterGroupAria', {
-                name: groupLabel,
-                usage: translateLiteral(formatZaEncounterGroupUsage(group, table, activeBossCategoryKey)),
-                minimum: group.slot.levelMin,
-                maximum: group.slot.levelMax,
-                source: formatZaEncounterGroupSource(group)
-              })}${
-                completionLabel ? `, ${t('za.wildZoneCompletion.column')} ${completionLabel}` : ''
-              }`}
-              aria-selected={isSelected}
-              className={`za-encounter-group-row ${
-                isSelected ? 'za-encounter-group-row-selected' : ''
-              } ${isPending ? 'za-encounter-group-row-pending' : ''} ${
+      <div className="wild-encounter-linked-layout">
+        <div className="wild-encounter-linked-panel">
+          <h4>{t('za.encounters.sharedRecordHeading')}</h4>
+          <div className="za-encounter-group-table" role="table" aria-label="Z-A linked encounters">
+            <div
+              className={`za-encounter-group-row za-encounter-group-heading ${
                 showCompletionRole ? 'za-encounter-group-row-with-completion' : ''
               }`}
-              key={group.key}
-              onClick={() => selectGroup(group)}
               role="row"
             >
-              <span role="cell">{groupLabel}</span>
-              <span role="cell">
-                {formatZaEncounterGroupUsage(group, table, activeBossCategoryKey)}
-              </span>
-              <span role="cell">
-                {group.slot.levelMin}-{group.slot.levelMax}
-              </span>
-              <span role="cell">{formatZaEncounterGroupSource(group)}</span>
+              <span role="columnheader">Pokemon</span>
+              <span role="columnheader">Used by</span>
+              <span role="columnheader">Levels</span>
+              <span role="columnheader">Source</span>
               {showCompletionRole ? (
-                <span
-                  className={
-                    completionLabel
-                      ? `za-wild-zone-completion-status za-wild-zone-completion-status-${completionState}`
-                      : undefined
-                  }
-                  role="cell"
-                >
-                  {completionLabel}
-                </span>
+                <span role="columnheader">{t('za.wildZoneCompletion.column')}</span>
               ) : null}
-            </InteractiveTableRow>
-          );
-        })}
-      </div>
-
-      {selectedGroup.slotCount > 0 ? (
-        <div
-          className="za-encounter-placement-table"
-          role="table"
-          aria-label={`${selectedGroupLabel} linked spawners`}
-        >
-          <div
-            className={`za-encounter-placement-row za-encounter-placement-heading ${placementLayoutClass}`}
-            role="row"
-          >
-            <span role="columnheader">Spawner</span>
-            <span role="columnheader">Slot</span>
-            <span role="columnheader">{t('za.spawnSettings.weightLabel')}</span>
-            <span role="columnheader">Conditions</span>
-            {showPlacementAlphaChance ? (
-              <span role="columnheader">{t('za.alphaSettings.chanceLabel')}</span>
-            ) : null}
-            {selectedCompletionState !== 'notApplicable' ? (
-              <span role="columnheader">{t('za.wildZoneCompletion.column')}</span>
-            ) : null}
-          </div>
-          {selectedGroup.placements.map((placement) => {
-            const placementLabel = formatZaEncounterPlacementLabel(placement, rowByTableId);
-            const placementConditions = formatZaEncounterPlacementConditions(placement, t);
-            const isSelected =
-              placement.table.tableId === table.tableId && placement.slot.slot === selectedSlot;
-            const placementCompletionState = getZaWildZoneCompletionState([placement.slot]);
-            const placementCompletionLabel =
-              placementCompletionState === 'notApplicable'
-                ? ''
-                : t(getZaWildZoneCompletionStatusKey(placementCompletionState));
-            const placementAlphaChanceLabel = showPlacementAlphaChance
-              ? formatZaAlphaChance(placement.slot, t) ?? t('za.alphaSettings.unavailable')
-              : null;
-            const placementSummary = `${placementLabel}, ${t('za.spawnSettings.slotAria', {
-              slot: placement.slot.slot + 1,
-              weight: placement.slot.weight
-            })}, ${placementConditions}${
-              placementAlphaChanceLabel
-                ? `, ${t('za.alphaSettings.chanceLabel')} ${placementAlphaChanceLabel}`
-                : ''
-            }${
-              placementCompletionLabel
-                ? `, ${t('za.wildZoneCompletion.column')} ${placementCompletionLabel}`
-                : ''
-            }`;
-            return (
-              <HoverTooltip
-                content={placementSummary}
-                describe={false}
-                detail="full"
-                key={`${placement.table.tableId}:${placement.slot.slot}`}
-              >
+            </div>
+            {visibleEncounterGroups.map((group) => {
+              const groupLabel = formatZaEncounterGroupLabel(group);
+              const isSelected = group.key === selectedGroup.key;
+              const isPending = isZaEncounterGroupPending(group, pendingRecordIds);
+              const completionState = getZaWildZoneCompletionState(
+                group.placements.map(({ slot }) => slot)
+              );
+              const completionLabel =
+                completionState === 'notApplicable'
+                  ? ''
+                  : t(getZaWildZoneCompletionStatusKey(completionState));
+              return (
                 <InteractiveTableRow
-                  aria-label={placementSummary}
+                  aria-label={`${t('editorText.encounterGroupAria', {
+                    name: groupLabel,
+                    usage: translateLiteral(formatZaEncounterGroupUsage(group, table, activeBossCategoryKey)),
+                    minimum: group.slot.levelMin,
+                    maximum: group.slot.levelMax,
+                    source: formatZaEncounterGroupSource(group)
+                  })}${
+                    completionLabel ? `, ${t('za.wildZoneCompletion.column')} ${completionLabel}` : ''
+                  }`}
                   aria-selected={isSelected}
-                  className={`za-encounter-placement-row ${
-                    isSelected ? 'za-encounter-placement-row-selected' : ''
-                  } ${placementLayoutClass}`}
-                  onClick={() =>
-                    onSelectReference(placement.table.tableId, placement.slot.slot)
-                  }
+                  className={`za-encounter-group-row ${
+                    isSelected ? 'za-encounter-group-row-selected' : ''
+                  } ${isPending ? 'za-encounter-group-row-pending' : ''} ${
+                    showCompletionRole ? 'za-encounter-group-row-with-completion' : ''
+                  }`}
+                  key={group.key}
+                  onClick={() => selectGroup(group)}
                   role="row"
                 >
-                  <span role="cell">{placementLabel}</span>
-                  <span role="cell">{placement.slot.slot + 1}</span>
-                  <span role="cell">{placement.slot.weight}</span>
-                  <span role="cell">{placementConditions}</span>
-                  {placementAlphaChanceLabel ? (
-                    <span role="cell">{placementAlphaChanceLabel}</span>
-                  ) : null}
-                  {selectedCompletionState !== 'notApplicable' ? (
+                  <span role="cell">{groupLabel}</span>
+                  <span role="cell">
+                    {formatZaEncounterGroupUsage(group, table, activeBossCategoryKey)}
+                  </span>
+                  <span role="cell">
+                    {group.slot.levelMin}-{group.slot.levelMax}
+                  </span>
+                  <span role="cell">{formatZaEncounterGroupSource(group)}</span>
+                  {showCompletionRole ? (
                     <span
                       className={
-                        placementCompletionLabel
-                          ? `za-wild-zone-completion-status za-wild-zone-completion-status-${placementCompletionState}`
+                        completionLabel
+                          ? `za-wild-zone-completion-status za-wild-zone-completion-status-${completionState}`
                           : undefined
                       }
                       role="cell"
                     >
-                      {placementCompletionLabel}
+                      {completionLabel}
                     </span>
                   ) : null}
                 </InteractiveTableRow>
-              </HoverTooltip>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      ) : null}
+
+        <div className="wild-encounter-linked-panel">
+          <h4>{translateLiteral('Linked spawners')} <span>{selectedGroupLabel}</span></h4>
+          <div
+            className="za-encounter-placement-table"
+            role="table"
+            aria-label={`${selectedGroupLabel} linked spawners`}
+          >
+            <div
+              className={`za-encounter-placement-row za-encounter-placement-heading ${placementLayoutClass}`}
+              role="row"
+            >
+              <span role="columnheader">Spawner</span>
+              <span role="columnheader">Slot</span>
+              <span role="columnheader">{t('za.spawnSettings.weightLabel')}</span>
+              <span role="columnheader">Conditions</span>
+              {showPlacementAlphaChance ? (
+                <span role="columnheader">{t('za.alphaSettings.chanceLabel')}</span>
+              ) : null}
+              {selectedCompletionState !== 'notApplicable' ? (
+                <span role="columnheader">{t('za.wildZoneCompletion.column')}</span>
+              ) : null}
+            </div>
+            {selectedGroup.placements.map((placement) => {
+              const placementLabel = formatZaEncounterPlacementLabel(placement, rowByTableId);
+              const placementConditions = formatZaEncounterPlacementConditions(placement, t);
+              const isSelected =
+                placement.table.tableId === table.tableId && placement.slot.slot === selectedSlot;
+              const placementCompletionState = getZaWildZoneCompletionState([placement.slot]);
+              const placementCompletionLabel =
+                placementCompletionState === 'notApplicable'
+                  ? ''
+                  : t(getZaWildZoneCompletionStatusKey(placementCompletionState));
+              const placementAlphaChanceLabel = showPlacementAlphaChance
+                ? formatZaAlphaChance(placement.slot, t) ?? t('za.alphaSettings.unavailable')
+                : null;
+              const placementSummary = `${placementLabel}, ${t('za.spawnSettings.slotAria', {
+                slot: placement.slot.slot + 1,
+                weight: placement.slot.weight
+              })}, ${placementConditions}${
+                placementAlphaChanceLabel
+                  ? `, ${t('za.alphaSettings.chanceLabel')} ${placementAlphaChanceLabel}`
+                  : ''
+              }${
+                placementCompletionLabel
+                  ? `, ${t('za.wildZoneCompletion.column')} ${placementCompletionLabel}`
+                  : ''
+              }`;
+              return (
+                <HoverTooltip
+                  content={placementSummary}
+                  describe={false}
+                  detail="full"
+                  key={`${placement.table.tableId}:${placement.slot.slot}`}
+                >
+                  <InteractiveTableRow
+                    aria-label={placementSummary}
+                    aria-selected={isSelected}
+                    className={`za-encounter-placement-row ${
+                      isSelected ? 'za-encounter-placement-row-selected' : ''
+                    } ${placementLayoutClass}`}
+                    onClick={() =>
+                      onSelectReference(placement.table.tableId, placement.slot.slot)
+                    }
+                    role="row"
+                  >
+                    <span role="cell">{placementLabel}</span>
+                    <span role="cell">{placement.slot.slot + 1}</span>
+                    <span role="cell">{placement.slot.weight}</span>
+                    <span role="cell">{placementConditions}</span>
+                    {placementAlphaChanceLabel ? (
+                      <span role="cell">{placementAlphaChanceLabel}</span>
+                    ) : null}
+                    {selectedCompletionState !== 'notApplicable' ? (
+                      <span
+                        className={
+                          placementCompletionLabel
+                            ? `za-wild-zone-completion-status za-wild-zone-completion-status-${placementCompletionState}`
+                            : undefined
+                        }
+                        role="cell"
+                      >
+                        {placementCompletionLabel}
+                      </span>
+                    ) : null}
+                  </InteractiveTableRow>
+                </HoverTooltip>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       <ZaWildZoneCompletionNote state={selectedCompletionState} />
 
@@ -51948,6 +51834,8 @@ function SelectedBehaviorPanel({
   );
 }
 
+const emptyPlacedObjects: PlacedObjectRecord[] = [];
+
 type PlacementSectionProps = {
   editSession: EditSession | null;
   editorFamily: EditorUiFamily;
@@ -51967,6 +51855,7 @@ type PlacementSectionProps = {
     isPageLoading: boolean;
     isPageStale: boolean;
     limit: number;
+    objects: PlacedObjectRecord[];
     offset: number;
     onCategoryChange: (categoryId: string | null) => void;
     onPageChange: (offset: number) => void;
@@ -52012,7 +51901,7 @@ function PlacementSection({
   updateDiagnostics,
   workflow
 }: PlacementSectionProps) {
-  const { t } = useLocalization();
+  const { t, translateLiteral } = useLocalization();
   const normalizedSearch = searchText.trim().toLocaleLowerCase();
   const placementCategories = useMemo(() => getPlacementCategories(workflow), [workflow]);
   const supportsPlacementCategories =
@@ -52029,7 +51918,7 @@ function PlacementSection({
   const filteredObjects = useMemo(() => {
     const objects = workflow?.objects ?? [];
     if (remotePaging) {
-      return objects;
+      return remotePaging.objects;
     }
 
     return objects.filter((placedObject) => {
@@ -52077,9 +51966,7 @@ function PlacementSection({
   const selectedGroup =
     groupedObjects.find((group) =>
       selectedObject ? group.objects.some((placedObject) => placedObject.objectId === selectedObject.objectId) : false
-    ) ??
-    groupedObjects[0] ??
-    null;
+    ) ?? null;
   const canEditPlacement = workflow?.summary.availability === 'available';
   const isRemoteInteractionBlocked =
     (remotePaging?.isPageLoading ?? false) ||
@@ -52104,6 +51991,200 @@ function PlacementSection({
     setSelectedCategoryId(activeCategoryId);
   }, [activeCategoryId, placementCategories, selectedCategoryId, supportsPlacementCategories]);
 
+  const browserControls = (
+    <>
+      <div className="placement-toolbar">
+        <label className="search-box items-search">
+          <Search aria-hidden="true" size={18} />
+          <input
+            aria-label="Search placement"
+            disabled={!workflow}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search placement"
+            type="search"
+            value={searchText}
+          />
+        </label>
+        <div className="placement-browser-counts">
+          <span>{t('placement.matchingObjects')} <strong>{remotePaging?.totalCount ?? filteredObjects.length}</strong></span>
+          <span>{translateLiteral('Catalog areas')} <strong>{workflow?.stats.totalAreaCount ?? 0}</strong></span>
+          <span>{translateLiteral('Staged objects')} <strong>{pendingPlacementObjectIds.size}</strong></span>
+        </div>
+      </div>
+      {supportsPlacementCategories && placementCategories.length > 0 ? (
+        <div
+          aria-label="Placement categories"
+          className="condition-tabs placement-category-tabs"
+          role="tablist"
+        >
+          {placementCategories.map((category) => (
+            <button
+              aria-selected={category.id === activeCategoryId}
+              className="condition-tab-button placement-category-tab"
+              disabled={isRemoteInteractionBlocked}
+              key={category.id}
+              onClick={() => {
+                if (remotePaging) {
+                  remotePaging.onCategoryChange(category.id);
+                } else {
+                  setSelectedCategoryId(category.id);
+                }
+              }}
+              role="tab"
+              title={category.description}
+              type="button"
+            >
+              <span>{category.label}</span>
+              <small>{category.objectCount}</small>
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {remotePaging?.isPageLoading ? (
+        <LoadingProgress className="is-compact" label={t('placement.loadingMatches')} />
+      ) : null}
+      {remotePaging?.isPageStale && !remotePaging.isPageLoading ? (
+        <div aria-live="polite" className="placement-load-status" role="status">
+          <span>{t('placement.refreshFailed')}</span>
+          <button
+            className="secondary-button placement-retry-button"
+            disabled={isPlacementUpdating}
+            onClick={remotePaging.onRetry}
+            type="button"
+          >
+            <RefreshCw aria-hidden="true" size={14} />
+            <span>{t('placement.retry')}</span>
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
+  const sessionBar = (
+    <EditorSessionBar
+      canEdit={
+        canEditPlacement &&
+        selectedObject !== null &&
+        canInteractWithSelectedPlacement
+      }
+      isEditing={editSession !== null}
+      isStarting={isEditStarting}
+      label="Placement"
+      onStart={onStartEditSession}
+    />
+  );
+  const browserFooter = remotePaging ? (
+    <nav className="placement-pagination" aria-label={t('placement.resultPages')}>
+      <span>
+        {remotePaging.totalCount === 0
+          ? t('placement.noMatches')
+          : t('placement.showingResults', {
+              end: Math.min(
+                remotePaging.offset + filteredObjects.length,
+                remotePaging.totalCount
+              ),
+              start: remotePaging.offset + 1,
+              total: remotePaging.totalCount
+            })}
+      </span>
+      <div className="placement-pagination-actions">
+        <button
+          className="secondary-button"
+          disabled={isRemoteInteractionBlocked || remotePaging.offset === 0}
+          onClick={() =>
+            remotePaging.onPageChange(
+              Math.max(0, remotePaging.offset - remotePaging.limit)
+            )
+          }
+          type="button"
+        >
+          {t('placement.previous')}
+        </button>
+        <button
+          className="secondary-button"
+          disabled={
+            isRemoteInteractionBlocked ||
+            remotePaging.offset + remotePaging.limit >= remotePaging.totalCount
+          }
+          onClick={() =>
+            remotePaging.onPageChange(remotePaging.offset + remotePaging.limit)
+          }
+          type="button"
+        >
+          {t('placement.next')}
+        </button>
+      </div>
+    </nav>
+  ) : null;
+  const browser = (draftsByObjectId: Record<string, Record<string, string>>) => (
+    <div
+      aria-busy={remotePaging?.isPageLoading || undefined}
+      aria-rowcount={(remotePaging?.totalCount ?? groupedObjects.length) + 1}
+      className="raid-rewards-table placement-object-table"
+      role="table"
+      tabIndex={0}
+      aria-label="Placed objects"
+    >
+      <div className="raid-rewards-row raid-rewards-row-heading placement-object-row" role="row">
+        <span role="columnheader">Object</span>
+        <span role="columnheader">Pokemon / Data</span>
+        <span role="columnheader">Position</span>
+      </div>
+      <VirtualTableBody
+        estimateSize={placementVirtualTableRowHeight}
+        getKey={(objectGroup) => objectGroup.key}
+        items={groupedObjects}
+        measureRows
+        resetKey={
+          remotePaging
+            ? `${remotePaging.categoryId ?? 'all'}:${remotePaging.offset}:${searchText}`
+            : undefined
+        }
+        renderRow={(objectGroup, rowIndex) => {
+          const isSelected = selectedObject
+            ? objectGroup.objects.some(
+                (placedObject) => placedObject.objectId === selectedObject.objectId
+              )
+            : false;
+          const isPending = objectGroup.objects.some((placedObject) =>
+            pendingPlacementObjectIds.has(placedObject.objectId)
+          );
+          const isUnstaged = objectGroup.objects.some((placedObject) =>
+            Object.hasOwn(draftsByObjectId, placedObject.objectId)
+          );
+          const nextObjectId = isSelected
+            ? selectedObject?.objectId ?? objectGroup.objects[0]?.objectId ?? null
+            : objectGroup.objects[0]?.objectId ?? null;
+          return (
+            <InteractiveTableRow
+              aria-rowindex={rowIndex + 2 + (remotePaging?.offset ?? 0)}
+              className={`raid-rewards-row placement-object-row ${
+                isSelected ? 'raid-rewards-row-selected' : ''
+              } ${isPending ? 'raid-rewards-row-pending' : ''}`}
+              disabled={isRemoteInteractionBlocked}
+              onClick={() => onSelectObject(nextObjectId)}
+              role="row"
+            >
+              <span className="placement-object-name" role="cell">
+                <strong>{objectGroup.label}</strong>
+                <small>{objectGroup.map}</small>
+                <PlacementRecordStatus isUnstaged={isUnstaged} isStaged={isPending} />
+              </span>
+              <span className="placement-primary-cell" role="cell">
+                {objectGroup.preview}
+              </span>
+              <span role="cell">{objectGroup.position}</span>
+            </InteractiveTableRow>
+          );
+        }}
+      />
+      {groupedObjects.length === 0 && !remotePaging?.isPageLoading ? (
+        <div aria-rowindex={2} className="raid-rewards-row placement-object-row placement-empty-row" role="row">
+          <span role="cell">{t('placement.noMatches')}</span>
+        </div>
+      ) : null}
+    </div>
+  );
+
   return (
     <>
       <section
@@ -52115,222 +52196,25 @@ function PlacementSection({
           <h2 id="placement-heading">Placement</h2>
         </div>
 
-        <div className="items-toolbar encounters-toolbar">
-          <label className="search-box items-search">
-            <Search aria-hidden="true" size={18} />
-            <input
-              aria-label="Search placement"
-              disabled={!workflow}
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search placement"
-              type="search"
-              value={searchText}
-            />
-          </label>
-          <Metric
-            label={remotePaging ? t('placement.matchingObjects') : 'Loaded objects'}
-            value={
-              workflow
-                ? (remotePaging?.totalCount ?? workflow.stats.totalObjectCount).toString()
-                : '0'
-            }
-          />
-          <Metric
-            label="Areas"
-            value={workflow ? workflow.stats.totalAreaCount.toString() : '0'}
-          />
-          <Metric
-            label="Pending changes"
-            value={(editSession?.pendingEdits.length ?? 0).toString()}
-          />
-        </div>
-
         {workflow ? (
-          <EditorSessionBar
-            canEdit={
-              canEditPlacement &&
-              selectedObject !== null &&
-              canInteractWithSelectedPlacement
-            }
-            isEditing={editSession !== null}
-            isStarting={isEditStarting}
-            label="Placement"
-            onStart={onStartEditSession}
+          <SelectedPlacementPanel
+            browser={browser}
+            browserControls={browserControls}
+            browserFooter={browserFooter}
+            pendingObjectIds={pendingPlacementObjectIds}
+            sessionBar={sessionBar}
+            canEditPlacement={canEditPlacement && canInteractWithSelectedPlacement}
+            editSession={editSession}
+            editorFamily={editorFamily}
+            editableFields={workflow.editableFields}
+            isDetailsLoading={remotePaging?.isDetailLoading ?? false}
+            isPlacementUpdating={isPlacementUpdating}
+            onReviewDraftTarget={onReviewDraftTarget}
+            onUpdatePlacementObjectFields={onUpdatePlacementObjectFields}
+            onSelectObject={onSelectObject}
+            placementGroup={selectedGroup}
+            placedObject={selectedObject}
           />
-        ) : null}
-
-        {supportsPlacementCategories && placementCategories.length > 0 ? (
-          <div
-            aria-label="Placement categories"
-            className="condition-tabs placement-category-tabs"
-            role="tablist"
-          >
-            {placementCategories.map((category) => (
-              <button
-                aria-selected={category.id === activeCategoryId}
-                className="condition-tab-button placement-category-tab"
-                disabled={isRemoteInteractionBlocked}
-                key={category.id}
-                onClick={() => {
-                  if (remotePaging) {
-                    remotePaging.onCategoryChange(category.id);
-                  } else {
-                    setSelectedCategoryId(category.id);
-                  }
-                }}
-                role="tab"
-                title={category.description}
-                type="button"
-              >
-                <span>{category.label}</span>
-                <small>{category.objectCount}</small>
-              </button>
-            ))}
-          </div>
-        ) : null}
-
-        {workflow ? (
-          <RecordEditorWorkspace id="placement" className="encounters-layout placement-layout" browser={
-            <div className="placement-browser-stack">
-              {remotePaging?.isPageLoading ? (
-                <LoadingProgress className="is-compact" label={t('placement.loadingMatches')} />
-              ) : null}
-              {remotePaging?.isPageStale && !remotePaging.isPageLoading ? (
-                <div aria-live="polite" className="placement-load-status" role="status">
-                  <span>{t('placement.refreshFailed')}</span>
-                  <button
-                    className="secondary-button placement-retry-button"
-                    disabled={isPlacementUpdating}
-                    onClick={remotePaging.onRetry}
-                    type="button"
-                  >
-                    <RefreshCw aria-hidden="true" size={14} />
-                    <span>{t('placement.retry')}</span>
-                  </button>
-                </div>
-              ) : null}
-              <div
-                aria-busy={remotePaging?.isPageLoading || undefined}
-                aria-rowcount={(remotePaging?.totalCount ?? groupedObjects.length) + 1}
-                className="raid-rewards-table placement-object-table"
-                role="table"
-                aria-label="Placed objects"
-              >
-                <div className="raid-rewards-row raid-rewards-row-heading placement-object-row" role="row">
-                  <span role="columnheader">Object</span>
-                  <span role="columnheader">Pokemon / Data</span>
-                  <span role="columnheader">Position</span>
-                </div>
-                <VirtualTableBody
-                  estimateSize={placementVirtualTableRowHeight}
-                  getKey={(objectGroup) => objectGroup.key}
-                  items={groupedObjects}
-                  measureRows
-                  resetKey={
-                    remotePaging
-                      ? `${remotePaging.categoryId ?? 'all'}:${remotePaging.offset}:${searchText}`
-                      : undefined
-                  }
-                  renderRow={(objectGroup, rowIndex) => {
-                    const isSelected = selectedObject
-                      ? objectGroup.objects.some(
-                          (placedObject) => placedObject.objectId === selectedObject.objectId
-                        )
-                      : false;
-                    const isPending = objectGroup.objects.some((placedObject) =>
-                      pendingPlacementObjectIds.has(placedObject.objectId)
-                    );
-                    const nextObjectId = isSelected
-                      ? selectedObject?.objectId ?? objectGroup.objects[0]?.objectId ?? null
-                      : objectGroup.objects[0]?.objectId ?? null;
-                    return (
-                      <InteractiveTableRow
-                        aria-rowindex={rowIndex + 2 + (remotePaging?.offset ?? 0)}
-                        className={`raid-rewards-row placement-object-row ${
-                          isSelected ? 'raid-rewards-row-selected' : ''
-                        } ${isPending ? 'raid-rewards-row-pending' : ''}`}
-                        disabled={isRemoteInteractionBlocked}
-                        onClick={() => onSelectObject(nextObjectId)}
-                        role="row"
-                      >
-                        <span className="placement-object-name" role="cell">
-                          <strong>{objectGroup.label}</strong>
-                          <small>{objectGroup.map}</small>
-                        </span>
-                        <span className="placement-primary-cell" role="cell">
-                          {objectGroup.preview}
-                        </span>
-                        <span role="cell">{objectGroup.position}</span>
-                      </InteractiveTableRow>
-                    );
-                  }}
-                />
-                {groupedObjects.length === 0 && !remotePaging?.isPageLoading ? (
-                  <div aria-rowindex={2} className="raid-rewards-row placement-object-row placement-empty-row" role="row">
-                    <span role="cell">{activeCategoryId === null ? 'No placement entries.' : `No entries in ${placementCategories.find((category) => category.id === activeCategoryId)?.label ?? 'placement'}.`}</span>
-                  </div>
-                ) : null}
-              </div>
-              {remotePaging ? (
-                <nav className="placement-pagination" aria-label={t('placement.resultPages')}>
-                  <span>
-                    {remotePaging.totalCount === 0
-                      ? t('placement.noMatches')
-                      : t('placement.showingResults', {
-                          end: Math.min(
-                            remotePaging.offset + groupedObjects.length,
-                            remotePaging.totalCount
-                          ),
-                          start: remotePaging.offset + 1,
-                          total: remotePaging.totalCount
-                        })}
-                  </span>
-                  <div className="placement-pagination-actions">
-                    <button
-                      className="secondary-button"
-                      disabled={isRemoteInteractionBlocked || remotePaging.offset === 0}
-                      onClick={() =>
-                        remotePaging.onPageChange(
-                          Math.max(0, remotePaging.offset - remotePaging.limit)
-                        )
-                      }
-                      type="button"
-                    >
-                      {t('placement.previous')}
-                    </button>
-                    <button
-                      className="secondary-button"
-                      disabled={
-                        isRemoteInteractionBlocked ||
-                        remotePaging.offset + remotePaging.limit >= remotePaging.totalCount
-                      }
-                      onClick={() =>
-                        remotePaging.onPageChange(remotePaging.offset + remotePaging.limit)
-                      }
-                      type="button"
-                    >
-                      {t('placement.next')}
-                    </button>
-                  </div>
-                </nav>
-              ) : null}
-            </div>
-          }>
-
-            <SelectedPlacementPanel
-              canEditPlacement={canEditPlacement && canInteractWithSelectedPlacement}
-              editSession={editSession}
-              editorFamily={editorFamily}
-              editableFields={workflow.editableFields}
-              isDetailsLoading={remotePaging?.isDetailLoading ?? false}
-              isPlacementUpdating={isPlacementUpdating}
-              onReviewDraftTarget={onReviewDraftTarget}
-              onUpdatePlacementObjectFields={onUpdatePlacementObjectFields}
-              onSelectObject={onSelectObject}
-              placementGroup={selectedGroup}
-              placedObject={selectedObject}
-            />
-          </RecordEditorWorkspace>
         ) : (
           <p className="empty-copy">Open Placement from Workflows to load backend placement data.</p>
         )}
@@ -52342,6 +52226,9 @@ function PlacementSection({
 }
 
 function SelectedPlacementPanel({
+  browser,
+  browserControls,
+  browserFooter,
   canEditPlacement,
   editSession,
   editorFamily,
@@ -52351,9 +52238,14 @@ function SelectedPlacementPanel({
   onReviewDraftTarget,
   onSelectObject,
   onUpdatePlacementObjectFields,
+  pendingObjectIds,
   placementGroup,
-  placedObject
+  placedObject,
+  sessionBar
 }: {
+  browser: (drafts: Record<string, Record<string, string>>) => ReactNode;
+  browserControls: ReactNode;
+  browserFooter: ReactNode;
   canEditPlacement: boolean;
   editSession: EditSession | null;
   editorFamily: FieldHelpGame;
@@ -52366,8 +52258,10 @@ function SelectedPlacementPanel({
     objectId: string,
     changes: Array<{ field: string; value: string }>
   ) => Promise<boolean>;
+  pendingObjectIds: ReadonlySet<string>;
   placementGroup: PlacementObjectGroup | null;
   placedObject: PlacedObjectRecord | null;
+  sessionBar: ReactNode;
 }) {
   const [draftsByObjectId, setDraftsByObjectId] = useState<
     Record<string, Record<string, string>>
@@ -52382,46 +52276,23 @@ function SelectedPlacementPanel({
   const pokemonWorkflow = useWorkbenchStore((state) => state.pokemonWorkflow);
   const { t, translateLiteral } = useLocalization();
   const cancelActiveEditSession = useCancelActiveEditSession();
+  const layoutScope = useContext(EditorLayoutScope);
   const visibleFields = useMemo(
     () => (placedObject ? getPlacementFieldControls(placedObject, editableFields) : []),
     [editableFields, placedObject]
   );
-  const placementFieldGroups = useMemo(() => {
-    const groups: Array<{ group: string; fields: PlacementFieldControl[] }> = [];
-
-    for (const field of visibleFields) {
-      const groupName = field.group || 'Placement Data';
-      let group = groups.find((candidate) => candidate.group === groupName);
-      if (!group) {
-        group = { group: groupName, fields: [] };
-        groups.push(group);
-      }
-
-      group.fields.push(field);
-    }
-
-    return groups;
-  }, [visibleFields]);
+  const layout = useMemo(() => getPlacementEditorLayout(visibleFields), [visibleFields]);
   const placementDraftDefaults = useMemo(
-    () =>
-      placedObject
-        ? Object.fromEntries(visibleFields.map((field) => [field.field, field.value]))
-        : {},
-    [
-      placedObject?.objectId,
-      visibleFields
-        .map((field) => `${field.field}:${field.value}:${field.isReadOnly ? '1' : '0'}`)
-        .join('|')
-    ]
+    () => Object.fromEntries(visibleFields.map((field) => [field.field, field.value])),
+    [visibleFields]
   );
-  const drafts = placedObject
-    ? draftsByObjectId[placedObject.objectId] ?? placementDraftDefaults
-    : {};
+  // Catalog rows and loaded details can represent the same coordinate at different precision.
+  const drafts = placedObject ? draftsByObjectId[placedObject.objectId] : undefined;
   const placementDraftSummary = useMemo(
     () =>
       getPlacementDraftSummary(
         visibleFields,
-        drafts,
+        drafts ?? {},
         placedObject ? (field) => getPlacementFieldValue(placedObject, field) : null
       ),
     [drafts, placedObject, visibleFields]
@@ -52447,22 +52318,26 @@ function SelectedPlacementPanel({
     !isReviewingPlacementDraft &&
     placementDraftSummary.changedFields.length > 0 &&
     placementDraftSummary.invalidFields.length === 0;
-  const inspectorPrimaryData = placedObject
-    ? getPlacementInspectorPrimaryData(placedObject)
-    : null;
 
   useEffect(() => {
     if (!placedObject) {
       return;
     }
 
-    setDraftsByObjectId((currentDrafts) =>
-      pruneFieldDraftRecord(currentDrafts, placedObject.objectId, placementDraftDefaults)
-    );
+    if (canEditPlacement) {
+      setDraftsByObjectId((currentDrafts) =>
+        setSparseFieldDraftRecord(
+          currentDrafts,
+          placedObject.objectId,
+          currentDrafts[placedObject.objectId] ?? {},
+          placementDraftDefaults
+        )
+      );
+    }
     setConfirmedUnavailableDraftKeys((currentKeys) =>
       removeStringSetValue(currentKeys, placedObject.objectId)
     );
-  }, [placedObject, placementDraftDefaults]);
+  }, [canEditPlacement, placedObject, placementDraftDefaults]);
 
   useEffect(() => {
     setConfirmedUnavailableDraftKeys((currentKeys) => {
@@ -52500,13 +52375,13 @@ function SelectedPlacementPanel({
       );
       const previousSpeciesId =
         parseEditableIntegerDraft(
-          drafts[speciesFormPair.speciesField] ?? sourceSpeciesId?.toString() ?? '',
+          drafts?.[speciesFormPair.speciesField] ?? sourceSpeciesId?.toString() ?? '',
           field.options
         );
       const targetSpeciesId = parseEditableIntegerDraft(value, field.options);
       const previousForm =
         parseOptionalInteger(
-          drafts[speciesFormPair.formField] ?? sourceForm?.toString() ?? ''
+          drafts?.[speciesFormPair.formField] ?? sourceForm?.toString() ?? ''
         ) ?? sourceForm;
 
       if (
@@ -52534,7 +52409,7 @@ function SelectedPlacementPanel({
     }
 
     setDraftsByObjectId((currentDrafts) =>
-      setFieldDraftRecord(
+      setSparseFieldDraftRecord(
         currentDrafts,
         placedObject.objectId,
         nextDrafts,
@@ -52599,28 +52474,300 @@ function SelectedPlacementPanel({
     );
   };
 
+  const renderPlacementField = (
+    field: PlacementFieldControl,
+    { label = field.label, showLabel = true, showRaw = false, showReadOnlyStatus = true } = {}
+  ) => {
+    const currentValue = placedObject ? getPlacementFieldValue(placedObject, field.field) : null;
+    const draftValue = drafts?.[field.field] ?? field.value;
+    const state = getPlacementDraftState(draftValue, currentValue, field);
+    const isInvalid = draftValue.trim() !== '' && !state.isValid;
+    const isChanged = state.canSubmit;
+    const isEditable = editSession !== null && !field.isReadOnly;
+    const isText = ['text', 'string', 'hash', 'boolean'].includes(field.valueKind);
+    const help = field.description
+      ? translateLiteral(field.description)
+      : getEditableFieldHelp(field, t, { domain: 'placement', game: editorFamily, label });
+    const fieldId = `placement-field-${field.field}`;
+    const errorId = `${fieldId}-error`;
+    const status = isInvalid
+      ? getPlacementFieldErrorText(field)
+      : isChanged ? 'Changed' : field.isReadOnly && showReadOnlyStatus ? 'Read-only' : null;
+    const showExactValue = showRaw || field.valueKind === 'hash' || /hash$/i.test(field.field);
+    const value = showExactValue ? field.value || field.displayValue : field.displayValue || field.value;
+    const resolved = field.displayValue && field.displayValue !== value ? field.displayValue : null;
+
+    return (
+      <div
+        className={`placement-field ${isChanged ? 'editable-field-changed' : ''} ${isInvalid ? 'editable-field-invalid' : ''}`}
+        key={field.field}
+      >
+        {showLabel && isEditable ? (
+          <FieldLabel help={help} htmlFor={fieldId} label={translateLiteral(label)} />
+        ) : showLabel || help ? (
+          <span className="placement-field-label">
+            {showLabel ? <span>{translateLiteral(label)}</span> : null}
+            {help ? <ContextHelp label={label}>{help}</ContextHelp> : null}
+          </span>
+        ) : null}
+        {isEditable && field.options.length > 0 ? (
+          <SearchableOptionInput
+            ariaLabel={translateLiteral(label)}
+            disabled={!canEditPlacement}
+            id={fieldId}
+            onChange={(next) => handlePlacementDraftChange(field, next)}
+            options={addDraftFallbackOption(field.options, draftValue, `${field.label} ${draftValue}`)}
+            value={draftValue}
+          />
+        ) : isEditable ? (
+          <input
+            aria-label={translateLiteral(label)}
+            aria-invalid={isInvalid || undefined}
+            aria-describedby={isInvalid ? errorId : undefined}
+            disabled={!canEditPlacement}
+            id={fieldId}
+            max={isText ? undefined : field.maximumValue}
+            min={isText ? undefined : field.minimumValue}
+            onChange={(event) => handlePlacementDraftChange(field, event.target.value)}
+            step={field.valueKind === 'integer' ? 1 : 'any'}
+            type={isText ? 'text' : 'number'}
+            value={draftValue}
+          />
+        ) : (
+          <span className="placement-selectable-value" id={fieldId}>
+            {value === field.value
+              ? <span data-localization-ignore="true">{value}</span>
+              : translateLiteral(value)}
+            {!showRaw && resolved ? <small>{translateLiteral(resolved)}</small> : null}
+          </span>
+        )}
+        {status ? (
+          <small id={isInvalid ? errorId : undefined} className={isInvalid ? 'editable-field-error' : 'editable-field-status'}>
+            {translateLiteral(status)}
+          </small>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderGroups = (groups: typeof layout.data) => groups.map(group => (
+    <EditorDetailGroup key={group.label} label={translateLiteral(group.label)}>
+      <div className="placement-field-list">
+        {group.fields.map(field => renderPlacementField(field))}
+      </div>
+    </EditorDetailGroup>
+  ));
+  const primaryData = placedObject ? getPlacementInspectorPrimaryData(placedObject) : null;
+  const dataFields = [
+    ...layout.transform.flatMap(row => row.cells),
+    ...layout.data.flatMap(group => group.fields)
+  ];
+  const dataFieldIds = new Set(dataFields.map(field => field?.field));
+  const layer = placedObject ? formatSourceLayer(placedObject.provenance.sourceLayer) : '';
+
   return (
-    <aside aria-label="Selected placement object provenance" className="encounter-inspector">
+    <>
       <PublishedLocalEditorValidationDiagnostics
         domain="workflow.placement"
         issues={placementDraftSummary.invalidFields}
       />
-      {editSession && !placedObject ? (
-        <EmptySelectionEditorSessionActions
-          isBusy={isPlacementUpdating || isReviewingPlacementDraft}
-          onCancel={() => cancelActiveEditSession(() => setDraftsByObjectId({}))}
-          stageLabel="Stage Changes"
-          summary={`${t('editorDrafts.summary.placement', {
-            count: outstandingPlacementDraftKeys.length
-          })}; ${t('editorDrafts.summary.unavailable', {
-            count: unavailablePlacementDraftKeys.length
-          })}`}
-        />
-      ) : null}
-      {editSession && !placedObject && (
-        nextPlacementDraftKey !== null || unavailablePlacementDraftKeys.length > 0
-      ) ? (
-        <div className="button-row">
+      <SectionedEditorWorkspace
+        sectionTransitionDuration={250}
+        browser={browser(draftsByObjectId)}
+        browserControls={browserControls}
+        browserFooter={browserFooter}
+        browserVisibleRows={4}
+        compactFields
+        initialSection="placement-data"
+        sessionBar={sessionBar}
+        sessionKey={`${layoutScope}:placement`}
+      >
+        <EditorWorkspaceHeader afterBrowser>
+          <div className="placement-selected">
+            {placedObject ? (
+              <div className="placement-selected-record">
+                <EditorRecordHeading name={formatPlacementObjectDisplayLabel(placedObject)} />
+                <div className="placement-selected-meta">
+                  <span>{placedObject.objectType}</span>
+                  <span>{formatPlacementObjectDisplayMap(placedObject)}</span>
+                  <span>{layer}</span>
+                  <PlacementRecordStatus
+                    isStaged={pendingObjectIds.has(placedObject.objectId)}
+                    isUnstaged={Object.hasOwn(draftsByObjectId, placedObject.objectId)}
+                  />
+                </div>
+              </div>
+            ) : <p className="empty-copy">No placement object selected.</p>}
+            {isDetailsLoading ? <LoadingProgress className="is-compact" label={t('placement.loadingDetails')} /> : null}
+            {placedObject && placementGroup && placementGroup.objects.length > 1 ? (
+              <PlacementObjectGroupBrowser
+                group={placementGroup}
+                onSelectObject={onSelectObject}
+                selectedObjectId={placedObject.objectId}
+              />
+            ) : null}
+          </div>
+        </EditorWorkspaceHeader>
+        {placedObject ? (
+          <>
+            <EditorWorkspaceSection
+              id="placement-data"
+              label={translateLiteral('Placement Data')}
+              invalid={placementDraftSummary.invalidFields.some(change => dataFieldIds.has(change.field))}
+              modified={placementDraftSummary.changedFields.some(change => dataFieldIds.has(change.field))}
+            >
+              <div className="placement-data-layout">
+                {layout.transform.length > 0 ? (
+                  <EditorDetailGroup label={translateLiteral('Transform')}>
+                    <table className="placement-transform-table">
+                      <thead>
+                        <tr><th scope="col">{translateLiteral('Transform')}</th>{placementAxes.map(axis => <th key={axis} scope="col">{axis}</th>)}</tr>
+                      </thead>
+                      <tbody>
+                        {layout.transform.map(row => (
+                          <tr key={row.label}>
+                            <th scope="row">{translateLiteral(row.label)}</th>
+                            {row.cells.map((field, index) => (
+                              <td key={placementAxes[index]}>
+                                {field ? renderPlacementField(field, {
+                                  label: `${row.label} ${placementAxes[index]}`,
+                                  showLabel: false,
+                                  showRaw: true
+                                }) : null}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </EditorDetailGroup>
+                ) : null}
+                {layout.data.length > 0 ? <div className="placement-data-fields">{renderGroups(layout.data)}</div> : null}
+                {layout.data.length === 0 && layout.transform.length === 0 && primaryData?.value ? (
+                  <EditorDetailGroup label={translateLiteral(primaryData.label)}>
+                    <span className="placement-summary-value placement-selectable-value">{primaryData.value}</span>
+                  </EditorDetailGroup>
+                ) : null}
+              </div>
+            </EditorWorkspaceSection>
+            <EditorWorkspaceSection id="details" label={t('editorSections.details')}>
+              <div className="editor-detail-columns placement-details">
+                <EditorDetailGroup label={translateLiteral('Provenance')}>
+                  <dl className="editor-detail-list">
+                    <EditorDetailValue label="Source file" dataValue path>{placedObject.provenance.sourceFile}</EditorDetailValue>
+                    {placedObject.archiveMember ? <EditorDetailValue label="Archive member" dataValue path>{placedObject.archiveMember}</EditorDetailValue> : null}
+                    <EditorDetailValue label="Layer">{layer}</EditorDetailValue>
+                    <EditorDetailValue label="File state">{formatFileState(placedObject.provenance.fileState)}</EditorDetailValue>
+                  </dl>
+                </EditorDetailGroup>
+                <EditorDetailGroup label={translateLiteral('Identity')}>
+                  <dl className="editor-detail-list">
+                    <EditorDetailValue label="Type" dataValue>{placedObject.objectType}</EditorDetailValue>
+                    {placedObject.map ? <EditorDetailValue label="Map" dataValue path>{placedObject.map}</EditorDetailValue> : null}
+                    <EditorDetailValue label="Object ID" dataValue path>{placedObject.objectId}</EditorDetailValue>
+                    {placedObject.scriptId ? <EditorDetailValue label="Link" dataValue path>{placedObject.scriptId}</EditorDetailValue> : null}
+                  </dl>
+                  {layout.identity.length > 0 ? (
+                    <div className="placement-field-list">
+                      {layout.identity.map(field => renderPlacementField(field))}
+                    </div>
+                  ) : null}
+                </EditorDetailGroup>
+              </div>
+            </EditorWorkspaceSection>
+            <EditorWorkspaceSection
+              id="technical"
+              label={translateLiteral('Technical')}
+              invalid={placementDraftSummary.invalidFields.some(change => !dataFieldIds.has(change.field))}
+              modified={placementDraftSummary.changedFields.some(change => !dataFieldIds.has(change.field))}
+            >
+              <div className="placement-technical-layout">
+                {renderGroups(layout.technical)}
+                {layout.arrays.length > 0 || layout.entryFields.length > 0 ? (
+                  <EditorDetailGroup label={translateLiteral('Entries')}>
+                    {layout.entryFields.length > 0 ? (
+                      <div className="placement-field-list">
+                        {layout.entryFields.map(field => renderPlacementField(field))}
+                      </div>
+                    ) : null}
+                    {layout.arrays.length > 0 ? (
+                      <div className="placement-entry-tables">
+                        {layout.arrays.map(array => {
+                          const isReadOnly = array.entries.length > 0 && array.entries.every(({ field }) => field.isReadOnly);
+                          return (
+                            <table className="placement-entry-table" key={array.path}>
+                              <caption>
+                                <strong>{translateLiteral(array.label)}</strong>
+                                {array.count ? <span>{translateLiteral('Count')} {array.count.value}</span> : null}
+                                {isReadOnly ? <span>{translateLiteral('Read-only')}</span> : null}
+                                <ContextHelp label={array.label}>{array.path}</ContextHelp>
+                              </caption>
+                              {array.entries.length ? (
+                                <>
+                                  <thead><tr><th scope="col">{translateLiteral('Index')}</th><th scope="col">{translateLiteral('Value')}</th></tr></thead>
+                                  <tbody>
+                                    {array.entries.map(({ index, field }) => (
+                                      <tr key={field.field}>
+                                        <th scope="row">{index}</th>
+                                        <td>{renderPlacementField(field, {
+                                          label: `${array.label} ${index}`,
+                                          showLabel: false,
+                                          showRaw: true,
+                                          showReadOnlyStatus: !isReadOnly
+                                        })}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </>
+                              ) : null}
+                            </table>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </EditorDetailGroup>
+                ) : null}
+                {layout.arrays.length === 0 && layout.technical.length === 0 && layout.entryFields.length === 0 ? (
+                  <p className="empty-copy">This object has no technical fields.</p>
+                ) : null}
+              </div>
+            </EditorWorkspaceSection>
+          </>
+        ) : null}
+      </SectionedEditorWorkspace>
+      {editSession ? (
+        <EditorSessionBarActions>
+          <button
+            aria-busy={isPlacementUpdating || undefined}
+            className="primary-button"
+            disabled={!canSavePlacementDrafts}
+            onClick={async () => {
+              if (!placedObject || !drafts) {
+                return;
+              }
+
+              const didSave = await onUpdatePlacementObjectFields(
+                placedObject.objectId,
+                placementDraftSummary.changedFields.map((change) => ({
+                  field: change.field,
+                  value: change.value
+                }))
+              );
+              if (didSave) {
+                setDraftsByObjectId((currentDrafts) =>
+                  updateSparseFieldDraftRecordAfterStage(currentDrafts, placedObject.objectId, drafts)
+                );
+              }
+            }}
+            type="button"
+          >
+            <BusyActionContent
+              busyLabel="Staging Changes"
+              icon={<Save aria-hidden="true" size={16} />}
+              isBusy={isPlacementUpdating}
+              label="Stage Changes"
+            />
+          </button>
           {nextPlacementDraftKey !== null ? (
             <button
               className="secondary-button"
@@ -52645,310 +52792,38 @@ function SelectedPlacementPanel({
               {t('editorDrafts.discardUnavailable')}
             </button>
           ) : null}
-        </div>
+          <button
+            className="danger-button"
+            disabled={isPlacementUpdating || isReviewingPlacementDraft}
+            onClick={() => cancelActiveEditSession(() => setDraftsByObjectId({}))}
+            type="button"
+          >
+            <X aria-hidden="true" size={16} />
+            <span>Cancel</span>
+          </button>
+          <span className="draft-action-summary">
+            {placedObject ? `${translateLiteral(formatDraftSummary(placementDraftSummary))} · ` : null}
+            {t('editorDrafts.summary.placement', {
+              count: outstandingPlacementDraftKeys.length
+            })} ·{' '}
+            {t('editorDrafts.summary.unavailable', {
+              count: unavailablePlacementDraftKeys.length
+            })}
+          </span>
+        </EditorSessionBarActions>
       ) : null}
-      <div className="panel-heading">
-        <MapPin aria-hidden="true" size={18} />
-        <h3>Selected Object</h3>
-      </div>
+    </>
+  );
+}
 
-      {isDetailsLoading ? (
-        <LoadingProgress className="is-compact" label={t('placement.loadingDetails')} />
-      ) : null}
-
-      {placedObject ? (
-        <>
-          <dl className="item-provenance-list">
-            <div>
-              <dt>Object</dt>
-              <dd>{formatPlacementObjectDisplayLabel(placedObject)}</dd>
-            </div>
-            <div>
-              <dt>Type</dt>
-              <dd>{placedObject.objectType}</dd>
-            </div>
-            <div>
-              <dt>Map</dt>
-              <dd>{formatPlacementObjectDisplayMap(placedObject)}</dd>
-            </div>
-            <div>
-              <dt>Archive member</dt>
-              <dd>{placedObject.archiveMember}</dd>
-            </div>
-            <div>
-              <dt>Source file</dt>
-              <dd>{placedObject.provenance.sourceFile}</dd>
-            </div>
-            <div>
-              <dt>Layer</dt>
-              <dd>{formatSourceLayer(placedObject.provenance.sourceLayer)}</dd>
-            </div>
-            <div>
-              <dt>File state</dt>
-              <dd>{formatFileState(placedObject.provenance.fileState)}</dd>
-            </div>
-          </dl>
-
-          {placementGroup && placementGroup.objects.length > 1 ? (
-            <PlacementObjectGroupBrowser
-              group={placementGroup}
-              onSelectObject={onSelectObject}
-              selectedObjectId={placedObject.objectId}
-            />
-          ) : null}
-
-          <div className="encounter-edit-form">
-            <dl className="encounter-slot-detail">
-              <div>
-                <dt>{inspectorPrimaryData?.label ?? 'Placement Data'}</dt>
-                <dd>{inspectorPrimaryData?.value ?? 'n/a'}</dd>
-              </div>
-              {inspectorPrimaryData?.isItem ? (
-                <>
-                  <div>
-                    <dt>Quantity</dt>
-                    <dd>{placedObject.quantity}</dd>
-                  </div>
-                  <div>
-                    <dt>Chance</dt>
-                    <dd>{placedObject.chance ?? 'n/a'}</dd>
-                  </div>
-                </>
-              ) : null}
-              <div>
-                <dt>Position</dt>
-                <dd>{formatPlacementCoordinates(placedObject)}</dd>
-              </div>
-              <div>
-                <dt>Link</dt>
-                <dd>{placedObject.scriptId || 'n/a'}</dd>
-              </div>
-            </dl>
-
-            <div className="editable-field-groups placement-field-groups">
-              {placementFieldGroups.map((group) => (
-                <fieldset className="editable-field-group" key={group.group}>
-                  <legend>{group.group}</legend>
-                  <div className="editable-field-grid placement-field-grid">
-                    {group.fields.map((field) => {
-                      const currentValue = getPlacementFieldValue(placedObject, field.field);
-                      const draftValue = drafts[field.field] ?? '';
-                      const draftState = getPlacementDraftState(draftValue, currentValue, field);
-                      const isInvalid =
-                        draftValue.trim() !== '' && draftState.isValid === false;
-                      const isChanged = draftState.canSubmit;
-                      const fieldOptions = field.options ?? [];
-                      const isFieldReadOnly = field.isReadOnly;
-                      const isTextLikePlacementField =
-                        field.valueKind === 'text' ||
-                        field.valueKind === 'string' ||
-                        field.valueKind === 'hash' ||
-                        field.valueKind === 'boolean';
-                      const resolvedDisplayHint =
-                        field.displayValue &&
-                        field.displayValue !== field.value &&
-                        !isChanged &&
-                        !isInvalid
-                          ? field.displayValue
-                          : null;
-                      const statusText = isInvalid
-                        ? getPlacementFieldErrorText(field)
-                        : isChanged
-                          ? 'Changed'
-                          : isFieldReadOnly
-                            ? 'Read-only'
-                            : resolvedDisplayHint;
-                      const localizedPlacementFieldLabel = translateLiteral(field.label);
-                      const localizedFieldHelpText = field.description
-                        ? translateLiteral(field.description)
-                        : getEditableFieldHelp(field, t, {
-                            domain: 'placement',
-                            game: editorFamily,
-                            label: localizedPlacementFieldLabel
-                          });
-                      const localizedFieldHoverText = isFieldReadOnly
-                        ? translateLiteral(
-                            field.description ||
-                              'This Placement field is visible but not editable yet.'
-                          )
-                        : field.description
-                          ? translateLiteral(field.description)
-                          : getEditableFieldHoverHelp(field, t, {
-                              domain: 'placement',
-                              game: editorFamily,
-                              label: localizedPlacementFieldLabel
-                            });
-
-                      return (
-                        <div
-                          className={`path-field editable-field-control ${
-                            isChanged ? 'editable-field-changed' : ''
-                          } ${isInvalid ? 'editable-field-invalid' : ''} ${
-                            isFieldReadOnly ? 'editable-field-disabled placement-read-only-field' : ''
-                          }`}
-                          key={field.field}
-                        >
-                          <FieldLabel
-                            help={localizedFieldHelpText}
-                            htmlFor={`placement-field-${field.field}`}
-                            label={localizedPlacementFieldLabel}
-                          />
-                          {isFieldReadOnly ? (
-                            <HoverTooltip content={localizedFieldHoverText}>
-                              <input
-                                aria-label={translateLiteral(field.label)}
-                                disabled
-                                id={`placement-field-${field.field}`}
-                                type="text"
-                                value={translateLiteral(field.displayValue || field.value)}
-                              />
-                            </HoverTooltip>
-                          ) : fieldOptions.length > 0 ? (
-                            <SearchableOptionInput
-                              ariaLabel={field.label}
-                              disabled={
-                                !canEditPlacement ||
-                                editSession === null ||
-                                isFieldReadOnly
-                              }
-                              id={`placement-field-${field.field}`}
-                              onChange={(value) =>
-                                handlePlacementDraftChange(field, value)
-                              }
-                              options={addDraftFallbackOption(
-                                fieldOptions,
-                                draftValue,
-                                `${field.label} ${draftValue}`
-                              )}
-                              value={draftValue}
-                            />
-                          ) : (
-                            <HoverTooltip content={localizedFieldHoverText}>
-                              <input
-                                aria-label={translateLiteral(field.label)}
-                                disabled={
-                                  !canEditPlacement ||
-                                  editSession === null ||
-                                  isFieldReadOnly
-                                }
-                                id={`placement-field-${field.field}`}
-                                onChange={(event) =>
-                                  handlePlacementDraftChange(field, event.target.value)
-                                }
-                                step={field.valueKind === 'integer' ? 1 : 'any'}
-                                max={isTextLikePlacementField ? undefined : field.maximumValue}
-                                min={isTextLikePlacementField ? undefined : field.minimumValue}
-                                type={isTextLikePlacementField ? 'text' : 'number'}
-                                value={draftValue}
-                              />
-                            </HoverTooltip>
-                          )}
-                          {statusText ? (
-                            <small
-                              className={
-                                isInvalid ? 'editable-field-error' : 'editable-field-status'
-                              }
-                            >
-                              {translateLiteral(statusText)}
-                            </small>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-              ))}
-            </div>
-            {editSession ? (
-              <EditorSessionBarActions>
-                <button
-                  aria-busy={isPlacementUpdating || undefined}
-                  className="primary-button"
-                  disabled={!canSavePlacementDrafts}
-                  onClick={async () => {
-                    if (!placedObject) {
-                      return;
-                    }
-
-                    const submittedDraft = { ...drafts };
-                    const didSave = await onUpdatePlacementObjectFields(
-                      placedObject.objectId,
-                      placementDraftSummary.changedFields.map((change) => ({
-                        field: change.field,
-                        value: change.value
-                      }))
-                    );
-                    if (didSave) {
-                      setDraftsByObjectId((currentDrafts) =>
-                        clearSubmittedKeyedEditorDraft(
-                          currentDrafts,
-                          placedObject.objectId,
-                          submittedDraft,
-                          areFieldDraftsEqual
-                        )
-                      );
-                    }
-                  }}
-                  type="button"
-                >
-                  <BusyActionContent
-                    busyLabel="Staging Changes"
-                    icon={<Save aria-hidden="true" size={16} />}
-                    isBusy={isPlacementUpdating}
-                    label="Stage Changes"
-                  />
-                </button>
-                {nextPlacementDraftKey !== null ? (
-                  <button
-                    className="secondary-button"
-                    disabled={
-                      isPlacementUpdating ||
-                      isDetailsLoading ||
-                      isReviewingPlacementDraft
-                    }
-                    onClick={() => void reviewNextPlacementDraft()}
-                    type="button"
-                  >
-                    {t('editorDrafts.reviewNext')}
-                  </button>
-                ) : null}
-                {unavailablePlacementDraftKeys.length > 0 ? (
-                  <button
-                    className="danger-button"
-                    disabled={isPlacementUpdating || isReviewingPlacementDraft}
-                    onClick={discardUnavailablePlacementDrafts}
-                    type="button"
-                  >
-                    {t('editorDrafts.discardUnavailable')}
-                  </button>
-                ) : null}
-                <button
-                  className="danger-button"
-                  disabled={isPlacementUpdating || isReviewingPlacementDraft}
-                  onClick={() => cancelActiveEditSession(() => setDraftsByObjectId({}))}
-                  type="button"
-                >
-                  <X aria-hidden="true" size={16} />
-                  <span>Cancel</span>
-                </button>
-                <span className="draft-action-summary">
-                  {formatDraftSummary(placementDraftSummary)};{' '}
-                  {t('editorDrafts.summary.placement', {
-                    count: outstandingPlacementDraftKeys.length
-                  })};{' '}
-                  {t('editorDrafts.summary.unavailable', {
-                    count: unavailablePlacementDraftKeys.length
-                  })}
-                </span>
-              </EditorSessionBarActions>
-            ) : null}
-
-          </div>
-        </>
-      ) : (
-        <p className="empty-copy">No placement object selected.</p>
-      )}
-    </aside>
+function PlacementRecordStatus({ isStaged, isUnstaged }: { isStaged: boolean; isUnstaged: boolean }) {
+  const { translateLiteral } = useLocalization();
+  if (!isStaged && !isUnstaged) return null;
+  return (
+    <span className="placement-record-status">
+      {isUnstaged ? <span data-state="unstaged">{translateLiteral('Unstaged')}</span> : null}
+      {isStaged ? <span data-state="staged">{translateLiteral('Staged')}</span> : null}
+    </span>
   );
 }
 
@@ -58270,6 +58145,7 @@ function SettingsSection({
           ]}
         />
           </div>
+          <ArtworkSettingsPanel />
         </div>
       ) : null}
 
@@ -59616,9 +59492,10 @@ function formatEvolutionFormReference(
   speciesLabels: ReadonlyMap<number, string>,
   speciesId: number,
   form: number,
-  gameFamily: EditorUiFamily = 'swsh'
+  gameFamily: EditorUiFamily,
+  pokemonRecords: readonly PokemonRecord[]
 ) {
-  return createEvolutionFormOptions(speciesId, speciesLabels, form.toString(), gameFamily).find(
+  return createEvolutionFormOptions(speciesId, speciesLabels, form.toString(), gameFamily, pokemonRecords).find(
     (option) => option.value === form
   )?.label ?? `Form ${form}`;
 }
@@ -59627,15 +59504,22 @@ function createEvolutionFormOptions(
   speciesId: number | null,
   speciesLabels: ReadonlyMap<number, string>,
   draftValue: string,
-  gameFamily: EditorUiFamily = 'swsh'
+  gameFamily: EditorUiFamily = 'swsh',
+  pokemonRecords: readonly PokemonRecord[] = []
 ): EditableFieldOption[] {
   const formValues = new Set<number>([0]);
   const parsedDraft = Number.parseInt(draftValue, 10);
   const maximumForm = getPokemonEvolutionMaximumForm(gameFamily);
 
   const context = createEvolutionFormOptionContext(speciesId, speciesLabels, gameFamily);
+  const projectLabels = speciesId === null
+    ? new Map<number, string>()
+    : getProjectEvolutionFormLabels(speciesId, gameFamily, pokemonRecords, maximumForm);
   if (context !== null) {
     addKnownSpeciesFormValues(context, formValues);
+    for (const form of projectLabels.keys()) {
+      formValues.add(form);
+    }
     if (
       Number.isInteger(parsedDraft) &&
       parsedDraft >= 0 &&
@@ -59653,9 +59537,72 @@ function createEvolutionFormOptions(
   return [...formValues]
     .sort((left, right) => left - right)
     .map((form) => ({
-      label: context === null ? (form === 0 ? 'Base' : `Form ${form}`) : formatSpeciesFormOptionLabel(form, context),
+      label: context === null
+        ? (form === 0 ? 'Base' : `Form ${form}`)
+        : formatSpeciesFormOptionLabel(form, context, projectLabels.get(form)),
       value: form
     }));
+}
+
+function resolveEvolutionSpeciesChangeForm({
+  gameFamily,
+  pokemonRecords,
+  previousForm,
+  sourceForm,
+  sourceSpeciesId,
+  speciesLabels,
+  targetSpeciesId
+}: {
+  gameFamily: EditorUiFamily;
+  pokemonRecords: readonly PokemonRecord[];
+  previousForm: number;
+  sourceForm: number;
+  sourceSpeciesId: number | null;
+  speciesLabels: ReadonlyMap<number, string>;
+  targetSpeciesId: number;
+}) {
+  const formOptions = createEvolutionFormOptions(targetSpeciesId, speciesLabels, '', gameFamily, pokemonRecords);
+  return resolveSpeciesChangeForm({
+    gameFamily,
+    previousForm,
+    sourceForm,
+    sourceSpeciesId,
+    speciesField: { options: [{ value: targetSpeciesId, formOptions }] },
+    targetSpeciesId
+  });
+}
+
+function getProjectEvolutionFormLabels(
+  speciesId: number,
+  gameFamily: EditorUiFamily,
+  pokemonRecords: readonly PokemonRecord[],
+  maximumForm: number
+): Map<number, string> {
+  const speciesRecords = pokemonRecords.filter(record => record.speciesId === speciesId);
+  if (gameFamily !== 'swsh') {
+    return new Map(speciesRecords
+      .filter(record => record.personal.isPresentInGame && record.form >= 0 && record.form <= maximumForm)
+      .map(record => [record.form, record.formLabel]));
+  }
+
+  const base = findSwShPokemonFormRecord(speciesRecords, speciesId, 0);
+  const recordsByPersonalId = new Map(speciesRecords.map(record => [record.personalId, record]));
+  const labels = new Map<number, string>();
+  const formCount = Math.max(1, base?.personal.formCount ?? 0);
+  // Sword and Shield stores evolution form IDs as offsets in the base species' personal range.
+  for (let form = 0; form < formCount && form <= maximumForm; form++) {
+    if (form > 0 && base?.personal.formStatsIndex === 0 && base.personal.isPresentInGame) {
+      // Cosmetic forms can share the base personal record.
+      labels.set(form, '');
+      continue;
+    }
+    const personalId = getSwShPokemonFormPersonalId(speciesId, form, base);
+    const record = personalId === null ? undefined : recordsByPersonalId.get(personalId);
+    if (record?.personal.isPresentInGame) {
+      labels.set(form, record.formLabel);
+    }
+  }
+  return labels;
 }
 
 function createPokemonEvolutionDraftFields(
@@ -60111,7 +60058,26 @@ function createDraftSpeciesFormOptionContext(
   };
 }
 
-function createTrainerPokemonAbilityOptions(pokemon: PokemonRecord): EditableFieldOption[] {
+function createTrainerPokemonAbilityOptions(
+  pokemon: PokemonRecord,
+  editorFamily: EditorUiFamily = 'swsh'
+): EditableFieldOption[] {
+  if (editorFamily === 'sv' || editorFamily === 'za') {
+    const { ability1Label, ability2Label, hiddenAbilityLabel } = pokemon.abilities;
+    const formatSlot = (label: string, slot: string) => label && label !== slot ? `${label} (${slot})` : slot;
+    const options = [
+      { value: 0, label: 'Random 1/2' },
+      { value: 1, label: 'Random 1/2/Hidden' },
+      { value: 2, label: formatSlot(ability1Label, 'Ability 1') },
+      { value: 3, label: formatSlot(ability2Label, 'Ability 2') },
+      { value: 4, label: formatSlot(hiddenAbilityLabel, 'Hidden Ability') }
+    ];
+    if (editorFamily === 'za') {
+      options.push({ value: 255, label: 'Game default / random' });
+    }
+    return options;
+  }
+
   const options: EditableFieldOption[] = [];
   if (pokemon.abilities.ability1 > 0) {
     options.push(
@@ -60335,22 +60301,10 @@ function getDefaultEvolutionArgumentDraft(methodOption: PokemonEvolutionMethodOp
   return methodOption.argumentOptions[0]?.value.toString() ?? '0';
 }
 
-function usesEvolutionArgumentSelector(methodOption: PokemonEvolutionMethodOption | null) {
-  return Boolean(
-    methodOption &&
-      methodOption.argumentKind !== 'none' &&
-      methodOption.argumentKind !== 'level' &&
-      methodOption.argumentOptions.length > 0
-  );
-}
-
-function usesEvolutionArgumentNumberInput(methodOption: PokemonEvolutionMethodOption | null) {
-  return Boolean(
-    methodOption &&
-      methodOption.argumentKind !== 'none' &&
-      methodOption.argumentKind !== 'level' &&
-      methodOption.argumentOptions.length === 0
-  );
+function usesSeparateEvolutionArgument(methodOption: PokemonEvolutionMethodOption | null) {
+  return methodOption !== null &&
+    methodOption.argumentKind !== 'none' &&
+    methodOption.argumentKind !== 'level';
 }
 
 function formatEvolutionMethodSummary(evolution: PokemonEvolutionRecord) {
@@ -60358,12 +60312,17 @@ function formatEvolutionMethodSummary(evolution: PokemonEvolutionRecord) {
   return `${evolution.method.toString().padStart(3, '0')} ${methodName}`;
 }
 
-function formatEvolutionArgumentSummary(evolution: PokemonEvolutionRecord) {
-  if (evolution.argumentKind === 'none' || evolution.argumentKind === 'level') {
-    return 'Arg -';
-  }
-
-  return `${evolution.argumentLabel} ${evolution.argumentValue || evolution.argument}`;
+function EvolutionStoredArgument({ value }: { value: string }) {
+  const { t } = useLocalization();
+  return (
+    <details className="evolution-stored-argument">
+      <summary>{t('pokemon.evolutionStoredArgument')}</summary>
+      <div className="evolution-stored-value">
+        <output aria-label={t('pokemon.evolutionStoredArgument')}>{value}</output>
+        <span>{t('pokemon.evolutionStoredArgumentHelp')}</span>
+      </div>
+    </details>
+  );
 }
 
 function filterMoves(
@@ -64887,6 +64846,7 @@ function PokemonSprite({
   speciesId?: number;
   spriteName?: string | null;
 }) {
+  const artworkRevision = useArtworkRevision();
   const urls = useMemo(
     () =>
       getPokemonSpriteUrls(
@@ -64897,9 +64857,10 @@ function PokemonSprite({
           speciesId,
           spriteName
         },
-        preferStatic
+        preferStatic,
+        artworkRevision
       ),
-    [editorFamily, form, name, preferStatic, speciesId, spriteName]
+    [artworkRevision, editorFamily, form, name, preferStatic, speciesId, spriteName]
   );
   const [urlIndex, setUrlIndex] = useState(0);
 
@@ -64931,28 +64892,23 @@ type PokemonSpriteIdentity = {
   spriteName?: string | null;
 };
 
-function getPokemonSpriteUrls(identity: PokemonSpriteIdentity, preferStatic: boolean) {
+function getPokemonSpriteUrls(identity: PokemonSpriteIdentity, preferStatic: boolean, revision: number) {
   const spriteIds = getPokemonSpriteIdsForIdentity(identity);
   if (spriteIds.length === 0) {
     return [];
   }
 
   const localUrls = spriteIds.flatMap((spriteId) => {
-    const localStatic = getPublicAssetUrl(`sprites/gen5/${spriteId}.png`);
+    const localStatic = artworkUrl(`gen5/${spriteId}.png`, revision);
     return preferStatic
       ? [localStatic]
-      : [getPublicAssetUrl(`sprites/ani/${spriteId}.gif`), localStatic];
+      : [artworkUrl(`ani/${spriteId}.gif`, revision), localStatic];
   });
+
   const remoteUrls = spriteIds.map(
     (spriteId) => `https://play.pokemonshowdown.com/sprites/gen5/${spriteId}.png`
   );
   return [...localUrls, ...remoteUrls];
-}
-
-function getPublicAssetUrl(path: string) {
-  const baseUrl = import.meta.env.BASE_URL || '/';
-  const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return `${normalizedBaseUrl}${path.replace(/^\/+/, '')}`;
 }
 
 export function getPokemonSpriteIdsForIdentity(identity: PokemonSpriteIdentity) {
@@ -66754,7 +66710,7 @@ function getPlacementDraftSummary(
   }
 
   for (const field of fields) {
-    if (field.isReadOnly) {
+    if (field.isReadOnly || !Object.hasOwn(drafts, field.field)) {
       continue;
     }
 
@@ -68024,30 +67980,7 @@ function formatMovePower(power: number) {
   return power === 0 ? '-' : power.toString();
 }
 
-function formatMoveInflictDuration(rawInflictCount: number) {
-  const labels: Record<number, string> = {
-    0: 'None',
-    1: 'Permanent',
-    2: 'Turn Count + Switch',
-    3: 'Permanent + Switch',
-    4: 'Turn Count + No Switch'
-  };
 
-  return labels[rawInflictCount] ?? `Raw ${rawInflictCount}`;
-}
-
-function formatMoveActiveFlags(move: MoveRecord) {
-  const activeFlags = move.flags.filter((flag) => flag.enabled);
-
-  if (activeFlags.length === 0) {
-    return '-';
-  }
-
-  return activeFlags
-    .slice(0, 3)
-    .map((flag) => flag.label)
-    .join(', ');
-}
 
 function formatProjectFileLayer(layer: ChangePlan['writes'][number]['sources'][number]['layer']) {
   return {

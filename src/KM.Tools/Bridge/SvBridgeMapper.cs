@@ -1337,7 +1337,8 @@ public static class SvBridgeMapper
         return new MoveProvenanceDto(
             provenance.SourceFile,
             ProjectBridgeMapper.ToDto(provenance.SourceLayer),
-            ProjectBridgeMapper.ToDto(provenance.FileState));
+            ProjectBridgeMapper.ToDto(provenance.FileState),
+            provenance.SourcePath);
     }
 
     private static TextEntryRecordDto ToDto(SvTextEntryRecord entry)
@@ -1496,7 +1497,9 @@ public static class SvBridgeMapper
             provenance.ClassSourceLayer is null ? null : ProjectBridgeMapper.ToDto(provenance.ClassSourceLayer.Value),
             ProjectBridgeMapper.ToDto(provenance.FileState),
             ProjectBridgeMapper.ToDto(provenance.TeamFileState),
-            provenance.ClassFileState is null ? null : ProjectBridgeMapper.ToDto(provenance.ClassFileState.Value));
+            provenance.ClassFileState is null ? null : ProjectBridgeMapper.ToDto(provenance.ClassFileState.Value),
+            provenance.StoragePath,
+            provenance.StoragePath);
     }
 
     private static EncounterTableRecordDto ToDto(SvEncounterTableRecord table)
