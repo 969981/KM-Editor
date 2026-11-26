@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Resolve the reviewed KM Editor portable/upstream app-data convergence.
 
-Only the pinned 2026-11-16 Git merge stages are accepted. Preserve the upstream
+Only the pinned 2026-11-26 Git merge stages are accepted. Preserve the upstream
 performance, diagnostics and unified storage code, plus the fork's portable
 Tauri startup, updater isolation and user-data directory. Unknown conflicts
 must stop synchronization rather than overwriting source.
@@ -11,17 +11,7 @@ import subprocess
 import sys
 
 EXPECTED = {
-    "apps/desktop/src-tauri/src/lib.rs": ("45c8b37d048e8e3be0af844545e3680db1ded722", "e348588eb7b485d13a21389301ea9c48569e940a"),
-    "src/KM.Core/Output/OutputWorkspaceStorage.cs": ("c399be36868bc91bfa6fbb1b156a0e9d85bdb723", "806ba0d0b019b288142f065f3bdad51f78390d1d"),
-    "src/KM.PLA/Caching/PlaCacheManager.cs": ("b2f85fc41ebf11eee7f242ab1e6c3c9942716ff9", "25126c20e6bb3699056637a92dcd74190cf5de69"),
-    "src/KM.SV/Workflows/SvCacheManager.cs": ("19ea84f9836fa444629f0ebe20418df67d1ec438", "16ae20c8c5523da0f3174832c90e1a862863c485"),
-    "src/KM.SwSh/Workflows/SwShCacheManager.cs": ("e56d65e1d7161249b593caa47d5c198ba1fba31b", "44742453f0516de0a8ef7e4cb5679a63d93928a3"),
-    "src/KM.Tools/Application/ChangeSetApplicationService.cs": ("1b31f1d61bf1996505ecc50c97d0aca59e0aea01", "e1999223f96d14aaf526b7f24c019aa9cb932b02"),
-    "src/KM.Tools/Application/ResearchAnnotationApplicationService.cs": ("278773b931d08a77975bd05108e08607b5de1544", "e6cd4ef45cf66c6a345d28c77b26954a6fd76dcf"),
-    "src/KM.Tools/Application/ResearchLabApplicationService.cs": ("c0c8633901cb524067c948362f0feea107b8045e", "2f6a171bf3879b988a00aaf37970605fa6fedfcd"),
-    "src/KM.Tools/Application/WorkspaceDraftApplicationService.cs": ("0392be2e6275475289dfa56d27ed7ba9c11047a5", "7ed9fa26a6904b6e86ed8a7f9d6d1d2cd1f90974"),
-    "src/KM.Tools/Application/WorkspacePersonalStateApplicationService.cs": ("3b091104adc9e680f0fbfd009c8c4652ab210202", "0e2fa0e2c65083d49cdf2712465a3d6b3b1bb3ba"),
-    "src/KM.ZA/Workflows/ZaCacheManager.cs": ("82319d5685fb1397e6b8428687996577bf1065ac", "1bf88e9ab712ced46d91e0255bf3fa569efbbd11"),
+    "apps/desktop/src-tauri/src/lib.rs": ("24907a97c2511cc13f2e3d1ac44c22654004c0fb", "33adab053366a219bb3668a8df98d33a80f583c1"),
 }
 
 def git(*args):
@@ -107,17 +97,18 @@ def main():
         print("Reconciled", path)
     path = "src/KM.Core/Workspace/KmEditorAppData.cs"
     upstream_sha = git("hash-object", path)
-    if upstream_sha != "1345293a389bf0f8203988ef09dcd441e7ee6166":
+    if upstream_sha == "1345293a389bf0f8203988ef09dcd441e7ee6166":
+        current = Path(path).read_text(encoding="utf-8")
+        Path(path).write_text(merge_appdata(current), encoding="utf-8", newline="\n")
+        subprocess.run(["git", "add", "--", path], check=True)
+    elif upstream_sha != "7bf1cfdeaeb1b66e386b9ac792ad1190aa50d783":
         raise RuntimeError(f"Unified upstream app-data resolver changed: {upstream_sha}")
-    current = Path(path).read_text(encoding="utf-8")
-    Path(path).write_text(merge_appdata(current), encoding="utf-8", newline="\n")
-    subprocess.run(["git", "add", "--", path], check=True)
     remaining = subprocess.check_output(
         ["git", "diff", "--name-only", "--diff-filter=U"]
     ).strip()
     if remaining:
         raise RuntimeError(f"Unresolved paths: {remaining.decode()}")
-    print("Merged 11 source conflicts, retained portable data, diagnostics and upstream optimizations.")
+    print("Merged reviewed Rust source conflict, retained portable data, diagnostics and upstream optimizations.")
 
 if __name__ == "__main__":
     try:
